@@ -666,7 +666,7 @@ function setupInterrogation() {
 
     document.getElementById('btn-viz').addEventListener('click', () => {
         if (activeSelection) {
-            const query = `VISUALIZE THIS DATA: "${activeSelection}". Create a Mermaid JS chart (flowchart or pie) representing this structure.`;
+            const query = `VISUALIZE THIS DATA: "${activeSelection}". Create a Mermaid JS chart (flowchart or pie). YOU MUST OUTPUT THE CHART IN A MARKDOWN CODE BLOCK starting with \`\`\`mermaid.`;
             tooltip.style.display = 'none';
 
             // UI Feedback
