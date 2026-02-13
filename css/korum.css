@@ -935,3 +935,151 @@ body.activated .globe-container {
         transform: scale(0.98);
     }
 }
+
+/* =========================================
+   MISSING PRECISION HEADER STYLES (Restored)
+   ========================================= */
+
+.precision-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: rgba(0, 0, 0, 0.4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: 'JetBrains Mono', monospace;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.ph-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ph-model-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #FFF;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-family: 'Outfit', sans-serif;
+}
+
+.ph-role-label {
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.ph-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.interrogate-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #FFF;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.interrogate-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #FFF;
+}
+
+.metric-pill {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    color: #AAA;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metric-pill.time {
+    color: #00FF9D;
+    border-color: rgba(0, 255, 157, 0.2);
+}
+
+.tool-action {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.2s;
+    font-size: 12px;
+}
+
+.tool-action:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: #FFF;
+    transform: translateY(-1px);
+}
+
+.badge-stack {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.status-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.status-badge.truth {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #DDD;
+}
+
+/* =========================================
+   COLOR MATCHING TITLES (User Request)
+   ========================================= */
+
+.agent-card.openai .ph-model-name {
+    color: #10a37f;
+    text-shadow: 0 0 10px rgba(16, 163, 127, 0.4);
+}
+
+.agent-card.anthropic .ph-model-name {
+    color: #d97757;
+    text-shadow: 0 0 10px rgba(217, 119, 87, 0.4);
+}
+
+.agent-card.google .ph-model-name {
+    color: #4285f4;
+    text-shadow: 0 0 10px rgba(66, 133, 244, 0.4);
+}
+
+.agent-card.perplexity .ph-model-name {
+    color: #00bcd4;
+    text-shadow: 0 0 10px rgba(0, 188, 212, 0.4);
+}

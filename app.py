@@ -6,6 +6,14 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 
+# GOOGLE IPv4 FIX: Force IPv4 to prevent socket hangs
+import socket
+_old_getaddrinfo = socket.getaddrinfo
+def _ipv4_only_getaddrinfo(*args, **kwargs):
+    responses = _old_getaddrinfo(*args, **kwargs)
+    return [r for r in responses if r[0] == socket.AF_INET]
+socket.getaddrinfo = _ipv4_only_getaddrinfo
+
 # Initialize
 load_dotenv()
 app = Flask(__name__, static_folder='.', static_url_path='')
@@ -21,25 +29,21 @@ PERPLEXITY_KEY = os.getenv("PERPLEXITY_API_KEY")
 # Initialize Clients lazily or per request to handle potential missing keys gracefully
 try:
     from openai import OpenAI
-    openai_client = OpenAI(api_key=OPENAI_KEY) if OPENAI_KEY else None
+    openai_client = OpenAI(api_key=OPENAI_KEY, timeout=90.0) if OPENAI_KEY else None
 except ImportError:
     openai_client = None
 
 try:
     import anthropic
-    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_KEY) if ANTHROPIC_KEY else None
+    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_KEY, timeout=90.0) if ANTHROPIC_KEY else None
 except ImportError:
     anthropic_client = None
 
 try:
-    import google.generativeai as genai
-    if GOOGLE_KEY:
-        genai.configure(api_key=GOOGLE_KEY)
-        gemini_model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp') 
-    else:
-        gemini_model = None
+    from google import genai
+    google_client = genai.Client(api_key=GOOGLE_KEY) if GOOGLE_KEY else None
 except ImportError:
-    gemini_model = None
+    google_client = None
 
 # --- V1 Council Functions ---
 
@@ -53,29 +57,51 @@ def call_openai_gpt4(prompt, role="strategist"):
                 {"role": "user", "content": prompt}
             ]
         )
+        print(f"✅ OpenAI Success")
         return {"success": True, "response": response.choices[0].message.content, "model": "GPT-4o", "cost": 0.01}
     except Exception as e:
+        print(f"❌ OpenAI Error: {str(e)}")
         return {"success": False, "error": str(e)}
 
 def call_anthropic_claude(prompt, role="architect"):
     if not anthropic_client: return {"success": False, "error": "API Key Missing"}
-    try:
-        message = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=1024,
-            system=f"You are the {role.upper()}. Focus on structure, safety, and implementation details.",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return {"success": True, "response": message.content[0].text, "model": "Claude 3.5 Sonnet", "cost": 0.01}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+
+    # Try models in order of preference
+    models_to_try = [
+        ("claude-sonnet-4-20250514", "Claude Sonnet 4"),
+        ("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet"),
+    ]
+
+    for model_id, display_name in models_to_try:
+        try:
+            message = anthropic_client.messages.create(
+                model=model_id,
+                max_tokens=1024,
+                system=f"You are the {role.upper()}. Focus on structure, safety, and implementation details.",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            print(f"✅ Anthropic Success (Model: {model_id})")
+            return {"success": True, "response": message.content[0].text, "model": display_name, "cost": 0.01}
+        except Exception as e:
+            print(f"⚠️ Model {model_id} failed: {str(e)[:50]}, trying next...")
+            continue
+
+    return {"success": False, "error": "All Claude models failed"}
 
 def call_google_gemini(prompt, role="critic"):
-    if not gemini_model: return {"success": False, "error": "API Key Missing"}
+    if not google_client: return {"success": False, "error": "API Key Missing"}
     try:
-        response = gemini_model.generate_content(f"Role: {role.upper()}. Task: {prompt}")
-        return {"success": True, "response": response.text, "model": "Gemini 2.0 Flash", "cost": 0.00}
+        chosen_model = "gemini-2.0-flash"  # Current stable model
+
+        response = google_client.models.generate_content(
+            model=chosen_model,
+            contents=f"Role: {role.upper()}. Task: {prompt}"
+        )
+
+        print(f"✅ Gemini Success (Model: {chosen_model})")
+        return {"success": True, "response": response.text, "model": chosen_model, "cost": 0.00}
     except Exception as e:
+        print(f"❌ Gemini Error: {str(e)}")
         return {"success": False, "error": str(e)}
 
 def call_perplexity(prompt, role="intel"):
@@ -92,9 +118,12 @@ def call_perplexity(prompt, role="intel"):
         response = requests.post("https://api.perplexity.ai/chat/completions", json=payload, headers=headers)
         data = response.json()
         if "choices" in data:
+            print(f"✅ Perplexity Success")
             return {"success": True, "response": data["choices"][0]["message"]["content"], "model": "Perplexity Sonar", "cost": 0.00}
+        print(f"❌ Perplexity Error: Invalid Response {data}")
         return {"success": False, "error": "Invalid API Response"}
     except Exception as e:
+        print(f"❌ Perplexity Error: {str(e)}")
         return {"success": False, "error": str(e)}
 
 # --- Routes ---
