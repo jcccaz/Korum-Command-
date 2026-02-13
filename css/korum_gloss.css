@@ -1,0 +1,86 @@
+/* Textured Sphere (Div) - HIGH GLOSS UPDATE */
+.sphere-container {
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    /* Base: Richer Black Gradient */
+    background: radial-gradient(circle at 30% 30%, #444 0%, #000 80%);
+
+    /* 
+       Complex Shadow/Glow Stack:
+       1. Inset Shadow (Bottom Right) for depth
+       2. Outer Drop Shadow (White/Taupe) for separation from background
+    */
+    box-shadow:
+        inset -10px -10px 40px rgba(0, 0, 0, 0.9),
+        inset 5px 5px 15px rgba(255, 255, 255, 0.1),
+        /* Ambient top light */
+        0 0 30px rgba(197, 179, 150, 0.1);
+
+    overflow: hidden;
+    transition: box-shadow 0.1s, filter 0.1s;
+}
+
+/* 1. Latitude Lines (Subtle Tech Texture) */
+.sphere-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: repeating-linear-gradient(180deg, transparent 0px, transparent 14px, rgba(255, 255, 255, 0.04) 15px);
+    z-index: 1;
+}
+
+/* 2. Rotating Noise Texture */
+.sphere-texture {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background-image:
+        radial-gradient(rgba(197, 179, 150, 0.4) 1px, transparent 1px),
+        radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    background-size: 24px 24px, 12px 12px;
+    background-position: 0 0, 6px 6px;
+    animation: textureSpin 60s linear infinite;
+    opacity: 0.5;
+    z-index: 2;
+}
+
+/* 3. NEW: The High Gloss Reflection (The "Shiny" Part) */
+/* We need another pseudo-element, but both ::before and ::after are used. */
+/* We will add a child div in HTML for the shine specifically. */
+.sphere-shine {
+    position: absolute;
+    top: 15%;
+    left: 18%;
+    width: 45%;
+    height: 25%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 60%);
+    opacity: 0.6;
+    filter: blur(8px);
+    transform: rotate(-45deg);
+    z-index: 3;
+    pointer-events: none;
+}
+
+/* Animation remains same */
+@keyframes textureSpin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}

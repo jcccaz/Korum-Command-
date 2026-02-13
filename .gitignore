@@ -1,0 +1,33 @@
+# Python Backend (if you add it later)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+.env
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-*
+
+# Logs
+*.log
+logs/
+
+# Node modules (if you add any build tools later)
+node_modules/
+
+# Temporary files
+*.tmp
+.cache/

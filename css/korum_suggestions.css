@@ -1,0 +1,191 @@
+/* SMART SUGGESTION BOX */
+.suggestion-box {
+    background: linear-gradient(145deg, rgba(255, 176, 32, 0.12), rgba(255, 176, 32, 0.05));
+    border: 1px solid rgba(255, 176, 32, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+    animation: slideIn 0.3s ease-out;
+}
+
+.suggestion-box.hidden {
+    display: none;
+}
+
+.suggestion-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.suggestion-icon {
+    font-size: 18px;
+}
+
+.suggestion-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.suggestion-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-tertiary);
+    font-weight: 600;
+}
+
+.suggestion-category {
+    font-size: 13px;
+    color: var(--accent-gold);
+    font-weight: 700;
+}
+
+.suggestion-body {
+    margin-bottom: 10px;
+}
+
+.suggestion-workflow {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.suggestion-workflow strong {
+    color: var(--text-primary);
+}
+
+.suggestion-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.suggestion-btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.suggestion-btn.primary {
+    background: var(--accent-gold);
+    color: #000;
+    border-color: var(--accent-gold);
+}
+
+.suggestion-btn.primary:hover {
+    background: #FFD060;
+    box-shadow: 0 0 15px rgba(255, 176, 32, 0.4);
+}
+
+.suggestion-btn.secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.suggestion-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.suggestion-btn.close {
+    flex: 0 0 auto;
+    width: 32px;
+    background: rgba(255, 0, 0, 0.1);
+    color: #ff6b6b;
+    border-color: rgba(255, 0, 0, 0.2);
+}
+
+.suggestion-btn.close:hover {
+    background: rgba(255, 0, 0, 0.2);
+}
+
+/* ROLE CUSTOMIZATION PANEL */
+.role-customization {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+    animation: slideIn 0.3s ease-out;
+}
+
+.role-customization.hidden {
+    display: none;
+}
+
+.role-custom-header {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent-gold);
+    font-weight: 700;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 176, 32, 0.2);
+    padding-bottom: 8px;
+}
+
+.role-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.role-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.role-item label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.role-select {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 8px;
+    color: #FFF;
+    font-size: 11px;
+    font-family: var(--font-body);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+}
+
+.role-select:hover {
+    border-color: var(--accent-gold);
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.role-select:focus {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

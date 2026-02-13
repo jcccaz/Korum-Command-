@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KORUM-OS | Decision Intelligence</title>
+    <link rel="stylesheet" href="css/korum.css">
+    <link rel="stylesheet" href="css/korum_suggestions.css">
+    <link rel="stylesheet" href="css/korum_modal.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="screen-container">
+        <nav class="top-bar">
+            <!-- UPDATED: KORUM-OS LOGO -->
+            <div class="logo">KORUM-OS</div>
+
+            <!-- Workflow Selector -->
+            <div class="nav-links">
+                <a href="#" class="active" data-role="War Room">War Room</a>
+                <a href="#" data-role="Deep Research">Research</a>
+                <a href="#" data-role="Creative Council">Creative</a>
+                <a href="#" data-role="Code Audit">Audit</a>
+                <a href="#" data-role="System Core">System</a>
+            </div>
+
+            <div class="nav-right">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </div>
+        </nav>
+
+        <main class="dashboard-grid">
+
+            <!-- LEFT PANEL: INPUT MODULE -->
+            <section class="panel left-panel">
+                <div class="panel-header">
+                    <h1>Decision Intelligence</h1>
+                    <p class="subtitle">Autonomous Neural Council</p>
+                </div>
+
+                <!-- System Status Indicators -->
+                <div class="system-status">
+                    <div class="status-row">
+                        <span>System Status</span>
+                        <span class="status-val" style="color:#00FF9D; text-shadow:0 0 8px rgba(0,255,157,0.4);">
+                            <span class="status-dot online"></span>ONLINE
+                        </span>
+                    </div>
+                    <div class="status-row">
+                        <span>Active Protocol</span>
+                        <span id="system-status-val" class="status-val">STANDBY</span>
+                    </div>
+                    <div class="status-row">
+                        <span>Neural Link</span>
+                        <span class="status-val">STABLE (12ms)</span>
+                    </div>
+                </div>
+
+                <div class="control-stack" style="height: 100%; display: flex; flex-direction: column;">
+                    <div class="input-module">
+                        <div class="input-wrapper" style="position: relative;">
+                            <textarea class="glass-textarea" id="queryInput"
+                                placeholder="Enter strategic query regarding target vectors..."></textarea>
+                            <button id="clearInputBtn" class="clear-btn" title="Clear Input">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path
+                                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                                    </path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- SMART SUGGESTION BOX -->
+                        <div class="suggestion-box hidden" id="suggestionBox">
+                            <div class="suggestion-header">
+                                <span class="suggestion-icon">🎯</span>
+                                <div class="suggestion-text">
+                                    <span class="suggestion-label">Detected: </span>
+                                    <span class="suggestion-category" id="detectedCategory">Analyzing...</span>
+                                </div>
+                            </div>
+                            <div class="suggestion-body">
+                                <p class="suggestion-workflow">💡 Recommended: <strong id="suggestedWorkflow">War
+                                        Room</strong></p>
+                            </div>
+                            <div class="suggestion-actions">
+                                <button class="suggestion-btn primary" id="useSuggestedBtn">✓ Use Suggested</button>
+                                <button class="suggestion-btn secondary" id="customizeBtn">⚙️ Customize Roles</button>
+                                <button class="suggestion-btn close" id="dismissSuggestionBtn">✕</button>
+                            </div>
+                        </div>
+
+                        <!-- ROLE CUSTOMIZATION PANEL -->
+                        <div class="role-customization hidden" id="roleCustomization">
+                            <div class="role-custom-header"
+                                style="display:flex; justify-content:space-between; align-items:center;">
+                                <span>🎭 Customize Council Roles</span>
+                                <button id="rotateRolesBtn" title="Rotate Roles"
+                                    style="background:none; border:none; cursor:pointer; color:#00FF9D; font-size:16px;">
+                                    🔄
+                                </button>
+                            </div>
+                            <div class="role-grid">
+                                <div class="role-item">
+                                    <label>GPT-4o:</label>
+                                    <select class="role-select" id="roleSelectOpenAI">
+                                        <option value="strategist">🎯 Strategist</option>
+                                        <option value="analyst">📊 Analyst</option>
+                                        <option value="writer">✍️ Writer</option>
+                                        <option value="architect">🏗️ Architect</option>
+                                        <option value="visionary">🔮 Visionary</option>
+                                    </select>
+                                </div>
+                                <div class="role-item">
+                                    <select class="role-select" id="roleSelectAnthropic">
+                                        <option value="containment">🛡️ Containment</option>
+                                        <option value="researcher">🔬 Researcher</option>
+                                        <option value="innovator">💡 Innovator</option>
+                                        <option value="integrity">⚖️ Integrity</option>
+                                        <option value="architect">🏗️ Architect</option>
+                                    </select>
+                                </div>
+                                <div class="role-item">
+                                    <label>Gemini:</label>
+                                    <select class="role-select" id="roleSelectGoogle">
+                                        <option value="takeover">⚡ Takeover</option>
+                                        <option value="historian">📚 Historian</option>
+                                        <option value="marketing">📢 Marketing</option>
+                                        <option value="hacker">🔓 Hacker</option>
+                                        <option value="critic">🎯 Critic</option>
+                                    </select>
+                                </div>
+                                <div class="role-item">
+                                    <label>Perplexity:</label>
+                                    <select class="role-select" id="roleSelectPerplexity">
+                                        <option value="scout">🔍 Scout</option>
+                                        <option value="social">💬 Social</option>
+                                        <option value="optimizer">⚙️ Optimizer</option>
+                                        <option value="researcher">🔬 Researcher</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="logic-toggle"
+                            style="margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                            <span style="font-size: 12px; color: #888;">STANDARD</span>
+                            <label class="switch">
+                                <input type="checkbox" id="v2Toggle">
+                                <span class="slider round"></span>
+                            </label>
+                            <span
+                                style="font-size: 12px; color: #00FF9D; text-shadow: 0 0 5px rgba(0,255,157,0.5);">FUNCTIONAL
+                                (V2)</span>
+
+                            <!-- HACKER MODE TOGGLE -->
+                            <div style="margin-left: 20px; display: flex; align-items: center; gap: 10px;">
+                                <label class="switch">
+                                    <input type="checkbox" id="hackerToggle">
+                                    <span class="slider round" style="background-color: #333;"></span>
+                                </label>
+                                <span
+                                    style="font-size: 12px; color: #FF4444; text-shadow: 0 0 5px rgba(255, 68, 68, 0.5);">RED
+                                    TEAM (EXPLOIT)</span>
+                            </div>
+                        </div>
+
+                        <button class="btn-primary trigger-scan">
+                            Convene Council
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CENTER PANEL: VISUALIZATION -->
+            <section class="panel center-panel">
+                <div class="globe-container">
+                    <div class="globe">
+                        <svg id="lightning-layer" viewBox="0 0 500 500"
+                            style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:4; pointer-events:none;"></svg>
+
+                        <!-- SVG Rings -->
+                        <svg viewBox="0 0 500 500" width="100%" height="100%"
+                            style="position: absolute; top:0; left:0; z-index: 1;">
+                            <circle cx="250" cy="250" r="220" class="orbit" />
+                            <circle cx="250" cy="250" r="180" class="orbit-secondary" />
+                        </svg>
+
+                        <!-- High Gloss Sphere -->
+                        <div class="sphere-container">
+                            <div class="sphere-texture"></div>
+                            <div class="sphere-shine"></div>
+                        </div>
+
+                        <!-- Orbiting Nodes -->
+                        <div class="orbit-nodes">
+                            <div class="node gpt" data-model-key="openai" data-label="GPT-4o" title="GPT-4o"></div>
+                            <div class="node claude" data-model-key="anthropic" data-label="Claude" title="Claude 3.5">
+                            </div>
+                            <div class="node gemini" data-model-key="google" data-label="Gemini" title="Gemini Pro">
+                            </div>
+                            <div class="node perplexity" data-model-key="perplexity" data-label="Perplexity"
+                                title="Perplexity"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT PANEL: TELEMETRY -->
+            <section class="panel right-panel">
+                <h2>Neural Telemetry</h2>
+                <div class="telemetry-feed" id="telemetry-feed">
+                    <!-- Logs injected by JS -->
+                    <div class="log-entry system"><span class="timestamp">00:00:00</span> System Initialized...</div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- RESULTS PANEL -->
+        <div class="results-container">
+            <div class="results-header">
+                <h3>Analysis Output</h3>
+                <span class="close-results">✕</span>
+            </div>
+            <div class="results-content"></div>
+
+            <!-- COMMAND CONSOLE -->
+            <div class="command-console" id="commandConsole" style="display:none;">
+                <div class="console-header">
+                    <span class="console-status">COMMAND LINK: ACTIVE</span>
+                    <span class="console-target" id="consoleTarget">TARGET: ALL</span>
+                </div>
+                <div class="console-input-wrapper">
+                    <span class="console-prompt">></span>
+                    <input type="text" id="consoleInput" placeholder="Enter tactical command or interrogation query..."
+                        autocomplete="off">
+                    <button id="consoleSubmitBtn" onclick="submitConsoleCommand()">EXECUTE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- INTERROGATION TOOLTIP -->
+    <div id="interrogation-tooltip" class="interrogation-tooltip"
+        style="display:none; position:absolute; z-index:1000;">
+        <button id="btn-challenge" onclick="challengeSelection()">⚠️ CHALLENGE</button>
+        <button id="btn-visualize-select" onclick="visualizeSelection()">📊 VISUALIZE</button>
+    </div>
+
+    <!-- CARD EXPANSION MODAL -->
+    <div class="card-modal-overlay" id="cardModal">
+        <div class="card-modal">
+            <button class="modal-close-btn" id="closeModal">✕</button>
+            <div class="modal-card-header">
+                <div class="modal-card-title" id="modalTitle">Loading...</div>
+                <div class="modal-card-meta" id="modalMeta"></div>
+            </div>
+            <div class="modal-card-content" id="modalContent"></div>
+            <div class="modal-actions">
+                <button class="modal-action-btn copy" id="modalCopyBtn">
+                    <span>📋</span> Copy Response
+                </button>
+                <button class="modal-action-btn visualize" id="modalVisualizeBtn">
+                    <span>📊</span> Visualize Data
+                </button>
+                <button class="modal-action-btn download" id="modalDownloadBtn">
+                    <span>💾</span> Download
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recall Button -->
+    <button id="recallAnalysisBtn" class="recall-btn">SHOW ANALYSIS</button>
+
+    <!-- SCRIPTS -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({ startOnLoad: false, theme: 'dark' });</script>
+    <script src="js/korum.js"></script>
+</body>
+
+</html>

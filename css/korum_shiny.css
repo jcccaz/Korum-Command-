@@ -1,0 +1,66 @@
+/* SHINY GLASS PANEL UPDATE */
+.panel {
+    /* Lighter, glossier base */
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+    backdrop-filter: blur(20px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    /* Inner highlight for "thick glass" look */
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        0 10px 30px rgba(0, 0, 0, 0.2);
+
+    transition: all 0.3s;
+}
+
+/* Hover effect for panels - interactive glass */
+.panel:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        0 15px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* INPUT MODULE - Bright Glass */
+.input-module {
+    background: rgba(255, 255, 255, 0.05);
+    /* Lighter than before */
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.glass-textarea {
+    background: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #FFF;
+    font-weight: 500;
+}
+
+.glass-textarea:focus {
+    background: rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+/* TOP NAV LINKS - Now "Workflow Selector" style */
+.nav-links {
+    gap: 8px;
+    /* Tighter gap */
+}
+
+.nav-links a {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 8px 16px;
+    border-radius: 100px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    font-size: 11px;
+    margin: 0;
+    /* Remove default margin */
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+    background: var(--text-primary);
+    color: #000;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+    border-color: #FFF;
+}

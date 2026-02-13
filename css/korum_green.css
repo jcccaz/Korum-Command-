@@ -1,0 +1,45 @@
+/* UPDATE: WIDER PANEL + GREEN GLOW + ANIMATION FIX */
+
+/* 1. WIDER LEFT PANEL */
+.dashboard-grid {
+    /* Previously 320px 1fr 300px -> Now 380px (Wider Left) */
+    grid-template-columns: 400px 1fr 300px;
+    gap: 24px;
+}
+
+/* 2. GREEN GLOW for Textarea */
+.glass-textarea {
+    border: 1px solid rgba(0, 255, 157, 0.3);
+    /* Subtle Green Base */
+    box-shadow: 0 0 10px rgba(0, 255, 157, 0.05);
+}
+
+.glass-textarea:focus {
+    border-color: #00FF9D;
+    /* Bright Green Focus */
+    box-shadow: 0 0 20px rgba(0, 255, 157, 0.2);
+}
+
+/* 3. ANIMATION FIX (Z-Index & Visibility) */
+#lightning-layer {
+    z-index: 10 !important;
+    /* Ensure on top of sphere base but below UI */
+    pointer-events: none;
+    overflow: visible;
+    /* Allow bolts to go outside slightly */
+}
+
+.lightning-path {
+    filter: drop-shadow(0 0 5px #FFF);
+    stroke-linecap: round;
+}
+
+/* 4. RESULTS "UNDER" (Bottom Sheet style, non-intrusive) */
+.results-container {
+    height: 45%;
+    /* Less height, just the bottom area */
+    background: rgba(10, 10, 10, 0.95);
+    border-top: 2px solid #00FF9D;
+    /* Match Green Theme */
+    box-shadow: 0 -10px 50px rgba(0, 0, 0, 0.8);
+}

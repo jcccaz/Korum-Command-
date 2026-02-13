@@ -1,0 +1,48 @@
+/* WORKFLOW SELECTOR STYLES */
+.workflow-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+    /* Scrollable if many roles */
+    padding-bottom: 4px;
+}
+
+/* Hide scrollbar */
+.workflow-selector::-webkit-scrollbar {
+    height: 4px;
+}
+
+.workflow-selector::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.role-pill {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 6px 12px;
+    border-radius: 100px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.role-pill:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.role-pill.active {
+    background: var(--text-primary);
+    color: #101010;
+    /* Inverted for contrast */
+    border-color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+}

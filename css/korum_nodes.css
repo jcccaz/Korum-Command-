@@ -1,0 +1,122 @@
+/* Brand Colors & Node Styling */
+.node.gpt {
+    --node-color: #10a37f;
+}
+
+/* OpenAI Green */
+.node.claude {
+    --node-color: #d97757;
+}
+
+/* Anthropic Orange */
+.node.gemini {
+    --node-color: #4285f4;
+}
+
+/* Google Blue */
+.node.perplexity {
+    --node-color: #00bcd4;
+}
+
+/* Perplexity Cyan */
+
+/* Node Appearance */
+.node {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: #222;
+    /* Default off state */
+    border: 2px solid var(--text-tertiary);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    z-index: 20;
+}
+
+/* Hover State */
+.node:hover {
+    transform: translate(-50%, -50%) scale(1.3);
+    border-color: #FFF;
+}
+
+/* Active/Selected State (User clicked it) */
+.node.selected {
+    background: var(--node-color);
+    border-color: #FFF;
+    box-shadow: 0 0 15px var(--node-color);
+}
+
+/* Labels */
+.node::after {
+    content: attr(data-label);
+    position: absolute;
+    top: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    opacity: 0.7;
+    transition: all 0.3s;
+    white-space: nowrap;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.node.selected::after {
+    color: #FFF;
+    opacity: 1;
+    top: -28px;
+}
+
+/* THE ENERGY BEAM (Simulated Lightning) */
+/* We position a pseudo-element from the node reaching back to center (0,0) of the container */
+.node::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 50%;
+    /* Starts at node center, goes left towards container center */
+    width: 220px;
+    /* Exact radius distance */
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--node-color) 50%, #FFF 100%);
+    transform-origin: right center;
+    /* Pivot at the node */
+    transform: rotate(var(--angle-offset, 0deg));
+    /* We might need to rotate it to point to center? Actually if radius is fixed X/Y, straightforward geometry is tricky without rotation. */
+
+    /* 
+       BETTER APPROACH For Beams:
+       The "beam" should probably be a separate element in the DOM or SVG line.
+       CSS-only beam from a translated div is hard to aim at 0,0 without knowing the angle.
+       
+       Wait! 
+       If the container spins, the nodes are fixed relative to container.
+       But the nodes are positioned via `translate(x, y)`.
+       The angle IS known in JS.
+       I will set `--angle` variable on the node in JS.
+    */
+    width: 0px;
+    /* Start hidden */
+    opacity: 0;
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s;
+    z-index: -1;
+    box-shadow: 0 0 8px var(--node-color);
+}
+
+/* When Energized (Answering) */
+.node.energized::before {
+    /* We'll set the exact width (radius) in JS or CSS variable */
+    width: 220px !important;
+    opacity: 1;
+}
+
+/* Pulse animation for the beam */
+.node.energized {
+    animation: pulseNode 0.5s infinite alternate;
+}

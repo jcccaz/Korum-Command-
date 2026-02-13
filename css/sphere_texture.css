@@ -1,0 +1,61 @@
+/* Textured Sphere Update */
+.sphere {
+    /* Base: Deep Black Radial */
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #444 0%, #000 70%);
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset -10px -10px 40px rgba(0, 0, 0, 1), 0 0 20px rgba(255, 255, 255, 0.05);
+}
+
+/* 1. Subtle Grid / Latitude Lines */
+.sphere::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 50%;
+    /* Thin horizontal lines simulating latitude */
+    background: repeating-linear-gradient(0deg,
+            transparent 0px,
+            transparent 19px,
+            rgba(255, 255, 255, 0.03) 20px);
+    opacity: 0.8;
+}
+
+/* 2. Rotating Noise / Data Texture */
+.sphere::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    /* Speckled noise texture */
+    background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+    background-size: 10px 10px;
+    opacity: 0.3;
+    animation: textureSpin 40s linear infinite;
+    transform-origin: center;
+}
+
+@keyframes textureSpin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Remove SVG fill since we are using CSS div styling for texture now */
+svg .sphere {
+    fill: none;
+}
+
+/* Actually, for SVG, we need to apply this to a foreignObject or just use a DIV inside the container over the SVG. 
+   Better approach: Restore the HTML to use a DIV for the sphere so we can use CSS gradients easily.
+*/
