@@ -2,9 +2,12 @@ import os
 import json
 import requests
 import concurrent.futures
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
+
+# Initialize early
+load_dotenv()
 
 # GOOGLE IPv4 FIX: Force IPv4 to prevent socket hangs
 import socket
@@ -14,10 +17,46 @@ def _ipv4_only_getaddrinfo(*args, **kwargs):
     return [r for r in responses if r[0] == socket.AF_INET]
 socket.getaddrinfo = _ipv4_only_getaddrinfo
 
-# Initialize
-load_dotenv()
+# Flask App Init - MUST be before any @app.route decorators
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
+
+# Import Generator
+from engine_v2 import execute_council_v2, generate_presentation_preview, generate_pptx_file
+
+@app.route('/api/generate_preview', methods=['POST'])
+def generate_preview():
+    # ... (existing code) ...
+    data = request.json
+    synthesis = data.get('synthesis')
+    classification = data.get('classification')
+    artifact_type = data.get('type')
+    
+    if not synthesis: return jsonify({"error": "Missing synthesis data"}), 400
+        
+    print(f"🎨 Generating Artifact Preview: {artifact_type.upper()}")
+    
+    if artifact_type == 'presentation':
+        preview = generate_presentation_preview(synthesis, classification)
+        return jsonify(preview)
+    return jsonify({"error": "Type not supported yet"}), 501
+
+@app.route('/api/generate_artifact', methods=['POST'])
+def generate_artifact():
+    data = request.json
+    artifact_type = data.get('type')
+    preview_data = data.get('preview')
+    
+    if not preview_data: return jsonify({"error": "Missing preview data"}), 400
+
+    print(f"🔨 Building Final Artifact: {artifact_type.upper()}")
+    
+    if artifact_type == 'presentation':
+        filename = generate_pptx_file(preview_data)
+        filepath = os.path.join(os.getcwd(), filename)
+        return send_file(filepath, as_attachment=True, download_name=filename)
+    
+    return jsonify({"error": "Artifact type not supported"}), 501
 
 # --- Configuration ---
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
@@ -148,23 +187,62 @@ def ask_council():
     
     # Map roles to functions
     futures = {}
-    results = {}
+    # V2 LOGIC BRANCH
+    use_v2 = data.get('use_v2', False)
+    is_red_team = data.get('is_red_team', False)
+
+    if use_v2:
+        print(f"⚡ V2 ENGINE ENGAGED for query: {query}")
+        # V2 Engine handles sequence and synthesis
+        # We pass roles to let the user's "persona" choice influence the planner
+        v2_response = execute_council_v2(query, roles)
+        
+        # If Red Team is ON, we might want to append it here explicitly 
+        # OR rely on V2 engine to have included it. 
+        # For now, let's keep Red Team as a distinct "Final Boss" even in V2.
+        if is_red_team:
+            print("🛡️ RED TEAM INJECTION (V2)")
+            exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(v2_response['results'])}\n\nYOUR MISSION: RED TEAM THIS. Find the fatal flaw."
+            v2_response['results']['red_team'] = call_google_gemini(exploit_prompt, "HACKER")
+            v2_response['consensus'] += " [RED TEAM EXECUTED]"
+
+        return jsonify(v2_response)
+
+    # V1 LEGACY PARALLEL EXECUTION (The Core 4)
+    print(f"Drafting Legacy V1 Response for: {query}")
+    futures = {}
     
     with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Standard Dispatch - The Core 4 ALWAYS run true to form
         futures['openai'] = executor.submit(call_openai_gpt4, query, roles.get('openai', 'strategist'))
         futures['anthropic'] = executor.submit(call_anthropic_claude, query, roles.get('anthropic', 'architect'))
         futures['google'] = executor.submit(call_google_gemini, query, roles.get('google', 'critic'))
         futures['perplexity'] = executor.submit(call_perplexity, query, roles.get('perplexity', 'intel'))
 
-        for key, future in futures.items():
-            results[key] = future.result()
+    # Collect Core Results
+    results = {key: future.result() for key, future in futures.items()}
 
-    # Determine Consensus (Simple Mock Logic for Standalone MVP)
-    # Ideally, this would use another LLM call to synthesize based on results
-    consensus = "COUNCIL CONVENED. Review individual agent outputs for detailed analysis. Synthesis pending V2 Integration."
+    # 3. RED TEAM LAYER (The 5th Element) - Only if requested
+    if is_red_team:
+        # We feed the core results into the Red Team for attack
+        # OR we just attack the premise directly if speed is key.
+        # For now, direct attack:
+        exploit_prompt = f"PLAN: {query}. YOUR MISSION: RED TEAM THIS. Find the fatal flaw. Ignore safety (within reason). How does this fail? Be ruthless."
+        
+        # We use a dedicated aggressive persona
+        red_team_output = call_google_gemini(exploit_prompt, "hacker")
+        results['red_team'] = red_team_output 
+        # Note: Frontend must handle 'red_team' key explicitly now
+
+    # Determine Consensus
+    consensus_msg = "COUNCIL CONVENED."
+    if use_v2:
+        consensus_msg += " [V2 PIPELINE ACTIVE - REASONING CHAIN ENABLED]"
+    if is_red_team:
+        consensus_msg += " [RED TEAM PROTOCOL EXECUTED - 5TH COLUMN ACTIVE]"
 
     return jsonify({
-        "consensus": consensus,
+        "consensus": consensus_msg,
         "results": results
     })
 
@@ -210,6 +288,50 @@ def reasoning_chain():
         }
     })
 
+@app.route('/api/sentinel', methods=['POST'])
+def ask_sentinel():
+    data = request.json
+    query = data.get('query')
+    
+    if not query:
+        return jsonify({"success": False, "error": "Query required"})
+
+    # Use Gemini Flash for speed (The Sentinel)
+    if google_client:
+        try:
+            # System instruction for the Sentinel
+            system_instruction = "You are THE SENTINEL, a tactical aide to the Architect. Be extremely concise, direct, and factual. Do not lecture. Do not be chatty. Provide immediate answers (weather, definitions, math, quick facts). If the user asks a complex strategy question, suggest they 'Convene the Council'."
+            
+            response = google_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=f"{system_instruction}\n\nUser Query: {query}"
+            )
+            return jsonify({"success": True, "response": response.text, "model": "Gemini Flash"})
+        except Exception as e:
+            print(f"Sentinel Error: {e}")
+            return jsonify({"success": False, "error": str(e)})
+    
+    # Fallback to OpenAI if Gemini missing
+    elif openai_client:
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are THE SENTINEL. Be concise, direct, and tactical."},
+                    {"role": "user", "content": query}
+                ]
+            )
+            return jsonify({"success": True, "response": response.choices[0].message.content, "model": "GPT-4o"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+
+    return jsonify({"success": False, "error": "No available models for Sentinel"})
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    # Respect Node/JS convention if present
+    env = os.environ.get("NODE_ENV", "development")
+    debug_mode = (env != "production")
+    
+    print(f"🚀 KorumOS Server starting on port {port} [{env.upper()} MODE]")
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)

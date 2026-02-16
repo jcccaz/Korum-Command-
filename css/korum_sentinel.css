@@ -1,0 +1,398 @@
+/* SENTINEL CHAT INTERFACE & STACK (Right Column) */
+
+/* The Container Stack */
+.right-column-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100%;
+    /* Grid slot handled by parent .dashboard-grid */
+}
+
+/* 1. TOP CARD: SENTINEL (Chat + Exports) */
+.sentinel-card {
+    flex: 1 1 60%;
+    min-height: 300px;
+    overflow: hidden;
+    padding: 16px !important;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 2. BOTTOM CARD: AUX (Telemetry only - compact log) */
+.aux-card {
+    flex: 1 1 40%;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 12px !important;
+}
+
+
+/* --- SENTINEL INTERNALS --- */
+
+.sentinel-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 12px;
+    margin-bottom: 0 !important;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sentinel-header h2 {
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+}
+
+.sentinel-subtitle {
+    font-size: 10px;
+    color: var(--accent-green);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 5px rgba(0, 255, 157, 0.4);
+    opacity: 0.8;
+}
+
+.sentinel-chat-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    /* Messages stack from bottom like a chat */
+    padding-bottom: 8px;
+}
+
+.sentinel-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.chat-message {
+    font-family: var(--font-body);
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 10px 14px;
+    border-radius: 8px;
+    position: relative;
+    max-width: 90%;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.chat-message.sentinel {
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 2px solid var(--accent-green);
+    color: #EEE;
+    align-self: flex-start;
+    border-top-left-radius: 2px;
+}
+
+.chat-message.user {
+    background: rgba(0, 0, 0, 0.3);
+    border-right: 2px solid var(--accent-taupe);
+    color: #CCC;
+    align-self: flex-end;
+    border-top-right-radius: 2px;
+    text-align: right;
+}
+
+.chat-text {
+    display: block;
+}
+
+.sentinel-input-area {
+    margin-top: auto;
+    display: flex;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 8px;
+    flex-shrink: 0;
+}
+
+.sentinel-input {
+    flex-grow: 1;
+    background: transparent;
+    border: none;
+    color: #FFF;
+    font-family: var(--font-body);
+    font-size: 13px;
+    outline: none;
+}
+
+.sentinel-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.sentinel-send {
+    background: transparent;
+    border: none;
+    color: var(--accent-green);
+    cursor: pointer;
+    transition: transform 0.2s, color 0.2s;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sentinel-send:hover {
+    color: #FFF;
+    transform: translateX(2px);
+    text-shadow: 0 0 8px var(--accent-green);
+}
+
+.sentinel-send:active {
+    transform: scale(0.9);
+}
+
+/* Scrollbar */
+.sentinel-chat-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sentinel-chat-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.sentinel-chat-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* === COMMS MODE TOGGLE (Chat/Dock Tabs) === */
+.comms-mode-toggle {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.comms-tab {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #888;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.comms-tab:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #FFF;
+}
+
+.comms-tab.active {
+    background: rgba(0, 255, 157, 0.1);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+}
+
+.comms-tab .dock-count {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 1px 5px;
+    border-radius: 8px;
+    font-size: 9px;
+    margin-left: 4px;
+}
+
+.comms-tab.active .dock-count {
+    background: var(--accent-green);
+    color: #000;
+}
+
+/* Comms panels */
+.comms-panel {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.comms-panel.active {
+    display: flex;
+}
+
+/* === RESEARCH DOCK === */
+#researchDock {
+    padding-top: 12px;
+}
+
+.dock-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+}
+
+.dock-action {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #AAA;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.dock-action:hover {
+    background: rgba(0, 255, 157, 0.1);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+}
+
+.dock-snippets {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+}
+
+.dock-empty {
+    text-align: center;
+    color: #555;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    padding: 40px 20px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+/* Individual Snippet Card */
+.dock-snippet {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 8px 10px;
+    transition: all 0.2s;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.dock-snippet:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.dock-snippet[data-type="table"],
+.dock-snippet[data-type="csv"] {
+    border-left: 2px solid #4285f4;
+}
+
+.dock-snippet[data-type="code"] {
+    border-left: 2px solid #a855f7;
+}
+
+.dock-snippet[data-type="data"] {
+    border-left: 2px solid #00FF9D;
+}
+
+.dock-snippet[data-type="mermaid"] {
+    border-left: 2px solid #facc15;
+}
+
+.dock-snippet[data-type="text"] {
+    border-left: 2px solid #888;
+}
+
+.snippet-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.snippet-icon {
+    font-size: 14px;
+}
+
+.snippet-label {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: #AAA;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex: 1;
+}
+
+.snippet-actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.dock-snippet:hover .snippet-actions {
+    opacity: 1;
+}
+
+.snippet-actions button {
+    background: transparent;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    opacity: 0.6;
+}
+
+.snippet-actions button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    opacity: 1;
+}
+
+.snippet-preview {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: #777;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Scrollbar for dock */
+.dock-snippets::-webkit-scrollbar {
+    width: 4px;
+}
+
+.dock-snippets::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.dock-snippets::-webkit-scrollbar-track {
+    background: transparent;
+}

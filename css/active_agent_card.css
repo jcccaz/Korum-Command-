@@ -1,0 +1,97 @@
+/* Active Agent Card - DISABLED (not needed) */
+.active-agent-card {
+    display: none !important;
+}
+
+.agent-avatar-sm {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 700;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.agent-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.agent-info .label {
+    font-size: 8px;
+    color: #666;
+    letter-spacing: 0.05em;
+    display: none; /* Hide label to save space */
+}
+
+.agent-info .value {
+    font-size: 10px;
+    font-weight: 600;
+    color: #aaa;
+}
+
+/* Provider Specific Colors */
+.active-agent-card[data-provider="openai"] .agent-avatar-sm {
+    background: var(--openai-color);
+    box-shadow: 0 0 10px var(--openai-color);
+    color: #000;
+}
+
+.active-agent-card[data-provider="openai"] .value {
+    color: var(--openai-color);
+}
+
+.active-agent-card[data-provider="anthropic"] .agent-avatar-sm {
+    background: var(--anthropic-color);
+    box-shadow: 0 0 10px var(--anthropic-color);
+    color: #000;
+}
+
+.active-agent-card[data-provider="anthropic"] .value {
+    color: var(--anthropic-color);
+}
+
+.active-agent-card[data-provider="google"] .agent-avatar-sm {
+    background: var(--google-color);
+    box-shadow: 0 0 10px var(--google-color);
+    color: #000;
+}
+
+.active-agent-card[data-provider="google"] .value {
+    color: var(--google-color);
+}
+
+.active-agent-card[data-provider="perplexity"] .agent-avatar-sm {
+    background: var(--perplexity-color);
+    box-shadow: 0 0 10px var(--perplexity-color);
+    color: #000;
+}
+
+.active-agent-card[data-provider="perplexity"] .value {
+    color: var(--perplexity-color);
+}
+
+.active-agent-card[data-provider="mistral"] .agent-avatar-sm {
+    background: var(--mistral-color, #facc15);
+    box-shadow: 0 0 10px var(--mistral-color, #facc15);
+    color: #000;
+}
+
+.active-agent-card[data-provider="mistral"] .value {
+    color: var(--mistral-color, #facc15);
+}
+
+.active-agent-card[data-provider="local"] .agent-avatar-sm {
+    background: var(--local-color, #a855f7);
+    box-shadow: 0 0 10px var(--local-color, #a855f7);
+    color: #fff;
+}
+
+.active-agent-card[data-provider="local"] .value {
+    color: var(--local-color, #a855f7);
+}

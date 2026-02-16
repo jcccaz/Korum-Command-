@@ -1,0 +1,28 @@
+/* Mistral Deck Card */
+.deck-card.mistral {
+    border-left: 2px solid #facc15;
+}
+
+.deck-card.mistral.active {
+    background: rgba(250, 204, 21, 0.1);
+    box-shadow: 0 0 15px rgba(250, 204, 21, 0.2);
+}
+
+.deck-card.mistral .deck-role {
+    color: #facc15;
+}
+
+/* Local Deck Card */
+.deck-card.local {
+    border-left: 2px solid #a855f7;
+    /* Purple for Local/Oracle */
+}
+
+.deck-card.local.active {
+    background: rgba(168, 85, 247, 0.1);
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.2);
+}
+
+.deck-card.local .deck-role {
+    color: #a855f7;
+}

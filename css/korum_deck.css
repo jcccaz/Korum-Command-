@@ -1,0 +1,229 @@
+/* COMMAND DECK (Left Panel) */
+
+.command-deck {
+    margin-top: 24px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.deck-title {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+}
+
+.agent-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.deck-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.deck-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.deck-card:active {
+    transform: scale(0.98);
+}
+
+/* Provider Accents */
+.deck-card.openai {
+    border-left: 3px solid #10a37f;
+}
+
+.deck-card.anthropic {
+    border-left: 3px solid #d97757;
+}
+
+.deck-card.google {
+    border-left: 3px solid #4285f4;
+}
+
+.deck-card.perplexity {
+    border-left: 3px solid #00bcd4;
+}
+
+.deck-avatar {
+    font-size: 9px;
+    font-weight: 700;
+    color: #FFF;
+    opacity: 0.6;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.deck-role {
+    font-family: var(--font-head);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: color 0.3s ease;
+}
+
+/* === HEALTH STATUS COLORS === */
+/* Healthy State - Provider brand colors */
+.deck-card.openai .deck-role { color: #10a37f; }
+.deck-card.anthropic .deck-role { color: #d97757; }
+.deck-card.google .deck-role { color: #4285f4; }
+.deck-card.perplexity .deck-role { color: #00bcd4; }
+.deck-card.mistral .deck-role { color: #facc15; }
+.deck-card.local .deck-role { color: #a855f7; }
+
+/* Warning State - White/Dim */
+.deck-card.status-warning .deck-role { color: #ffffff !important; }
+.deck-card.status-warning { opacity: 0.7; }
+
+/* Error State - Red with pulse */
+.deck-card.status-error .deck-role { color: #ff4444 !important; }
+.deck-card.status-error {
+    animation: errorPulse 1.5s ease-in-out infinite;
+    border-color: rgba(255, 68, 68, 0.5) !important;
+}
+
+/* Offline/Disabled State */
+.deck-card.status-offline {
+    opacity: 0.3;
+    pointer-events: none;
+}
+.deck-card.status-offline .deck-role { color: #666 !important; }
+
+/* === STATUS DOT INDICATOR === */
+.deck-card::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10a37f; /* Default: healthy green */
+    box-shadow: 0 0 4px #10a37f;
+    transition: all 0.3s ease;
+}
+
+.deck-card.status-warning::after {
+    background: #ffb020;
+    box-shadow: 0 0 4px #ffb020;
+}
+
+.deck-card.status-error::after {
+    background: #ff4444;
+    box-shadow: 0 0 6px #ff4444;
+    animation: dotPulse 0.8s ease-in-out infinite;
+}
+
+.deck-card.status-offline::after {
+    background: #444;
+    box-shadow: none;
+}
+
+/* === ACTIVE/RESPONDING STATE === */
+.deck-card.responding {
+    animation: respondingPulse 0.6s ease-in-out infinite;
+}
+
+.deck-card.responding::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    animation: shimmer 1s linear infinite;
+}
+
+@keyframes errorPulse {
+    0%, 100% { box-shadow: 0 0 5px rgba(255, 68, 68, 0.2); }
+    50% { box-shadow: 0 0 15px rgba(255, 68, 68, 0.5); }
+}
+
+@keyframes dotPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.7; }
+}
+
+@keyframes respondingPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); }
+    50% { box-shadow: 0 0 20px rgba(255, 255, 255, 0.3); }
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* Active State glow */
+.deck-card.active {
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* MODE SELECTOR (Left Panel Bottom) */
+.mode-selector {
+    margin-top: auto;
+    padding-top: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.mode-btn {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--font-head);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.mode-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #FFF;
+}
+
+/* V2 Active State */
+.mode-btn.active#btn-mode-v2 {
+    background: rgba(0, 255, 157, 0.1);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+    box-shadow: 0 0 10px rgba(0, 255, 157, 0.1);
+}
+
+/* Red Team Active State */
+.mode-btn.active#btn-mode-red {
+    background: rgba(255, 68, 68, 0.1);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    box-shadow: 0 0 10px rgba(255, 68, 68, 0.1);
+}
+
+.mode-icon {
+    font-size: 14px;
+}

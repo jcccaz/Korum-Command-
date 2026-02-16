@@ -19,13 +19,18 @@
 }
 
 /* Perplexity Cyan */
+.node.mistral {
+    --node-color: #facc15;
+}
+
+/* Mistral Yellow/Gold */
 
 /* Node Appearance */
 .node {
     position: absolute;
     width: 16px;
     height: 16px;
-    background: #222;
+    background: var(--node-color);
     /* Default off state */
     border: 2px solid var(--text-tertiary);
     border-radius: 50%;
@@ -73,50 +78,14 @@
     top: -28px;
 }
 
-/* THE ENERGY BEAM (Simulated Lightning) */
-/* We position a pseudo-element from the node reaching back to center (0,0) of the container */
-.node::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    right: 50%;
-    /* Starts at node center, goes left towards container center */
-    width: 220px;
-    /* Exact radius distance */
-    height: 2px;
-    background: linear-gradient(90deg, transparent 0%, var(--node-color) 50%, #FFF 100%);
-    transform-origin: right center;
-    /* Pivot at the node */
-    transform: rotate(var(--angle-offset, 0deg));
-    /* We might need to rotate it to point to center? Actually if radius is fixed X/Y, straightforward geometry is tricky without rotation. */
+/* Energy beam removed - using SVG lightning bolts only */
 
-    /* 
-       BETTER APPROACH For Beams:
-       The "beam" should probably be a separate element in the DOM or SVG line.
-       CSS-only beam from a translated div is hard to aim at 0,0 without knowing the angle.
-       
-       Wait! 
-       If the container spins, the nodes are fixed relative to container.
-       But the nodes are positioned via `translate(x, y)`.
-       The angle IS known in JS.
-       I will set `--angle` variable on the node in JS.
-    */
-    width: 0px;
-    /* Start hidden */
-    opacity: 0;
-    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s;
-    z-index: -1;
-    box-shadow: 0 0 8px var(--node-color);
-}
-
-/* When Energized (Answering) */
-.node.energized::before {
-    /* We'll set the exact width (radius) in JS or CSS variable */
-    width: 220px !important;
-    opacity: 1;
-}
-
-/* Pulse animation for the beam */
+/* Pulse animation when energized (responding) */
 .node.energized {
     animation: pulseNode 0.5s infinite alternate;
+}
+
+@keyframes pulseNode {
+    0% { box-shadow: 0 0 10px var(--node-color); }
+    100% { box-shadow: 0 0 25px var(--node-color); }
 }

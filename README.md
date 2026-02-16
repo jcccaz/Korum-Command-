@@ -4,11 +4,13 @@
 
 ## Features
 
-- **Multi-AI Council**: Orchestrates GPT-4o, Claude 3.5, Gemini 2.5, and Perplexity
+- **Multi-AI Council**: Orchestrates GPT-4o, Claude 3.5, Gemini 2.0, and Perplexity
 - **Adaptive Workflows**: War Room, Deep Research, Creative Council, Code Audit, System Core
-- **V2 Reasoning Pipeline**: Functional constraint-based execution
-- **Real-time Telemetry**: Live processing logs and neural network visualization
-- **Interrogation Mode**: Challenge AI responses with contextual follow-ups
+- **V2 Reasoning Pipeline**: Full sequential execution (Deconstruction -> Architecture -> Stress Test -> Synthesis)
+- **AI Accountability System**: Real-time Truth Meter, claim highlighting, and suspect statement detection
+- **Selective Interrogation**: Targeted "Direct Command Link" interrogation via unified Global Comms
+- **Excel-Ready Export**: Optimized CSV copying and Research Dock data collection
+- **Orbital Visualization**: Stabilized gyroscopic nodes with real-time neural handshake telemetry
 
 ## Quick Start
 

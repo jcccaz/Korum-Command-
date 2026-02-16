@@ -1,0 +1,64 @@
+/* MICRO-TRACKER (Left Panel) */
+.micro-tracker {
+    margin-top: 16px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    display: none;
+    /* Hidden by default */
+    align-items: center;
+    gap: 10px;
+}
+
+.micro-tracker.active {
+    display: flex;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.tracker-loader {
+    width: 6px;
+    height: 6px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    animation: pulse 1s infinite;
+    box-shadow: 0 0 10px var(--accent-primary);
+}
+
+.tracker-status {
+    flex-grow: 1;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tracker-agent {
+    font-size: 10px;
+    font-weight: 700;
+    color: #FFF;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.4;
+        transform: scale(0.9);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+
+    100% {
+        opacity: 0.4;
+        transform: scale(0.9);
+    }
+}

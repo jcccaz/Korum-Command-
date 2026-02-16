@@ -8,6 +8,13 @@
     <link rel="stylesheet" href="css/korum.css">
     <link rel="stylesheet" href="css/korum_suggestions.css">
     <link rel="stylesheet" href="css/korum_modal.css">
+    <link rel="stylesheet" href="css/korum_sentinel.css">
+    <link rel="stylesheet" href="css/korum_deck.css">
+    <link rel="stylesheet" href="css/korum_deck_ext.css">
+    <link rel="stylesheet" href="css/active_agent_card.css">
+    <link rel="stylesheet" href="css/korum_nodes.css">
+    <link rel="stylesheet" href="css/korum_tracker.css">
+    <link rel="stylesheet" href="css/korum_truth.css">
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
@@ -46,29 +53,12 @@
                     <p class="subtitle">Autonomous Neural Council</p>
                 </div>
 
-                <!-- System Status Indicators -->
-                <div class="system-status">
-                    <div class="status-row">
-                        <span>System Status</span>
-                        <span class="status-val" style="color:#00FF9D; text-shadow:0 0 8px rgba(0,255,157,0.4);">
-                            <span class="status-dot online"></span>ONLINE
-                        </span>
-                    </div>
-                    <div class="status-row">
-                        <span>Active Protocol</span>
-                        <span id="system-status-val" class="status-val">STANDBY</span>
-                    </div>
-                    <div class="status-row">
-                        <span>Neural Link</span>
-                        <span class="status-val">STABLE (12ms)</span>
-                    </div>
-                </div>
-
                 <div class="control-stack" style="height: 100%; display: flex; flex-direction: column;">
+                    <!-- INPUT MODULE -->
                     <div class="input-module">
                         <div class="input-wrapper" style="position: relative;">
                             <textarea class="glass-textarea" id="queryInput"
-                                placeholder="Enter strategic query regarding target vectors..."></textarea>
+                                placeholder="State your strategic intent..."></textarea>
                             <button id="clearInputBtn" class="clear-btn" title="Clear Input">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2">
@@ -80,104 +70,83 @@
                             </button>
                         </div>
 
-                        <!-- SMART SUGGESTION BOX -->
-                        <div class="suggestion-box hidden" id="suggestionBox">
-                            <div class="suggestion-header">
-                                <span class="suggestion-icon">🎯</span>
-                                <div class="suggestion-text">
-                                    <span class="suggestion-label">Detected: </span>
-                                    <span class="suggestion-category" id="detectedCategory">Analyzing...</span>
+                        <!-- COMMAND DECK (Active Agents) -->
+                        <div class="command-deck">
+                            <h3 class="deck-title">ACTIVE ROSTER</h3>
+                            <div class="agent-grid">
+                                <!-- GPT-4o -->
+                                <div class="deck-card openai" onclick="cycleRole('openai')">
+                                    <div class="deck-avatar">GPT-4o</div>
+                                    <div class="deck-role" id="roleLabel-openai">STRATEGIST</div>
                                 </div>
-                            </div>
-                            <div class="suggestion-body">
-                                <p class="suggestion-workflow">💡 Recommended: <strong id="suggestedWorkflow">War
-                                        Room</strong></p>
-                            </div>
-                            <div class="suggestion-actions">
-                                <button class="suggestion-btn primary" id="useSuggestedBtn">✓ Use Suggested</button>
-                                <button class="suggestion-btn secondary" id="customizeBtn">⚙️ Customize Roles</button>
-                                <button class="suggestion-btn close" id="dismissSuggestionBtn">✕</button>
-                            </div>
-                        </div>
-
-                        <!-- ROLE CUSTOMIZATION PANEL -->
-                        <div class="role-customization hidden" id="roleCustomization">
-                            <div class="role-custom-header"
-                                style="display:flex; justify-content:space-between; align-items:center;">
-                                <span>🎭 Customize Council Roles</span>
-                                <button id="rotateRolesBtn" title="Rotate Roles"
-                                    style="background:none; border:none; cursor:pointer; color:#00FF9D; font-size:16px;">
-                                    🔄
-                                </button>
-                            </div>
-                            <div class="role-grid">
-                                <div class="role-item">
-                                    <label>GPT-4o:</label>
-                                    <select class="role-select" id="roleSelectOpenAI">
-                                        <option value="strategist">🎯 Strategist</option>
-                                        <option value="analyst">📊 Analyst</option>
-                                        <option value="writer">✍️ Writer</option>
-                                        <option value="architect">🏗️ Architect</option>
-                                        <option value="visionary">🔮 Visionary</option>
-                                    </select>
+                                <!-- CLAUDE -->
+                                <div class="deck-card anthropic" onclick="cycleRole('anthropic')">
+                                    <div class="deck-avatar">CLAUDE</div>
+                                    <div class="deck-role" id="roleLabel-anthropic">ARCHITECT</div>
                                 </div>
-                                <div class="role-item">
-                                    <select class="role-select" id="roleSelectAnthropic">
-                                        <option value="containment">🛡️ Containment</option>
-                                        <option value="researcher">🔬 Researcher</option>
-                                        <option value="innovator">💡 Innovator</option>
-                                        <option value="integrity">⚖️ Integrity</option>
-                                        <option value="architect">🏗️ Architect</option>
-                                    </select>
+                                <!-- GEMINI -->
+                                <div class="deck-card google" onclick="cycleRole('google')">
+                                    <div class="deck-avatar">GEMINI</div>
+                                    <div class="deck-role" id="roleLabel-google">CRITIC</div>
                                 </div>
-                                <div class="role-item">
-                                    <label>Gemini:</label>
-                                    <select class="role-select" id="roleSelectGoogle">
-                                        <option value="takeover">⚡ Takeover</option>
-                                        <option value="historian">📚 Historian</option>
-                                        <option value="marketing">📢 Marketing</option>
-                                        <option value="hacker">🔓 Hacker</option>
-                                        <option value="critic">🎯 Critic</option>
-                                    </select>
+                                <!-- PERPLEXITY -->
+                                <div class="deck-card perplexity" onclick="cycleRole('perplexity')">
+                                    <div class="deck-avatar">PERPLEXITY</div>
+                                    <div class="deck-role" id="roleLabel-perplexity">SCOUT</div>
                                 </div>
-                                <div class="role-item">
-                                    <label>Perplexity:</label>
-                                    <select class="role-select" id="roleSelectPerplexity">
-                                        <option value="scout">🔍 Scout</option>
-                                        <option value="social">💬 Social</option>
-                                        <option value="optimizer">⚙️ Optimizer</option>
-                                        <option value="researcher">🔬 Researcher</option>
-                                    </select>
+                                <!-- MISTRAL (Cloud) -->
+                                <div class="deck-card mistral" onclick="cycleRole('mistral')">
+                                    <div class="deck-avatar">MISTRAL</div>
+                                    <div class="deck-role" id="roleLabel-mistral">ANALYST</div>
+                                </div>
+                                <!-- LOCAL (Oracle) -->
+                                <div class="deck-card local" onclick="cycleRole('local')">
+                                    <div class="deck-avatar">LOCAL</div>
+                                    <div class="deck-role" id="roleLabel-local">ORACLE</div>
                                 </div>
                             </div>
                         </div>
 
+                        <!-- MODE TOGGLES (Simplified)
                         <div class="logic-toggle"
-                            style="margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                            <span style="font-size: 12px; color: #888;">STANDARD</span>
-                            <label class="switch">
-                                <input type="checkbox" id="v2Toggle">
-                                <span class="slider round"></span>
-                            </label>
-                            <span
-                                style="font-size: 12px; color: #00FF9D; text-shadow: 0 0 5px rgba(0,255,157,0.5);">FUNCTIONAL
-                                (V2)</span>
+                            style="margin-top: auto; padding-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <label class="switch">
+                                    <input type="checkbox" id="v2Toggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <span style="font-size: 11px; color: #00FF9D; letter-spacing: 0.1em;">V2 PIPELINE</span>
+                            </div>
 
-                            <!-- HACKER MODE TOGGLE -->
-                            <div style="margin-left: 20px; display: flex; align-items: center; gap: 10px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
                                 <label class="switch">
                                     <input type="checkbox" id="hackerToggle">
                                     <span class="slider round" style="background-color: #333;"></span>
                                 </label>
-                                <span
-                                    style="font-size: 12px; color: #FF4444; text-shadow: 0 0 5px rgba(255, 68, 68, 0.5);">RED
-                                    TEAM (EXPLOIT)</span>
+                                <span style="font-size: 11px; color: #FF4444; letter-spacing: 0.1em;">RED TEAM</span>
                             </div>
+                        </div> -->
+
+                        <!-- MODE SELECTORS (Buttons) -->
+                        <div class="mode-selector" style="margin-top:auto; padding-top:20px; display:flex; gap:10px;">
+                            <button id="btn-mode-v2" class="mode-btn active" onclick="toggleMode('v2')" style="flex:1;">
+                                <span class="mode-icon">⚡</span> V2 PIPELINE
+                            </button>
+                            <button id="btn-mode-red" class="mode-btn" onclick="toggleMode('red')" style="flex:1;">
+                                <span class="mode-icon">🛡️</span> RED TEAM
+                            </button>
                         </div>
 
-                        <button class="btn-primary trigger-scan">
-                            Convene Council
+                        <button class="btn-primary trigger-scan" style="margin-top: 12px;">
+                            EXECUTE PROTOCOL
                         </button>
+
+                        <!-- MICRO TRACKER (Status) -->
+                        <div class="micro-tracker" id="tracker-status">
+                            <div class="tracker-loader"></div>
+                            <span class="tracker-agent" id="tracker-agent">SYSTEM</span>
+                            <span class="tracker-status" id="tracker-msg">STANDBY [AWAITING DIRECTIVE]</span>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -186,14 +155,13 @@
             <section class="panel center-panel">
                 <div class="globe-container">
                     <div class="globe">
-                        <svg id="lightning-layer" viewBox="0 0 500 500"
-                            style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:4; pointer-events:none;"></svg>
+                        <svg id="lightning-layer" width="100%" height="100%"
+                            style="position:absolute; top:0; left:0; z-index:4; pointer-events:none;"></svg>
 
                         <!-- SVG Rings -->
-                        <svg viewBox="0 0 500 500" width="100%" height="100%"
-                            style="position: absolute; top:0; left:0; z-index: 1;">
-                            <circle cx="250" cy="250" r="220" class="orbit" />
-                            <circle cx="250" cy="250" r="180" class="orbit-secondary" />
+                        <svg width="100%" height="100%" style="position: absolute; top:0; left:0; z-index: 1;">
+                            <circle cx="260" cy="260" r="220" class="orbit" />
+                            <circle cx="260" cy="260" r="180" class="orbit-secondary" />
                         </svg>
 
                         <!-- High Gloss Sphere -->
@@ -211,19 +179,97 @@
                             </div>
                             <div class="node perplexity" data-model-key="perplexity" data-label="Perplexity"
                                 title="Perplexity"></div>
+                            <div class="node mistral" data-model-key="mistral" data-label="Mistral"
+                                title="Mistral Large"></div>
+                        </div>
+
+                        <!-- ACTIVE AGENT CARD (Right Side) -->
+                        <div class="active-agent-card" id="activeAgentCard">
+                            <div class="agent-avatar-sm" id="activeAgentAvatar">AI</div>
+                            <div class="agent-info">
+                                <span class="label">CURRENTLY SPEAKING</span>
+                                <span class="value" id="activeAgentName">SYSTEM IDLE</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- RIGHT PANEL: TELEMETRY -->
-            <section class="panel right-panel">
-                <h2>Neural Telemetry</h2>
-                <div class="telemetry-feed" id="telemetry-feed">
-                    <!-- Logs injected by JS -->
-                    <div class="log-entry system"><span class="timestamp">00:00:00</span> System Initialized...</div>
+            <!-- RIGHT PANEL: SENTINEL INTERFACE -->
+            <!-- RIGHT COLUMN STACK -->
+            <div class="right-column-stack">
+
+                <!-- TOP: SENTINEL INTERFACE + RESEARCH DOCK -->
+                <div class="panel sentinel-card">
+                    <div class="panel-header sentinel-header">
+                        <h2>Global Comms</h2>
+                        <div class="comms-mode-toggle">
+                            <button class="comms-tab active" data-mode="chat" onclick="toggleCommsMode('chat')">💬
+                                Chat</button>
+                            <button class="comms-tab" data-mode="dock" onclick="toggleCommsMode('dock')">📌 Dock <span
+                                    class="dock-count">0</span></button>
+                        </div>
+                    </div>
+
+                    <!-- CHAT MODE -->
+                    <div class="comms-panel active" id="commsChatPanel">
+                        <div class="sentinel-chat-container" id="sentinelChat">
+                            <div class="sentinel-wrapper">
+                                <div class="chat-message sentinel">
+                                    <span class="chat-text">Sentinel Online. Select text + 📌 to dock research.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sentinel-input-area">
+                            <input type="text" id="sentinelInput" class="sentinel-input"
+                                placeholder="Type tactical query..." autocomplete="off">
+                            <button id="sentinelSendBtn" class="sentinel-send">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- RESEARCH DOCK MODE -->
+                    <div class="comms-panel" id="researchDock">
+                        <div class="dock-toolbar">
+                            <button class="dock-action" onclick="ResearchDock.exportAll('markdown')" title="Export All">
+                                📤 Export
+                            </button>
+                            <button class="dock-action" onclick="ResearchDock.exportAll('csv')" title="Export as CSV">
+                                📊 CSV
+                            </button>
+                            <button class="dock-action" onclick="ResearchDock.clear()" title="Clear Dock">
+                                🗑️ Clear
+                            </button>
+                        </div>
+                        <div class="dock-snippets">
+                            <div class="dock-empty">Select text and click 📌 DOCK to collect research</div>
+                        </div>
+                    </div>
                 </div>
-            </section>
+
+                <!-- BOTTOM: MISSION TELEMETRY (Logs Only) -->
+                <div class="panel aux-card">
+                    <div class="panel-header"
+                        style="margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                        <h2 style="font-size:11px; opacity:0.8; letter-spacing:1px;">MISSION TELEMETRY</h2>
+                        <div class="live-dot"
+                            style="width:6px; height:6px; background:#00FF9D; border-radius:50%; box-shadow:0 0 5px #00FF9D;">
+                        </div>
+                    </div>
+                    <!-- Export toolbar injected here by JS -->
+                    <div class="telemetry-log" id="telemetryLog"
+                        style="flex:1; font-family:'JetBrains Mono', monospace; font-size:9px; color:rgba(255,255,255,0.6); overflow-y:auto; display:flex; flex-direction:column; justify-content:flex-end; gap:3px;">
+                        <div class="log-line"><span style="color:#444;">[SYS]</span> Telemetry Online</div>
+                    </div>
+                </div>
+
+            </div>
 
         </main>
 
@@ -251,11 +297,11 @@
         </div>
     </div>
 
-    <!-- INTERROGATION TOOLTIP -->
     <div id="interrogation-tooltip" class="interrogation-tooltip"
         style="display:none; position:absolute; z-index:1000;">
-        <button id="btn-challenge" onclick="challengeSelection()">⚠️ CHALLENGE</button>
-        <button id="btn-visualize-select" onclick="visualizeSelection()">📊 VISUALIZE</button>
+        <button id="btn-dock">📌 DOCK</button>
+        <button id="btn-challenge">⚠️ CHALLENGE</button>
+        <button id="btn-visualize-select">📊 VISUALIZE</button>
     </div>
 
     <!-- CARD EXPANSION MODAL -->
@@ -288,6 +334,7 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script>mermaid.initialize({ startOnLoad: false, theme: 'dark' });</script>
     <script src="js/korum.js"></script>
+    <script src="js/korum_editor.js"></script>
 </body>
 
 </html>
