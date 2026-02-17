@@ -1,11 +1,14 @@
 import os
 import json
+import time
+from datetime import datetime
 import requests
 import concurrent.futures
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
-from db import init_db
+from sqlalchemy import case, func
+from db import db, init_db
 
 # Initialize early
 load_dotenv()
@@ -30,12 +33,37 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Register models so SQLAlchemy can create tables.
-from models import User
+from models import User, UsageLog
 
 init_db(app)
 
 # Import Generator
 from engine_v2 import execute_council_v2, generate_presentation_preview, generate_pptx_file
+
+# --- Usage Cost Config (USD per token) ---
+MODEL_COST = {
+    "gpt-4o": {"input": 0.0000025, "output": 0.00001},
+    "claude-sonnet-4-20250514": {"input": 0.000003, "output": 0.000015},
+    "claude-3-5-sonnet-20241022": {"input": 0.000003, "output": 0.000015},
+    "gemini-2.0-flash": {"input": 0.0000001, "output": 0.0000004},
+    "sonar-pro": {"input": 0.000003, "output": 0.000015},
+}
+
+
+def estimate_cost(model_name, input_tokens=None, output_tokens=None):
+    rates = MODEL_COST.get(model_name)
+    if not rates:
+        return None
+    input_count = input_tokens or 0
+    output_count = output_tokens or 0
+    return (input_count * rates["input"]) + (output_count * rates["output"])
+
+
+def _env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 # --- Configuration (must be before routes that use clients) ---
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
@@ -43,6 +71,18 @@ ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 GOOGLE_KEY = os.getenv("GOOGLE_API_KEY")
 PERPLEXITY_KEY = os.getenv("PERPLEXITY_API_KEY")
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
+
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar-pro")
+PERPLEXITY_ENABLED = _env_bool("PERPLEXITY_ENABLED", True)
+PERPLEXITY_MAX_INPUT_CHARS = int(os.getenv("PERPLEXITY_MAX_INPUT_CHARS", "12000"))
+PERPLEXITY_MAX_TOKENS = int(os.getenv("PERPLEXITY_MAX_TOKENS", "700"))
+PERPLEXITY_MAX_REQUEST_COST_USD = float(os.getenv("PERPLEXITY_MAX_REQUEST_COST_USD", "0.30"))
+PERPLEXITY_DAILY_BUDGET_USD = float(os.getenv("PERPLEXITY_DAILY_BUDGET_USD", "5.00"))
+PERPLEXITY_REQUEST_FEE_USD = float(os.getenv("PERPLEXITY_REQUEST_FEE_USD", "0.00"))
+ALERT_BUDGET_AMBER_PCT = float(os.getenv("ALERT_BUDGET_AMBER_PCT", "0.70"))
+ALERT_BUDGET_RED_PCT = float(os.getenv("ALERT_BUDGET_RED_PCT", "0.95"))
 
 # --- Model Clients ---
 try:
@@ -355,21 +395,237 @@ def health_check():
 
     return jsonify(results)
 
+
+@app.route('/api/usage/recent', methods=['GET'])
+def usage_recent():
+    try:
+        limit = request.args.get('limit', default=50, type=int)
+        limit = max(1, min(limit, 200))
+        logs = UsageLog.query.order_by(UsageLog.created_at.desc()).limit(limit).all()
+        return jsonify({
+            "success": True,
+            "count": len(logs),
+            "logs": [
+                {
+                    "id": row.id,
+                    "request_id": row.request_id,
+                    "user_id": row.user_id,
+                    "model": row.model,
+                    "persona": row.persona,
+                    "tokens_input": row.tokens_input,
+                    "tokens_output": row.tokens_output,
+                    "cost_estimate": row.cost_estimate,
+                    "latency_ms": row.latency_ms,
+                    "success": row.success,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+                for row in logs
+            ],
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/usage/summary', methods=['GET'])
+def usage_summary():
+    try:
+        totals = db.session.query(
+            func.count(UsageLog.id),
+            func.sum(UsageLog.cost_estimate),
+            func.avg(UsageLog.latency_ms),
+            func.sum(case((UsageLog.success.is_(True), 1), else_=0)),
+            func.sum(UsageLog.tokens_input),
+            func.sum(UsageLog.tokens_output),
+        ).one()
+
+        total_requests = int(totals[0] or 0)
+        total_cost = float(totals[1] or 0.0)
+        avg_latency_ms = float(totals[2] or 0.0)
+        success_count = int(totals[3] or 0)
+        total_input_tokens = int(totals[4] or 0)
+        total_output_tokens = int(totals[5] or 0)
+        success_rate = (success_count / total_requests) if total_requests else 0.0
+
+        by_model_rows = db.session.query(
+            UsageLog.model,
+            func.count(UsageLog.id),
+            func.sum(UsageLog.cost_estimate),
+            func.avg(UsageLog.latency_ms),
+            func.sum(case((UsageLog.success.is_(True), 1), else_=0)),
+            func.sum(UsageLog.tokens_input),
+            func.sum(UsageLog.tokens_output),
+        ).group_by(UsageLog.model).all()
+
+        by_model = [
+            {
+                "model": row[0],
+                "requests": int(row[1] or 0),
+                "total_cost": float(row[2] or 0.0),
+                "avg_latency_ms": float(row[3] or 0.0),
+                "success_rate": (int(row[4] or 0) / int(row[1] or 1)),
+                "tokens_input": int(row[5] or 0),
+                "tokens_output": int(row[6] or 0),
+            }
+            for row in by_model_rows
+        ]
+
+        return jsonify({
+            "success": True,
+            "summary": {
+                "total_requests": total_requests,
+                "success_rate": success_rate,
+                "total_cost": total_cost,
+                "avg_latency_ms": avg_latency_ms,
+                "tokens_input": total_input_tokens,
+                "tokens_output": total_output_tokens,
+            },
+            "by_model": by_model,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/alerts', methods=['GET'])
+def alerts():
+    try:
+        warnings = []
+        level_rank = {"green": 0, "amber": 1, "red": 2}
+        level = "green"
+
+        # Funds warning (Perplexity daily spend).
+        spent_today = _today_spend_usd(model_name=PERPLEXITY_MODEL)
+        budget = PERPLEXITY_DAILY_BUDGET_USD
+        pct_used = (spent_today / budget) if budget > 0 else 0.0
+        funds_status = "green"
+        if budget > 0:
+            if pct_used >= ALERT_BUDGET_RED_PCT:
+                funds_status = "red"
+                warnings.append(
+                    f"Funds critical: {PERPLEXITY_MODEL} daily spend is ${spent_today:.2f}/${budget:.2f} ({pct_used:.0%})."
+                )
+            elif pct_used >= ALERT_BUDGET_AMBER_PCT:
+                funds_status = "amber"
+                warnings.append(
+                    f"Funds warning: {PERPLEXITY_MODEL} daily spend is ${spent_today:.2f}/${budget:.2f} ({pct_used:.0%})."
+                )
+
+        if level_rank[funds_status] > level_rank[level]:
+            level = funds_status
+
+        # Model drift warning: model IDs seen today that are not in pricing map.
+        start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        observed_models = [
+            row[0]
+            for row in db.session.query(UsageLog.model)
+            .filter(UsageLog.created_at >= start_of_day)
+            .distinct()
+            .all()
+            if row[0]
+        ]
+        unknown_models = sorted([m for m in observed_models if m not in MODEL_COST])
+        if unknown_models:
+            warnings.append(
+                "Model change detected: unknown model IDs in logs: "
+                + ", ".join(unknown_models)
+            )
+            if level_rank["amber"] > level_rank[level]:
+                level = "amber"
+
+        return jsonify({
+            "success": True,
+            "level": level,
+            "warnings": warnings,
+            "funds": {
+                "model": PERPLEXITY_MODEL,
+                "spent_today_usd": spent_today,
+                "daily_budget_usd": budget,
+                "pct_used": pct_used,
+                "status": funds_status,
+            },
+            "models": {
+                "observed_today": observed_models,
+                "unknown_today": unknown_models,
+            },
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 # --- V1 Council Functions ---
+
+def _log_usage(
+    model,
+    persona=None,
+    tokens_input=None,
+    tokens_output=None,
+    cost_estimate=None,
+    latency_ms=None,
+    success=True,
+    user_id=None,
+):
+    try:
+        log = UsageLog(
+            model=model,
+            persona=persona,
+            tokens_input=tokens_input,
+            tokens_output=tokens_output,
+            cost_estimate=cost_estimate,
+            latency_ms=latency_ms,
+            success=success,
+            user_id=user_id,
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ UsageLog write failed: {e}")
+
+
+def _today_spend_usd(model_name=None):
+    start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    query = db.session.query(func.sum(UsageLog.cost_estimate)).filter(
+        UsageLog.created_at >= start_of_day
+    )
+    if model_name:
+        query = query.filter(UsageLog.model == model_name)
+    total = query.scalar()
+    return float(total or 0.0)
 
 def call_openai_gpt4(prompt, role="strategist"):
     if not openai_client: return {"success": False, "error": "API Key Missing"}
+    start = time.time()
+    model_name = OPENAI_MODEL
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model=model_name,
             messages=[
                 {"role": "system", "content": f"You are acting as the {role.upper()} of the Neural Council. Provide a direct, high-level strategic response."},
                 {"role": "user", "content": prompt}
             ]
         )
+        latency = int((time.time() - start) * 1000)
+        usage = getattr(response, "usage", None)
+        input_tokens = getattr(usage, "prompt_tokens", None) if usage else None
+        output_tokens = getattr(usage, "completion_tokens", None) if usage else None
+        estimated_cost = estimate_cost(model_name, input_tokens, output_tokens)
+        _log_usage(
+            model=model_name,
+            persona=role.upper(),
+            tokens_input=input_tokens,
+            tokens_output=output_tokens,
+            cost_estimate=estimated_cost,
+            latency_ms=latency,
+            success=True,
+        )
         print(f"✅ OpenAI Success")
-        return {"success": True, "response": response.choices[0].message.content, "model": "GPT-4o", "cost": 0.01}
+        return {"success": True, "response": response.choices[0].message.content, "model": "GPT-4o", "cost": estimated_cost}
     except Exception as e:
+        latency = int((time.time() - start) * 1000)
+        _log_usage(
+            model=model_name,
+            persona=role.upper(),
+            latency_ms=latency,
+            success=False,
+        )
         print(f"❌ OpenAI Error: {str(e)}")
         return {"success": False, "error": str(e)}
 
@@ -383,6 +639,7 @@ def call_anthropic_claude(prompt, role="architect"):
     ]
 
     for model_id, display_name in models_to_try:
+        start = time.time()
         try:
             message = anthropic_client.messages.create(
                 model=model_id,
@@ -390,9 +647,30 @@ def call_anthropic_claude(prompt, role="architect"):
                 system=f"You are the {role.upper()}. Focus on structure, safety, and implementation details.",
                 messages=[{"role": "user", "content": prompt}]
             )
+            latency = int((time.time() - start) * 1000)
+            usage = getattr(message, "usage", None)
+            input_tokens = getattr(usage, "input_tokens", None) if usage else None
+            output_tokens = getattr(usage, "output_tokens", None) if usage else None
+            estimated_cost = estimate_cost(model_id, input_tokens, output_tokens)
+            _log_usage(
+                model=model_id,
+                persona=role.upper(),
+                tokens_input=input_tokens,
+                tokens_output=output_tokens,
+                cost_estimate=estimated_cost,
+                latency_ms=latency,
+                success=True,
+            )
             print(f"✅ Anthropic Success (Model: {model_id})")
-            return {"success": True, "response": message.content[0].text, "model": display_name, "cost": 0.01}
+            return {"success": True, "response": message.content[0].text, "model": display_name, "cost": estimated_cost}
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+            _log_usage(
+                model=model_id,
+                persona=role.upper(),
+                latency_ms=latency,
+                success=False,
+            )
             print(f"⚠️ Model {model_id} failed: {str(e)[:50]}, trying next...")
             continue
 
@@ -400,39 +678,135 @@ def call_anthropic_claude(prompt, role="architect"):
 
 def call_google_gemini(prompt, role="critic"):
     if not google_client: return {"success": False, "error": "API Key Missing"}
+    start = time.time()
+    chosen_model = GEMINI_MODEL
     try:
-        chosen_model = "gemini-2.0-flash"  # Current stable model
-
         response = google_client.models.generate_content(
             model=chosen_model,
             contents=f"Role: {role.upper()}. Task: {prompt}"
         )
+        latency = int((time.time() - start) * 1000)
+        usage = getattr(response, "usage_metadata", None)
+        input_tokens = getattr(usage, "prompt_token_count", None) if usage else None
+        output_tokens = getattr(usage, "candidates_token_count", None) if usage else None
+        estimated_cost = estimate_cost(chosen_model, input_tokens, output_tokens)
+        _log_usage(
+            model=chosen_model,
+            persona=role.upper(),
+            tokens_input=input_tokens,
+            tokens_output=output_tokens,
+            cost_estimate=estimated_cost,
+            latency_ms=latency,
+            success=True,
+        )
 
         print(f"✅ Gemini Success (Model: {chosen_model})")
-        return {"success": True, "response": response.text, "model": chosen_model, "cost": 0.00}
+        return {"success": True, "response": response.text, "model": chosen_model, "cost": estimated_cost}
     except Exception as e:
+        latency = int((time.time() - start) * 1000)
+        _log_usage(
+            model=chosen_model,
+            persona=role.upper(),
+            latency_ms=latency,
+            success=False,
+        )
         print(f"❌ Gemini Error: {str(e)}")
         return {"success": False, "error": str(e)}
 
 def call_perplexity(prompt, role="intel"):
+    if not PERPLEXITY_ENABLED:
+        return {"success": False, "error": "Perplexity disabled by PERPLEXITY_ENABLED"}
     if not PERPLEXITY_KEY: return {"success": False, "error": "API Key Missing"}
+    start = time.time()
+    model_name = PERPLEXITY_MODEL
     try:
+        prompt_text = (prompt or "")[:PERPLEXITY_MAX_INPUT_CHARS]
+        estimated_input_tokens_pre = max(1, len(prompt_text) // 4)
+        token_cost_pre = estimate_cost(model_name, estimated_input_tokens_pre, PERPLEXITY_MAX_TOKENS)
+        token_cost_pre = token_cost_pre if token_cost_pre is not None else 0.0
+        request_cost_ceiling = token_cost_pre + PERPLEXITY_REQUEST_FEE_USD
+
+        if PERPLEXITY_MAX_REQUEST_COST_USD > 0 and request_cost_ceiling > PERPLEXITY_MAX_REQUEST_COST_USD:
+            return {
+                "success": False,
+                "error": (
+                    f"Perplexity request blocked: estimated ${request_cost_ceiling:.4f} "
+                    f"exceeds PERPLEXITY_MAX_REQUEST_COST_USD=${PERPLEXITY_MAX_REQUEST_COST_USD:.4f}"
+                ),
+            }
+
+        spent_today = _today_spend_usd(model_name=model_name)
+        if PERPLEXITY_DAILY_BUDGET_USD > 0 and (spent_today + request_cost_ceiling) > PERPLEXITY_DAILY_BUDGET_USD:
+            return {
+                "success": False,
+                "error": (
+                    f"Perplexity daily budget exceeded: spent ${spent_today:.4f} today, "
+                    f"next request ceiling ${request_cost_ceiling:.4f}, "
+                    f"budget ${PERPLEXITY_DAILY_BUDGET_USD:.4f}"
+                ),
+            }
+
         headers = {"Authorization": f"Bearer {PERPLEXITY_KEY}", "Content-Type": "application/json"}
         payload = {
-            "model": "sonar-pro",
+            "model": model_name,
+            "max_tokens": PERPLEXITY_MAX_TOKENS,
             "messages": [
                 {"role": "system", "content": f"You represent {role.upper()}. Be concise and factual. Cite sources if possible."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt_text}
             ]
         }
-        response = requests.post("https://api.perplexity.ai/chat/completions", json=payload, headers=headers)
+        response = requests.post(
+            "https://api.perplexity.ai/chat/completions",
+            json=payload,
+            headers=headers,
+            timeout=30,
+        )
         data = response.json()
         if "choices" in data:
+            latency = int((time.time() - start) * 1000)
+            usage = data.get("usage", {})
+            input_tokens = usage.get("prompt_tokens") or usage.get("input_tokens")
+            output_tokens = usage.get("completion_tokens") or usage.get("output_tokens")
+            token_cost = estimate_cost(model_name, input_tokens, output_tokens)
+            token_cost = token_cost if token_cost is not None else 0.0
+            total_cost = token_cost + PERPLEXITY_REQUEST_FEE_USD
+            _log_usage(
+                model=model_name,
+                persona=role.upper(),
+                tokens_input=input_tokens,
+                tokens_output=output_tokens,
+                cost_estimate=total_cost,
+                latency_ms=latency,
+                success=True,
+            )
             print(f"✅ Perplexity Success")
-            return {"success": True, "response": data["choices"][0]["message"]["content"], "model": "Perplexity Sonar", "cost": 0.00}
+            return {
+                "success": True,
+                "response": data["choices"][0]["message"]["content"],
+                "model": model_name,
+                "cost": total_cost,
+                "cost_breakdown": {
+                    "token_cost": token_cost,
+                    "request_fee": PERPLEXITY_REQUEST_FEE_USD,
+                },
+            }
+        latency = int((time.time() - start) * 1000)
+        _log_usage(
+            model=model_name,
+            persona=role.upper(),
+            latency_ms=latency,
+            success=False,
+        )
         print(f"❌ Perplexity Error: Invalid Response {data}")
         return {"success": False, "error": "Invalid API Response"}
     except Exception as e:
+        latency = int((time.time() - start) * 1000)
+        _log_usage(
+            model=model_name,
+            persona=role.upper(),
+            latency_ms=latency,
+            success=False,
+        )
         print(f"❌ Perplexity Error: {str(e)}")
         return {"success": False, "error": str(e)}
 
