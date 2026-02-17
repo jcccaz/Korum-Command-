@@ -5,6 +5,7 @@ import concurrent.futures
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
+from db import init_db
 
 # Initialize early
 load_dotenv()
@@ -20,6 +21,18 @@ socket.getaddrinfo = _ipv4_only_getaddrinfo
 # Flask App Init - MUST be before any @app.route decorators
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
+
+# Database configuration (Railway/Postgres via DATABASE_URL)
+database_url = os.getenv("DATABASE_URL", "sqlite:///korumos.db")
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Register models so SQLAlchemy can create tables.
+from models import User
+
+init_db(app)
 
 # Import Generator
 from engine_v2 import execute_council_v2, generate_presentation_preview, generate_pptx_file
@@ -773,6 +786,6 @@ if __name__ == '__main__':
     # Respect Node/JS convention if present
     env = os.environ.get("NODE_ENV", "development")
     debug_mode = (env != "production")
-    
+
     print(f"🚀 KorumOS Server starting on port {port} [{env.upper()} MODE]")
     app.run(host='0.0.0.0', port=port, debug=debug_mode)

@@ -25,6 +25,7 @@ OPENAI_API_KEY=your_key
 ANTHROPIC_API_KEY=your_key
 GOOGLE_API_KEY=your_key
 PERPLEXITY_API_KEY=your_key
+DATABASE_URL=postgresql://user:password@host:port/dbname
 ```
 
 3. Run the application:
