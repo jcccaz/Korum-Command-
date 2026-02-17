@@ -396,3 +396,80 @@
 .dock-snippets::-webkit-scrollbar-track {
     background: transparent;
 }
+
+/* --- RESEARCH DOCK EVOLUTION UPDATES --- */
+
+.btn-summarize {
+    background: linear-gradient(135deg, rgba(0, 255, 157, 0.2), rgba(255, 176, 32, 0.1)) !important;
+    border-color: var(--accent-green) !important;
+    color: #FFF !important;
+    font-weight: 700 !important;
+    text-shadow: 0 0 8px rgba(0, 255, 157, 0.5);
+    box-shadow: 0 0 10px rgba(0, 255, 157, 0.1);
+}
+
+.btn-summarize:hover {
+    background: linear-gradient(135deg, rgba(0, 255, 157, 0.3), rgba(255, 176, 32, 0.2)) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 157, 0.3);
+    transform: translateY(-1px);
+}
+
+.snippet-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tag-chip {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #AAA;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.tag-chip:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #FFF;
+}
+
+.tag-close {
+    cursor: pointer;
+    font-size: 11px;
+    color: #666;
+}
+
+.tag-close:hover {
+    color: #ff4444;
+}
+
+.tag-add-input {
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    color: #666;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    width: 45px;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.tag-add-input:focus {
+    width: 80px;
+    border-color: var(--accent-green);
+    color: #FFF;
+    background: rgba(0, 255, 157, 0.05);
+}
+
+.tag-add-input::placeholder {
+    color: #444;
+}

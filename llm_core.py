@@ -31,14 +31,29 @@ def retry_with_backoff(retries=3, backoff_in_seconds=1):
 # --- PROVIDER HELPERS ---
 
 @retry_with_backoff()
-def call_openai_gpt4(prompt, role, model="gpt-4o"):
+def call_openai_gpt4(prompt, role, model="gpt-4o", images=None):
     api_key = os.getenv("OPENAI_API_KEY")
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    # Build content — multimodal when images are attached
+    if images:
+        content = [{"type": "text", "text": prompt}]
+        for img in images:
+            content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{img['mime_type']};base64,{img['base64']}",
+                    "detail": "auto"
+                }
+            })
+    else:
+        content = prompt
+
     data = {
         "model": model,
         "messages": [
             {"role": "system", "content": f"You are {role}. Provide expert, concise, high-impact analysis."},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": content}
         ],
         "temperature": 0.7
     }
@@ -55,12 +70,29 @@ def call_openai_gpt4(prompt, role, model="gpt-4o"):
     return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
 
 @retry_with_backoff()
-def call_anthropic_claude(prompt, role, model="claude-sonnet-4-20250514"):
+def call_anthropic_claude(prompt, role, model="claude-sonnet-4-20250514", images=None):
     api_key = os.getenv("ANTHROPIC_API_KEY")
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"}
+
+    # Build content — multimodal when images are attached
+    if images:
+        content = []
+        for img in images:
+            content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": img['mime_type'],
+                    "data": img['base64']
+                }
+            })
+        content.append({"type": "text", "text": f"Role: {role}\n\n{prompt}"})
+    else:
+        content = f"Role: {role}\n\n{prompt}"
+
     data = {
         "model": model,
-        "messages": [{"role": "user", "content": f"Role: {role}\n\n{prompt}"}],
+        "messages": [{"role": "user", "content": content}],
         "max_tokens": 4096,
         "temperature": 0.7
     }
@@ -75,13 +107,25 @@ def call_anthropic_claude(prompt, role, model="claude-sonnet-4-20250514"):
     return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
 
 @retry_with_backoff()
-def call_google_gemini(prompt, role, model="gemini-2.0-flash"):
+def call_google_gemini(prompt, role, model="gemini-2.0-flash", images=None):
     api_key = os.getenv("GOOGLE_API_KEY")
     # v1beta required for gemini-2.0-flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
+
+    # Build parts — multimodal when images are attached
+    parts = [{"text": f"Role: {role}\n\n{prompt}"}]
+    if images:
+        for img in images:
+            parts.append({
+                "inline_data": {
+                    "mime_type": img['mime_type'],
+                    "data": img['base64']
+                }
+            })
+
     data = {
-        "contents": [{"parts": [{"text": f"Role: {role}\n\n{prompt}"}]}]
+        "contents": [{"parts": parts}]
     }
     resp = requests.post(url, headers=headers, json=data, timeout=60)
     
@@ -158,13 +202,26 @@ def call_local_llm(prompt, role, model="local-model"):
             return {"success": False, "response": f"Local Exception: {str(e)}"}
 
 @retry_with_backoff()
-def call_mistral_api(prompt, role, model="mistral-large-latest"):
+def call_mistral_api(prompt, role, model="mistral-large-latest", images=None):
     """
     Calls the official Mistral AI API (Cloud Fail-Safe).
+    Switches to pixtral-large-latest for vision when images are attached.
     """
     api_key = os.getenv("MISTRAL_API_KEY")
     if not api_key:
         return {"success": False, "response": "Mistral API Key missing."}
+
+    # Switch to vision model when images are present
+    if images:
+        model = "pixtral-large-latest"
+        content = [{"type": "text", "text": prompt}]
+        for img in images:
+            content.append({
+                "type": "image_url",
+                "image_url": f"data:{img['mime_type']};base64,{img['base64']}"
+            })
+    else:
+        content = prompt
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -174,7 +231,7 @@ def call_mistral_api(prompt, role, model="mistral-large-latest"):
         "model": model,
         "messages": [
             {"role": "system", "content": f"You are {role}. Provide expert analysis."},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": content}
         ],
         "temperature": 0.7
     }

@@ -1,0 +1,203 @@
+/* REPORT LIBRARY - Slide-out Panel */
+
+.report-library {
+    position: fixed;
+    top: 0;
+    right: -380px;
+    width: 370px;
+    height: 100vh;
+    background: rgba(10, 10, 15, 0.97);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    z-index: 1000;
+    transition: right 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: blur(20px);
+}
+.report-library.visible {
+    right: 0;
+}
+
+.library-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+.library-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.library-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.library-header h3 {
+    font-family: var(--font-display, 'Outfit', sans-serif);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: #888;
+    margin: 0;
+}
+.close-library {
+    background: none;
+    border: none;
+    color: #555;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+.close-library:hover {
+    color: #fff;
+}
+
+.library-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.library-empty {
+    color: #444;
+    font-size: 11px;
+    text-align: center;
+    padding: 40px 20px;
+    font-family: var(--font-body, 'Inter', sans-serif);
+}
+
+/* Saved Report Card */
+.report-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.report-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(0, 255, 157, 0.2);
+}
+
+.report-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 6px;
+}
+.report-card-role {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #00FF9D;
+    text-transform: uppercase;
+    font-family: var(--font-body, 'Inter', sans-serif);
+}
+.report-card-time {
+    font-size: 9px;
+    color: #444;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+
+.report-card-query {
+    font-size: 11px;
+    color: #aaa;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    font-family: var(--font-body, 'Inter', sans-serif);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.report-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.report-card-providers {
+    font-size: 9px;
+    color: #555;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+.report-card-delete {
+    background: none;
+    border: none;
+    color: #333;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+.report-card-delete:hover {
+    color: #FF4444;
+    background: rgba(255, 68, 68, 0.1);
+}
+
+/* Save Button in Export Toolbar */
+.ecc-save-btn {
+    background: rgba(0, 255, 157, 0.08);
+    border: 1px solid rgba(0, 255, 157, 0.25);
+    color: #00FF9D;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-body, 'Inter', sans-serif);
+}
+.ecc-save-btn:hover {
+    background: rgba(0, 255, 157, 0.15);
+    border-color: #00FF9D;
+}
+
+/* Health Check Button */
+.health-check-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #555;
+    cursor: pointer;
+    padding: 3px 5px;
+    border-radius: 3px;
+    margin-left: 8px;
+    vertical-align: middle;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+}
+.health-check-btn:hover {
+    color: #00FF9D;
+    border-color: rgba(0, 255, 157, 0.3);
+}
+.health-check-btn.checking {
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Hamburger hover */
+#hamburgerBtn:hover svg line {
+    stroke: #00FF9D;
+    transition: stroke 0.2s;
+}

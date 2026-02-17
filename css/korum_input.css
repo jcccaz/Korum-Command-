@@ -87,3 +87,82 @@
     transform: translateY(-1px);
     border-color: rgba(255, 255, 255, 0.4);
 }
+
+/* Attach Button (paperclip icon inside input-wrapper) */
+.attach-btn {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #666;
+    cursor: pointer;
+    padding: 5px 7px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    z-index: 2;
+}
+.attach-btn:hover {
+    color: #00FF9D;
+    border-color: #00FF9D;
+    background: rgba(0, 255, 157, 0.08);
+}
+.attach-btn.has-files {
+    color: #00FF9D;
+    border-color: rgba(0, 255, 157, 0.4);
+}
+
+/* File Preview Bar */
+.file-preview-bar {
+    display: none;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 4px;
+    max-height: 64px;
+    overflow-y: auto;
+}
+.file-preview-bar.has-files {
+    display: flex;
+}
+.file-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 255, 157, 0.06);
+    border: 1px solid rgba(0, 255, 157, 0.15);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    color: #aaa;
+    font-family: var(--font-body);
+}
+.file-chip .file-icon {
+    font-size: 12px;
+}
+.file-chip .file-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.file-chip .file-remove {
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 2px;
+    line-height: 1;
+}
+.file-chip .file-remove:hover {
+    color: #FF4444;
+}
+
+/* Drag-over state for textarea */
+.glass-textarea.drag-over {
+    border-color: #00FF9D !important;
+    box-shadow: 0 0 12px rgba(0, 255, 157, 0.15);
+    background: rgba(0, 255, 157, 0.03);
+}

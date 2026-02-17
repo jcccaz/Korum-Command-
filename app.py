@@ -24,6 +24,82 @@ CORS(app)
 # Import Generator
 from engine_v2 import execute_council_v2, generate_presentation_preview, generate_pptx_file
 
+# --- Configuration (must be before routes that use clients) ---
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
+GOOGLE_KEY = os.getenv("GOOGLE_API_KEY")
+PERPLEXITY_KEY = os.getenv("PERPLEXITY_API_KEY")
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
+
+# --- Model Clients ---
+try:
+    from openai import OpenAI
+    openai_client = OpenAI(api_key=OPENAI_KEY, timeout=90.0) if OPENAI_KEY else None
+except ImportError:
+    openai_client = None
+
+try:
+    import anthropic
+    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_KEY, timeout=90.0) if ANTHROPIC_KEY else None
+except ImportError:
+    anthropic_client = None
+
+try:
+    from google import genai
+    google_client = genai.Client(api_key=GOOGLE_KEY) if GOOGLE_KEY else None
+except ImportError:
+    google_client = None
+
+# --- Exports Directory ---
+EXPORTS_DIR = os.path.join(os.getcwd(), 'exports')
+os.makedirs(EXPORTS_DIR, exist_ok=True)
+
+@app.route('/api/deploy_intelligence', methods=['POST'])
+def deploy_intelligence():
+    data = request.json
+    intelligence_object = data.get('intelligence_object')
+    format_type = data.get('format', 'docx')
+    
+    if not intelligence_object:
+        return jsonify({"error": "Missing intelligence data"}), 400
+        
+    print(f"🚀 Deploying Intelligence Asset: {format_type.upper()}")
+    
+    try:
+        from exporters import (
+            CSVExporter,
+            ExcelExporter,
+            JSONExporter,
+            MarkdownExporter,
+            PDFExporter,
+            PPTXExporter,
+            TextExporter,
+            WordExporter,
+        )
+
+        exporters = {
+            'docx': WordExporter,
+            'pptx': PPTXExporter,
+            'xlsx': ExcelExporter,
+            'csv': CSVExporter,
+            'json': JSONExporter,
+            'md': MarkdownExporter,
+            'txt': TextExporter,
+            'pdf': PDFExporter,
+        }
+
+        exporter = exporters.get(format_type)
+        if not exporter:
+            return jsonify({"error": f"Format {format_type} not supported"}), 501
+
+        filename = exporter.generate(intelligence_object, output_dir=EXPORTS_DIR)
+        filepath = os.path.abspath(filename)
+        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filename))
+
+    except Exception as e:
+        print(f"❌ Deployment Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/generate_preview', methods=['POST'])
 def generate_preview():
     # ... (existing code) ...
@@ -58,31 +134,213 @@ def generate_artifact():
     
     return jsonify({"error": "Artifact type not supported"}), 501
 
-# --- Configuration ---
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
-GOOGLE_KEY = os.getenv("GOOGLE_API_KEY")
-PERPLEXITY_KEY = os.getenv("PERPLEXITY_API_KEY")
+# --- Research Dock Persistence & Summarization ---
 
-# --- Model Clients ---
-# Initialize Clients lazily or per request to handle potential missing keys gracefully
-try:
-    from openai import OpenAI
-    openai_client = OpenAI(api_key=OPENAI_KEY, timeout=90.0) if OPENAI_KEY else None
-except ImportError:
-    openai_client = None
+DOCK_DATA_PATH = os.path.join(os.getcwd(), 'data', 'research_dock.json')
 
-try:
-    import anthropic
-    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_KEY, timeout=90.0) if ANTHROPIC_KEY else None
-except ImportError:
-    anthropic_client = None
+@app.route('/api/dock/save', methods=['POST'])
+def save_dock():
+    data = request.json
+    if not data or not isinstance(data, dict):
+        return jsonify({"success": False, "error": "Invalid payload"}), 400
 
-try:
-    from google import genai
-    google_client = genai.Client(api_key=GOOGLE_KEY) if GOOGLE_KEY else None
-except ImportError:
-    google_client = None
+    snippets = data.get('snippets', [])
+
+    # Validate: must be a list, capped at 50 snippets, max 500KB total
+    if not isinstance(snippets, list):
+        return jsonify({"success": False, "error": "Snippets must be a list"}), 400
+    if len(snippets) > 50:
+        return jsonify({"success": False, "error": "Too many snippets (max 50)"}), 400
+
+    payload = json.dumps(snippets, indent=4)
+    if len(payload) > 512_000:
+        return jsonify({"success": False, "error": "Payload too large (max 500KB)"}), 400
+
+    try:
+        os.makedirs(os.path.dirname(DOCK_DATA_PATH), exist_ok=True)
+
+        with open(DOCK_DATA_PATH, 'w', encoding='utf-8') as f:
+            f.write(payload)
+
+        print(f"💾 Dock saved: {len(snippets)} snippets")
+        return jsonify({"success": True})
+    except Exception as e:
+        print(f"❌ Dock save error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/dock/load', methods=['GET'])
+def load_dock():
+    try:
+        if not os.path.exists(DOCK_DATA_PATH):
+            return jsonify({"success": True, "snippets": []})
+            
+        with open(DOCK_DATA_PATH, 'r', encoding='utf-8') as f:
+            snippets = json.load(f)
+            
+        print(f"📂 Dock loaded: {len(snippets)} snippets")
+        return jsonify({"success": True, "snippets": snippets})
+    except Exception as e:
+        print(f"❌ Dock load error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/summarize_snippets', methods=['POST'])
+def summarize_snippets():
+    data = request.json
+    snippets = data.get('snippets', [])
+    
+    if not snippets:
+        return jsonify({"error": "No snippets provided"}), 400
+        
+    print(f"✨ Summarizing {len(snippets)} snippets...")
+    
+    # Construct prompt
+    snippets_text = ""
+    for i, snip in enumerate(snippets):
+        snippets_text += f"\n--- SNIPPET {i+1} ({snip.get('label', 'Text')}) ---\n{snip.get('content', '')}\n"
+    
+    prompt = f"""
+Summarize the following research snippets into a cohesive, professional executive brief. 
+Identify key themes, critical metrics, and actionable insights. 
+Use Markdown with headers and bullet points.
+
+COLLECTED SNIPPETS:
+{snippets_text}
+"""
+
+    if google_client:
+        try:
+            response = google_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+            return jsonify({"success": True, "summary": response.text})
+        except Exception as e:
+            print(f"❌ Summarization error (Gemini): {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+    
+    return jsonify({"error": "Summarization engine unavailable"}), 501
+
+# --- Report Library (Save/Load/Delete) ---
+
+REPORTS_DIR = os.path.join(os.getcwd(), 'data', 'reports')
+
+@app.route('/api/reports/save', methods=['POST'])
+def save_report():
+    data = request.json
+    if not data or not isinstance(data, dict):
+        return jsonify({"success": False, "error": "Invalid payload"}), 400
+
+    import time as _time
+    report_id = f"report_{int(_time.time())}"
+    report = {
+        "id": report_id,
+        "query": data.get("query", ""),
+        "results": data.get("results", {}),
+        "consensus": data.get("consensus", ""),
+        "synthesis": data.get("synthesis", ""),
+        "classification": data.get("classification", {}),
+        "roleName": data.get("roleName", ""),
+        "timestamp": _time.strftime("%Y-%m-%d %H:%M:%S"),
+        "provider_count": len([k for k, v in data.get("results", {}).items() if isinstance(v, dict) and v.get("success")])
+    }
+
+    try:
+        os.makedirs(REPORTS_DIR, exist_ok=True)
+        filepath = os.path.join(REPORTS_DIR, f"{report_id}.json")
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(report, f, indent=2)
+        print(f"💾 Report saved: {report_id}")
+        return jsonify({"success": True, "id": report_id})
+    except Exception as e:
+        print(f"❌ Report save error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/reports/list', methods=['GET'])
+def list_reports():
+    try:
+        os.makedirs(REPORTS_DIR, exist_ok=True)
+        reports = []
+        for fname in sorted(os.listdir(REPORTS_DIR), reverse=True):
+            if not fname.endswith('.json'):
+                continue
+            filepath = os.path.join(REPORTS_DIR, fname)
+            with open(filepath, 'r', encoding='utf-8') as f:
+                r = json.load(f)
+            reports.append({
+                "id": r.get("id", fname.replace('.json', '')),
+                "query": (r.get("query", "")[:80] + "...") if len(r.get("query", "")) > 80 else r.get("query", ""),
+                "timestamp": r.get("timestamp", ""),
+                "roleName": r.get("roleName", ""),
+                "provider_count": r.get("provider_count", 0)
+            })
+        return jsonify({"success": True, "reports": reports})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/reports/<report_id>', methods=['GET'])
+def get_report(report_id):
+    filepath = os.path.join(REPORTS_DIR, f"{report_id}.json")
+    if not os.path.exists(filepath):
+        return jsonify({"success": False, "error": "Report not found"}), 404
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            report = json.load(f)
+        return jsonify({"success": True, "report": report})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/reports/<report_id>', methods=['DELETE'])
+def delete_report(report_id):
+    filepath = os.path.join(REPORTS_DIR, f"{report_id}.json")
+    if not os.path.exists(filepath):
+        return jsonify({"success": False, "error": "Report not found"}), 404
+    try:
+        os.remove(filepath)
+        print(f"🗑️ Report deleted: {report_id}")
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# --- API Health Check (Proactive) ---
+
+@app.route('/api/health/check', methods=['GET'])
+def health_check():
+    """Lightweight ping to each provider — minimal tokens, parallel execution."""
+    from llm_core import call_openai_gpt4 as _openai, call_anthropic_claude as _claude, \
+        call_google_gemini as _gemini, call_perplexity as _perplexity, call_mistral_api as _mistral
+    import time as _time
+
+    def check_provider(name, func, prompt="Say OK", role="system"):
+        start = _time.time()
+        try:
+            result = func(prompt, role)
+            latency = int((_time.time() - start) * 1000)
+            if result.get("success"):
+                return {"status": "healthy", "latency_ms": latency}
+            else:
+                return {"status": "error", "error": result.get("response", "Unknown error")[:200]}
+        except Exception as e:
+            return {"status": "offline", "error": str(e)[:200]}
+
+    providers = {
+        "openai": lambda: check_provider("openai", _openai),
+        "anthropic": lambda: check_provider("anthropic", _claude),
+        "google": lambda: check_provider("google", _gemini),
+        "perplexity": lambda: check_provider("perplexity", _perplexity),
+        "mistral": lambda: check_provider("mistral", _mistral),
+    }
+
+    results = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(fn): name for name, fn in providers.items()}
+        for future in concurrent.futures.as_completed(futures, timeout=15):
+            name = futures[future]
+            try:
+                results[name] = future.result()
+            except Exception as e:
+                results[name] = {"status": "offline", "error": str(e)[:200]}
+
+    return jsonify(results)
 
 # --- V1 Council Functions ---
 
@@ -165,6 +423,136 @@ def call_perplexity(prompt, role="intel"):
         print(f"❌ Perplexity Error: {str(e)}")
         return {"success": False, "error": str(e)}
 
+# --- SerpAPI Real-Time Data ---
+def fetch_serpapi_data(query, search_type="search"):
+    """
+    Fetch real-time data from SerpAPI.
+    search_type options: 'search' (Google), 'shopping' (prices), 'news', 'images'
+    """
+    if not SERPAPI_KEY:
+        return {"success": False, "error": "SerpAPI Key Missing"}
+
+    try:
+        # Determine endpoint based on search type
+        params = {
+            "api_key": SERPAPI_KEY,
+            "q": query,
+            "engine": "google",
+            "num": 10  # Number of results
+        }
+
+        # Adjust for shopping/price queries
+        if search_type == "shopping" or any(word in query.lower() for word in ["price", "cost", "buy", "shop", "deal"]):
+            params["engine"] = "google_shopping"
+            params["google_domain"] = "google.com"
+        elif search_type == "news" or any(word in query.lower() for word in ["news", "latest", "today", "recent"]):
+            params["tbm"] = "nws"  # News tab
+
+        print(f"🌐 SerpAPI: Fetching real-time data for '{query}' (engine: {params['engine']})")
+
+        response = requests.get("https://serpapi.com/search", params=params, timeout=15)
+        data = response.json()
+
+        # Parse results based on type
+        results = []
+
+        # Shopping results
+        if "shopping_results" in data:
+            for item in data["shopping_results"][:8]:
+                results.append({
+                    "type": "product",
+                    "title": item.get("title", ""),
+                    "price": item.get("price", "N/A"),
+                    "source": item.get("source", ""),
+                    "link": item.get("link", ""),
+                    "rating": item.get("rating", ""),
+                    "reviews": item.get("reviews", "")
+                })
+
+        # Organic search results
+        if "organic_results" in data:
+            for item in data["organic_results"][:6]:
+                results.append({
+                    "type": "web",
+                    "title": item.get("title", ""),
+                    "snippet": item.get("snippet", ""),
+                    "link": item.get("link", ""),
+                    "date": item.get("date", "")
+                })
+
+        # News results
+        if "news_results" in data:
+            for item in data["news_results"][:5]:
+                results.append({
+                    "type": "news",
+                    "title": item.get("title", ""),
+                    "source": item.get("source", {}).get("name", ""),
+                    "date": item.get("date", ""),
+                    "snippet": item.get("snippet", ""),
+                    "link": item.get("link", "")
+                })
+
+        # Answer box / Knowledge panel
+        answer_box = None
+        if "answer_box" in data:
+            answer_box = {
+                "type": data["answer_box"].get("type", "answer"),
+                "answer": data["answer_box"].get("answer") or data["answer_box"].get("snippet", ""),
+                "title": data["answer_box"].get("title", "")
+            }
+
+        print(f"✅ SerpAPI Success: {len(results)} results found")
+
+        return {
+            "success": True,
+            "results": results,
+            "answer_box": answer_box,
+            "search_metadata": {
+                "query": query,
+                "engine": params["engine"],
+                "total_results": data.get("search_information", {}).get("total_results", 0)
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ SerpAPI Error: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+def format_serp_context(serp_data):
+    """Format SerpAPI results into a context string for the council."""
+    if not serp_data.get("success"):
+        return ""
+
+    context_parts = ["📡 REAL-TIME DATA (SerpAPI):"]
+
+    # Answer box first if available
+    if serp_data.get("answer_box"):
+        ab = serp_data["answer_box"]
+        context_parts.append(f"\n🎯 DIRECT ANSWER: {ab.get('answer', ab.get('title', ''))}")
+
+    # Group by type
+    products = [r for r in serp_data.get("results", []) if r["type"] == "product"]
+    news = [r for r in serp_data.get("results", []) if r["type"] == "news"]
+    web = [r for r in serp_data.get("results", []) if r["type"] == "web"]
+
+    if products:
+        context_parts.append("\n💰 CURRENT PRICES:")
+        for p in products[:5]:
+            rating_str = f" ⭐{p['rating']}" if p.get('rating') else ""
+            context_parts.append(f"  • {p['title']}: {p['price']} ({p['source']}){rating_str}")
+
+    if news:
+        context_parts.append("\n📰 RECENT NEWS:")
+        for n in news[:3]:
+            context_parts.append(f"  • [{n['date']}] {n['title']} - {n['source']}")
+
+    if web and not products:
+        context_parts.append("\n🔍 WEB RESULTS:")
+        for w in web[:4]:
+            context_parts.append(f"  • {w['title']}: {w['snippet'][:100]}...")
+
+    return "\n".join(context_parts)
+
 # --- Routes ---
 
 @app.route('/')
@@ -181,21 +569,64 @@ def serve_css(path):
 
 @app.route('/api/ask', methods=['POST'])
 def ask_council():
-    data = request.json
+    from file_processor import process_uploaded_file
+
+    # Support both JSON and FormData (multipart) submissions
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        import json as _json
+        data = _json.loads(request.form.get('payload', '{}'))
+        uploaded_files = request.files.getlist('files')
+    else:
+        data = request.json
+        uploaded_files = []
+
     query = data.get('question')
     roles = data.get('council_roles', {})
-    
+
+    # Process uploaded files
+    images = []       # List of {base64, mime_type, filename} for vision APIs
+    doc_texts = []    # Extracted text from documents
+
+    for f in uploaded_files:
+        try:
+            result = process_uploaded_file(f)
+            if result['type'] == 'image':
+                images.append(result)
+            elif result['type'] == 'document':
+                doc_texts.append(f"[Document: {result['filename']}]\n{result['extracted_text']}")
+        except ValueError as e:
+            print(f"⚠️ File processing error: {e}")
+            continue
+
+    # Append extracted document text to query context
+    if doc_texts:
+        doc_context = "\n\n--- ATTACHED DOCUMENTS ---\n" + "\n\n".join(doc_texts)
+        query = query + doc_context
+
     # Map roles to functions
     futures = {}
     # V2 LOGIC BRANCH
     use_v2 = data.get('use_v2', False)
     is_red_team = data.get('is_red_team', False)
+    use_serp = data.get('use_serp', False)
+
+    # --- SERPAPI REAL-TIME DATA ENRICHMENT ---
+    serp_context = ""
+    serp_raw = None
+    if use_serp:
+        print(f"🌐 LIVE DATA MODE: Fetching real-time data for query...")
+        serp_raw = fetch_serpapi_data(query)
+        if serp_raw.get("success"):
+            serp_context = format_serp_context(serp_raw)
+            # Prepend context to query for all AIs
+            query = f"{serp_context}\n\n---\nORIGINAL QUERY: {query}\n\nUse the real-time data above to inform your response. Cite specific prices, dates, or sources when relevant."
+            print(f"✅ Real-time context injected ({len(serp_raw.get('results', []))} results)")
 
     if use_v2:
         print(f"⚡ V2 ENGINE ENGAGED for query: {query}")
         # V2 Engine handles sequence and synthesis
         # We pass roles to let the user's "persona" choice influence the planner
-        v2_response = execute_council_v2(query, roles)
+        v2_response = execute_council_v2(query, roles, images=images if images else None)
         
         # If Red Team is ON, we might want to append it here explicitly 
         # OR rely on V2 engine to have included it. 
@@ -205,6 +636,10 @@ def ask_council():
             exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(v2_response['results'])}\n\nYOUR MISSION: RED TEAM THIS. Find the fatal flaw."
             v2_response['results']['red_team'] = call_google_gemini(exploit_prompt, "HACKER")
             v2_response['consensus'] += " [RED TEAM EXECUTED]"
+
+        # Include raw SerpAPI data if used
+        if use_serp and serp_raw:
+            v2_response["live_data"] = serp_raw
 
         return jsonify(v2_response)
 
@@ -241,10 +676,16 @@ def ask_council():
     if is_red_team:
         consensus_msg += " [RED TEAM PROTOCOL EXECUTED - 5TH COLUMN ACTIVE]"
 
-    return jsonify({
+    response_data = {
         "consensus": consensus_msg,
         "results": results
-    })
+    }
+
+    # Include raw SerpAPI data if used
+    if use_serp and serp_raw:
+        response_data["live_data"] = serp_raw
+
+    return jsonify(response_data)
 
 @app.route('/api/v2/reasoning_chain', methods=['POST'])
 def reasoning_chain():

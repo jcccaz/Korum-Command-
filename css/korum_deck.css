@@ -224,6 +224,20 @@
     box-shadow: 0 0 10px rgba(255, 68, 68, 0.1);
 }
 
+/* LIVE Data (SerpAPI) Active State */
+.mode-btn.active#btn-mode-serp {
+    background: rgba(0, 188, 212, 0.15);
+    border-color: #00bcd4;
+    color: #00bcd4;
+    box-shadow: 0 0 12px rgba(0, 188, 212, 0.2);
+    animation: livePulse 2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(0, 188, 212, 0.2); }
+    50% { box-shadow: 0 0 16px rgba(0, 188, 212, 0.4); }
+}
+
 .mode-icon {
     font-size: 14px;
 }

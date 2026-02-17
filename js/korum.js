@@ -1,5 +1,255 @@
 /* KORUM-OS Logic - Fully Integrated (Telemetry, Interrogation, Charts) */
 
+// === GLOBAL STATE FOR EXPORTS ===
+let lastCouncilData = null;
+let lastQueryText = '';
+
+// === FILE UPLOAD STATE ===
+let pendingFiles = [];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_EXTENSIONS = ['.jpg','.jpeg','.png','.gif','.webp','.pdf','.docx','.xlsx'];
+
+function renderFilePreview() {
+    const bar = document.getElementById('filePreviewBar');
+    const attachBtn = document.getElementById('attachBtn');
+    if (!bar) return;
+    if (!pendingFiles.length) {
+        bar.classList.remove('has-files');
+        bar.innerHTML = '';
+        if (attachBtn) attachBtn.classList.remove('has-files');
+        return;
+    }
+    bar.classList.add('has-files');
+    if (attachBtn) attachBtn.classList.add('has-files');
+    bar.innerHTML = pendingFiles.map((f, i) => {
+        const isImage = f.type.startsWith('image/');
+        const isPdf = f.name.toLowerCase().endsWith('.pdf');
+        const icon = isImage ? '&#128444;' : (isPdf ? '&#128196;' : '&#128202;');
+        const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+        return `<div class="file-chip">
+            <span class="file-icon">${icon}</span>
+            <span class="file-name" title="${f.name}">${f.name}</span>
+            <span style="color:#555">${sizeMB}MB</span>
+            <button class="file-remove" onclick="removeFile(${i})" title="Remove">&times;</button>
+        </div>`;
+    }).join('');
+}
+
+function removeFile(index) {
+    pendingFiles.splice(index, 1);
+    renderFilePreview();
+}
+
+function addFiles(fileList) {
+    for (const file of fileList) {
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+        if (!ALLOWED_EXTENSIONS.includes(ext)) {
+            logTelemetry(`Unsupported file type: ${ext}`, "error");
+            continue;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+            logTelemetry(`File too large: ${file.name} (${(file.size/1024/1024).toFixed(1)}MB limit: 10MB)`, "error");
+            continue;
+        }
+        pendingFiles.push(file);
+    }
+    renderFilePreview();
+}
+
+// === REPORT LIBRARY ===
+async function saveReport() {
+    if (!lastCouncilData) {
+        showProcessingToast("No report to save. Run a council query first.");
+        return;
+    }
+    try {
+        const payload = {
+            ...lastCouncilData,
+            query: sessionState.originalQuery || lastQueryText || ""
+        };
+        const resp = await fetch('/api/reports/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showProcessingToast("Report saved to library");
+            logTelemetry(`Report saved: ${data.id}`, "success");
+        } else {
+            showProcessingToast("Save failed: " + (data.error || "Unknown"));
+        }
+    } catch (e) {
+        console.error("Save report error:", e);
+        showProcessingToast("Save failed: " + e.message);
+    }
+}
+
+async function loadReportLibrary() {
+    const list = document.getElementById('libraryList');
+    if (!list) return;
+    list.innerHTML = '<div class="library-empty">Loading...</div>';
+
+    try {
+        const resp = await fetch('/api/reports/list');
+        const data = await resp.json();
+        if (!data.success || !data.reports.length) {
+            list.innerHTML = '<div class="library-empty">No saved reports yet. Run a council query and save the results.</div>';
+            return;
+        }
+        list.innerHTML = data.reports.map(r => `
+            <div class="report-card" onclick="recallReport('${r.id}')">
+                <div class="report-card-header">
+                    <span class="report-card-role">${r.roleName || 'Council'}</span>
+                    <span class="report-card-time">${r.timestamp}</span>
+                </div>
+                <div class="report-card-query">${r.query}</div>
+                <div class="report-card-footer">
+                    <span class="report-card-providers">${r.provider_count} providers</span>
+                    <button class="report-card-delete" onclick="event.stopPropagation(); deleteReport('${r.id}')" title="Delete">&times;</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        list.innerHTML = '<div class="library-empty">Failed to load reports.</div>';
+    }
+}
+
+async function recallReport(id) {
+    try {
+        const resp = await fetch(`/api/reports/${id}`);
+        const data = await resp.json();
+        if (!data.success || !data.report) {
+            showProcessingToast("Failed to load report");
+            return;
+        }
+        const report = data.report;
+
+        // Restore state
+        lastCouncilData = { ...report, roleName: report.roleName };
+        sessionState.originalQuery = report.query || "";
+        sessionState.lastResponses = {};
+        if (report.results) {
+            Object.keys(report.results).forEach(p => {
+                if (report.results[p] && report.results[p].response) {
+                    sessionState.lastResponses[p] = report.results[p].response;
+                }
+            });
+        }
+
+        // Re-render
+        renderResults(report, report.roleName || "Recalled");
+        logTelemetry(`Report recalled: ${id}`, "system");
+
+        // Close library
+        toggleReportLibrary(false);
+    } catch (e) {
+        showProcessingToast("Failed to recall report: " + e.message);
+    }
+}
+
+async function deleteReport(id) {
+    if (!confirm("Delete this saved report?")) return;
+    try {
+        await fetch(`/api/reports/${id}`, { method: 'DELETE' });
+        logTelemetry(`Report deleted: ${id}`, "system");
+        loadReportLibrary(); // Refresh list
+    } catch (e) {
+        showProcessingToast("Delete failed: " + e.message);
+    }
+}
+
+function toggleReportLibrary(show) {
+    const panel = document.getElementById('reportLibrary');
+    const overlay = document.getElementById('libraryOverlay');
+    if (!panel) return;
+    if (show === undefined) show = !panel.classList.contains('visible');
+    if (show) {
+        panel.classList.add('visible');
+        if (overlay) overlay.classList.add('visible');
+        loadReportLibrary();
+    } else {
+        panel.classList.remove('visible');
+        if (overlay) overlay.classList.remove('visible');
+    }
+}
+
+// === API HEALTH CHECK (Proactive) ===
+async function checkAPIHealth() {
+    const btn = document.getElementById('healthCheckBtn');
+    if (btn) btn.classList.add('checking');
+    logTelemetry("Running API health check...", "process");
+
+    try {
+        const resp = await fetch('/api/health/check');
+        const data = await resp.json();
+
+        Object.keys(data).forEach(provider => {
+            const result = data[provider];
+            if (result.status === 'healthy') {
+                AIHealth.status[provider] = { state: 'healthy', lastCheck: new Date(), failures: 0, lastError: null };
+            } else if (result.status === 'error') {
+                AIHealth.status[provider] = { state: 'warning', lastCheck: new Date(), failures: 1, lastError: result.error };
+            } else {
+                AIHealth.status[provider] = { state: 'offline', lastCheck: new Date(), failures: 3, lastError: result.error };
+            }
+            AIHealth.updateCardUI(provider);
+        });
+
+        const healthy = Object.values(data).filter(r => r.status === 'healthy').length;
+        logTelemetry(`Health check complete: ${healthy}/${Object.keys(data).length} providers online`, "system");
+
+        // Update provider status pills in telemetry panel
+        updateProviderPills(data);
+        // Update online count stat
+        const onlineStat = document.getElementById('statProviders');
+        if (onlineStat) onlineStat.textContent = healthy;
+    } catch (e) {
+        logTelemetry("Health check failed: " + e.message, "error");
+    }
+
+    if (btn) btn.classList.remove('checking');
+}
+
+// Update provider status pills in telemetry panel
+function updateProviderPills(data) {
+    document.querySelectorAll('#providerStatusStrip .provider-pill').forEach(pill => {
+        const provider = pill.dataset.provider;
+        const dot = pill.querySelector('.pill-dot');
+        if (!dot || !data[provider]) return;
+        const status = data[provider].status;
+        if (status === 'healthy') {
+            dot.style.background = '#00FF9D';
+            dot.style.boxShadow = '0 0 6px #00FF9D';
+        } else if (status === 'error') {
+            dot.style.background = '#FFB020';
+            dot.style.boxShadow = '0 0 6px #FFB020';
+        } else {
+            dot.style.background = '#FF4444';
+            dot.style.boxShadow = '0 0 6px #FF4444';
+        }
+    });
+}
+
+// Session stats — query counter + uptime timer
+let sessionQueryCount = 0;
+const sessionStartTime = Date.now();
+
+function incrementQueryCount() {
+    sessionQueryCount++;
+    const el = document.getElementById('statQueries');
+    if (el) el.textContent = sessionQueryCount;
+}
+
+function updateUptime() {
+    const elapsed = Math.floor((Date.now() - sessionStartTime) / 60000);
+    const el = document.getElementById('statUptime');
+    if (!el) return;
+    if (elapsed < 60) el.textContent = elapsed + 'm';
+    else el.textContent = Math.floor(elapsed / 60) + 'h ' + (elapsed % 60) + 'm';
+}
+setInterval(updateUptime, 30000);
+
 // === RESEARCH DOCK - Smart Clipboard for Research Artifacts ===
 const ResearchDock = {
     snippets: [],
@@ -57,6 +307,7 @@ const ResearchDock = {
             icon: typeInfo.icon,
             label: typeInfo.label,
             source: source,
+            tags: [], 
             timestamp: new Date(),
             preview: content.trim().substring(0, 80) + (content.length > 80 ? '...' : '')
         };
@@ -92,6 +343,100 @@ const ResearchDock = {
                 showProcessingToast("Copied to clipboard!");
             });
         }
+    },
+
+    // Tag management
+    addTag(id, tag) {
+        const snippet = this.snippets.find(s => s.id === id);
+        if (snippet && tag && !snippet.tags.includes(tag)) {
+            snippet.tags.push(tag);
+            this.render();
+            this.save();
+            logTelemetry(`Tag added: ${tag}`, "success");
+        }
+    },
+
+    removeTag(id, tag) {
+        const snippet = this.snippets.find(s => s.id === id);
+        if (snippet) {
+            snippet.tags = snippet.tags.filter(t => t !== tag);
+            this.render();
+            this.save();
+        }
+    },
+
+    // Summarization Logic
+    async summarizeHighlights() {
+        if (this.snippets.length === 0) {
+            showProcessingToast("No research docked to summarize");
+            return;
+        }
+
+        logTelemetry("Synthesizing Executive Brief...", "process");
+        showProcessingToast("Analyzing research docked...");
+
+        try {
+            const response = await fetch('/api/summarize_snippets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ snippets: this.snippets })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                // Render summary in a results card
+                const container = document.querySelector(".results-content");
+                if (container) {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = 'agent-card google';
+                    cardEl.style.cssText = 'grid-column: 1 / -1; border-top: 3px solid #00FF9D;';
+                    cardEl.innerHTML = `
+                        <div class="agent-header">
+                            <span class="agent-name">RESEARCH SUMMARY: EXECUTIVE BRIEF</span>
+                            <span class="agent-model">Gemini Flash Synthesis</span>
+                        </div>
+                        <div class="agent-response">${this.formatMarkdown(data.summary)}</div>
+                        <div class="agent-actions" style="margin-top: 20px;">
+                            <button class="modal-action-btn copy" id="copyBriefBtn">📋 Copy Brief</button>
+                        </div>
+                    `;
+                    container.innerHTML = '';
+                    container.appendChild(cardEl);
+                    cardEl.querySelector('#copyBriefBtn').addEventListener('click', () => {
+                        navigator.clipboard.writeText(data.summary).then(() => showProcessingToast('Brief copied!'));
+                    });
+                    document.querySelector(".results-container").classList.add("visible");
+                    logTelemetry("Executive Brief Generated", "success");
+                }
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            console.error("Summarization error:", e);
+            logTelemetry(`Summarization Failed: ${e.message}`, "error");
+        }
+    },
+
+    // Sanitize HTML to prevent XSS from AI output
+    sanitizeHtml(text) {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    },
+
+    // Helper for basic markdown in summary (sanitizes first, then applies formatting)
+    formatMarkdown(text) {
+        return this.sanitizeHtml(text)
+            .replace(/^# (.*$)/gim, '<h2 style="color:#00FF9D; margin-top:20px;">$1</h2>')
+            .replace(/^## (.*$)/gim, '<h3 style="color:#FFF; margin-top:15px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:5px;">$1</h3>')
+            .replace(/^### (.*$)/gim, '<h4 style="color:#AAA; margin-top:10px;">$1</h4>')
+            .replace(/^\* (.*$)/gim, '<li style="margin-left:20px; color:#DDD;">$1</li>')
+            .replace(/^- (.*$)/gim, '<li style="margin-left:20px; color:#DDD;">$1</li>')
+            .replace(/\*\*(.*?)\*\*/gim, '<b style="color:#FFF;">$1</b>')
+            .replace(/\n/gim, '<br>');
     },
 
     // Generate chart from snippet
@@ -140,7 +485,9 @@ const ResearchDock = {
             output = `# Research Collection\n*Exported: ${timestamp}*\n\n`;
             this.snippets.forEach((s, i) => {
                 output += `## ${i + 1}. ${s.icon} ${s.label}\n`;
-                output += `*Source: ${s.source} | ${s.timestamp.toLocaleTimeString()}*\n\n`;
+                output += `*Source: ${s.source} | ${s.timestamp.toLocaleTimeString()}*\n`;
+                if (s.tags && s.tags.length > 0) output += `*Tags: ${s.tags.join(', ')}*\n`;
+                output += `\n`;
                 if (s.type === 'code') {
                     output += `\`\`\`\n${s.content}\n\`\`\`\n\n`;
                 } else if (s.type === 'table' || s.type === 'csv') {
@@ -186,15 +533,18 @@ const ResearchDock = {
         const snippetList = container.querySelector('.dock-snippets');
         if (!snippetList) return;
 
-        // Add CSV Export button to toolbar if not present
+        // Toolbar Setup
         const toolbar = container.querySelector('.dock-toolbar');
-        if (toolbar && !toolbar.querySelector('.btn-csv-export')) {
-            const csvBtn = document.createElement('button');
-            csvBtn.className = 'dock-action btn-csv-export';
-            csvBtn.title = 'Export Tabular Data as CSV';
-            csvBtn.innerHTML = '📊 Export CSV';
-            csvBtn.onclick = () => this.exportAll('csv');
-            toolbar.appendChild(csvBtn);
+        if (toolbar) {
+            if (!toolbar.querySelector('.btn-summarize')) {
+                const sumBtn = document.createElement('button');
+                sumBtn.className = 'dock-action btn-summarize';
+                sumBtn.title = '✨ Generate Executive Summary';
+                sumBtn.innerHTML = '✨ Summarize Bits';
+                sumBtn.onclick = () => this.summarizeHighlights();
+                toolbar.prepend(sumBtn);
+            }
+            // CSV button already exists in HTML toolbar — no dynamic injection needed
         }
 
         if (this.snippets.length === 0) {
@@ -220,6 +570,16 @@ const ResearchDock = {
                     </div>
                 </div>
                 <div class="snippet-preview">${this.escapeHtml(s.preview)}</div>
+                
+                <div class="snippet-tags">
+                    ${(s.tags || []).map(t => `
+                        <span class="tag-chip">
+                            ${t} <span class="tag-close" onclick="ResearchDock.removeTag('${s.id}', '${t}')">×</span>
+                        </span>
+                    `).join('')}
+                    <input type="text" class="tag-add-input" placeholder="+ Tag" 
+                        onkeypress="if(event.key === 'Enter') { ResearchDock.addTag('${s.id}', this.value); this.value=''; }">
+                </div>
             </div>
         `).join('');
 
@@ -235,18 +595,49 @@ const ResearchDock = {
         return div.innerHTML;
     },
 
-    // Save to localStorage
-    save() {
+    // Save to localStorage AND Backend
+    async save() {
         try {
+            // Local fallback
             localStorage.setItem('korum-dock', JSON.stringify(this.snippets));
+
+            // Mission 2: Backend Sync
+            await fetch('/api/dock/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ snippets: this.snippets })
+            });
+
         } catch (e) {
-            console.warn('Could not save dock to localStorage', e);
+            console.warn('Could not save dock fully', e);
         }
     },
 
-    // Load from localStorage
-    load() {
+    // Load from Backend OR localStorage
+    async load() {
         try {
+            // Try backend first
+            const response = await fetch('/api/dock/load');
+            const data = await response.json();
+
+            if (data.success && data.snippets && data.snippets.length > 0) {
+                this.snippets = data.snippets.map(s => ({
+                    ...s,
+                    timestamp: new Date(s.timestamp)
+                }));
+                console.log("📂 Dock loaded from Mission Intelligence Cloud");
+            } else {
+                // Fallback to local
+                const saved = localStorage.getItem('korum-dock');
+                if (saved) {
+                    this.snippets = JSON.parse(saved).map(s => ({
+                        ...s,
+                        timestamp: new Date(s.timestamp)
+                    }));
+                }
+            }
+        } catch (e) {
+            console.warn('Could not load dock from backend, falling back to local', e);
             const saved = localStorage.getItem('korum-dock');
             if (saved) {
                 this.snippets = JSON.parse(saved).map(s => ({
@@ -254,16 +645,14 @@ const ResearchDock = {
                     timestamp: new Date(s.timestamp)
                 }));
             }
-        } catch (e) {
-            console.warn('Could not load dock from localStorage', e);
         }
     },
 
     // Initialize dock
-    init() {
-        this.load();
+    async init() {
+        await this.load();
         this.render();
-        logTelemetry("Research Dock: ONLINE", "success");
+        logTelemetry("Research Dock: ONLINE [Cloud-Sync Active]", "success");
     }
 };
 
@@ -400,20 +789,28 @@ const AIHealth = {
 };
 
 const PROTOCOL_CONFIGS = {
-    "War Room": { openai: "strategist", anthropic: "containment", google: "takeover", perplexity: "scout" },
-    "Deep Research": { openai: "analyst", anthropic: "researcher", google: "historian", perplexity: "scout" },
-    "Creative Council": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social" },
-    "Code Audit": { openai: "architect", anthropic: "integrity", google: "hacker", perplexity: "optimizer" },
-    "System Core": { openai: "visionary", anthropic: "architect", google: "critic", perplexity: "researcher" }
+    // --- GENERAL ---
+    "War Room": { openai: "strategist", anthropic: "containment", google: "takeover", perplexity: "scout", mistral: "analyst" },
+    "Deep Research": { openai: "analyst", anthropic: "researcher", google: "historian", perplexity: "scout", mistral: "validator" },
+    "Creative Council": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative" },
+    "Code Audit": { openai: "architect", anthropic: "integrity", google: "hacker", perplexity: "optimizer", mistral: "coding" },
+    "System Core": { openai: "visionary", anthropic: "architect", google: "critic", perplexity: "researcher", mistral: "analyst" },
+    // --- DOMAIN-SPECIFIC ---
+    "Legal Review": { openai: "jurist", anthropic: "compliance", google: "critic", perplexity: "scout", mistral: "negotiator" },
+    "Medical Council": { openai: "medical", anthropic: "bioethicist", google: "researcher", perplexity: "scout", mistral: "analyst" },
+    "Finance Desk": { openai: "cfo", anthropic: "auditor", google: "economist", perplexity: "scout", mistral: "tax" },
+    "Science Panel": { openai: "physicist", anthropic: "biologist", google: "chemist", perplexity: "scout", mistral: "professor" },
+    "Startup Launch": { openai: "bizstrat", anthropic: "product", google: "marketing", perplexity: "scout", mistral: "cfo" },
+    "Tech Council": { openai: "ai_architect", anthropic: "network", google: "telecom", perplexity: "scout", mistral: "hacker" }
 };
 
 // Available Roles for Manual Cycling
 const AVAILABLE_ROLES = {
-    openai: ["STRATEGIST", "ANALYST", "WRITER", "ARCHITECT", "VISIONARY"],
-    anthropic: ["CONTAINMENT", "RESEARCHER", "INNOVATOR", "INTEGRITY", "ARCHITECT"],
-    google: ["TAKEOVER", "HISTORIAN", "MARKETING", "HACKER", "CRITIC"],
+    openai: ["STRATEGIST", "ANALYST", "WRITER", "ARCHITECT", "VISIONARY", "JURIST", "MEDICAL", "CFO", "PHYSICIST", "BIZSTRAT", "AI_ARCHITECT", "NETWORK"],
+    anthropic: ["CONTAINMENT", "RESEARCHER", "INNOVATOR", "INTEGRITY", "ARCHITECT", "COMPLIANCE", "BIOETHICIST", "AUDITOR", "BIOLOGIST", "PRODUCT", "NETWORK", "TELECOM"],
+    google: ["TAKEOVER", "HISTORIAN", "MARKETING", "HACKER", "CRITIC", "ECONOMIST", "CHEMIST", "RESEARCHER", "NETWORK", "TELECOM"],
     perplexity: ["SCOUT", "SOCIAL", "OPTIMIZER", "RESEARCHER"],
-    mistral: ["ANALYST", "STRATEGIST", "CODING", "CREATIVE"],
+    mistral: ["ANALYST", "STRATEGIST", "CODING", "CREATIVE", "VALIDATOR", "NEGOTIATOR", "TAX", "PROFESSOR", "CFO", "WEB_DESIGNER", "HACKER"],
     local: ["ORACLE", "GUARDIAN", "OFFLINE"]
 };
 
@@ -450,7 +847,7 @@ function cycleRole(provider) {
 }
 
 // --- MODE SELECTION ---
-const activeModes = { v2: true, red: false };
+const activeModes = { v2: true, red: false, serp: false };
 
 function toggleMode(mode) {
     const btn = document.getElementById(`btn-mode-${mode}`);
@@ -473,6 +870,12 @@ const QUERY_PATTERNS = {
     "Deep Research": ["research", "study", "analyze", "investigate", "explain", "how does", "what is", "history", "scientific", "academic"],
     "Creative Council": ["creative", "design", "write", "story", "marketing", "campaign", "brand", "innovative", "idea", "concept"],
     "Code Audit": ["code", "bug", "debug", "security", "vulnerability", "review", "refactor", "optimize", "performance", "architecture"],
+    "Tech Council": ["technology", "infrastructure", "cloud", "devops", "network", "api", "database", "server", "deploy", "saas", "platform", "software", "hardware", "ai", "machine learning", "automation", "integration", "microservice", "kubernetes", "docker", "cyber", "firewall", "telecom", "fiber", "wireless", "5g", "routing", "bandwidth", "latency", "vpn", "encryption", "dns", "switch", "router", "cisco", "aws", "azure"],
+    "Legal Review": ["legal", "law", "regulation", "compliance", "contract", "liability", "patent", "trademark", "lawsuit", "attorney"],
+    "Medical Council": ["medical", "health", "clinical", "patient", "diagnosis", "treatment", "pharmaceutical", "disease", "therapy", "doctor"],
+    "Finance Desk": ["finance", "investment", "revenue", "profit", "accounting", "tax", "budget", "portfolio", "stock", "dividend", "roi"],
+    "Science Panel": ["science", "physics", "chemistry", "biology", "experiment", "hypothesis", "quantum", "molecular", "genetic", "laboratory"],
+    "Startup Launch": ["startup", "launch", "business plan", "mvp", "funding", "venture", "pitch", "scalable", "bootstrap", "market fit"],
     "System Core": ["general", "help", "question", "advice"]
 };
 
@@ -539,6 +942,7 @@ function setupInteractions() {
                 document.getElementById('roleLabel-anthropic').innerText = config.anthropic.toUpperCase();
                 document.getElementById('roleLabel-google').innerText = config.google.toUpperCase();
                 document.getElementById('roleLabel-perplexity').innerText = config.perplexity.toUpperCase();
+                if (config.mistral) document.getElementById('roleLabel-mistral').innerText = config.mistral.toUpperCase();
                 customRolesActive = false;
             }
 
@@ -614,6 +1018,18 @@ function setupInteractions() {
         logTelemetry("Input Cleared", "system");
     });
 
+    // Hamburger Menu → Report Library
+    document.getElementById('hamburgerBtn')?.addEventListener('click', () => toggleReportLibrary());
+    document.getElementById('closeLibraryBtn')?.addEventListener('click', () => toggleReportLibrary(false));
+    document.getElementById('libraryOverlay')?.addEventListener('click', () => toggleReportLibrary(false));
+
+    // Health Check Button
+    document.getElementById('healthCheckBtn')?.addEventListener('click', () => checkAPIHealth());
+
+    // Proactive health check on load + interval
+    setTimeout(() => checkAPIHealth(), 2000); // Check 2s after load
+    setInterval(() => checkAPIHealth(), 300000); // Re-check every 5 min
+
     // Rotate Roles Button
     document.getElementById('rotateRolesBtn')?.addEventListener('click', (e) => {
         const btn = e.target;
@@ -639,6 +1055,26 @@ function setupInteractions() {
     });
 
     document.querySelector('.close-results')?.addEventListener('click', closeResults);
+
+    // FILE UPLOAD HANDLERS
+    document.getElementById('attachBtn')?.addEventListener('click', () => {
+        document.getElementById('fileInput')?.click();
+    });
+    document.getElementById('fileInput')?.addEventListener('change', (e) => {
+        addFiles(e.target.files);
+        e.target.value = ''; // Reset so same file can be re-selected
+    });
+    // Drag-and-drop on textarea
+    const textarea = document.getElementById('queryInput');
+    if (textarea) {
+        textarea.addEventListener('dragover', (e) => { e.preventDefault(); textarea.classList.add('drag-over'); });
+        textarea.addEventListener('dragleave', () => textarea.classList.remove('drag-over'));
+        textarea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            textarea.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+        });
+    }
 
     // RECALL BUTTON LOGIC
     const recallBtn = document.getElementById('recallAnalysisBtn');
@@ -712,6 +1148,9 @@ function rotateRoles() {
 function updateSystemStatus(text) { const el = document.getElementById('system-status-val'); if (el) el.innerText = text.toUpperCase(); }
 
 async function triggerCouncil(query) {
+    // Store query for export
+    lastQueryText = query;
+
     const activeRoleName = document.querySelector('.nav-links a.active')?.dataset.role || 'System Core';
 
     // --- 2. ACTIVATION ---
@@ -1131,25 +1570,46 @@ async function executeCouncil(query, roleName) {
     // MODE FLAGS
     const useV2 = activeModes.v2;
     const isRedTeam = activeModes.red;
-    console.log(`[CORE] Executing: ${roleName} | V2: ${useV2} | Red Team: ${isRedTeam}`);
+    const useSerpAPI = activeModes.serp;
+    if (useSerpAPI) logTelemetry("LIVE MODE ACTIVE: Fetching Real-Time Data...", "process");
+    console.log(`[CORE] Executing: ${roleName} | V2: ${useV2} | Red Team: ${isRedTeam} | Live Data: ${useSerpAPI}`);
 
     const payload = {
         question: query,
         council_mode: true,
         council_roles: roleConfig,
         active_models: ["openai", "anthropic", "google", "perplexity", "mistral", "local"],
-        use_v2: true, // FORCED V2 FOR TESTING
-        is_red_team: isRedTeam     // Red Team Logic
+        use_v2: true,
+        is_red_team: isRedTeam,
+        use_serp: useSerpAPI  // Real-time data via SerpAPI
     };
 
-    const response = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    // Use FormData when files are attached, JSON otherwise
+    let response;
+    if (pendingFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('payload', JSON.stringify(payload));
+        for (const file of pendingFiles) {
+            formData.append('files', file);
+        }
+        logTelemetry(`${pendingFiles.length} file(s) attached to query`, "process");
+        response = await fetch('/api/ask', { method: 'POST', body: formData });
+        pendingFiles = [];
+        renderFilePreview();
+    } else {
+        response = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    }
     if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
     const data = await response.json();
     renderResults(data, roleName);
+    incrementQueryCount();
     resetUI();
 }
 
 function renderResults(data, roleName) {
+    // Store for export functionality
+    lastCouncilData = { ...data, roleName };
+
     // Hide processing toast
     const toast = document.getElementById('processing-toast');
     if (toast) toast.style.display = 'none';
@@ -1675,8 +2135,8 @@ function logTelemetry(msg, type = "info") {
             line.style.transform = "translateX(0)";
         }, 50);
 
-        // Keep only last 12 lines
-        while (telemetryLog.children.length > 12) {
+        // Keep only last 30 lines
+        while (telemetryLog.children.length > 30) {
             telemetryLog.removeChild(telemetryLog.firstChild);
         }
     }
@@ -1805,62 +2265,294 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// --- EXPORT TOOLBAR (Rendered in GLOBAL COMMS card) ---
-function renderExportToolbar(_container, _data) {
-    const sentinelCard = document.querySelector('.sentinel-card');
-    if (!sentinelCard) return;
+// --- EXPORT TOOLBAR (Rendered in RESULTS PANEL for immediate visibility) ---
+function renderExportToolbar(container, _data) {
+    // Remove any existing toolbar first
+    const existing = document.querySelector('.export-command-center');
+    if (existing) existing.remove();
 
-    let toolbar = sentinelCard.querySelector('.export-command-center');
-    if (!toolbar) {
-        toolbar = document.createElement("div");
-        toolbar.className = "export-command-center";
-        toolbar.style.cssText = "margin-top:auto; padding:12px; background:rgba(0,0,0,0.4); border-radius:8px; border:1px solid rgba(255,255,255,0.1);";
-        toolbar.innerHTML = `
-            <div class="ecc-label" style="margin-bottom:10px; font-size:11px; color:#FFB020; letter-spacing:1px;">EXPORT RESULTS</div>
-            <div class="ecc-controls" style="display:flex; flex-direction:column; gap:8px;">
-                <select id="exportSocial" onchange="handleSocialExport(this.value)" style="font-size:12px; padding:8px 10px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:4px;">
-                    <option value="" disabled selected>Share to Social...</option>
-                    <option value="linkedin">LinkedIn Post</option>
-                    <option value="twitter">X / Twitter Thread</option>
-                    <option value="threads">Threads</option>
-                    <option value="reddit">Reddit Post</option>
-                    <option value="medium">Medium Article</option>
-                </select>
-                <select id="exportDoc" onchange="handleDocExport(this.value)" style="font-size:12px; padding:8px 10px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:4px;">
-                    <option value="" disabled selected>Export Document...</option>
-                    <option value="pdf">PDF Report</option>
-                    <option value="docx">Word Document</option>
-                    <option value="obsidian">Obsidian Note</option>
-                    <option value="notion">Notion Page</option>
-                    <option value="email">Email Draft</option>
-                </select>
-                <select id="exportPresent" onchange="handlePresentExport(this.value)" style="font-size:12px; padding:8px 10px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:4px;">
-                    <option value="" disabled selected>Create Presentation...</option>
-                    <option value="slides">Google Slides</option>
-                    <option value="pptx">PowerPoint</option>
-                    <option value="reveal">Reveal.js</option>
-                </select>
-            </div>
-        `;
-        // Insert at the bottom of sentinel card, after the input area
-        sentinelCard.appendChild(toolbar);
-    }
+    const toolbar = document.createElement("div");
+    toolbar.className = "export-command-center";
+    toolbar.innerHTML = `
+        <div class="ecc-label">DEPLOY INTELLIGENCE</div>
+        <div class="ecc-controls">
+            <select id="exportDoc" onchange="handleDocExport(this.value)">
+                <option value="" disabled selected>Export Report...</option>
+                <option value="pdf">Board Brief (PDF)</option>
+                <option value="docx">Executive Memo (.docx)</option>
+                <option value="xlsx">Intelligence Workbook (.xlsx)</option>
+                <option value="csv">Flat Data (.csv)</option>
+                <option value="json">Raw Intelligence (.json)</option>
+                <option value="md">Markdown Brief (.md)</option>
+                <option value="txt">Text Report (.txt)</option>
+            </select>
+            <select id="exportPresent" onchange="handlePresentExport(this.value)">
+                <option value="" disabled selected>Create Deck...</option>
+                <option value="pptx">PowerPoint (.pptx)</option>
+                <option value="slides">Google Slides Draft</option>
+                <option value="reveal">Reveal.js</option>
+            </select>
+            <select id="exportSocial" onchange="handleSocialExport(this.value)">
+                <option value="" disabled selected>Share to Social...</option>
+                <option value="linkedin">LinkedIn Post</option>
+                <option value="twitter">X / Twitter Thread</option>
+                <option value="threads">Threads</option>
+                <option value="reddit">Reddit Post</option>
+                <option value="medium">Medium Article</option>
+            </select>
+            <button class="ecc-save-btn" onclick="saveReport()" title="Save to Report Library">SAVE</button>
+        </div>
+    `;
+
+    // Insert at the TOP of results content, before the grid
+    container.prepend(toolbar);
 }
 
 function handleSocialExport(platform) {
     if (!platform) return;
-    logTelemetry(`Preparing ${platform.toUpperCase()} Export...`, "process");
+
+    if (!lastCouncilData || !lastCouncilData.synthesis) {
+        showProcessingToast("No synthesized intelligence available. Execute protocol first.");
+        logTelemetry("Social export failed: No synthesis data", "error");
+        document.getElementById('exportSocial').selectedIndex = 0;
+        return;
+    }
+
+    try {
+        const social = buildSocialPayload(lastCouncilData.synthesis);
+        let url = '';
+
+        if (platform === 'linkedin') {
+            url = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(social.linkedin)}`;
+            copyTextToClipboard(social.linkedin, "LinkedIn post copied. Opening LinkedIn composer...");
+        } else if (platform === 'twitter') {
+            url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(social.twitter)}`;
+            copyTextToClipboard(social.twitter, "X post copied. Opening composer...");
+        } else if (platform === 'threads') {
+            url = `https://www.threads.net/intent/post?text=${encodeURIComponent(social.threads)}`;
+            copyTextToClipboard(social.threads, "Threads post copied.");
+        } else if (platform === 'reddit') {
+            const title = social.redditTitle.slice(0, 300);
+            url = `https://www.reddit.com/submit?title=${encodeURIComponent(title)}&text=${encodeURIComponent(social.redditBody)}`;
+            copyTextToClipboard(`${title}\n\n${social.redditBody}`, "Reddit draft copied. Opening submit page...");
+        } else if (platform === 'medium') {
+            url = 'https://medium.com/new-story';
+            copyTextToClipboard(social.medium, "Medium draft copied. Opening Medium...");
+        }
+
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+        logTelemetry(`Social draft prepared for ${platform.toUpperCase()}`, "success");
+    } catch (error) {
+        console.error("Social export error:", error);
+        logTelemetry(`Social export error: ${error.message}`, "error");
+        showProcessingToast(`Social export failed: ${error.message}`);
+    }
+
+    document.getElementById('exportSocial').selectedIndex = 0;
 }
 
-function handleDocExport(format) {
+async function handleDocExport(format) {
     if (!format) return;
-    logTelemetry(`Converting to ${format.toUpperCase()}...`, "process");
+
+    const select = document.getElementById('exportDoc');
+    const formatNames = {
+        pdf: 'Board Brief', docx: 'Executive Memo', xlsx: 'Intelligence Workbook',
+        csv: 'Flat Data', json: 'Raw Intelligence', md: 'Markdown Brief', txt: 'Text Report'
+    };
+
+    if (!lastCouncilData || !lastCouncilData.synthesis) {
+        showProcessingToast("Execute protocol first to generate intelligence data.");
+        logTelemetry("Deployment failed: No synthesis data", "error");
+        if (select) select.selectedIndex = 0;
+        return;
+    }
+
+    // Visual feedback: disable dropdown and show building state
+    if (select) select.disabled = true;
+    const buildingToast = `Building ${formatNames[format] || format.toUpperCase()}...`;
+    showProcessingToast(buildingToast);
+    logTelemetry(`DEPLOYING ASSET: ${format.toUpperCase()}...`, "process");
+
+    try {
+        const payload = {
+            intelligence_object: lastCouncilData.synthesis,
+            format: format
+        };
+
+        const response = await fetch('/api/deploy_intelligence', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+
+            const contentDisposition = response.headers.get('Content-Disposition') || '';
+            const serverFilenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+            const serverFilename = serverFilenameMatch ? serverFilenameMatch[1] : '';
+            const timestamp = formatTimestampForFilename();
+            a.download = serverFilename || `korum_intelligence_${timestamp}.${format}`;
+
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            logTelemetry(`Intelligence Asset Deployed: ${formatNames[format] || format.toUpperCase()}`, "success");
+            showProcessingToast(`${formatNames[format] || format.toUpperCase()} downloaded`);
+        } else {
+            const err = await response.json();
+            throw new Error(err.error || "Server failed to build asset");
+        }
+    } catch (error) {
+        console.error("Deployment Error", error);
+        logTelemetry(`Deployment Error: ${error.message}`, "error");
+        showProcessingToast(`Export failed: ${error.message}`);
+    }
+
+    // Re-enable and reset dropdown
+    if (select) {
+        select.disabled = false;
+        select.selectedIndex = 0;
+    }
+}
+
+function formatTimestampForFilename() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+}
+
+function buildSocialPayload(synthesis) {
+    const meta = synthesis.meta || {};
+    const sections = synthesis.sections || {};
+    const title = meta.title || "Korum Intelligence Brief";
+    const summary = (meta.summary || sections.executive_summary || "").trim();
+
+    const bullets = [
+        sections.market_analysis,
+        sections.technical_architecture,
+        sections.risk_assessment,
+        sections.strategic_recommendations
+    ].filter(Boolean).map(s => `- ${String(s).replace(/\s+/g, ' ').slice(0, 200)}`);
+
+    const base = `${title}\n\n${summary}`.trim();
+    const clippedBase = base.slice(0, 1200);
+
+    return {
+        linkedin: `${clippedBase}\n\n${bullets.slice(0, 3).join('\n')}\n\n#AI #Strategy #DecisionIntelligence`,
+        twitter: `${title}: ${summary}`.replace(/\s+/g, ' ').slice(0, 250),
+        threads: `${title}\n${summary}`.slice(0, 450),
+        redditTitle: title,
+        redditBody: `${summary}\n\n${bullets.join('\n')}`.trim(),
+        medium: `# ${title}\n\n${summary}\n\n${Object.entries(sections).map(([k, v]) => `## ${k.replace(/_/g, ' ')}\n\n${v || ''}`).join('\n\n')}`
+    };
+}
+
+function copyTextToClipboard(text, successMessage) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        showProcessingToast(successMessage);
+    }).catch(() => {
+        showProcessingToast("Draft ready. Copy manually from console output.");
+        console.log("Draft content:", text);
+    });
+}
+
+// Helper: Convert markdown to basic HTML for Word export
+function markdownToHtml(md) {
+    if (!md) return '';
+    return md
+        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/```[\s\S]*?```/g, m => `<pre>${m.slice(3, -3)}</pre>`)
+        .replace(/^\- (.*$)/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\|(.+)\|/g, (match) => {
+            const cells = match.split('|').filter(c => c.trim());
+            if (cells.some(c => /^[-:]+$/.test(c.trim()))) return '';
+            return '<tr>' + cells.map(c => `<td>${c.trim()}</td>`).join('') + '</tr>';
+        });
+}
+
+// Helper: Escape HTML entities
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function handlePresentExport(format) {
     if (!format) return;
     const names = { slides: "Google Slides", pptx: "PowerPoint", reveal: "Reveal.js" };
     logTelemetry(`Generating ${names[format] || format} Presentation...`, "process");
+
+    if (!lastCouncilData || !lastCouncilData.synthesis) {
+        showProcessingToast("No synthesized intelligence available. Execute protocol first.");
+        logTelemetry("Presentation export failed: No synthesis data", "error");
+        document.getElementById('exportPresent').selectedIndex = 0;
+        return;
+    }
+
+    if (format === 'pptx') {
+        fetch('/api/generate_preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'presentation',
+                synthesis: lastCouncilData.synthesis,
+                classification: lastCouncilData.classification || {}
+            })
+        })
+            .then(resp => {
+                if (!resp.ok) throw new Error(`Preview failed: ${resp.status}`);
+                return resp.json();
+            })
+            .then(preview => {
+                if (typeof openArtifactModal === 'function') {
+                    openArtifactModal('presentation', preview);
+                    logTelemetry("Presentation preview ready", "success");
+                } else {
+                    throw new Error("Artifact editor not available");
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                logTelemetry(`Presentation export error: ${err.message}`, "error");
+                showProcessingToast(`Error: ${err.message}`);
+            })
+            .finally(() => {
+                document.getElementById('exportPresent').selectedIndex = 0;
+            });
+        return;
+    }
+
+    const social = buildSocialPayload(lastCouncilData.synthesis);
+    const extension = format === 'slides' ? 'txt' : 'md';
+    const content = format === 'slides'
+        ? `Google Slides Draft\n\n${social.medium}`
+        : `# Reveal.js Draft\n\n${social.medium}`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `korum_${format}_draft_${formatTimestampForFilename()}.${extension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showProcessingToast(`${names[format]} draft downloaded`);
+    logTelemetry(`${names[format]} draft generated`, "success");
+    document.getElementById('exportPresent').selectedIndex = 0;
 }
 
 // --- ACTION PANEL ---

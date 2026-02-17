@@ -7,3 +7,7 @@ google-genai
 requests
 gunicorn
 python-pptx
+python-docx
+openpyxl
+reportlab
+PyPDF2

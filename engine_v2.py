@@ -44,9 +44,6 @@ def classify_query_v2(query, active_personas):
     AVAILABLE PERSONAS (User Selected):
     - OpenAI: {active_personas.get('openai', 'Strategist')}
     - Anthropic: {active_personas.get('anthropic', 'Architect')}
-    AVAILABLE PERSONAS (User Selected):
-    - OpenAI: {active_personas.get('openai', 'Strategist')}
-    - Anthropic: {active_personas.get('anthropic', 'Architect')}
     - Google: {active_personas.get('google', 'Critic')}
     - Perplexity: {active_personas.get('perplexity', 'Scout')}
     - Mistral: {active_personas.get('mistral', 'Analyst')} (Cloud)
@@ -55,8 +52,11 @@ def classify_query_v2(query, active_personas):
     OPTIMAL EXECUTION ORDER PRINCIPLES:
     1. Foundation First: Research/data gathering (usually Perplexity/Scout)
     2. Vision/Strategy: High-level direction (OpenAI/Strategist/Visionary)
-    3. Implementation: Technical/tactical details (Anthropic/Architect)
-    4. Validation: Critical analysis, risk assessment (Google/Critic)
+    3. Analysis/Deep Dive: Quantitative analysis, independent second opinion (Mistral/Analyst)
+    4. Implementation: Technical/tactical details (Anthropic/Architect)
+    5. Validation: Critical analysis, risk assessment, stress testing (Google/Critic)
+
+    IMPORTANT: Always include ALL 5 cloud providers in the executionOrder. Each brings a unique perspective.
 
     return ONLY valid JSON (no markdown):
     {{
@@ -64,7 +64,7 @@ def classify_query_v2(query, active_personas):
       "intent": "plan|build|analyze|optimize|critique|research|launch",
       "complexity": "simple|moderate|complex",
       "outputType": "presentation|technical_spec|marketing_plan|report|strategic_framework|diagram",
-      "executionOrder": ["perplexity-scout", "openai-strategist", "anthropic-architect", "google-critic"],
+      "executionOrder": ["perplexity-scout", "openai-strategist", "mistral-analyst", "anthropic-architect", "google-critic"],
       "reasoning": "Brief explanation of order"
     }}
     """
@@ -197,19 +197,21 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
-def execute_council_v2(query, active_personas):
+def execute_council_v2(query, active_personas, images=None):
     # 1. Plan
     classification = classify_query_v2(query, active_personas)
     context = CouncilContext(query, classification)
     results = {}
 
     print(f"[COUNCIL] Efficiency Plan: {classification['executionOrder']}")
+    if images:
+        print(f"[COUNCIL] {len(images)} image(s) attached — vision mode active")
 
     # 2. Execute Step-by-Step
     try:
         execution_order = classification.get('executionOrder', [])
         if not isinstance(execution_order, list): execution_order = []
-        
+
         for i, step in enumerate(execution_order):
             parts = step.split('-')
             provider = parts[0].lower()
@@ -219,14 +221,14 @@ def execute_council_v2(query, active_personas):
 
             prompt = build_council_prompt(context, provider, role, i, len(execution_order))
             response_obj = {"success": False, "response": "Provider unknown"}
-            
-            # Primary Call
+
+            # Primary Call — pass images to vision-capable providers
             try:
-                if provider == 'openai': response_obj = call_openai_gpt4(prompt, role)
-                elif provider == 'anthropic': response_obj = call_anthropic_claude(prompt, role)
-                elif provider == 'google': response_obj = call_google_gemini(prompt, role)
+                if provider == 'openai': response_obj = call_openai_gpt4(prompt, role, images=images)
+                elif provider == 'anthropic': response_obj = call_anthropic_claude(prompt, role, images=images)
+                elif provider == 'google': response_obj = call_google_gemini(prompt, role, images=images)
                 elif provider == 'perplexity': response_obj = call_perplexity(prompt, role)
-                elif provider == 'mistral': response_obj = call_mistral_api(prompt, role)
+                elif provider == 'mistral': response_obj = call_mistral_api(prompt, role, images=images)
                 elif provider == 'local': response_obj = call_local_llm(prompt, role)
             except Exception as e:
                 print(f"[COUNCIL] Primary ({provider}) Exception: {e}")
@@ -333,80 +335,60 @@ def synthesize_results(context):
         history_text += f"\n[{entry['ai'].upper()}]: {entry['response']}\n"
 
     prompt = f"""
-    You are a data extraction specialist. Extract ONLY hard facts and structured data from this AI council discussion.
+    You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a high-fidelity "Intelligence Object" for enterprise reporting.
 
     CRITICAL RULES:
-    1. NO conversational fluff ("As mentioned earlier", "Great point", "I agree")
-    2. NO meta-commentary ("This is important because...")
-    3. ONLY concrete facts, numbers, actions, and technical details
-    4. Format for direct use in professional documents
+    1. NO conversational fluff.
+    2. NO meta-commentary.
+    3. Standardize into the following structure.
+    4. Ensure every section name is professional.
 
     COUNCIL DISCUSSION:
     {history_text}
 
-    EXTRACT the following (return ONLY valid JSON, no markdown):
-
+    Return ONLY a single valid JSON object with this schema:
     {{
-      "keyPoints": [
-        "Self-contained fact 1 (no pronouns, no references to 'we' or 'the team')",
-        "Self-contained fact 2"
-      ],
-      
-      "numericData": [
-        {{
-          "metric": "Gen Z crypto adoption rate",
-          "value": 40,
-          "unit": "percent",
-          "context": "Weekly trading activity in 2025"
-        }}
-      ],
-      
-      "actionItems": [
-        {{
-          "task": "Register Delaware C-Corp for token entity",
-          "timeline": "Months 1-3",
-          "priority": "high"
-        }}
-      ],
-      
-      "technicalSpecs": {{
-        "technologies": ["Ethereum Layer 2", "Polygon", "Solana"],
-        "frameworks": ["ERC-20 standard", "Multi-sig wallets"],
-        "integrations": ["Uniswap", "MetaMask", "Coinbase Wallet"]
+      "meta": {{
+        "title": "Concise, Descriptive Report Title",
+        "generated_at": "{datetime.now().isoformat()}",
+        "summary": "1-2 sentence high-level synthesis",
+        "composite_truth_score": 0,
+        "models_used": []
       }},
-      
-      "narrativeStructure": {{
-        "introduction": "Gen Z represents 40% of crypto traders with preference for social-good tokens",
-        "problemStatement": "Traditional finance excludes values-driven investors",
-        "solution": "Purpose-driven token with transparent impact metrics",
-        "implementation": "Layer 2 deployment with gamified staking",
-        "conclusion": "Projected 1M users in 18 months based on comparable launches"
+      "sections": {{
+        "executive_summary": "Full narrative text...",
+        "market_analysis": "Full narrative text...",
+        "technical_architecture": "Full narrative text...",
+        "financial_model": "Full narrative text (structured summaries)...",
+        "risk_assessment": "Full narrative text...",
+        "strategic_recommendations": "Full narrative text..."
       }},
-      
-      "citations": [
-        {{
-          "claim": "Gen Z crypto adoption at 40% weekly trading",
-          "source": "Coinbase 2025 Demographics Report"
-        }}
-      ],
-      
-      "risks": [
-        {{
-          "risk": "SEC classification as unregistered security",
-          "severity": "high",
-          "mitigation": "Utility-focused design with legal review pre-launch"
-        }}
-      ]
+      "structured_data": {{
+        "key_metrics": [
+          {{"metric": "...", "value": "...", "context": "..."}}
+        ],
+        "action_items": [
+          {{"task": "...", "priority": "high|med|low", "timeline": "..."}}
+        ],
+        "risks": [
+          {{"risk": "...", "severity": "...", "mitigation": "..."}}
+        ]
+      }}
     }}
-
-    IMPORTANT: Extract ONLY what exists in the council discussion. If no numeric data mentioned, return empty array. If no risks discussed, omit the field.
     """
     
     try:
-        # Use a smart model for extraction
+        # Extract models from context
+        models_used = [f"{entry['ai']} ({entry['persona']})" for entry in context.history]
+        
         resp = call_openai_gpt4(prompt, "Synthesizer")
         content = resp['response'].replace('```json', '').replace('```', '').strip()
-        return json.loads(content)
+        data = json.loads(content)
+        
+        # Inject metadata if missing or simplified
+        data["meta"]["models_used"] = models_used
+        # Calculate a rough truth score from the results if available (averaging)
+        return data
     except Exception as e:
         print(f"[SYNTHESIS ERROR] {e}")
         return {"error": "Failed to synthesize structured data."}
