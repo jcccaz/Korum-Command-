@@ -714,9 +714,13 @@ def call_google_gemini(prompt, role="critic"):
         return {"success": False, "error": str(e)}
 
 def call_perplexity(prompt, role="intel"):
+    print(f"[PERPLEXITY] Called with role={role}, enabled={PERPLEXITY_ENABLED}, key={'SET' if PERPLEXITY_KEY else 'MISSING'}")
     if not PERPLEXITY_ENABLED:
+        print("[PERPLEXITY] BLOCKED: disabled by PERPLEXITY_ENABLED")
         return {"success": False, "error": "Perplexity disabled by PERPLEXITY_ENABLED"}
-    if not PERPLEXITY_KEY: return {"success": False, "error": "API Key Missing"}
+    if not PERPLEXITY_KEY:
+        print("[PERPLEXITY] BLOCKED: API key missing")
+        return {"success": False, "error": "API Key Missing"}
     start = time.time()
     model_name = PERPLEXITY_MODEL
     try:
@@ -725,6 +729,7 @@ def call_perplexity(prompt, role="intel"):
         token_cost_pre = estimate_cost(model_name, estimated_input_tokens_pre, PERPLEXITY_MAX_TOKENS)
         token_cost_pre = token_cost_pre if token_cost_pre is not None else 0.0
         request_cost_ceiling = token_cost_pre + PERPLEXITY_REQUEST_FEE_USD
+        print(f"[PERPLEXITY] Cost check: ceiling=${request_cost_ceiling:.4f}, max_per_req=${PERPLEXITY_MAX_REQUEST_COST_USD:.4f}, prompt_len={len(prompt_text)}")
 
         if PERPLEXITY_MAX_REQUEST_COST_USD > 0 and request_cost_ceiling > PERPLEXITY_MAX_REQUEST_COST_USD:
             return {
@@ -736,6 +741,7 @@ def call_perplexity(prompt, role="intel"):
             }
 
         spent_today = _today_spend_usd(model_name=model_name)
+        print(f"[PERPLEXITY] Budget check: spent_today=${spent_today:.4f}, ceiling=${request_cost_ceiling:.4f}, daily_budget=${PERPLEXITY_DAILY_BUDGET_USD:.4f}")
         if PERPLEXITY_DAILY_BUDGET_USD > 0 and (spent_today + request_cost_ceiling) > PERPLEXITY_DAILY_BUDGET_USD:
             return {
                 "success": False,
@@ -761,7 +767,11 @@ def call_perplexity(prompt, role="intel"):
             headers=headers,
             timeout=30,
         )
+        print(f"[PERPLEXITY] HTTP {response.status_code}")
         data = response.json()
+        if response.status_code != 200:
+            print(f"❌ Perplexity API Error ({response.status_code}): {data}")
+            return {"success": False, "error": f"API returned {response.status_code}: {data.get('error', {}).get('message', str(data))}"}
         if "choices" in data:
             latency = int((time.time() - start) * 1000)
             usage = data.get("usage", {})

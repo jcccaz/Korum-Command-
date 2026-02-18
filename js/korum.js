@@ -966,9 +966,11 @@ function setupInteractions() {
                 const suggestedWorkflow = analyzeQuery(query);
                 suggestedRoles = PROTOCOL_CONFIGS[suggestedWorkflow];
 
-                document.getElementById('detectedCategory').textContent = suggestedWorkflow;
-                document.getElementById('suggestedWorkflow').textContent = suggestedWorkflow;
-                suggestionBox.classList.remove('hidden');
+                const detCat = document.getElementById('detectedCategory');
+                const sugWf = document.getElementById('suggestedWorkflow');
+                if (detCat) detCat.textContent = suggestedWorkflow;
+                if (sugWf) sugWf.textContent = suggestedWorkflow;
+                if (suggestionBox) suggestionBox.classList.remove('hidden');
 
                 // Pre-populate dropdowns
                 if (suggestedRoles) {
@@ -981,35 +983,36 @@ function setupInteractions() {
                 logTelemetry(`Query Analyzed: ${suggestedWorkflow}`, "process");
             }, 800);
         } else {
-            suggestionBox.classList.add('hidden');
-            roleCustomization.classList.add('hidden');
+            if (suggestionBox) suggestionBox.classList.add('hidden');
+            if (roleCustomization) roleCustomization.classList.add('hidden');
         }
     });
 
     // Use Suggested Button
     document.getElementById('useSuggestedBtn')?.addEventListener('click', () => {
-        const suggestedWorkflow = document.getElementById('suggestedWorkflow').textContent;
+        const sugWfEl = document.getElementById('suggestedWorkflow');
+        const suggestedWorkflow = sugWfEl ? sugWfEl.textContent : '';
         const targetTab = document.querySelector(`.nav-links a[data-role="${suggestedWorkflow}"]`);
         if (targetTab) {
             targetTab.click();
         }
-        suggestionBox.classList.add('hidden');
-        roleCustomization.classList.add('hidden');
+        if (suggestionBox) suggestionBox.classList.add('hidden');
+        if (roleCustomization) roleCustomization.classList.add('hidden');
         customRolesActive = false;
         logTelemetry(`Applied Suggested Config: ${suggestedWorkflow}`, "system");
     });
 
     // Customize Roles Button
     document.getElementById('customizeBtn')?.addEventListener('click', () => {
-        roleCustomization.classList.toggle('hidden');
+        if (roleCustomization) roleCustomization.classList.toggle('hidden');
         customRolesActive = !customRolesActive;
         logTelemetry("Custom Role Editor Opened", "system");
     });
 
     // Dismiss Suggestion
     document.getElementById('dismissSuggestionBtn')?.addEventListener('click', () => {
-        suggestionBox.classList.add('hidden');
-        roleCustomization.classList.add('hidden');
+        if (suggestionBox) suggestionBox.classList.add('hidden');
+        if (roleCustomization) roleCustomization.classList.add('hidden');
     });
 
     // Clear Button

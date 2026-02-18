@@ -153,7 +153,7 @@ body {
 .nav-links a[data-role="Tech Council"]:hover,
 .nav-links a[data-role="Tech Council"].active    { background: #00DCFF; color: #000; border-color: #00DCFF; box-shadow: 0 0 15px rgba(0, 220, 255, 0.4); }
 
-/* LAYOUT - EVEN WIDER LEFT PANEL (580px) */
+/* LAYOUT */
 .dashboard-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -174,6 +174,7 @@ body {
     padding: 24px;
     will-change: opacity, transform;
     transition: all 0.3s ease;
+    min-height: 0;
 }
 
 /* LEFT PANEL */
@@ -374,7 +375,6 @@ body {
 
 .globe {
     width: 520px;
-    /* Scaled up from 440px (+18%) */
     height: 520px;
     position: relative;
 }
@@ -1238,10 +1238,94 @@ body.activated .sphere-texture {
     animation-duration: 12s !important;
 }
 /* =========================================
+   HIGH-DPI LAPTOP / SHORT VIEWPORT
+   ========================================= */
+@media (max-height: 800px) {
+    .screen-container {
+        height: 99%;
+        padding: 6px;
+    }
+
+    .top-bar {
+        margin-bottom: 6px;
+    }
+
+    .dashboard-grid {
+        gap: 10px;
+    }
+
+    .panel {
+        padding: 12px;
+    }
+
+    .left-panel h1 {
+        font-size: 22px !important;
+        margin-bottom: 2px !important;
+    }
+
+    .left-panel h1 + p,
+    .left-panel .subtitle {
+        font-size: 10px !important;
+        margin-bottom: 4px !important;
+    }
+
+    .glass-textarea {
+        height: 56px !important;
+    }
+
+    .deck-card {
+        padding: 6px 8px !important;
+    }
+
+    .deck-avatar {
+        font-size: 10px !important;
+    }
+
+    .deck-role {
+        font-size: 11px !important;
+    }
+
+    .agent-grid {
+        gap: 6px !important;
+    }
+
+    .mode-selector {
+        padding-top: 8px !important;
+    }
+
+    .mode-btn {
+        padding: 6px 8px !important;
+        font-size: 11px !important;
+    }
+
+    .trigger-scan {
+        margin-top: 6px !important;
+        padding: 8px !important;
+        font-size: 12px !important;
+    }
+
+    .micro-tracker {
+        margin-top: 4px !important;
+        padding: 4px 8px !important;
+        font-size: 10px !important;
+    }
+
+    .globe {
+        width: 380px;
+        height: 380px;
+    }
+
+    .sphere-container {
+        width: 180px;
+        height: 180px;
+    }
+}
+
+/* =========================================
    MOBILE & TABLET RESPONSIVENESS (Mission 3)
    ========================================= */
 
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
     body {
         overflow-y: auto !important;
         height: auto !important;
@@ -1264,8 +1348,8 @@ body.activated .sphere-texture {
     }
 
     .center-panel {
-        min-height: 480px !important;
-        order: -1 !important; 
+        min-height: 380px !important;
+        order: 0 !important;
         margin-bottom: 10px !important;
     }
 
