@@ -70,7 +70,7 @@ OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 GOOGLE_KEY = os.getenv("GOOGLE_API_KEY")
 PERPLEXITY_KEY = os.getenv("PERPLEXITY_API_KEY")
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or os.getenv("SerpApi_API_KEY")
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
@@ -293,7 +293,7 @@ def save_report():
         "synthesis": data.get("synthesis", ""),
         "classification": data.get("classification", {}),
         "roleName": data.get("roleName", ""),
-        "timestamp": _time.strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": _time.strftime("%Y-%m-%d %H:%M:%S", _time.localtime()),
         "provider_count": len([k for k, v in data.get("results", {}).items() if isinstance(v, dict) and v.get("success")])
     }
 
@@ -880,10 +880,17 @@ def fetch_serpapi_data(query, search_type="search"):
         # News results
         if "news_results" in data:
             for item in data["news_results"][:5]:
+                source_val = item.get("source")
+                source_name = ""
+                if isinstance(source_val, dict):
+                    source_name = source_val.get("name", "")
+                elif isinstance(source_val, str):
+                    source_name = source_val
+                
                 results.append({
                     "type": "news",
                     "title": item.get("title", ""),
-                    "source": item.get("source", {}).get("name", ""),
+                    "source": source_name,
                     "date": item.get("date", ""),
                     "snippet": item.get("snippet", ""),
                     "link": item.get("link", "")
@@ -1020,10 +1027,10 @@ def ask_council():
             print(f"✅ Real-time context injected ({len(serp_raw.get('results', []))} results)")
 
     if use_v2:
-        print(f"⚡ V2 ENGINE ENGAGED for query: {query}")
+        workflow = data.get('workflow', 'RESEARCH')
+        print(f"⚡ V2 ENGINE ENGAGED [{workflow}] for query: {query}")
         # V2 Engine handles sequence and synthesis
-        # We pass roles to let the user's "persona" choice influence the planner
-        v2_response = execute_council_v2(query, roles, images=images if images else None)
+        v2_response = execute_council_v2(query, roles, images=images if images else None, workflow=workflow)
         
         # If Red Team is ON, we might want to append it here explicitly 
         # OR rely on V2 engine to have included it. 
@@ -1086,45 +1093,126 @@ def ask_council():
 
 @app.route('/api/v2/reasoning_chain', methods=['POST'])
 def reasoning_chain():
-    # Placeholder for V2 Logic - Connected to simple sequential calls for MVP Standalone
+    """
+    V2 Orchestration Route: Uses the real Sequential Council Engine.
+    Maps results to the frontend's expected 'Pipeline Result' format.
+    """
     data = request.json
     query = data.get('query')
     hacker_mode = data.get('hacker_mode', False)
+    workflow = data.get('workflow', 'RESEARCH')
     
-    # Simulate chain for immediate responsiveness (Real logic requires complex orchestration)
-    # Step 1: Deconstruct (Claude)
-    r1 = call_anthropic_claude(f"DECONSTRUCT this request into core constraints and goals: {query}", "analyst")
-    
-    # Step 2: Architecture (GPT-4)
-    r2 = call_openai_gpt4(f"Based on: {query}. Create a high-level solution ARCHITECTURE.", "architect")
-    
-    # Step 3: Stress Test (Gemini)
-    r3 = call_google_gemini(f"STRESS TEST this concept: {query}. Identify failure modes.", "critic")
-    
-    # Step 4: Execution (GPT-4)
-    r4 = call_openai_gpt4(f"Synthesize a final EXECUTION PLAN for: {query}", "executive")
+    if not query:
+        return jsonify({"success": False, "error": "Query required"}), 400
 
-    # Step optional: Hacker
-    r3_5 = None
-    if hacker_mode:
-        r3_5 = call_google_gemini(f"RED TEAM EXPLOIT: {query}. How can this be broken?", "hacker")
+    print(f"⚡ V2 REASONING CHAIN: {query} [{workflow}]")
     
-    return jsonify({
-        "success": True,
-        "pipeline_result": {
-            "constraints": r1.get('response', "Failed"),
-            "standard_solution": r2.get('response', "Failed"),
-            "failure_analysis": r3.get('response', "Failed"),
-            "exploit_poc": r3_5.get('response') if r3_5 else None,
-            "final_artifact": r4.get('response', "Failed"),
+    # 1. Execute using the real engine
+    # We use a default set of personas if not provided (matching the legacy core-4/5)
+    personas = {
+        "openai": "Strategist",
+        "anthropic": "Architect",
+        "google": "Critic",
+        "perplexity": "Scout",
+        "mistral": "Analyst"
+    }
+    
+    try:
+        results = execute_council_v2(query, personas, workflow=workflow)
+        
+        # 2. Add Red Team separately if requested (to maintain logic in app.py for now)
+        if hacker_mode:
+            print("🛡️ RED TEAM INJECTION (Chain)")
+            exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(results['results'])}\n\nMISSION: RED TEAM THIS."
+            results['results']['red_team'] = call_google_gemini(exploit_prompt, "HACKER")
+
+        # 3. Map real results to the legacy keys expected by the frontend 'renderChainResults'
+        # Note: This is a bridge for current UI compatibility. 
+        # Future UI will consume 'synthesis' directly.
+        
+        # We look for results by provider to map to the 'Phases'
+        res_map = results.get('results', {})
+        
+        pipeline_result = {
+            "constraints": res_map.get('anthropic', {}).get('response', "Extraction Failed"),
+            "standard_solution": res_map.get('openai', {}).get('response', "Generation Failed"),
+            "failure_analysis": res_map.get('google', {}).get('response', "Analysis Failed"),
+            "exploit_poc": res_map.get('red_team', {}).get('response') if hacker_mode else None,
+            "final_artifact": results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
+            "results": res_map, # Pass raw results for truth scores
+            "synthesis": results.get('synthesis'),
             "metrics": {
-                "deconstruct": {"cost": 0.01, "time": 1.2},
-                "build": {"cost": 0.01, "time": 1.5},
-                "stress": {"cost": 0.00, "time": 0.8},
-                "synthesize": {"cost": 0.02, "time": 2.0}
+                "deconstruct": {"cost": 0.0, "time": 0.0},
+                "build": {"cost": 0.0, "time": 0.0},
+                "stress": {"cost": 0.0, "time": 0.0},
+                "synthesize": {"cost": 0.0, "time": 0.0}
             }
         }
-    })
+        
+        return jsonify({
+            "success": True,
+            "pipeline_result": pipeline_result
+        })
+
+    except Exception as e:
+        print(f"❌ V2 Chain Error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/enhance_prompt', methods=['POST'])
+def enhance_prompt():
+    data = request.json
+    draft = data.get('draft')
+    
+    if not draft:
+        return jsonify({"success": False, "error": "Draft text required"}), 400
+
+    print(f"🪄 Enhancing Prompt: {draft[:50]}...")
+
+    # Use Gemini Flash (Sentinel) for speed, or GPT-4o as fallback
+    system_instruction = """You are an expert Prompt Engineer for an elite AI Council. 
+    Your goal is to rewrite the user's rough, unstructured input into a clear, strategic, and high-quality prompt.
+    
+    RULES:
+    1. Fix grammar and clarity.
+    2. Structure the request logically.
+    3. Add necessary context placeholders if vague (e.g. [Insert Company Name]).
+    4. Maintain the user's original intent but make it professional.
+    5. RETURN ONLY THE REWRITTEN PROMPT. NO INTRO/OUTRO."""
+
+    enhanced_text = ""
+    model_used = ""
+
+    # Try Gemini First
+    if google_client:
+        try:
+            response = google_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=f"{system_instruction}\n\nUser Input: {draft}"
+            )
+            enhanced_text = response.text.strip()
+            model_used = "Gemini Flash"
+        except Exception as e:
+            print(f"⚠️ Enhanced Prompt (Gemini) failed: {e}")
+
+    # Fallback to OpenAI
+    if not enhanced_text and openai_client:
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": draft}
+                ]
+            )
+            enhanced_text = response.choices[0].message.content.strip()
+            model_used = "GPT-4o"
+        except Exception as e:
+            print(f"⚠️ Enhanced Prompt (OpenAI) failed: {e}")
+
+    if enhanced_text:
+        return jsonify({"success": True, "enhanced_text": enhanced_text, "model": model_used})
+    
+    return jsonify({"success": False, "error": "Enhancement services unavailable"}), 503
 
 @app.route('/api/sentinel', methods=['POST'])
 def ask_sentinel():

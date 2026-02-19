@@ -23,10 +23,27 @@ class TestSynthesizer(unittest.TestCase):
             "response": """
             ```json
             {
-                "keyPoints": ["Market is growing at 40% annually.", "Layer 2 solutions are critical."],
-                "numericData": [{"metric": "Market Growth", "value": 40, "unit": "%"}],
-                "actionItems": [],
-                "risks": []
+                "meta": {
+                    "title": "Market Trends Analysis",
+                    "generated_at": "2023-10-27T10:00:00",
+                    "summary": "Market is growing at 40% annually.",
+                    "composite_truth_score": 0.85,
+                    "models_used": ["claude"],
+                    "workflow": "RESEARCH"
+                },
+                "sections": {
+                    "key_findings": "Market is growing at 40% annually. Layer 2 solutions are critical."
+                },
+                "structured_data": {
+                    "key_metrics": [{"metric": "Market Growth", "value": "40%"}],
+                    "action_items": [],
+                    "risks": []
+                },
+                "intelligence_tags": {
+                    "decisions": [],
+                    "risks": [],
+                    "metrics": ["40%"]
+                }
             }
             ```
             """
@@ -41,19 +58,18 @@ class TestSynthesizer(unittest.TestCase):
 
         # 4. Assertions
         # Check that keys exist
-        self.assertIn('keyPoints', result)
-        self.assertIn('numericData', result)
+        self.assertIn('meta', result)
+        self.assertIn('sections', result)
+        self.assertIn('intelligence_tags', result)
         
         # Check that conversational fluff is gone (based on our mock's clean output)
-        # Note: In a real integration test, this validates the LLM's adherence to the prompt.
-        # Here, it validating our JSON parsing logic works.
-        self.assertEqual(result['numericData'][0]['value'], 40)
-        self.assertEqual(result['numericData'][0]['unit'], '%')
+        self.assertEqual(result['meta']['title'], "Market Trends Analysis")
+        self.assertEqual(result['structured_data']['key_metrics'][0]['value'], '40%')
         
-        # Verify no fluff in the extracted points
-        for point in result['keyPoints']:
-            self.assertNotIn("As I mentioned", point)
-            self.assertNotIn("Great point", point)
+        # Verify no fluff in the extracted sections
+        for section, content in result['sections'].items():
+            self.assertNotIn("As I mentioned", content)
+            self.assertNotIn("Great point", content)
 
 
     @patch('engine_v2.call_perplexity')
@@ -92,10 +108,12 @@ class TestSynthesizer(unittest.TestCase):
             self.assertIn('openai', result['results'])
             
             # Check Context Passing (Indirectly via prompt construction)
-            # We verify that OpenAI (Step 2) was called with a prompt containing Perplexity's output
-            args, _ = mock_gpt.call_args
-            prompt_sent_to_openai = args[0]
-            self.assertIn("PREVIOUS COUNCIL OUTPUT", prompt_sent_to_openai)
+            # We look for the call that was NOT for claim identification
+            orchestration_prompts = [call[0][0] for call in mock_gpt.call_args_list if "## PROFESSIONAL INTELLIGENCE BRIEF" in call[0][0]]
+            
+            self.assertTrue(len(orchestration_prompts) > 0)
+            prompt_sent_to_openai = orchestration_prompts[0]
+            self.assertIn("PREVIOUS CONTRIBUTIONS", prompt_sent_to_openai)
             self.assertIn("Perplexity: Found trend X", prompt_sent_to_openai)
             
             print("\n[TEST] Verified that Step 2 (OpenAI) received Context from Step 1 (Perplexity).")

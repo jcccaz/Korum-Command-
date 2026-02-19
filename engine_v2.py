@@ -15,10 +15,47 @@ from llm_core import call_openai_gpt4
 # Import the other providers:
 from llm_core import call_anthropic_claude, call_google_gemini, call_perplexity, call_local_llm, call_mistral_api
 
+# --- WORKFLOW DNA REGISTRY (The Elite Logic Layer) ---
+WORKFLOW_DNA = {
+    "WAR_ROOM": {
+        "goal": "Immediate tactical action and crisis containment.",
+        "tone": "Aggressive, direct, and zero-fluff.",
+        "risk_bias": "Conservative (Minimize immediate damage)",
+        "time_horizon": "0–72 hours",
+        "posture": "Tactical Commander",
+        "output_structure": ["Situation", "Threat", "Immediate Action", "Resource Allocation", "Escalation Path"]
+    },
+    "RESEARCH": {
+        "goal": "Deep understanding and evidence-based exploration.",
+        "tone": "Neutral, academic, and comprehensive.",
+        "risk_bias": "Balanced",
+        "time_horizon": "Long-term strategic",
+        "posture": "Objective Scientist",
+        "output_structure": ["Hypotheses", "Evidence", "Counterarguments", "Confidence Score", "Further Research Paths"]
+    },
+    "FINANCE": {
+        "goal": "Economic viability and downside protection.",
+        "tone": "Analytical, precise, and detached.",
+        "risk_bias": "Downside-aware",
+        "time_horizon": "Scenario-based",
+        "posture": "CFO / Auditor",
+        "output_structure": ["Cost", "Revenue Impact", "Sensitivity Table", "Worst-case Scenario", "ROI Summary"]
+    },
+    "LEGAL": {
+        "goal": "Exposure reduction and regulatory compliance.",
+        "tone": "Formal, rigorous, and protective.",
+        "risk_bias": "Zero-risk / Protective",
+        "time_horizon": "Indefinite",
+        "posture": "General Counsel",
+        "output_structure": ["Regulatory Exposure", "Contractual Impact", "Risk Mitigation", "Recommended Posture"]
+    }
+}
+
 class CouncilContext:
-    def __init__(self, query, classification):
+    def __init__(self, query, classification, workflow="RESEARCH"):
         self.query = query
         self.classification = classification
+        self.workflow = workflow.upper() if workflow else "RESEARCH"
         self.history = []
 
     def add_entry(self, ai_name, persona, response):
@@ -104,10 +141,10 @@ def classify_query_v2(query, active_personas):
     except Exception as local_e:
         print(f"[PLANNER ERROR] Local: {local_e}")
 
-    # Ultimate Fallback
+    # Ultimate Fallback - Use at least one cloud provider (Mistral) as a scout if possible
     return {
-        "executionOrder": ["local-analyst", "local-strategist", "local-critic"],
-        "reasoning": "ALL SYSTEMS OFFLINE. Using Local Emergency Council.",
+        "executionOrder": ["mistral-scout", "local-strategist", "local-critic"],
+        "reasoning": "PRIMARY MODELS OFFLINE. Using Mixed Emergency Council.",
         "outputType": "report"
     }
 
@@ -197,10 +234,10 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
-def execute_council_v2(query, active_personas, images=None):
+def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH"):
     # 1. Plan
     classification = classify_query_v2(query, active_personas)
-    context = CouncilContext(query, classification)
+    context = CouncilContext(query, classification, workflow=workflow)
     results = {}
 
     print(f"[COUNCIL] Efficiency Plan: {classification['executionOrder']}")
@@ -211,15 +248,23 @@ def execute_council_v2(query, active_personas, images=None):
     try:
         execution_order = classification.get('executionOrder', [])
         if not isinstance(execution_order, list): execution_order = []
+        total_steps = len(execution_order)
 
-        for i, step in enumerate(execution_order):
-            parts = step.split('-')
-            provider = parts[0].lower()
-            role = parts[1] if len(parts) > 1 else "advisor"
+        for i, provider_role in enumerate(execution_order):
+            # Split "provider-role"
+            try:
+                provider, role = provider_role.split('-')
+            except ValueError:
+                provider = provider_role.lower()
+                role = active_personas.get(provider, 'analyst')
+
+            # NEW: Inject "Integrator" posture for the final step
+            if i == total_steps - 1:
+                role = f"Integrator ({role})"
 
             print(f"[COUNCIL] Step {i+1}: {provider.upper()} as {role.upper()}")
 
-            prompt = build_council_prompt(context, provider, role, i, len(execution_order))
+            prompt = build_council_prompt(context, provider, role, i, total_steps)
             response_obj = {"success": False, "response": "Provider unknown"}
 
             # Primary Call — pass images to vision-capable providers
@@ -264,12 +309,13 @@ def execute_council_v2(query, active_personas, images=None):
 
             context.add_entry(provider, role, response_text)
             
-            # Store base result
+            # Store base result with ACTUAL success status
             results[provider] = {
-                "success": True,
+                "success": response_obj.get('success', False),
                 "response": response_text,
                 "model": response_obj.get('model', 'unknown') if isinstance(response_obj, dict) else 'unknown',
-                "role": role.upper()
+                "role": role.upper(),
+                "error": response_obj.get('error') if not response_obj.get('success') else None
             }
 
         # --- NEW: ACCOUNTABILITY PASS ---
@@ -296,32 +342,72 @@ def execute_council_v2(query, active_personas, images=None):
     }
 
 def build_council_prompt(context, ai_name, persona, position, total_steps):
+    # Determine the task objective
+    core_objective = context.query
+    intent = context.classification.get('intent', 'analysis')
+    output_type = context.classification.get('outputType', 'report')
+    
+    # Retrieve Workflow DNA
+    dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
+
+    if ai_name.lower() == 'perplexity' and context.workflow == "RESEARCH":
+        # Perplexity works best with direct research questions, not persona roleplay
+        prompt = f"""
+        RESEARCH OBJECTIVE: "{core_objective}"
+        
+        CONTEXT: You are contributing to a strategic intelligence report (Phase {position + 1} of {total_steps}).
+        GOAL: {dna['goal']}
+        INTENT: {intent.upper()} / {output_type.upper()}
+        """
+        
+        if position > 0:
+            prompt += "\nRECENT DATA / PREVIOUS ANALYSIS:\n"
+            # Give Perplexity just enough context to refine its search, not the whole history
+            last_entry = context.history[-1]
+            prompt += f"Summary of previous findings: {last_entry['response'][:1000]}...\n"
+        
+        prompt += "\nINSTRUCTION: Provide comprehensive, well-sourced research and data to support this objective. Focus on facts, metrics, and technical details."
+        return prompt
+
+    # Standard Professional Template with DNA Overlay
     prompt = f"""
-    You are {ai_name.upper()}, acting as {persona.upper()}.
+    ## PROFESSIONAL INTELLIGENCE BRIEF
+    MISSION TYPE: {context.workflow}
+    PRIMARY OBJECTIVE: "{core_objective}"
     
-    ORIGINAL MISSION: "{context.query}"
+    CURRENT FOCUS: {persona.upper()} (Assignee: {ai_name.upper()})
+    WORKFLOW STAGE: Part {position + 1} of {total_steps}
     
-    PLAN:
-    - Intent: {context.classification.get('intent', 'analysis')}
-    - Output: {context.classification.get('outputType', 'report')}
-    
-    YOUR ROLE: Step {position + 1} of {total_steps}.
+    --- WORKFLOW DNA ---
+    POSTURE: {dna['posture']}
+    GOAL: {dna['goal']}
+    TONE: {dna['tone']}
+    RISK BIAS: {dna['risk_bias']}
+    TIME HORIZON: {dna['time_horizon']}
+    --------------------
+
+    ## INTERNAL STRUCTURING (FOR SYSTEM PARSING)
+    You MUST use the following tags to mark high-value intelligence:
+    - [DECISION_CANDIDATE] ...recommendation text... [/DECISION_CANDIDATE]
+    - [RISK_VECTOR] ...risk description... [/RISK_VECTOR]
+    - [METRIC_ANCHOR] ...metric value... [/METRIC_ANCHOR]
+    - [TRUTH_BOMB] ...critically verified fact... [/TRUTH_BOMB]
+
+    Do not let these tags disrupt your narrative flow; they are for the backend extractor.
     """
 
     if position == 0:
-        prompt += "\nYou are the FIRST advisor. Lay the foundation. Provide facts, context, or initial strategy."
+        prompt += f"\n## INITIAL ASSIGNMENT:\nEstablish the foundation for this {context.workflow} mission. Follow the defined POSTURE. Provide facts and initial strategy."
     else:
-        prompt += "\nPREVIOUS COUNCIL OUTPUT:\n"
+        prompt += "\n## COLLABORATIVE CONTEXT:\nReview the previous analysis below. Build upon, critique, or pivot the strategy as necessary to reach the target output."
+        prompt += "\n\n### PREVIOUS CONTRIBUTIONS:\n"
         for entry in context.history:
-            # Add limited history to avoid blowing up context, or full history if supported
-            # Truncating huge responses if needed is smart for V2
-            snippet = (entry['response'][:2000] + '...') if len(entry['response']) > 2000 else entry['response']
-            prompt += f"\n--- [ADVISOR: {entry['ai'].upper()} ({entry['persona']})] ---\n{snippet}\n"
-        
-        prompt += "\nINSTRUCTION: Review the previous output. Build upon it, refine it, or critique it. Do NOT repeat generic pleasantries. Focus on the next stage of the pipeline."
+            # Provide the most relevant history (prioritizing the previous step)
+            snippet = (entry['response'][:2500] + '...') if len(entry['response']) > 2500 else entry['response']
+            prompt += f"\n-- {entry['ai'].upper()} [{entry['persona'].upper()}]:\n{snippet}\n"
         
         if position == total_steps - 1:
-            prompt += "\n\nAS THE FINAL ADVISOR: Synthesize the findings into the requested Output format."
+            prompt += f"\n\n## FINAL SYNTHESIS:\nYou are the lead integrator. Synthesize all collaborative context into the final {output_type.upper()} artifact. Follow the defined TONE and POSTURE strictly."
 
     return prompt
 
@@ -334,14 +420,25 @@ def synthesize_results(context):
     for entry in context.history:
         history_text += f"\n[{entry['ai'].upper()}]: {entry['response']}\n"
 
+    # Retrieve Workflow DNA for structure
+    dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
+    schema_sections = {section.lower().replace(" ", "_"): "Full narrative text..." for section in dna["output_structure"]}
+
     prompt = f"""
-    You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a high-fidelity "Intelligence Object" for enterprise reporting.
+    You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a high-fidelity "Intelligence Object" for professional {context.workflow} reporting.
+
+    MISSION CONTEXT:
+    - Type: {context.workflow}
+    - Posture: {dna['posture']}
+    - Outcome Expected: {dna['goal']}
 
     CRITICAL RULES:
     1. NO conversational fluff.
     2. NO meta-commentary.
-    3. Standardize into the following structure.
+    3. Standardize into the following structure strictly.
     4. Ensure every section name is professional.
+    5. ONLY synthesize from the COUNCIL DISCUSSION provided. Do not invent facts.
+    6. Extract all [TAGGED] content into the "intelligence_tags" object.
 
     COUNCIL DISCUSSION:
     {history_text}
@@ -353,16 +450,10 @@ def synthesize_results(context):
         "generated_at": "{datetime.now().isoformat()}",
         "summary": "1-2 sentence high-level synthesis",
         "composite_truth_score": 0,
-        "models_used": []
+        "models_used": [],
+        "workflow": "{context.workflow}"
       }},
-      "sections": {{
-        "executive_summary": "Full narrative text...",
-        "market_analysis": "Full narrative text...",
-        "technical_architecture": "Full narrative text...",
-        "financial_model": "Full narrative text (structured summaries)...",
-        "risk_assessment": "Full narrative text...",
-        "strategic_recommendations": "Full narrative text..."
-      }},
+      "sections": {json.dumps(schema_sections, indent=8)},
       "structured_data": {{
         "key_metrics": [
           {{"metric": "...", "value": "...", "context": "..."}}
@@ -373,6 +464,11 @@ def synthesize_results(context):
         "risks": [
           {{"risk": "...", "severity": "...", "mitigation": "..."}}
         ]
+      }},
+      "intelligence_tags": {{
+        "decisions": ["extracted from [DECISION_CANDIDATE] tags"],
+        "risks": ["extracted from [RISK_VECTOR] tags"],
+        "metrics": ["extracted from [METRIC_ANCHOR] tags"]
       }}
     }}
     """
@@ -382,12 +478,34 @@ def synthesize_results(context):
         models_used = [f"{entry['ai']} ({entry['persona']})" for entry in context.history]
         
         resp = call_openai_gpt4(prompt, "Synthesizer")
+        if not resp.get('success'):
+            print(f"[SYNTHESIS] OpenAI failed: {resp.get('response', 'Unknown error')}")
+            return {"executive_summary": "Synthesis unavailable", "meta": {"models_used": [], "truth_score": 0}}
         content = resp['response'].replace('```json', '').replace('```', '').strip()
         data = json.loads(content)
         
         # Inject metadata if missing or simplified
         data["meta"]["models_used"] = models_used
-        # Calculate a rough truth score from the results if available (averaging)
+        
+        # NEW: Post-processing safety parse for tags (in case LLM misses some)
+        import re
+        decisions = re.findall(r'\[DECISION_CANDIDATE\](.*?)\[/DECISION_CANDIDATE\]', history_text, re.DOTALL)
+        risks = re.findall(r'\[RISK_VECTOR\](.*?)\[/RISK_VECTOR\]', history_text, re.DOTALL)
+        metrics = re.findall(r'\[METRIC_ANCHOR\](.*?)\[/METRIC_ANCHOR\]', history_text, re.DOTALL)
+        
+        # Merge safety-extracted tags if they aren't already in the JSON
+        if not data.get("intelligence_tags"): data["intelligence_tags"] = {"decisions": [], "risks": [], "metrics": []}
+        
+        for d in decisions: 
+            if d.strip() not in data["intelligence_tags"]["decisions"]: 
+                data["intelligence_tags"]["decisions"].append(d.strip())
+        for r in risks:
+            if r.strip() not in data["intelligence_tags"]["risks"]:
+                data["intelligence_tags"]["risks"].append(r.strip())
+        for m in metrics:
+            if m.strip() not in data["intelligence_tags"]["metrics"]:
+                data["intelligence_tags"]["metrics"].append(m.strip())
+
         return data
     except Exception as e:
         print(f"[SYNTHESIS ERROR] {e}")

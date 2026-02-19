@@ -137,32 +137,54 @@ def call_google_gemini(prompt, role, model="gemini-2.0-flash", images=None):
         
     return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
 
-@retry_with_backoff()
-def call_perplexity(prompt, role, model="llama-3.1-sonar-large-128k-online"):
+@retry_with_backoff(retries=2, backoff_in_seconds=2)
+def call_perplexity(prompt, role, model=None):
+    # Respect env var if model not explicitly passed
+    if model is None:
+        model = os.getenv("PERPLEXITY_MODEL", "sonar")
+    
+    enabled = os.getenv("PERPLEXITY_ENABLED", "true").lower() == "true"
     api_key = os.getenv("PERPLEXITY_API_KEY")
-    # Added User-Agent to bypass Cloudflare bot protection
+
+    if not enabled:
+        print(f"[PERPLEXITY] Skipped: PERPLEXITY_ENABLED is false")
+        return {"success": False, "response": "Perplexity search is currently disabled."}
+
+    if not api_key:
+        print(f"[PERPLEXITY] Error: PERPLEXITY_API_KEY is missing")
+        return {"success": False, "response": "Perplexity API key is not configured."}
+
+    print(f"[PERPLEXITY] Calling with model={model}...")
     headers = {
-        "Authorization": f"Bearer {api_key}", 
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "User-Agent": "KorumOS/2.0 (Client)"
+        "User-Agent": "KorumOS/2.0"
     }
     data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": f"You are {role}. Provide accurate, sourced information."},
+            {"role": "system", "content": f"You are {role}. Provide accurate, sourced information. Cite sources."},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.7
     }
-    resp = requests.post("https://api.perplexity.ai/chat/completions", headers=headers, json=data, timeout=60)
     
-    if resp.status_code == 200:
-        return {"success": True, "response": resp.json()['choices'][0]['message']['content'], "model": model}
+    try:
+        resp = requests.post("https://api.perplexity.ai/chat/completions", headers=headers, json=data, timeout=60)
         
-    if resp.status_code in [429, 500, 502, 503, 504]:
-        raise Exception(f"API Error {resp.status_code}: {resp.text}")
+        if resp.status_code == 200:
+            print(f"✅ Perplexity Success ({model})")
+            return {"success": True, "response": resp.json()['choices'][0]['message']['content'], "model": model}
         
-    return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
+        print(f"❌ Perplexity error {resp.status_code}: {resp.text[:200]}")
+        
+        if resp.status_code in [429, 500, 502, 503, 504]:
+            raise Exception(f"Perplexity API Error {resp.status_code}: {resp.text}")
+            
+        return {"success": False, "response": f"Perplexity Error {resp.status_code}: {resp.text}"}
+    except Exception as e:
+        print(f"⚠️ Perplexity exception: {e}")
+        raise e # Trigger retry
 
 def call_local_llm(prompt, role, model="local-model"):
     """
@@ -202,11 +224,14 @@ def call_local_llm(prompt, role, model="local-model"):
             return {"success": False, "response": f"Local Exception: {str(e)}"}
 
 @retry_with_backoff()
-def call_mistral_api(prompt, role, model="mistral-large-latest", images=None):
+def call_mistral_api(prompt, role, model=None, images=None):
     """
     Calls the official Mistral AI API (Cloud Fail-Safe).
     Switches to pixtral-large-latest for vision when images are attached.
     """
+    if model is None:
+        model = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+        
     api_key = os.getenv("MISTRAL_API_KEY")
     if not api_key:
         return {"success": False, "response": "Mistral API Key missing."}
@@ -243,7 +268,7 @@ def call_mistral_api(prompt, role, model="mistral-large-latest", images=None):
         return {"success": True, "response": resp.json()['choices'][0]['message']['content'], "model": model}
         
     if resp.status_code in [429, 500, 502, 503, 504]:
-         raise Exception(f"Mistral API Error {resp.status_code}: {resp.text}")
+        raise Exception(f"Mistral API Error {resp.status_code}: {resp.text}")
 
     return {"success": False, "response": f"Mistral Error {resp.status_code}: {resp.text}"}
 

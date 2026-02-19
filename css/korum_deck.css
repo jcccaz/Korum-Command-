@@ -81,19 +81,44 @@
 
 /* === HEALTH STATUS COLORS === */
 /* Healthy State - Provider brand colors */
-.deck-card.openai .deck-role { color: #10a37f; }
-.deck-card.anthropic .deck-role { color: #d97757; }
-.deck-card.google .deck-role { color: #4285f4; }
-.deck-card.perplexity .deck-role { color: #00bcd4; }
-.deck-card.mistral .deck-role { color: #facc15; }
-.deck-card.local .deck-role { color: #a855f7; }
+.deck-card.openai .deck-role {
+    color: #10a37f;
+}
+
+.deck-card.anthropic .deck-role {
+    color: #d97757;
+}
+
+.deck-card.google .deck-role {
+    color: #4285f4;
+}
+
+.deck-card.perplexity .deck-role {
+    color: #00bcd4;
+}
+
+.deck-card.mistral .deck-role {
+    color: #facc15;
+}
+
+.deck-card.local .deck-role {
+    color: #a855f7;
+}
 
 /* Warning State - White/Dim */
-.deck-card.status-warning .deck-role { color: #ffffff !important; }
-.deck-card.status-warning { opacity: 0.7; }
+.deck-card.status-warning .deck-role {
+    color: #ffffff !important;
+}
+
+.deck-card.status-warning {
+    opacity: 0.7;
+}
 
 /* Error State - Red with pulse */
-.deck-card.status-error .deck-role { color: #ff4444 !important; }
+.deck-card.status-error .deck-role {
+    color: #ff4444 !important;
+}
+
 .deck-card.status-error {
     animation: errorPulse 1.5s ease-in-out infinite;
     border-color: rgba(255, 68, 68, 0.5) !important;
@@ -102,9 +127,11 @@
 /* Offline/Disabled State */
 .deck-card.status-offline {
     opacity: 0.3;
-    pointer-events: none;
 }
-.deck-card.status-offline .deck-role { color: #666 !important; }
+
+.deck-card.status-offline .deck-role {
+    color: #666 !important;
+}
 
 /* === STATUS DOT INDICATOR === */
 .deck-card::after {
@@ -115,7 +142,8 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #10a37f; /* Default: healthy green */
+    background: #10a37f;
+    /* Default: healthy green */
     box-shadow: 0 0 4px #10a37f;
     transition: all 0.3s ease;
 }
@@ -146,28 +174,56 @@
     position: absolute;
     inset: 0;
     border-radius: 8px;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
     animation: shimmer 1s linear infinite;
 }
 
 @keyframes errorPulse {
-    0%, 100% { box-shadow: 0 0 5px rgba(255, 68, 68, 0.2); }
-    50% { box-shadow: 0 0 15px rgba(255, 68, 68, 0.5); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 5px rgba(255, 68, 68, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
+    }
 }
 
 @keyframes dotPulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.3); opacity: 0.7; }
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.3);
+        opacity: 0.7;
+    }
 }
 
 @keyframes respondingPulse {
-    0%, 100% { box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); }
-    50% { box-shadow: 0 0 20px rgba(255, 255, 255, 0.3); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+
+    50% {
+        box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+    }
 }
 
 @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
 }
 
 /* Active State glow */
@@ -234,8 +290,15 @@
 }
 
 @keyframes livePulse {
-    0%, 100% { box-shadow: 0 0 8px rgba(0, 188, 212, 0.2); }
-    50% { box-shadow: 0 0 16px rgba(0, 188, 212, 0.4); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 8px rgba(0, 188, 212, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 16px rgba(0, 188, 212, 0.4);
+    }
 }
 
 .mode-icon {

@@ -14,7 +14,7 @@
     flex: 1 1 60%;
     min-height: 300px;
     overflow: hidden;
-    padding: 16px !important;
+    padding: 16px;
     display: flex;
     flex-direction: column;
 }
@@ -27,7 +27,7 @@
     flex-direction: column;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 12px !important;
+    padding: 12px;
 }
 
 
@@ -36,7 +36,7 @@
 .sentinel-header {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 12px;
-    margin-bottom: 0 !important;
+    margin-bottom: 0;
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -54,7 +54,7 @@
 }
 
 .sentinel-subtitle {
-    font-size: 10px;
+    font-size: 13px;
     color: var(--accent-green);
     text-transform: uppercase;
     letter-spacing: 0.15em;
@@ -71,6 +71,7 @@
     justify-content: flex-end;
     /* Messages stack from bottom like a chat */
     padding-bottom: 8px;
+    position: relative;
 }
 
 .sentinel-wrapper {
@@ -109,6 +110,36 @@
 
 .chat-text {
     display: block;
+}
+
+.comms-empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-align: center;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+}
+
+.comms-empty-state.hidden {
+    opacity: 0;
+}
+
+.comms-empty-title {
+    font-family: var(--font-head);
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.86);
+    letter-spacing: 0.04em;
+}
+
+.comms-empty-text {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.52);
 }
 
 .sentinel-input-area {
@@ -220,7 +251,7 @@
     background: rgba(255, 255, 255, 0.2);
     padding: 1px 5px;
     border-radius: 8px;
-    font-size: 9px;
+    font-size: 13px;
     margin-left: 4px;
 }
 
@@ -257,7 +288,7 @@
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.15);
     color: #AAA;
-    font-size: 11px;
+    font-size: 13px;
     font-family: var(--font-mono);
     padding: 6px 12px;
     border-radius: 4px;
@@ -374,7 +405,7 @@
 }
 
 .snippet-preview {
-    font-size: 11px;
+    font-size: 13px;
     font-family: var(--font-mono);
     color: #777;
     line-height: 1.4;
@@ -427,7 +458,7 @@
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     color: #AAA;
-    font-size: 9px;
+    font-size: 13px;
     padding: 2px 6px;
     border-radius: 4px;
     display: flex;
@@ -443,7 +474,7 @@
 
 .tag-close {
     cursor: pointer;
-    font-size: 11px;
+    font-size: 13px;
     color: #666;
 }
 
@@ -455,7 +486,7 @@
     background: transparent;
     border: 1px dashed rgba(255, 255, 255, 0.15);
     color: #666;
-    font-size: 9px;
+    font-size: 13px;
     padding: 2px 6px;
     border-radius: 4px;
     width: 45px;
