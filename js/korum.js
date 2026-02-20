@@ -1088,7 +1088,12 @@ function setupActionBindings() {
 
     // Mission intake modal controls
     document.getElementById('intakeConfirmBtn')?.addEventListener('click', lockMissionContext);
-    document.getElementById('intakeCancelBtn')?.addEventListener('click', closeIntakeModal);
+    document.getElementById('intakeCancelBtn')?.addEventListener('click', () => {
+        closeIntakeModal();
+        sessionState.isMissionLocked = true; // Skip mission lock
+        const query = document.getElementById('queryInput')?.value?.trim();
+        if (query) triggerCouncil(query);
+    });
     document.getElementById('intakeModal')?.addEventListener('click', (e) => {
         if (e.target?.id === 'intakeModal') closeIntakeModal();
     });
@@ -1444,6 +1449,28 @@ window.openInterrogation = function (targetName) {
 };
 
 // --- PROMPT REFINEMENT (Enhance) ---
+function openEnhanceModal(originalText, enhancedText) {
+    const modal = document.getElementById('enhanceModal');
+    const originalEl = document.getElementById('enhanceOriginalText');
+    const editArea = document.getElementById('enhanceEditArea');
+    if (!modal || !originalEl || !editArea) return;
+
+    originalEl.textContent = originalText;
+    editArea.value = enhancedText;
+    modal.classList.add('visible');
+
+    // Auto-resize textarea to fit content
+    setTimeout(() => {
+        editArea.style.height = 'auto';
+        editArea.style.height = Math.min(editArea.scrollHeight + 4, 300) + 'px';
+        editArea.focus();
+    }, 100);
+}
+
+function closeEnhanceModal() {
+    document.getElementById('enhanceModal')?.classList.remove('visible');
+}
+
 window.enhancePrompt = async function () {
     const input = document.getElementById('queryInput');
     const btn = document.getElementById('enhanceBtn');
@@ -1473,39 +1500,48 @@ window.enhancePrompt = async function () {
         const data = await response.json();
 
         if (data.success) {
-            // Typewriter effect for new text
-            input.value = "";
-            input.style.opacity = '1';
-            let i = 0;
-            const enhanced = data.enhanced_text;
-
-            const typeInterval = setInterval(() => {
-                input.value += enhanced.charAt(i);
-                input.scrollTop = input.scrollHeight; // Auto-scroll
-                i++;
-                if (i >= enhanced.length) {
-                    clearInterval(typeInterval);
-                    logTelemetry(`Directive Optimized (${data.model})`, "success");
-                    showProcessingToast("Prompt Enhanced.");
-                }
-            }, 10);
+            logTelemetry(`Directive Optimized (${data.model})`, "success");
+            openEnhanceModal(draft, data.enhanced_text);
         } else {
             showProcessingToast("Enhancement Failed: " + (data.error || "Unknown"));
-            input.style.opacity = '1';
         }
     } catch (e) {
         console.error(e);
         showProcessingToast("Network Error during Enhancement.");
-        input.style.opacity = '1';
     } finally {
         btn.classList.remove('enhancing');
         btn.innerHTML = originalIcon;
+        input.style.opacity = '1';
     }
 };
 
-// Bind Enhancement Button
+// Bind Enhancement Button + Modal Controls
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('enhanceBtn')?.addEventListener('click', window.enhancePrompt);
+
+    // Accept: deploy enhanced text to prompt box
+    document.getElementById('enhanceAcceptBtn')?.addEventListener('click', () => {
+        const editArea = document.getElementById('enhanceEditArea');
+        const input = document.getElementById('queryInput');
+        if (editArea && input) {
+            input.value = editArea.value;
+            logTelemetry("Enhanced Directive Deployed", "success");
+            showProcessingToast("Enhanced prompt deployed.");
+        }
+        closeEnhanceModal();
+    });
+
+    // Reject: close modal, keep original
+    document.getElementById('enhanceRejectBtn')?.addEventListener('click', () => {
+        logTelemetry("Enhancement Discarded", "system");
+        showProcessingToast("Original prompt retained.");
+        closeEnhanceModal();
+    });
+
+    // Click overlay to close
+    document.getElementById('enhanceModal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'enhanceModal') closeEnhanceModal();
+    });
 });
 
 window.visualizeSelection = function (fallbackText) {
@@ -2022,6 +2058,99 @@ function renderResults(data, roleName) {
         grid.appendChild(card);
     }
 
+    // EXECUTIVE BRIEF CARD (Synthesis) - renders full intelligence object
+    if (data.synthesis && data.synthesis.meta) {
+        const briefCard = document.createElement("div");
+        briefCard.className = "agent-card exec-brief-card";
+        const synthesis = data.synthesis;
+        const meta = synthesis.meta || {};
+        const sections = synthesis.sections || {};
+        const structured = synthesis.structured_data || {};
+        const tags = synthesis.intelligence_tags || {};
+
+        let briefHtml = `<div class="exec-brief">`;
+        briefHtml += `<div class="exec-brief-header">
+            <div class="exec-brief-title">${meta.title || 'EXECUTIVE INTELLIGENCE BRIEF'}</div>
+            <div class="exec-brief-meta">
+                <span>${meta.workflow || 'RESEARCH'}</span>
+                <span>TRUTH: ${meta.composite_truth_score || '—'}/100</span>
+                <span>${(meta.models_used || []).length} AGENTS</span>
+            </div>
+        </div>`;
+
+        if (meta.summary) {
+            briefHtml += `<div class="exec-brief-summary">${formatText(meta.summary)}</div>`;
+        }
+
+        const sectionEntries = Object.entries(sections).filter(([, v]) => v && v !== 'Full narrative text...');
+        if (sectionEntries.length > 0) {
+            briefHtml += `<div class="exec-brief-sections">`;
+            sectionEntries.forEach(([title, content]) => {
+                const displayTitle = title.replace(/_/g, ' ').toUpperCase();
+                briefHtml += `<div class="exec-brief-section">
+                    <div class="exec-brief-section-title">${displayTitle}</div>
+                    <div class="exec-brief-section-body">${formatText(content)}</div>
+                </div>`;
+            });
+            briefHtml += `</div>`;
+        }
+
+        if (structured.key_metrics?.length) {
+            briefHtml += `<div class="exec-brief-metrics">
+                <div class="exec-brief-section-title">KEY METRICS</div>
+                <div class="exec-brief-metrics-grid">`;
+            structured.key_metrics.forEach(m => {
+                briefHtml += `<div class="exec-metric-card">
+                    <div class="exec-metric-label">${m.metric || ''}</div>
+                    <div class="exec-metric-value">${m.value || ''}</div>
+                    <div class="exec-metric-context">${m.context || ''}</div>
+                </div>`;
+            });
+            briefHtml += `</div></div>`;
+        }
+
+        if (structured.action_items?.length) {
+            briefHtml += `<div class="exec-brief-actions">
+                <div class="exec-brief-section-title">ACTION ITEMS</div>`;
+            structured.action_items.forEach(item => {
+                const priorityColor = item.priority === 'high' ? '#FF4444' : item.priority === 'med' ? '#FFB020' : '#00FF9D';
+                briefHtml += `<div class="exec-action-item">
+                    <span class="exec-action-priority" style="background:${priorityColor}20; color:${priorityColor}; border:1px solid ${priorityColor}40">${(item.priority || 'med').toUpperCase()}</span>
+                    <span class="exec-action-task">${item.task || ''}</span>
+                    ${item.timeline ? `<span class="exec-action-timeline">${item.timeline}</span>` : ''}
+                </div>`;
+            });
+            briefHtml += `</div>`;
+        }
+
+        if (structured.risks?.length) {
+            briefHtml += `<div class="exec-brief-risks">
+                <div class="exec-brief-section-title">RISK VECTORS</div>`;
+            structured.risks.forEach(r => {
+                briefHtml += `<div class="exec-risk-item">
+                    <div class="exec-risk-header">
+                        <span class="exec-risk-label">${r.risk || ''}</span>
+                        <span class="exec-risk-severity">${r.severity || ''}</span>
+                    </div>
+                    ${r.mitigation ? `<div class="exec-risk-mitigation">MITIGATION: ${r.mitigation}</div>` : ''}
+                </div>`;
+            });
+            briefHtml += `</div>`;
+        }
+
+        if (tags.decisions?.length) {
+            briefHtml += `<div class="exec-brief-decisions">
+                <div class="exec-brief-section-title">DECISION CANDIDATES</div>
+                <ul class="exec-decision-list">`;
+            tags.decisions.forEach(d => { briefHtml += `<li>${d}</li>`; });
+            briefHtml += `</ul></div>`;
+        }
+
+        briefHtml += `</div>`;
+        briefCard.innerHTML = briefHtml;
+        grid.appendChild(briefCard);
+    }
+
     container.innerHTML = "";
 
     // EXPORT COMMAND CENTER (Phase 6)
@@ -2312,8 +2441,14 @@ window.onload = async function () {
 function getProviderName(key) { const names = { openai: "Strategic Core", anthropic: "Architect", google: "Critic", perplexity: "Intel", mistral: "Analyst", local: "Oracle" }; return names[key] || key; }
 function formatText(text) {
     if (!text) return "";
-    // Clean internal structuring tags before formatting
-    const cleanText = text.replace(/\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]/g, "");
+    // Convert intelligence tags into styled inline highlights
+    const cleanText = text
+        .replace(/\[DECISION_CANDIDATE\]([\s\S]*?)\[\/DECISION_CANDIDATE\]/g, '<span class="intel-tag tag-decision" title="DECISION CANDIDATE">$1</span>')
+        .replace(/\[RISK_VECTOR\]([\s\S]*?)\[\/RISK_VECTOR\]/g, '<span class="intel-tag tag-risk" title="RISK VECTOR">$1</span>')
+        .replace(/\[METRIC_ANCHOR\]([\s\S]*?)\[\/METRIC_ANCHOR\]/g, '<span class="intel-tag tag-metric" title="KEY METRIC">$1</span>')
+        .replace(/\[TRUTH_BOMB\]([\s\S]*?)\[\/TRUTH_BOMB\]/g, '<span class="intel-tag tag-truth" title="VERIFIED FACT">$1</span>')
+        // Fallback: strip any unpaired/malformed tags
+        .replace(/\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]/g, "");
 
     return cleanText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/### (.*?)\n/g, '<h4 style="color:#FFF; margin:10px 0;">$1</h4>')
@@ -2629,6 +2764,8 @@ function renderExportToolbar(container, _data) {
             ` : ''}
             <select id="exportDoc" onchange="handleDocExport(this.value)">
                 <option value="" disabled selected>Export Report...</option>
+                <option value="paper-docx">Research Paper (.docx)</option>
+                <option value="paper">Research Paper (PDF)</option>
                 <option value="pdf">Board Brief (PDF)</option>
                 <option value="docx">Executive Memo (.docx)</option>
                 <option value="xlsx">Intelligence Workbook (.xlsx)</option>
@@ -2721,7 +2858,7 @@ async function handleDocExport(format) {
 
     const select = document.getElementById('exportDoc');
     const formatNames = {
-        pdf: 'Board Brief', docx: 'Executive Memo', xlsx: 'Intelligence Workbook',
+        'paper-docx': 'Research Paper (Word)', paper: 'Research Paper', pdf: 'Board Brief', docx: 'Executive Memo', xlsx: 'Intelligence Workbook',
         csv: 'Flat Data', json: 'Raw Intelligence', md: 'Markdown Brief', txt: 'Text Report'
     };
 
@@ -2924,7 +3061,103 @@ function handlePresentExport(format) {
 function renderActionPanel(synthesis, classification) {
     const container = document.getElementById('mission-context-panel');
     if (!container || !synthesis) return;
-    container.innerHTML = `<div class="action-panel-header">NEXT STEPS</div>`;
+
+    const meta = synthesis.meta || {};
+    const sections = synthesis.sections || {};
+    const structured = synthesis.structured_data || {};
+    const tags = synthesis.intelligence_tags || {};
+
+    let html = `<div class="exec-brief">`;
+
+    // Header
+    html += `<div class="exec-brief-header">
+        <div class="exec-brief-title">${meta.title || 'EXECUTIVE INTELLIGENCE BRIEF'}</div>
+        <div class="exec-brief-meta">
+            <span>${meta.workflow || 'RESEARCH'}</span>
+            <span>TRUTH: ${meta.composite_truth_score || '—'}/100</span>
+            <span>${(meta.models_used || []).length} AGENTS</span>
+        </div>
+    </div>`;
+
+    // Executive Summary
+    if (meta.summary) {
+        html += `<div class="exec-brief-summary">${formatText(meta.summary)}</div>`;
+    }
+
+    // Sections from synthesis
+    const sectionEntries = Object.entries(sections).filter(([, v]) => v && v !== 'Full narrative text...');
+    if (sectionEntries.length > 0) {
+        html += `<div class="exec-brief-sections">`;
+        sectionEntries.forEach(([title, content]) => {
+            const displayTitle = title.replace(/_/g, ' ').toUpperCase();
+            html += `<div class="exec-brief-section">
+                <div class="exec-brief-section-title">${displayTitle}</div>
+                <div class="exec-brief-section-body">${formatText(content)}</div>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // Key Metrics
+    if (structured.key_metrics?.length) {
+        html += `<div class="exec-brief-metrics">
+            <div class="exec-brief-section-title">KEY METRICS</div>
+            <div class="exec-brief-metrics-grid">`;
+        structured.key_metrics.forEach(m => {
+            html += `<div class="exec-metric-card">
+                <div class="exec-metric-label">${m.metric || ''}</div>
+                <div class="exec-metric-value">${m.value || ''}</div>
+                <div class="exec-metric-context">${m.context || ''}</div>
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
+    // Action Items
+    if (structured.action_items?.length) {
+        html += `<div class="exec-brief-actions">
+            <div class="exec-brief-section-title">ACTION ITEMS</div>`;
+        structured.action_items.forEach(item => {
+            const priorityColor = item.priority === 'high' ? '#FF4444' : item.priority === 'med' ? '#FFB020' : '#00FF9D';
+            html += `<div class="exec-action-item">
+                <span class="exec-action-priority" style="background:${priorityColor}20; color:${priorityColor}; border:1px solid ${priorityColor}40">${(item.priority || 'med').toUpperCase()}</span>
+                <span class="exec-action-task">${item.task || ''}</span>
+                ${item.timeline ? `<span class="exec-action-timeline">${item.timeline}</span>` : ''}
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // Risks
+    if (structured.risks?.length) {
+        html += `<div class="exec-brief-risks">
+            <div class="exec-brief-section-title">RISK VECTORS</div>`;
+        structured.risks.forEach(r => {
+            html += `<div class="exec-risk-item">
+                <div class="exec-risk-header">
+                    <span class="exec-risk-label">${r.risk || ''}</span>
+                    <span class="exec-risk-severity">${r.severity || ''}</span>
+                </div>
+                ${r.mitigation ? `<div class="exec-risk-mitigation">MITIGATION: ${r.mitigation}</div>` : ''}
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // Decision Candidates (from intelligence tags)
+    if (tags.decisions?.length) {
+        html += `<div class="exec-brief-decisions">
+            <div class="exec-brief-section-title">DECISION CANDIDATES</div>
+            <ul class="exec-decision-list">`;
+        tags.decisions.forEach(d => {
+            html += `<li>${d}</li>`;
+        });
+        html += `</ul></div>`;
+    }
+
+    html += `</div>`;
+
+    container.innerHTML = html;
     container.style.opacity = '1';
 }
 
@@ -3122,3 +3355,7 @@ const PreviewManager = {
 
 // Initialize Preview Manager on load
 PreviewManager.init();
+
+// --- SAVED REPORTS CLOSE HANDLERS ---
+document.getElementById('closeLibraryBtn')?.addEventListener('click', () => toggleReportLibrary(false));
+document.getElementById('libraryOverlay')?.addEventListener('click', () => toggleReportLibrary(false));

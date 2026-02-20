@@ -411,6 +411,30 @@
         </div>
     </div>
 
+    <!-- ENHANCE PROMPT PREVIEW MODAL -->
+    <div class="enhance-modal-overlay" id="enhanceModal">
+        <div class="enhance-modal">
+            <div class="enhance-header">
+                <div class="enhance-title">PROMPT REFINEMENT</div>
+                <div class="enhance-subtitle">REVIEW ENHANCED DIRECTIVE BEFORE DEPLOYMENT</div>
+            </div>
+            <div class="enhance-body">
+                <div class="enhance-section">
+                    <label class="enhance-label">ORIGINAL DRAFT</label>
+                    <div class="enhance-original" id="enhanceOriginalText"></div>
+                </div>
+                <div class="enhance-section">
+                    <label class="enhance-label">ENHANCED DIRECTIVE <span class="enhance-editable-tag">EDITABLE</span></label>
+                    <textarea class="enhance-textarea" id="enhanceEditArea" spellcheck="false"></textarea>
+                </div>
+            </div>
+            <div class="enhance-footer">
+                <button class="enhance-action-btn reject" id="enhanceRejectBtn">DISCARD</button>
+                <button class="enhance-action-btn accept" id="enhanceAcceptBtn">DEPLOY ENHANCED</button>
+            </div>
+        </div>
+    </div>
+
     <!-- CARD EXPANSION MODAL -->
     <div class="card-modal-overlay" id="cardModal">
         <div class="card-modal">

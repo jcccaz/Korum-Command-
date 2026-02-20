@@ -33,6 +33,23 @@ def _as_text(value):
     return str(value)
 
 
+def _clean_tags(text):
+    """Strip intelligence tags and markdown artifacts from text for clean export."""
+    import re
+    # Remove paired tags, keeping inner content
+    text = re.sub(r'\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', text)
+    # Remove markdown bold markers
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    # Remove markdown headings
+    text = re.sub(r'#{1,4}\s*', '', text)
+    # Clean up extra whitespace and dashes used as bullets
+    text = re.sub(r'\s*-\s*\*\*', '\n\n', text)
+    text = re.sub(r'\s*-\s{2,}', '\n\n- ', text)
+    # Collapse excessive whitespace
+    text = re.sub(r'[ \t]{2,}', ' ', text)
+    return text.strip()
+
+
 def _extract_parts(intelligence_object):
     data = intelligence_object or {}
     meta = data.get("meta", {}) or {}
@@ -333,4 +350,395 @@ class PDFExporter:
             story.append(table)
 
         doc.build(story)
+        return filepath
+
+
+class ResearchPaperExporter:
+    """Generates a clean research paper PDF — no intelligence branding."""
+
+    @staticmethod
+    def generate(intelligence_object, output_dir=None):
+        from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib.units import inch
+
+        meta, sections, structured = _extract_parts(intelligence_object)
+        tags = (intelligence_object or {}).get("intelligence_tags", {}) or {}
+        filename = f"korum_research_{_timestamp()}.pdf"
+        filepath = _output_path(filename, output_dir)
+
+        doc = SimpleDocTemplate(
+            filepath, pagesize=letter,
+            topMargin=1 * inch, bottomMargin=0.75 * inch,
+            leftMargin=1 * inch, rightMargin=1 * inch
+        )
+        base_styles = getSampleStyleSheet()
+
+        # Custom styles for research paper feel
+        title_style = ParagraphStyle(
+            'PaperTitle', parent=base_styles['Title'],
+            fontSize=20, leading=24, alignment=TA_CENTER,
+            spaceAfter=6
+        )
+        subtitle_style = ParagraphStyle(
+            'PaperSubtitle', parent=base_styles['Normal'],
+            fontSize=10, alignment=TA_CENTER, textColor=colors.grey,
+            spaceAfter=20
+        )
+        abstract_style = ParagraphStyle(
+            'Abstract', parent=base_styles['BodyText'],
+            fontSize=10, leading=14, alignment=TA_JUSTIFY,
+            leftIndent=36, rightIndent=36, spaceAfter=16,
+            textColor=colors.Color(0.2, 0.2, 0.2)
+        )
+        heading_style = ParagraphStyle(
+            'PaperHeading', parent=base_styles['Heading2'],
+            fontSize=14, leading=18, spaceBefore=18, spaceAfter=8,
+            textColor=colors.Color(0.15, 0.15, 0.15)
+        )
+        body_style = ParagraphStyle(
+            'PaperBody', parent=base_styles['BodyText'],
+            fontSize=11, leading=15, alignment=TA_JUSTIFY,
+            spaceAfter=10, textColor=colors.Color(0.15, 0.15, 0.15)
+        )
+        small_style = ParagraphStyle(
+            'SmallText', parent=base_styles['Normal'],
+            fontSize=9, leading=12, textColor=colors.grey
+        )
+
+        story = []
+
+        # --- TITLE ---
+        title_text = _as_text(meta.get("title", "Research Report"))
+        # Strip intelligence jargon from title if present
+        for junk in ["INTELLIGENCE", "KORUM", "Intelligence Object"]:
+            title_text = title_text.replace(junk, "").strip()
+        story.append(Paragraph(title_text, title_style))
+
+        # Date line
+        date_str = meta.get("generated_at", datetime.now().isoformat())
+        try:
+            date_obj = datetime.fromisoformat(date_str)
+            date_display = date_obj.strftime("%B %d, %Y")
+        except Exception:
+            date_display = date_str
+        models = meta.get("models_used", [])
+        if not isinstance(models, list):
+            models = [str(models)]
+        agent_count = len(models)
+        story.append(Paragraph(
+            f"{date_display} &bull; Multi-source analysis ({agent_count} sources consulted)",
+            subtitle_style
+        ))
+
+        # --- ABSTRACT ---
+        summary = _clean_tags(_as_text(meta.get("summary", "")))
+        exec_summary = _clean_tags(_as_text(sections.get("executive_summary", "")))
+        abstract_text = summary or exec_summary
+        if abstract_text:
+            story.append(Paragraph("<b>Abstract</b>", ParagraphStyle(
+                'AbstractLabel', parent=base_styles['Normal'],
+                fontSize=10, alignment=TA_CENTER, spaceAfter=6
+            )))
+            story.append(Paragraph(abstract_text, abstract_style))
+
+        # Divider
+        story.append(Spacer(1, 8))
+        story.append(Table(
+            [[""]],
+            colWidths=[doc.width],
+            style=TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.5, colors.lightgrey)])
+        ))
+        story.append(Spacer(1, 12))
+
+        # --- MAIN SECTIONS ---
+        section_counter = 1
+        for section_id, content in sections.items():
+            if section_id == "executive_summary":
+                continue
+            heading = section_id.replace("_", " ").title()
+            story.append(Paragraph(f"{section_counter}. {heading}", heading_style))
+
+            content_text = _clean_tags(_as_text(content))
+            # Split into paragraphs on newlines, double-newlines, or sentence clusters
+            import re
+            # First split on explicit newlines
+            raw_paragraphs = [p.strip() for p in content_text.split('\n') if p.strip()]
+            # If we got a single giant block, split on sentence boundaries (~3 sentences per paragraph)
+            final_paragraphs = []
+            for para in raw_paragraphs:
+                if len(para) > 400:
+                    sentences = re.split(r'(?<=[.!?])\s+', para)
+                    chunk = []
+                    for sentence in sentences:
+                        chunk.append(sentence)
+                        if len(' '.join(chunk)) > 300:
+                            final_paragraphs.append(' '.join(chunk))
+                            chunk = []
+                    if chunk:
+                        final_paragraphs.append(' '.join(chunk))
+                else:
+                    final_paragraphs.append(para)
+
+            for para in final_paragraphs:
+                story.append(Paragraph(para, body_style))
+
+            section_counter += 1
+
+        # --- COMPARISON TABLE (Key Metrics) ---
+        key_metrics = structured.get("key_metrics", [])
+        if key_metrics:
+            story.append(Paragraph(f"{section_counter}. Comparative Data", heading_style))
+            section_counter += 1
+
+            table_data = [["Category", "Finding", "Notes"]]
+            for metric in key_metrics:
+                table_data.append([
+                    _clean_tags(_as_text(metric.get("metric", ""))),
+                    _clean_tags(_as_text(metric.get("value", ""))),
+                    _clean_tags(_as_text(metric.get("context", "")))
+                ])
+            table = Table(table_data, repeatRows=1, colWidths=[1.8 * inch, 2.5 * inch, 2.2 * inch])
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.92, 0.92, 0.92)),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.Color(0.8, 0.8, 0.8)),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.Color(0.97, 0.97, 0.97)]),
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 12))
+
+        # --- RISKS / CONSIDERATIONS ---
+        risks = structured.get("risks", [])
+        if risks:
+            story.append(Paragraph(f"{section_counter}. Considerations &amp; Risks", heading_style))
+            section_counter += 1
+            for r in risks:
+                risk_text = _clean_tags(_as_text(r.get("risk", "")))
+                severity = _clean_tags(_as_text(r.get("severity", "")))
+                mitigation = _clean_tags(_as_text(r.get("mitigation", "")))
+                bullet = f"<b>{risk_text}</b>"
+                if severity:
+                    bullet += f" ({severity})"
+                if mitigation:
+                    bullet += f" — {mitigation}"
+                story.append(Paragraph(f"&bull; {bullet}", body_style))
+                story.append(Spacer(1, 4))
+
+        # --- RECOMMENDATIONS ---
+        decisions = tags.get("decisions", [])
+        action_items = structured.get("action_items", [])
+        if decisions or action_items:
+            story.append(Paragraph(f"{section_counter}. Recommendations", heading_style))
+            section_counter += 1
+            for d in decisions:
+                story.append(Paragraph(f"&bull; {_clean_tags(_as_text(d))}", body_style))
+                story.append(Spacer(1, 4))
+            for item in action_items:
+                task = _clean_tags(_as_text(item.get("task", "")))
+                priority = _clean_tags(_as_text(item.get("priority", "")))
+                timeline = _clean_tags(_as_text(item.get("timeline", "")))
+                line = f"&bull; <b>{task}</b>"
+                if priority:
+                    line += f" [Priority: {priority.upper()}]"
+                if timeline:
+                    line += f" — {timeline}"
+                story.append(Paragraph(line, body_style))
+                story.append(Spacer(1, 4))
+
+        # --- FOOTER ---
+        story.append(Spacer(1, 24))
+        story.append(Table(
+            [[""]],
+            colWidths=[doc.width],
+            style=TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.5, colors.lightgrey)])
+        ))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(
+            f"Report generated {date_display}. Analysis based on {agent_count} independent sources.",
+            small_style
+        ))
+
+        doc.build(story)
+        return filepath
+
+
+class ResearchPaperWordExporter:
+    """Generates a clean, editable research paper DOCX — no intelligence branding."""
+
+    @staticmethod
+    def generate(intelligence_object, output_dir=None):
+        import re
+        from docx.shared import Inches, RGBColor
+
+        meta, sections, structured = _extract_parts(intelligence_object)
+        tags = (intelligence_object or {}).get("intelligence_tags", {}) or {}
+
+        wdoc = Document()
+
+        # --- STYLES ---
+        style = wdoc.styles["Normal"]
+        style.font.name = "Calibri"
+        style.font.size = Pt(11)
+        style.font.color.rgb = RGBColor(0x2D, 0x2D, 0x2D)
+        pf = style.paragraph_format
+        pf.space_after = Pt(8)
+        pf.line_spacing = 1.15
+
+        # --- PAGE MARGINS ---
+        sec = wdoc.sections[0]
+        sec.top_margin = Inches(1)
+        sec.bottom_margin = Inches(0.75)
+        sec.left_margin = Inches(1)
+        sec.right_margin = Inches(1)
+
+        # --- TITLE ---
+        title_text = _clean_tags(_as_text(meta.get("title", "Research Report")))
+        for junk in ["INTELLIGENCE", "KORUM", "Intelligence Object"]:
+            title_text = title_text.replace(junk, "").strip()
+        title = wdoc.add_heading(title_text, level=0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        # Date & source line
+        date_str = meta.get("generated_at", datetime.now().isoformat())
+        try:
+            date_obj = datetime.fromisoformat(date_str)
+            date_display = date_obj.strftime("%B %d, %Y")
+        except Exception:
+            date_display = date_str
+        models = meta.get("models_used", [])
+        if not isinstance(models, list):
+            models = [str(models)]
+        agent_count = len(models)
+
+        subtitle = wdoc.add_paragraph()
+        subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = subtitle.add_run(f"{date_display}  |  Multi-source analysis ({agent_count} sources consulted)")
+        run.font.size = Pt(9)
+        run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+
+        # --- ABSTRACT ---
+        summary = _clean_tags(_as_text(meta.get("summary", "")))
+        exec_summary = _clean_tags(_as_text(sections.get("executive_summary", "")))
+        abstract_text = summary or exec_summary
+        if abstract_text:
+            wdoc.add_paragraph()
+            label = wdoc.add_paragraph()
+            label.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = label.add_run("Abstract")
+            run.bold = True
+            run.font.size = Pt(10)
+
+            abs_para = wdoc.add_paragraph()
+            abs_para.paragraph_format.left_indent = Inches(0.5)
+            abs_para.paragraph_format.right_indent = Inches(0.5)
+            run = abs_para.add_run(abstract_text)
+            run.font.size = Pt(10)
+            run.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
+            run.italic = True
+
+        wdoc.add_paragraph("_" * 80)
+
+        # --- HELPER: split long text into paragraphs ---
+        def _add_body_text(wdoc, text):
+            text = _clean_tags(text)
+            raw_paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
+            for para in raw_paragraphs:
+                if len(para) > 400:
+                    sentences = re.split(r'(?<=[.!?])\s+', para)
+                    chunk = []
+                    for sentence in sentences:
+                        chunk.append(sentence)
+                        if len(' '.join(chunk)) > 300:
+                            wdoc.add_paragraph(' '.join(chunk))
+                            chunk = []
+                    if chunk:
+                        wdoc.add_paragraph(' '.join(chunk))
+                else:
+                    wdoc.add_paragraph(para)
+
+        # --- MAIN SECTIONS ---
+        section_counter = 1
+        for section_id, content in sections.items():
+            if section_id == "executive_summary":
+                continue
+            heading = section_id.replace("_", " ").title()
+            wdoc.add_heading(f"{section_counter}. {heading}", level=1)
+            _add_body_text(wdoc, _as_text(content))
+            section_counter += 1
+
+        # --- COMPARISON TABLE ---
+        key_metrics = structured.get("key_metrics", [])
+        if key_metrics:
+            wdoc.add_heading(f"{section_counter}. Comparative Data", level=1)
+            section_counter += 1
+            table = wdoc.add_table(rows=1, cols=3)
+            table.style = "Table Grid"
+            hdr = table.rows[0].cells
+            hdr[0].text = "Category"
+            hdr[1].text = "Finding"
+            hdr[2].text = "Notes"
+            for cell in hdr:
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.bold = True
+            for metric in key_metrics:
+                row = table.add_row().cells
+                row[0].text = _clean_tags(_as_text(metric.get("metric", "")))
+                row[1].text = _clean_tags(_as_text(metric.get("value", "")))
+                row[2].text = _clean_tags(_as_text(metric.get("context", "")))
+
+        # --- RISKS ---
+        risks = structured.get("risks", [])
+        if risks:
+            wdoc.add_heading(f"{section_counter}. Considerations & Risks", level=1)
+            section_counter += 1
+            for r in risks:
+                risk_text = _clean_tags(_as_text(r.get("risk", "")))
+                severity = _clean_tags(_as_text(r.get("severity", "")))
+                mitigation = _clean_tags(_as_text(r.get("mitigation", "")))
+                p = wdoc.add_paragraph()
+                run = p.add_run(risk_text)
+                run.bold = True
+                if severity:
+                    p.add_run(f" ({severity})")
+                if mitigation:
+                    p.add_run(f" — {mitigation}")
+
+        # --- RECOMMENDATIONS ---
+        decisions = tags.get("decisions", [])
+        action_items = structured.get("action_items", [])
+        if decisions or action_items:
+            wdoc.add_heading(f"{section_counter}. Recommendations", level=1)
+            section_counter += 1
+            for d in decisions:
+                wdoc.add_paragraph(_clean_tags(_as_text(d)), style='List Bullet')
+            for item in action_items:
+                task = _clean_tags(_as_text(item.get("task", "")))
+                priority = _clean_tags(_as_text(item.get("priority", "")))
+                timeline = _clean_tags(_as_text(item.get("timeline", "")))
+                p = wdoc.add_paragraph(style='List Bullet')
+                run = p.add_run(task)
+                run.bold = True
+                if priority:
+                    p.add_run(f"  [{priority.upper()}]")
+                if timeline:
+                    p.add_run(f" — {timeline}")
+
+        # --- FOOTER ---
+        footer = wdoc.sections[0].footer
+        fp = footer.paragraphs[0]
+        fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = fp.add_run(f"Report generated {date_display}. Analysis based on {agent_count} independent sources.")
+        run.font.size = Pt(8)
+        run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+
+        filename = f"korum_research_{_timestamp()}.docx"
+        filepath = _output_path(filename, output_dir)
+        wdoc.save(filepath)
         return filepath

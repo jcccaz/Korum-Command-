@@ -126,6 +126,8 @@ def deploy_intelligence():
             MarkdownExporter,
             PDFExporter,
             PPTXExporter,
+            ResearchPaperExporter,
+            ResearchPaperWordExporter,
             TextExporter,
             WordExporter,
         )
@@ -139,6 +141,8 @@ def deploy_intelligence():
             'md': MarkdownExporter,
             'txt': TextExporter,
             'pdf': PDFExporter,
+            'paper': ResearchPaperExporter,
+            'paper-docx': ResearchPaperWordExporter,
         }
 
         exporter = exporters.get(format_type)
