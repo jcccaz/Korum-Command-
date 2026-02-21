@@ -64,25 +64,25 @@ print("-" * 20)
 
 # 3. PERPLEXITY
 pplx_key = os.getenv("PERPLEXITY_API_KEY")
-print(f"PERPLEXITY_API_KEY: {mask(pplx_key)}")
+print(f"PERPLEXITY_API_KEY: {mask(pplx_key)}", flush=True)
 
 if pplx_key:
-    print("Testing Perplexity Connection...")
+    print("Testing Perplexity Connection...", flush=True)
     headers = {"Authorization": f"Bearer {pplx_key}", "Content-Type": "application/json"}
     data = {
-        "model": "llama-3.1-sonar-small-128k-online",
+        "model": "sonar",
         "messages": [{"role": "user", "content": "Ping"}]
     }
     try:
         resp = requests.post("https://api.perplexity.ai/chat/completions", headers=headers, json=data, timeout=10)
         if resp.status_code == 200:
-            print("[OK] Perplexity: SUCCESS")
+            print("[OK] Perplexity: SUCCESS", flush=True)
         else:
-            print(f"[FAIL] Perplexity: ({resp.status_code})")
+            print(f"[FAIL] Perplexity: ({resp.status_code}) - {resp.text[:100]}", flush=True)
     except Exception as e:
-        print(f"[FAIL] Perplexity: ERROR - {e}")
+        print(f"[FAIL] Perplexity: ERROR - {e}", flush=True)
 else:
-    print("[FAIL] Perplexity: Key Missing")
+    print("[FAIL] Perplexity: Key Missing", flush=True)
 
 print("-" * 20)
 

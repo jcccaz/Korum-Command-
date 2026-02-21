@@ -1,0 +1,15 @@
+Testing Perplexity with key: pplx-7YisG...
+
+--- Testing model: sonar-pro ---
+Status Code: 200
+Response: A human typically has **five fingers on each hand**, for a total of **10 fingers**.[1][2]
+
+However, 
+
+--- Testing model: sonar ---
+Status Code: 200
+Response: Humans typically have **10 fingers** in total[1][2]. Each hand contains five digits: four fingers pl
+
+--- Testing model: llama-3.1-sonar-small-128k-online ---
+Status Code: 400
+Error: {"error":{"message":"Invalid model 'llama-3.1-sonar-small-128k-online'. Permitted models can be found in the documentation at https://docs.perplexity.ai/docs/getting-started/models.","type":"invalid_model","code":400}}

@@ -1,0 +1,17 @@
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+OK
+[COUNCIL] Efficiency Plan: ['perplexity-scout', 'openai-strategist', 'anthropic-architect', 'google-critic']
+[COUNCIL] Step 1: PERPLEXITY as SCOUT
+[COUNCIL] Step 2: OPENAI as STRATEGIST
+[COUNCIL] Step 3: ANTHROPIC as ARCHITECT
+[COUNCIL] Step 4: GOOGLE as INTEGRATOR (CRITIC)
+[COUNCIL] Audit Initiated: Verifying 4 responses...
+[CLAIM ERROR] Expecting value: line 1 column 1 (char 0)
+[CLAIM ERROR] Expecting value: line 1 column 1 (char 0)
+[CLAIM ERROR] Expecting value: line 1 column 1 (char 0)
+[CLAIM ERROR] Expecting value: line 1 column 1 (char 0)
+
+[TEST] Verified that Step 2 (OpenAI) received Context from Step 1 (Perplexity).
