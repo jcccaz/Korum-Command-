@@ -1071,6 +1071,25 @@ function setupActionBindings() {
 
     // 5. SYSTEM CONTROLS
     document.getElementById('hamburgerBtn')?.addEventListener('click', () => toggleReportLibrary());
+
+    // Mobile nav toggle
+    document.getElementById('mobileNavToggle')?.addEventListener('click', () => {
+        document.querySelector('.nav-links')?.classList.toggle('mobile-open');
+    });
+    // Close mobile nav when a workflow is selected
+    document.querySelectorAll('.nav-links a').forEach(a => {
+        a.addEventListener('click', () => {
+            document.querySelector('.nav-links')?.classList.remove('mobile-open');
+        });
+    });
+    // Close mobile nav on tap outside
+    document.addEventListener('click', (e) => {
+        const nav = document.querySelector('.nav-links');
+        const toggle = document.getElementById('mobileNavToggle');
+        if (nav?.classList.contains('mobile-open') && !nav.contains(e.target) && !toggle?.contains(e.target)) {
+            nav.classList.remove('mobile-open');
+        }
+    });
     document.getElementById('healthCheckBtn')?.addEventListener('click', () => checkAPIHealth());
     document.getElementById('rotateRolesBtn')?.addEventListener('click', () => {
         rotateRoles();
