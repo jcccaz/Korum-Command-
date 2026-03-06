@@ -2681,6 +2681,7 @@ function formatText(text) {
     return cleanText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/### (.*?)\n/g, '<h4 style="color:#FFF; margin:10px 0;">$1</h4>')
         .replace(/- (.*?)\n/g, '• $1<br>')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:#00DCFF; text-decoration:underline;">$1</a>')
         .replace(/```mermaid([\s\S]*?)```/g, (match, code) => {
             const cleanCode = code.trim().replace(/^mermaid\n/i, '');
             return `<div class="mermaid-container"><div class="mermaid">${cleanCode}</div></div>`;

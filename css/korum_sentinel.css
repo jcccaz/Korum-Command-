@@ -17,6 +17,7 @@
     padding: 16px;
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 
 /* 2. BOTTOM CARD: AUX (Telemetry only - compact log) */
@@ -63,7 +64,8 @@
 }
 
 .sentinel-chat-container {
-    flex-grow: 1;
+    flex: 1 1 0;
+    min-height: 0;
     overflow-y: auto;
     padding-right: 8px;
     display: flex;
@@ -265,6 +267,7 @@
     display: none;
     flex-direction: column;
     flex: 1;
+    min-height: 0;
     overflow: hidden;
 }
 
