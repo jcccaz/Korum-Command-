@@ -319,7 +319,7 @@ async function loadReportLibrary() {
 
 async function recallReport(id) {
     try {
-        const resp = await fetch(`/api/reports/${id}`);
+        const resp = await authFetch(`/api/reports/${id}`);
         const data = await resp.json();
         if (!data.success || !data.report) {
             showProcessingToast("Failed to load report");
@@ -353,7 +353,7 @@ async function recallReport(id) {
 async function deleteReport(id) {
     if (!confirm("Delete this saved report?")) return;
     try {
-        await fetch(`/api/reports/${id}`, { method: 'DELETE' });
+        await authFetch(`/api/reports/${id}`, { method: 'DELETE' });
         logTelemetry(`Report deleted: ${id}`, "system");
         loadReportLibrary(); // Refresh list
     } catch (e) {
