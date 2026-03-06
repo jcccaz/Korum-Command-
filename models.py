@@ -45,6 +45,22 @@ class AuditLog(db.Model):
     success = db.Column(db.Boolean, default=True)
 
 
+class Report(db.Model):
+    __tablename__ = "reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, nullable=True)
+    query = db.Column(db.Text, nullable=True)
+    results = db.Column(db.Text, nullable=True)       # JSON string
+    consensus = db.Column(db.Text, nullable=True)
+    synthesis = db.Column(db.Text, nullable=True)      # JSON string
+    classification = db.Column(db.Text, nullable=True) # JSON string
+    role_name = db.Column(db.String(100), nullable=True)
+    provider_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+
 class UsageLog(db.Model):
     __tablename__ = "usage_logs"
 

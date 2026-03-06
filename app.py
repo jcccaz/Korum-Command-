@@ -72,7 +72,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Register models so SQLAlchemy can create tables.
-from models import User, UsageLog, AuditLog
+from models import User, UsageLog, AuditLog, Report
 
 init_db(app)
 
@@ -544,9 +544,7 @@ COLLECTED SNIPPETS:
     
     return jsonify({"error": "Summarization engine unavailable"}), 501
 
-# --- Report Library (Save/Load/Delete) ---
-
-REPORTS_DIR = os.path.join(os.getcwd(), 'data', 'reports')
+# --- Report Library (Save/Load/Delete) — Postgres-backed ---
 
 @app.route('/api/reports/save', methods=['POST'])
 def save_report():
@@ -556,46 +554,40 @@ def save_report():
 
     import time as _time
     report_id = f"report_{int(_time.time())}"
-    report = {
-        "id": report_id,
-        "query": data.get("query", ""),
-        "results": data.get("results", {}),
-        "consensus": data.get("consensus", ""),
-        "synthesis": data.get("synthesis", ""),
-        "classification": data.get("classification", {}),
-        "roleName": data.get("roleName", ""),
-        "timestamp": _time.strftime("%Y-%m-%d %H:%M:%S", _time.localtime()),
-        "provider_count": len([k for k, v in data.get("results", {}).items() if isinstance(v, dict) and v.get("success")])
-    }
 
     try:
-        os.makedirs(REPORTS_DIR, exist_ok=True)
-        filepath = os.path.join(REPORTS_DIR, f"{report_id}.json")
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(report, f, indent=2)
-        print(f"💾 Report saved: {report_id}")
+        report = Report(
+            report_id=report_id,
+            query=data.get("query", ""),
+            results=json.dumps(data.get("results", {})),
+            consensus=data.get("consensus", ""),
+            synthesis=json.dumps(data.get("synthesis", "")),
+            classification=json.dumps(data.get("classification", {})),
+            role_name=data.get("roleName", ""),
+            provider_count=len([k for k, v in data.get("results", {}).items() if isinstance(v, dict) and v.get("success")])
+        )
+        db.session.add(report)
+        db.session.commit()
+        print(f"💾 Report saved to DB: {report_id}")
         return jsonify({"success": True, "id": report_id})
     except Exception as e:
+        db.session.rollback()
         print(f"❌ Report save error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/reports/list', methods=['GET'])
 def list_reports():
     try:
-        os.makedirs(REPORTS_DIR, exist_ok=True)
+        rows = Report.query.order_by(Report.created_at.desc()).all()
         reports = []
-        for fname in sorted(os.listdir(REPORTS_DIR), reverse=True):
-            if not fname.endswith('.json'):
-                continue
-            filepath = os.path.join(REPORTS_DIR, fname)
-            with open(filepath, 'r', encoding='utf-8') as f:
-                r = json.load(f)
+        for r in rows:
+            q = r.query or ""
             reports.append({
-                "id": r.get("id", fname.replace('.json', '')),
-                "query": (r.get("query", "")[:80] + "...") if len(r.get("query", "")) > 80 else r.get("query", ""),
-                "timestamp": r.get("timestamp", ""),
-                "roleName": r.get("roleName", ""),
-                "provider_count": r.get("provider_count", 0)
+                "id": r.report_id,
+                "query": (q[:80] + "...") if len(q) > 80 else q,
+                "timestamp": r.created_at.strftime("%Y-%m-%d %H:%M:%S") if r.created_at else "",
+                "roleName": r.role_name or "",
+                "provider_count": r.provider_count or 0
             })
         return jsonify({"success": True, "reports": reports})
     except Exception as e:
@@ -603,26 +595,37 @@ def list_reports():
 
 @app.route('/api/reports/<report_id>', methods=['GET'])
 def get_report(report_id):
-    filepath = os.path.join(REPORTS_DIR, f"{report_id}.json")
-    if not os.path.exists(filepath):
+    r = Report.query.filter_by(report_id=report_id).first()
+    if not r:
         return jsonify({"success": False, "error": "Report not found"}), 404
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            report = json.load(f)
+        report = {
+            "id": r.report_id,
+            "query": r.query or "",
+            "results": json.loads(r.results) if r.results else {},
+            "consensus": r.consensus or "",
+            "synthesis": json.loads(r.synthesis) if r.synthesis else "",
+            "classification": json.loads(r.classification) if r.classification else {},
+            "roleName": r.role_name or "",
+            "timestamp": r.created_at.strftime("%Y-%m-%d %H:%M:%S") if r.created_at else "",
+            "provider_count": r.provider_count or 0
+        }
         return jsonify({"success": True, "report": report})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/reports/<report_id>', methods=['DELETE'])
 def delete_report(report_id):
-    filepath = os.path.join(REPORTS_DIR, f"{report_id}.json")
-    if not os.path.exists(filepath):
+    r = Report.query.filter_by(report_id=report_id).first()
+    if not r:
         return jsonify({"success": False, "error": "Report not found"}), 404
     try:
-        os.remove(filepath)
-        print(f"🗑️ Report deleted: {report_id}")
+        db.session.delete(r)
+        db.session.commit()
+        print(f"🗑️ Report deleted from DB: {report_id}")
         return jsonify({"success": True})
     except Exception as e:
+        db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
 
 # --- API Health Check (Proactive) ---
