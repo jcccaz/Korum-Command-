@@ -29,8 +29,46 @@ def _as_text(value):
     if value is None:
         return ""
     if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=True)
+        return json.dumps(value, ensure_ascii=False)
     return str(value)
+
+
+def _sanitize_for_pptx(text):
+    """Replace Unicode symbols that render as squares in default PowerPoint fonts."""
+    if not isinstance(text, str):
+        return str(text) if text else ""
+    import re
+    replacements = {
+        '\u2022': '-',   # • bullet
+        '\u2023': '-',   # ‣ triangular bullet
+        '\u25aa': '-',   # ▪ small black square
+        '\u25cb': 'o',   # ○ white circle
+        '\u2713': '[X]', # ✓ checkmark
+        '\u2714': '[X]', # ✔ heavy checkmark
+        '\u2717': '[ ]', # ✗ ballot x
+        '\u2718': '[ ]', # ✘ heavy ballot x
+        '\u2192': '->',  # → right arrow
+        '\u2190': '<-',  # ← left arrow
+        '\u21d2': '=>',  # ⇒ double right arrow
+        '\u2014': '--',  # — em dash
+        '\u2013': '-',   # – en dash
+        '\u2018': "'",   # left single quote
+        '\u2019': "'",   # right single quote
+        '\u201c': '"',   # left double quote
+        '\u201d': '"',   # right double quote
+        '\u2026': '...', # … ellipsis
+        '\u221e': 'inf', # ∞ infinity
+        '\u2248': '~=',  # ≈ approximately
+        '\u00b1': '+/-', # ± plus-minus
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    # Strip any remaining emoji (Supplementary Multilingual Plane)
+    text = re.sub(r'[\U0001F300-\U0001F9FF]', '', text)
+    # Clean markdown artifacts
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)  # **bold** -> bold
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)        # *italic* -> italic
+    return text
 
 
 def _convert_mermaid_to_table(text):
@@ -196,22 +234,28 @@ class WordExporter:
 class PPTXExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
+        from pptx.util import Pt as PptxPt
+
         meta, sections, _ = _extract_parts(intelligence_object)
         prs = PPTXPresentation()
 
         title_slide = prs.slides.add_slide(prs.slide_layouts[0])
-        title_slide.shapes.title.text = _as_text(meta.get("title", "Intelligence Report"))
+        title_slide.shapes.title.text = _sanitize_for_pptx(_as_text(meta.get("title", "Intelligence Report")))
         subtitle = title_slide.placeholders[1] if len(title_slide.placeholders) > 1 else None
         if subtitle:
-            subtitle.text = f"KORUM-OS | {_as_text(meta.get('generated_at', ''))}"
+            subtitle.text = _sanitize_for_pptx(f"KORUM-OS | {_as_text(meta.get('generated_at', ''))}")
 
         for section_id, content in sections.items():
             slide = prs.slides.add_slide(prs.slide_layouts[1])
             slide.shapes.title.text = section_id.replace("_", " ").title()
             if len(slide.placeholders) > 1:
                 tf = slide.placeholders[1].text_frame
-                text = _as_text(content)
+                text = _sanitize_for_pptx(_as_text(content))
                 tf.text = text[:1000]
+                for paragraph in tf.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.name = 'Calibri'
+                        run.font.size = PptxPt(14)
                 if len(text) > 1000:
                     p = tf.add_paragraph()
                     p.text = "... (Continued in report)"

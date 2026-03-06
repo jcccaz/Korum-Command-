@@ -577,23 +577,44 @@ from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 
+def _sanitize_pptx_text(text):
+    """Replace Unicode symbols that render as squares in default PowerPoint fonts."""
+    import re
+    if not isinstance(text, str):
+        return str(text) if text else ""
+    replacements = {
+        '\u2022': '-', '\u2023': '-', '\u25aa': '-', '\u25cb': 'o',
+        '\u2713': '[X]', '\u2714': '[X]', '\u2717': '[ ]', '\u2718': '[ ]',
+        '\u2192': '->', '\u2190': '<-', '\u21d2': '=>',
+        '\u2014': '--', '\u2013': '-',
+        '\u2018': "'", '\u2019': "'", '\u201c': '"', '\u201d': '"',
+        '\u2026': '...', '\u221e': 'inf', '\u2248': '~=', '\u00b1': '+/-',
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    text = re.sub(r'[\U0001F300-\U0001F9FF]', '', text)
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    return text
+
+
 def generate_pptx_file(preview_data):
     """
     Builds a .pptx file from the preview JSON.
     Returns the file path.
     """
     prs = PPTXPresentation()
-    
+
     # 1. Slide Master Layouts
     title_layout = prs.slide_layouts[0]
     bullet_layout = prs.slide_layouts[1]
     two_col_layout = prs.slide_layouts[3] # Usually 'Two Content' or similar
-    
+
     slides = preview_data.get('slides', [])
-    
+
     for slide_data in slides:
         layout_type = slide_data.get('layout', 'content')
-        
+
         # Select Layout
         if layout_type == 'title':
             slide = prs.slides.add_slide(title_layout)
@@ -605,18 +626,18 @@ def generate_pptx_file(preview_data):
         # Set Title
         title = slide.shapes.title
         if title:
-            title.text = slide_data.get('title', 'Untitled Slide')
+            title.text = _sanitize_pptx_text(slide_data.get('title', 'Untitled Slide'))
 
         # Set Content (Bullets)
-        content_items = slide_data.get('content', [])
-        
+        content_items = [_sanitize_pptx_text(item) for item in slide_data.get('content', [])]
+
         # Handle Layout Specifics
         if layout_type == 'title':
              # Subtitle is usually the second placeholder
              if len(slide.placeholders) > 1 and content_items:
                  subtitle = slide.placeholders[1]
                  subtitle.text = "\n".join(content_items)
-                 
+
         elif layout_type == 'two-column':
              # Left Column (Text)
              if len(slide.placeholders) > 1:
@@ -626,9 +647,8 @@ def generate_pptx_file(preview_data):
                      p = tf.add_paragraph()
                      p.text = item
                      p.level = 0
-             
+
              # Right Column (Chart Placeholder or Text)
-             # For MVP, we just put text or a placeholder note about the chart
              if len(slide.placeholders) > 2:
                  tf2 = slide.placeholders[2].text_frame
                  if slide_data.get('chartData'):
@@ -645,16 +665,24 @@ def generate_pptx_file(preview_data):
                     p.text = item
                     p.level = 0
 
+        # Set font on all text frames to ensure consistent rendering
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for paragraph in shape.text_frame.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.name = 'Calibri'
+                        run.font.size = Pt(14)
+
         # Speaker Notes
         if slide_data.get('speakerNotes'):
             notes_slide = slide.notes_slide
             text_frame = notes_slide.notes_text_frame
-            text_frame.text = slide_data['speakerNotes']
+            text_frame.text = _sanitize_pptx_text(slide_data['speakerNotes'])
 
     # Save File
     filename = f"korum_artifact_{int(datetime.now().timestamp())}.pptx"
     filepath = os.path.join(os.getcwd(), filename)
     prs.save(filepath)
-    
+
     return filename # Return relative name for download
 

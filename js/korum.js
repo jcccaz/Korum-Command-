@@ -2568,6 +2568,7 @@ const sentinelChat = {
 
         // User Message
         this.appendMessage(query, 'user');
+        this.history.push({ role: 'user', content: query });
         input.value = '';
         input.disabled = true;
 
@@ -2575,10 +2576,13 @@ const sentinelChat = {
             // Sentinel "Thinking" indicator
             const thinkingId = this.appendMessage("Analyzing...", 'sentinel thinking');
 
+            // Send last 6 exchanges (12 messages) for context
+            const recentHistory = this.history.slice(-12);
+
             const response = await authFetch('/api/sentinel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: query })
+                body: JSON.stringify({ query: query, history: recentHistory })
             });
 
             const data = await response.json();
@@ -2589,7 +2593,7 @@ const sentinelChat = {
 
             if (data.success) {
                 this.appendMessage(data.response, 'sentinel');
-                // Optional: Speak the response if voice enabled? (Later)
+                this.history.push({ role: 'assistant', content: data.response });
             } else {
                 this.appendMessage("Connection Lost. Re-establishing...", 'sentinel error');
             }

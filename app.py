@@ -406,7 +406,18 @@ def deploy_intelligence():
 
         filename = exporter.generate(intelligence_object, output_dir=EXPORTS_DIR)
         filepath = os.path.abspath(filename)
-        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filename))
+        mime_types = {
+            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'pdf': 'application/pdf',
+            'csv': 'text/csv',
+            'json': 'application/json',
+            'md': 'text/markdown',
+            'txt': 'text/plain',
+        }
+        mimetype = mime_types.get(format_type, 'application/octet-stream')
+        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filename), mimetype=mimetype)
 
     except Exception as e:
         print(f"❌ Deployment Error: {e}")
@@ -442,7 +453,8 @@ def generate_artifact():
     if artifact_type == 'presentation':
         filename = generate_pptx_file(preview_data)
         filepath = os.path.join(os.getcwd(), filename)
-        return send_file(filepath, as_attachment=True, download_name=filename)
+        return send_file(filepath, as_attachment=True, download_name=filename,
+                         mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation')
     
     return jsonify({"error": "Artifact type not supported"}), 501
 
@@ -1486,34 +1498,46 @@ def enhance_prompt():
 def ask_sentinel():
     data = request.json
     query = data.get('query')
-    
+    history = data.get('history', [])
+
     if not query:
         return jsonify({"success": False, "error": "Query required"})
+
+    system_instruction = "You are THE SENTINEL, a tactical aide to the Architect. Be extremely concise, direct, and factual. Do not lecture. Do not be chatty. Provide immediate answers (weather, definitions, math, quick facts). If the user asks a complex strategy question, suggest they 'Convene the Council'. You have conversation memory — use prior exchanges for context when the user references earlier questions."
 
     # Use Gemini Flash for speed (The Sentinel)
     if google_client:
         try:
-            # System instruction for the Sentinel
-            system_instruction = "You are THE SENTINEL, a tactical aide to the Architect. Be extremely concise, direct, and factual. Do not lecture. Do not be chatty. Provide immediate answers (weather, definitions, math, quick facts). If the user asks a complex strategy question, suggest they 'Convene the Council'."
-            
+            # Build conversation thread for Gemini
+            thread = f"{system_instruction}\n\n"
+            for msg in history[:-1]:  # All except current (already in query)
+                role_label = "User" if msg.get('role') == 'user' else "Sentinel"
+                thread += f"{role_label}: {msg.get('content', '')}\n\n"
+            thread += f"User: {query}"
+
             response = google_client.models.generate_content(
                 model="gemini-2.0-flash",
-                contents=f"{system_instruction}\n\nUser Query: {query}"
+                contents=thread
             )
             return jsonify({"success": True, "response": response.text, "model": "Gemini Flash"})
         except Exception as e:
             print(f"Sentinel Error: {e}")
             return jsonify({"success": False, "error": str(e)})
-    
+
     # Fallback to OpenAI if Gemini missing
     elif openai_client:
         try:
+            messages = [{"role": "system", "content": system_instruction}]
+            for msg in history[:-1]:  # All except current
+                role = msg.get('role', 'user')
+                if role not in ('user', 'assistant'):
+                    role = 'user'
+                messages.append({"role": role, "content": msg.get('content', '')})
+            messages.append({"role": "user", "content": query})
+
             response = openai_client.chat.completions.create(
                 model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "You are THE SENTINEL. Be concise, direct, and tactical."},
-                    {"role": "user", "content": query}
-                ]
+                messages=messages
             )
             return jsonify({"success": True, "response": response.choices[0].message.content, "model": "GPT-4o"})
         except Exception as e:
