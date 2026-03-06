@@ -3473,6 +3473,12 @@ const PreviewManager = {
         document.getElementById('closePreviewBtn')?.addEventListener('click', () => this.close());
         modal.addEventListener('click', (e) => { if (e.target === modal) this.close(); });
 
+        // Deploy PDF button
+        document.getElementById('deployPdfBtn')?.addEventListener('click', () => {
+            this.close();
+            handleDocExport('pdf');
+        });
+
         // Tab switching
         const tabs = document.querySelectorAll('.preview-tab');
         tabs.forEach(tab => {
