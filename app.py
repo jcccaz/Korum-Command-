@@ -153,6 +153,25 @@ def add_security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
+# --- Global Error Handlers (always return JSON, never HTML) ---
+@app.errorhandler(404)
+def not_found(e):
+    if request.path.startswith('/api/'):
+        return jsonify({"error": "Not found"}), 404
+    return e
+
+@app.errorhandler(500)
+def internal_error(e):
+    if request.path.startswith('/api/'):
+        return jsonify({"error": "Internal server error"}), 500
+    return e
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    if request.path.startswith('/api/'):
+        return jsonify({"error": "Method not allowed"}), 405
+    return e
+
 # ============================================================
 # AUTH ENDPOINTS
 # ============================================================
@@ -160,61 +179,71 @@ def add_security_headers(response):
 @app.route('/api/auth/register', methods=['POST'])
 @limiter.limit("20 per hour")
 def register():
-    data = request.json or {}
-    email = (data.get('email') or '').strip().lower()
-    password = data.get('password', '')
+    try:
+        data = request.json or {}
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password', '')
 
-    if not email or not validate_email(email):
-        return jsonify({"success": False, "error": "Valid email required"}), 400
+        if not email or not validate_email(email):
+            return jsonify({"success": False, "error": "Valid email required"}), 400
 
-    valid, msg = validate_password(password)
-    if not valid:
-        return jsonify({"success": False, "error": msg}), 400
+        valid, msg = validate_password(password)
+        if not valid:
+            return jsonify({"success": False, "error": msg}), 400
 
-    if User.query.filter_by(email=email).first():
-        log_audit("register_failed", user_email=email, details="Email already exists", success=False)
-        return jsonify({"success": False, "error": "Email already registered"}), 409
+        if User.query.filter_by(email=email).first():
+            log_audit("register_failed", user_email=email, details="Email already exists", success=False)
+            return jsonify({"success": False, "error": "Email already registered"}), 409
 
-    # First user becomes admin
-    user_count = User.query.count()
-    role = "admin" if user_count == 0 else "user"
+        # First user becomes admin
+        user_count = User.query.count()
+        role = "admin" if user_count == 0 else "user"
 
-    user = User(email=email, role=role)
-    user.set_password(password)
-    db.session.add(user)
-    db.session.commit()
+        user = User(email=email, role=role)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
 
-    login_user(user, remember=True)
-    log_audit("register", user_id=user.id, user_email=email, details=f"role={role}")
-    logger.info(f"New user registered: {email} (role={role})")
+        login_user(user, remember=True)
+        log_audit("register", user_id=user.id, user_email=email, details=f"role={role}")
+        logger.info(f"New user registered: {email} (role={role})")
 
-    return jsonify({
-        "success": True,
-        "user": {"id": user.id, "email": user.email, "role": user.role}
-    }), 201
+        return jsonify({
+            "success": True,
+            "user": {"id": user.id, "email": user.email, "role": user.role}
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Register error: {e}")
+        return jsonify({"success": False, "error": "Registration failed — please try again"}), 500
 
 
 @app.route('/api/auth/login', methods=['POST'])
 @limiter.limit("10 per minute")
 def login():
-    data = request.json or {}
-    email = (data.get('email') or '').strip().lower()
-    password = data.get('password', '')
+    try:
+        data = request.json or {}
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password', '')
 
-    user = User.query.filter_by(email=email).first()
-    if not user or not user.verify_password(password):
-        log_audit("login_failed", user_email=email, details="Invalid credentials", success=False)
-        return jsonify({"success": False, "error": "Invalid email or password"}), 401
+        user = User.query.filter_by(email=email).first()
+        if not user or not user.verify_password(password):
+            log_audit("login_failed", user_email=email, details="Invalid credentials", success=False)
+            return jsonify({"success": False, "error": "Invalid email or password"}), 401
 
-    login_user(user, remember=True)
-    user.last_login = datetime.utcnow()
-    db.session.commit()
-    log_audit("login", user_id=user.id, user_email=email)
+        login_user(user, remember=True)
+        user.last_login = datetime.utcnow()
+        db.session.commit()
+        log_audit("login", user_id=user.id, user_email=email)
 
-    return jsonify({
-        "success": True,
-        "user": {"id": user.id, "email": user.email, "role": user.role}
-    })
+        return jsonify({
+            "success": True,
+            "user": {"id": user.id, "email": user.email, "role": user.role}
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Login error: {e}")
+        return jsonify({"success": False, "error": "Login failed — please try again"}), 500
 
 
 @app.route('/api/auth/logout', methods=['POST'])
