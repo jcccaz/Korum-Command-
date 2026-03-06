@@ -248,6 +248,22 @@ body {
     color: #44BBCC;
 }
 
+/* Defense & Intelligence */
+.nav-links a[data-role="Defense Council"] {
+    border-color: rgba(120, 180, 50, 0.3);
+    color: #7AB432;
+}
+
+.nav-links a[data-role="Cyber Command"] {
+    border-color: rgba(255, 50, 50, 0.3);
+    color: #E03030;
+}
+
+.nav-links a[data-role="Intel Brief"] {
+    border-color: rgba(255, 180, 0, 0.3);
+    color: #D4A017;
+}
+
 /* Preset Color Coding — active/hover glow */
 /* General */
 .nav-links a[data-role="War Room"]:hover,
@@ -337,6 +353,31 @@ body {
     color: #000;
     border-color: #00DCFF;
     box-shadow: 0 0 15px rgba(0, 220, 255, 0.4);
+}
+
+/* Defense & Intelligence */
+.nav-links a[data-role="Defense Council"]:hover,
+.nav-links a[data-role="Defense Council"].active {
+    background: #7AB432;
+    color: #000;
+    border-color: #7AB432;
+    box-shadow: 0 0 15px rgba(120, 180, 50, 0.5);
+}
+
+.nav-links a[data-role="Cyber Command"]:hover,
+.nav-links a[data-role="Cyber Command"].active {
+    background: #E03030;
+    color: #FFF;
+    border-color: #E03030;
+    box-shadow: 0 0 15px rgba(255, 50, 50, 0.5);
+}
+
+.nav-links a[data-role="Intel Brief"]:hover,
+.nav-links a[data-role="Intel Brief"].active {
+    background: #D4A017;
+    color: #000;
+    border-color: #D4A017;
+    box-shadow: 0 0 15px rgba(255, 180, 0, 0.5);
 }
 
 /* LAYOUT */
