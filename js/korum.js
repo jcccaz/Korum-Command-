@@ -39,7 +39,13 @@ const KorumAuth = {
                 credentials: 'include',
                 body: JSON.stringify({ email, password })
             });
-            const data = await res.json();
+            if (res.status === 429) {
+                if (errorEl) { errorEl.textContent = 'Too many attempts — wait and try again'; errorEl.style.display = 'block'; }
+                return false;
+            }
+            const text = await res.text();
+            let data;
+            try { data = JSON.parse(text); } catch { data = { success: false, error: `Server error (${res.status})` }; }
             if (data.success) {
                 this.authenticated = true;
                 this.user = data.user;
@@ -51,6 +57,7 @@ const KorumAuth = {
                 return false;
             }
         } catch (e) {
+            console.error('Login error:', e);
             if (errorEl) { errorEl.textContent = 'Connection failed'; errorEl.style.display = 'block'; }
             return false;
         } finally {
@@ -70,7 +77,13 @@ const KorumAuth = {
                 credentials: 'include',
                 body: JSON.stringify({ email, password })
             });
-            const data = await res.json();
+            if (res.status === 429) {
+                if (errorEl) { errorEl.textContent = 'Too many attempts — wait and try again'; errorEl.style.display = 'block'; }
+                return false;
+            }
+            const text = await res.text();
+            let data;
+            try { data = JSON.parse(text); } catch { data = { success: false, error: `Server error (${res.status})` }; }
             if (data.success) {
                 this.authenticated = true;
                 this.user = data.user;
@@ -82,6 +95,7 @@ const KorumAuth = {
                 return false;
             }
         } catch (e) {
+            console.error('Register error:', e);
             if (errorEl) { errorEl.textContent = 'Connection failed'; errorEl.style.display = 'block'; }
             return false;
         } finally {

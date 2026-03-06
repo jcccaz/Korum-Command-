@@ -158,7 +158,7 @@ def add_security_headers(response):
 # ============================================================
 
 @app.route('/api/auth/register', methods=['POST'])
-@limiter.limit("5 per hour")
+@limiter.limit("20 per hour")
 def register():
     data = request.json or {}
     email = (data.get('email') or '').strip().lower()
