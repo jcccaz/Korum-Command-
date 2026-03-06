@@ -33,9 +33,83 @@ def _as_text(value):
     return str(value)
 
 
-def _clean_tags(text):
-    """Strip intelligence tags and markdown artifacts from text for clean export."""
+def _convert_mermaid_to_table(text):
+    """Convert Mermaid chart blocks into readable plain-text tables."""
     import re
+
+    def _pie_to_table(match):
+        block = match.group(0)
+        # Extract title
+        title_match = re.search(r'title\s+"([^"]*)"', block) or re.search(r'title\s+(.+)', block)
+        title = title_match.group(1).strip() if title_match else "Chart Data"
+        # Extract slices: "Label" : value
+        slices = re.findall(r'"([^"]+)"\s*:\s*([\d.]+)', block)
+        if not slices:
+            return block  # Can't parse, return as-is
+        total = sum(float(v) for _, v in slices)
+        lines = [f"\n{title}:", "-" * 40]
+        for label, value in slices:
+            pct = (float(value) / total * 100) if total > 0 else 0
+            lines.append(f"  {label}: {value} ({pct:.1f}%)")
+        lines.append(f"  Total: {total}")
+        return "\n".join(lines) + "\n"
+
+    def _bar_to_table(match):
+        block = match.group(0)
+        title_match = re.search(r'title\s+"([^"]*)"', block) or re.search(r'title\s+(.+)', block)
+        title = title_match.group(1).strip() if title_match else "Chart Data"
+        # xychart-beta format: x-axis [...] and bar [...]
+        x_match = re.search(r'x-axis\s*\[([^\]]+)\]', block)
+        bar_match = re.search(r'bar\s*\[([^\]]+)\]', block)
+        if x_match and bar_match:
+            labels = [l.strip().strip('"') for l in x_match.group(1).split(',')]
+            values = [v.strip() for v in bar_match.group(1).split(',')]
+            lines = [f"\n{title}:", "-" * 40]
+            for i, label in enumerate(labels):
+                val = values[i] if i < len(values) else "N/A"
+                lines.append(f"  {label}: {val}")
+            return "\n".join(lines) + "\n"
+        return block
+
+    def _flowchart_to_text(match):
+        block = match.group(0)
+        # Extract node labels: A["Label"] or A[Label]
+        nodes = re.findall(r'(\w+)\s*\["?([^"\]]+)"?\]', block)
+        # Extract connections: A --> B or A -->|label| B
+        connections = re.findall(r'(\w+)\s*-->(?:\|([^|]*)\|)?\s*(\w+)', block)
+        node_map = {k: v for k, v in nodes}
+        if not nodes and not connections:
+            return block
+        lines = ["\nProcess Flow:", "-" * 40]
+        for src, edge_label, dst in connections:
+            src_name = node_map.get(src, src)
+            dst_name = node_map.get(dst, dst)
+            arrow = f" ({edge_label})" if edge_label else ""
+            lines.append(f"  {src_name} -> {dst_name}{arrow}")
+        return "\n".join(lines) + "\n"
+
+    # Match mermaid code blocks: ```mermaid ... ```
+    text = re.sub(r'```mermaid\s*(pie[\s\S]*?)```', _pie_to_table, text)
+    text = re.sub(r'```mermaid\s*(xychart-beta[\s\S]*?)```', _bar_to_table, text)
+    text = re.sub(r'```mermaid\s*((?:graph|flowchart)[\s\S]*?)```', _flowchart_to_text, text)
+
+    # Match bare mermaid blocks (no code fence)
+    text = re.sub(r'(?m)^pie\b[\s\S]*?(?=\n\n|\n[A-Z]|\Z)', _pie_to_table, text)
+    text = re.sub(r'(?m)^xychart-beta\b[\s\S]*?(?=\n\n|\n[A-Z]|\Z)', _bar_to_table, text)
+    text = re.sub(r'(?m)^(?:graph|flowchart)\b[\s\S]*?(?=\n\n|\n[A-Z]|\Z)', _flowchart_to_text, text)
+
+    # Clean up any remaining ``` fences
+    text = re.sub(r'```\w*\s*', '', text)
+    text = re.sub(r'```', '', text)
+
+    return text
+
+
+def _clean_tags(text):
+    """Strip intelligence tags, markdown artifacts, and convert Mermaid charts to tables."""
+    import re
+    # Convert Mermaid charts to readable tables first
+    text = _convert_mermaid_to_table(text)
     # Remove paired tags, keeping inner content
     text = re.sub(r'\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', text)
     # Remove markdown bold markers
