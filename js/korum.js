@@ -1,5 +1,193 @@
 /* KORUM-OS Logic - Fully Integrated (Telemetry, Interrogation, Charts) */
 
+// ============================================================
+// AUTH MODULE
+// ============================================================
+const KorumAuth = {
+    authenticated: false,
+    authEnabled: true,
+    user: null,
+
+    async checkStatus() {
+        try {
+            const res = await fetch('/api/auth/status', { credentials: 'include' });
+            const data = await res.json();
+            this.authenticated = data.authenticated;
+            this.authEnabled = data.auth_enabled;
+            this.user = data.user || null;
+
+            if (this.authEnabled && !this.authenticated) {
+                this.showModal();
+            } else {
+                this.hideModal();
+                this.updateNavbar();
+            }
+        } catch (e) {
+            console.error('Auth check failed:', e);
+        }
+    },
+
+    async login(email, password) {
+        const errorEl = document.getElementById('loginError');
+        const btn = document.getElementById('loginSubmitBtn');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+            if (data.success) {
+                this.authenticated = true;
+                this.user = data.user;
+                this.hideModal();
+                this.updateNavbar();
+                return true;
+            } else {
+                if (errorEl) { errorEl.textContent = data.error; errorEl.style.display = 'block'; }
+                return false;
+            }
+        } catch (e) {
+            if (errorEl) { errorEl.textContent = 'Connection failed'; errorEl.style.display = 'block'; }
+            return false;
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    },
+
+    async register(email, password) {
+        const errorEl = document.getElementById('registerError');
+        const btn = document.getElementById('registerSubmitBtn');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+            if (data.success) {
+                this.authenticated = true;
+                this.user = data.user;
+                this.hideModal();
+                this.updateNavbar();
+                return true;
+            } else {
+                if (errorEl) { errorEl.textContent = data.error; errorEl.style.display = 'block'; }
+                return false;
+            }
+        } catch (e) {
+            if (errorEl) { errorEl.textContent = 'Connection failed'; errorEl.style.display = 'block'; }
+            return false;
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    },
+
+    async logout() {
+        try {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        } catch (e) { /* ignore */ }
+        this.authenticated = false;
+        this.user = null;
+        this.updateNavbar();
+        if (this.authEnabled) this.showModal();
+    },
+
+    showModal() {
+        const modal = document.getElementById('authModal');
+        if (modal) modal.style.display = 'flex';
+    },
+
+    hideModal() {
+        const modal = document.getElementById('authModal');
+        if (modal) modal.style.display = 'none';
+    },
+
+    updateNavbar() {
+        const statusEl = document.getElementById('authStatus');
+        const emailEl = document.getElementById('authUserEmail');
+        if (!statusEl) return;
+
+        if (this.authenticated && this.user) {
+            statusEl.style.display = 'flex';
+            if (emailEl) emailEl.textContent = this.user.email;
+        } else {
+            statusEl.style.display = 'none';
+        }
+    },
+
+    initListeners() {
+        // Tab switching
+        document.querySelectorAll('[data-auth-tab]').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const mode = tab.dataset.authTab;
+                document.getElementById('authLoginForm').style.display = mode === 'login' ? 'block' : 'none';
+                document.getElementById('authRegisterForm').style.display = mode === 'register' ? 'block' : 'none';
+                // Clear errors
+                document.getElementById('loginError').style.display = 'none';
+                document.getElementById('registerError').style.display = 'none';
+            });
+        });
+
+        // Login submit
+        document.getElementById('loginSubmitBtn')?.addEventListener('click', () => {
+            const email = document.getElementById('loginEmail')?.value?.trim();
+            const password = document.getElementById('loginPassword')?.value;
+            if (email && password) this.login(email, password);
+        });
+
+        // Register submit
+        document.getElementById('registerSubmitBtn')?.addEventListener('click', () => {
+            const email = document.getElementById('registerEmail')?.value?.trim();
+            const password = document.getElementById('registerPassword')?.value;
+            const confirm = document.getElementById('registerPasswordConfirm')?.value;
+            const errorEl = document.getElementById('registerError');
+            if (password !== confirm) {
+                if (errorEl) { errorEl.textContent = 'Passwords do not match'; errorEl.style.display = 'block'; }
+                return;
+            }
+            if (email && password) this.register(email, password);
+        });
+
+        // Enter key support
+        document.getElementById('loginPassword')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('loginSubmitBtn')?.click();
+        });
+        document.getElementById('registerPasswordConfirm')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('registerSubmitBtn')?.click();
+        });
+
+        // Logout
+        document.getElementById('authLogoutBtn')?.addEventListener('click', () => this.logout());
+    }
+};
+
+// Init auth on page load
+document.addEventListener('DOMContentLoaded', () => {
+    KorumAuth.initListeners();
+    KorumAuth.checkStatus();
+});
+
+// === AUTH-AWARE FETCH WRAPPER ===
+async function authFetch(url, options = {}) {
+    options.credentials = 'include';
+    const response = await fetch(url, options);
+    if (response.status === 401 && KorumAuth.authEnabled) {
+        KorumAuth.authenticated = false;
+        KorumAuth.showModal();
+        throw new Error('Authentication required — please log in.');
+    }
+    return response;
+}
+
 // === GLOBAL STATE FOR EXPORTS ===
 let lastCouncilData = null;
 let lastQueryText = '';
@@ -67,7 +255,7 @@ async function saveReport() {
             ...lastCouncilData,
             query: sessionState.originalQuery || lastQueryText || ""
         };
-        const resp = await fetch('/api/reports/save', {
+        const resp = await authFetch('/api/reports/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -91,7 +279,7 @@ async function loadReportLibrary() {
     list.innerHTML = '<div class="library-empty">Loading...</div>';
 
     try {
-        const resp = await fetch('/api/reports/list');
+        const resp = await authFetch('/api/reports/list');
         const data = await resp.json();
         if (!data.success || !data.reports.length) {
             list.innerHTML = '<div class="library-empty">No saved reports yet. Run a council query and save the results.</div>';
@@ -181,7 +369,7 @@ async function checkAPIHealth() {
     logTelemetry("Running API health check...", "process");
 
     try {
-        const resp = await fetch('/api/health/check');
+        const resp = await authFetch('/api/health/check');
         const data = await resp.json();
 
         Object.keys(data).forEach(provider => {
@@ -380,7 +568,7 @@ const ResearchDock = {
         showProcessingToast("Analyzing research docked...");
 
         try {
-            const response = await fetch('/api/summarize_snippets', {
+            const response = await authFetch('/api/summarize_snippets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ snippets: this.snippets })
@@ -609,7 +797,7 @@ const ResearchDock = {
             localStorage.setItem('korum-dock', JSON.stringify(this.snippets));
 
             // Mission 2: Backend Sync
-            await fetch('/api/dock/save', {
+            await authFetch('/api/dock/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ snippets: this.snippets })
@@ -624,7 +812,7 @@ const ResearchDock = {
     async load() {
         try {
             // Try backend first
-            const response = await fetch('/api/dock/load');
+            const response = await authFetch('/api/dock/load');
             const data = await response.json();
 
             if (data.success && data.snippets && data.snippets.length > 0) {
@@ -1275,7 +1463,7 @@ async function executeReasoningChain(query) {
         workflow: sessionState.missionContext?.workflow || "RESEARCH"
     };
 
-    const response = await fetch('/api/v2/reasoning_chain', {
+    const response = await authFetch('/api/v2/reasoning_chain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1510,7 +1698,7 @@ window.enhancePrompt = async function () {
     logTelemetry("Optimizing Directive Signal...", "process");
 
     try {
-        const response = await fetch('/api/enhance_prompt', {
+        const response = await authFetch('/api/enhance_prompt', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ draft: draft })
@@ -1898,11 +2086,11 @@ async function executeCouncil(query, roleName) {
             formData.append('files', file);
         }
         logTelemetry(`${pendingFiles.length} file(s) attached to query`, "process");
-        response = await fetch('/api/ask', { method: 'POST', body: formData });
+        response = await authFetch('/api/ask', { method: 'POST', body: formData });
         pendingFiles = [];
         renderFilePreview();
     } else {
-        response = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        response = await authFetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     }
     if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
     const data = await response.json();
@@ -2366,7 +2554,7 @@ const sentinelChat = {
             // Sentinel "Thinking" indicator
             const thinkingId = this.appendMessage("Analyzing...", 'sentinel thinking');
 
-            const response = await fetch('/api/sentinel', {
+            const response = await authFetch('/api/sentinel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: query })
@@ -2558,7 +2746,7 @@ function animateActivation() {
 }
 
 function pollV2Progress() {
-    fetch('/api/v2/progress')
+    authFetch('/api/v2/progress')
         .then(res => res.json())
         .then(data => {
             if (data.status === 'processing') {
@@ -2568,7 +2756,7 @@ function pollV2Progress() {
                 updateSystemStatus("SYNTHESIZING");
 
                 // Fetch final result
-                fetch('/api/v2/result')
+                authFetch('/api/v2/result')
                     .then(res => res.json())
                     .then(resultData => {
                         renderV2Results(resultData);
@@ -2900,7 +3088,7 @@ async function handleDocExport(format) {
             format: format
         };
 
-        const response = await fetch('/api/deploy_intelligence', {
+        const response = await authFetch('/api/deploy_intelligence', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -3024,7 +3212,7 @@ function handlePresentExport(format) {
     }
 
     if (format === 'pptx') {
-        fetch('/api/generate_preview', {
+        authFetch('/api/generate_preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

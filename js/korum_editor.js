@@ -109,7 +109,7 @@ window.confirmArtifactGeneration = function () {
     statusDiv.innerText = "BUILDING ARTIFACT...";
     document.body.appendChild(statusDiv);
 
-    fetch('/api/generate_artifact', {
+    authFetch('/api/generate_artifact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,17 +1,33 @@
 import os
+import re
 import json
 import time
+import logging
+import secrets
 from datetime import datetime
+from functools import wraps
 import requests
 import concurrent.futures
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
+from flask_login import LoginManager, login_user, logout_user, current_user
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from sqlalchemy import case, func
 from db import db, init_db
 
 # Initialize early
 load_dotenv()
+
+# --- Structured Logging ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("korumos")
+audit_logger = logging.getLogger("korumos.audit")
 
 # GOOGLE IPv4 FIX: Force IPv4 to prevent socket hangs
 import socket
@@ -23,7 +39,30 @@ socket.getaddrinfo = _ipv4_only_getaddrinfo
 
 # Flask App Init - MUST be before any @app.route decorators
 app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app)
+
+# --- Security Configuration ---
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", secrets.token_hex(32))
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.getenv("FLASK_ENV") == "production"
+app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour
+
+# Auth can be disabled for local dev via env var
+AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
+
+CORS(app, supports_credentials=True)
+
+# --- Rate Limiting ---
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per minute"],
+    storage_uri="memory://",
+)
+
+# --- Flask-Login Setup ---
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 # Database configuration (Railway/Postgres via DATABASE_URL)
 database_url = os.getenv("DATABASE_URL", "sqlite:///korumos.db")
@@ -33,9 +72,195 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Register models so SQLAlchemy can create tables.
-from models import User, UsageLog
+from models import User, UsageLog, AuditLog
 
 init_db(app)
+
+# --- User Loader ---
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
+
+# --- Audit Helper ---
+def log_audit(event_type, user_id=None, user_email=None, details=None, success=True):
+    try:
+        entry = AuditLog(
+            event_type=event_type,
+            user_id=user_id,
+            user_email=user_email,
+            ip_address=request.remote_addr if request else None,
+            user_agent=str(request.user_agent)[:500] if request else None,
+            endpoint=request.path if request else None,
+            details=details,
+            success=success,
+        )
+        db.session.add(entry)
+        db.session.commit()
+        audit_logger.info(f"[{event_type}] user={user_email} ip={request.remote_addr if request else 'N/A'} success={success} {details or ''}")
+    except Exception as e:
+        db.session.rollback()
+        audit_logger.error(f"Audit log write failed: {e}")
+
+# --- Input Validation ---
+def sanitize_input(text, max_length=50000):
+    if not isinstance(text, str):
+        return ""
+    text = text[:max_length]
+    return text
+
+def validate_email(email):
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email))
+
+def validate_password(password):
+    if len(password) < 12:
+        return False, "Password must be at least 12 characters"
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain an uppercase letter"
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain a lowercase letter"
+    if not re.search(r'[0-9]', password):
+        return False, "Password must contain a number"
+    return True, "OK"
+
+# --- Auth-Required Decorator (respects AUTH_ENABLED) ---
+def auth_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not AUTH_ENABLED:
+            return f(*args, **kwargs)
+        if not current_user.is_authenticated:
+            log_audit("access_denied", endpoint=request.path, details="Unauthenticated request", success=False)
+            return jsonify({"error": "Authentication required", "code": "AUTH_REQUIRED"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+# --- HTTPS Enforcement ---
+@app.before_request
+def enforce_https():
+    if os.getenv("FLASK_ENV") == "production":
+        if request.headers.get("X-Forwarded-Proto", "http") == "http":
+            url = request.url.replace("http://", "https://", 1)
+            return jsonify({"error": "HTTPS required", "redirect": url}), 301
+
+# --- Security Headers ---
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+# ============================================================
+# AUTH ENDPOINTS
+# ============================================================
+
+@app.route('/api/auth/register', methods=['POST'])
+@limiter.limit("5 per hour")
+def register():
+    data = request.json or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password', '')
+
+    if not email or not validate_email(email):
+        return jsonify({"success": False, "error": "Valid email required"}), 400
+
+    valid, msg = validate_password(password)
+    if not valid:
+        return jsonify({"success": False, "error": msg}), 400
+
+    if User.query.filter_by(email=email).first():
+        log_audit("register_failed", user_email=email, details="Email already exists", success=False)
+        return jsonify({"success": False, "error": "Email already registered"}), 409
+
+    # First user becomes admin
+    user_count = User.query.count()
+    role = "admin" if user_count == 0 else "user"
+
+    user = User(email=email, role=role)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(user, remember=True)
+    log_audit("register", user_id=user.id, user_email=email, details=f"role={role}")
+    logger.info(f"New user registered: {email} (role={role})")
+
+    return jsonify({
+        "success": True,
+        "user": {"id": user.id, "email": user.email, "role": user.role}
+    }), 201
+
+
+@app.route('/api/auth/login', methods=['POST'])
+@limiter.limit("10 per minute")
+def login():
+    data = request.json or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password', '')
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.verify_password(password):
+        log_audit("login_failed", user_email=email, details="Invalid credentials", success=False)
+        return jsonify({"success": False, "error": "Invalid email or password"}), 401
+
+    login_user(user, remember=True)
+    user.last_login = datetime.utcnow()
+    db.session.commit()
+    log_audit("login", user_id=user.id, user_email=email)
+
+    return jsonify({
+        "success": True,
+        "user": {"id": user.id, "email": user.email, "role": user.role}
+    })
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def auth_logout():
+    if current_user.is_authenticated:
+        log_audit("logout", user_id=current_user.id, user_email=current_user.email)
+    logout_user()
+    return jsonify({"success": True})
+
+
+@app.route('/api/auth/status', methods=['GET'])
+def auth_status():
+    if current_user.is_authenticated:
+        return jsonify({
+            "authenticated": True,
+            "auth_enabled": AUTH_ENABLED,
+            "user": {"id": current_user.id, "email": current_user.email, "role": current_user.role}
+        })
+    return jsonify({"authenticated": False, "auth_enabled": AUTH_ENABLED})
+
+
+@app.route('/api/auth/audit', methods=['GET'])
+@auth_required
+def get_audit_log():
+    if AUTH_ENABLED and (not current_user.is_authenticated or not current_user.is_admin()):
+        return jsonify({"error": "Admin access required"}), 403
+    limit = request.args.get('limit', default=100, type=int)
+    limit = max(1, min(limit, 500))
+    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(limit).all()
+    return jsonify({
+        "success": True,
+        "logs": [
+            {
+                "id": l.id,
+                "timestamp": l.timestamp.isoformat() if l.timestamp else None,
+                "event_type": l.event_type,
+                "user_email": l.user_email,
+                "ip_address": l.ip_address,
+                "endpoint": l.endpoint,
+                "details": l.details,
+                "success": l.success,
+            }
+            for l in logs
+        ]
+    })
+
 
 # Import Generator
 from engine_v2 import execute_council_v2, generate_presentation_preview, generate_pptx_file
@@ -108,6 +333,7 @@ EXPORTS_DIR = os.path.join(os.getcwd(), 'exports')
 os.makedirs(EXPORTS_DIR, exist_ok=True)
 
 @app.route('/api/deploy_intelligence', methods=['POST'])
+@auth_required
 def deploy_intelligence():
     data = request.json
     intelligence_object = data.get('intelligence_object')
@@ -361,6 +587,7 @@ def delete_report(report_id):
 # --- API Health Check (Proactive) ---
 
 @app.route('/api/health/check', methods=['GET'])
+@limiter.limit("10 per minute")
 def health_check():
     """Lightweight ping to each provider — minimal tokens, parallel execution."""
     from llm_core import call_openai_gpt4 as _openai, call_anthropic_claude as _claude, \
@@ -976,6 +1203,8 @@ def serve_css(path):
     return send_from_directory('css', path)
 
 @app.route('/api/ask', methods=['POST'])
+@auth_required
+@limiter.limit("30 per minute")
 def ask_council():
     from file_processor import process_uploaded_file
 
@@ -988,7 +1217,9 @@ def ask_council():
         data = request.json
         uploaded_files = []
 
-    query = data.get('question')
+    query = sanitize_input(data.get('question', ''))
+    if not query.strip():
+        return jsonify({"error": "Query is required"}), 400
     roles = data.get('council_roles', {})
 
     # Process uploaded files
@@ -1096,6 +1327,8 @@ def ask_council():
     return jsonify(response_data)
 
 @app.route('/api/v2/reasoning_chain', methods=['POST'])
+@auth_required
+@limiter.limit("30 per minute")
 def reasoning_chain():
     """
     V2 Orchestration Route: Uses the real Sequential Council Engine.
@@ -1163,6 +1396,7 @@ def reasoning_chain():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/enhance_prompt', methods=['POST'])
+@auth_required
 def enhance_prompt():
     data = request.json
     draft = data.get('draft')
@@ -1219,6 +1453,7 @@ def enhance_prompt():
     return jsonify({"success": False, "error": "Enhancement services unavailable"}), 503
 
 @app.route('/api/sentinel', methods=['POST'])
+@auth_required
 def ask_sentinel():
     data = request.json
     query = data.get('query')
