@@ -19,6 +19,8 @@ ROLE_DESCRIPTIONS = {
     "defense_acq": "a defense acquisitions and procurement specialist with expertise in DOD contracting, FedRAMP compliance, SBIR/STTR programs, ITAR/EAR regulations, security clearance requirements, and government proposal writing",
     "sigint": "a signals intelligence (SIGINT) specialist with expertise in electronic warfare, communications intelligence, spectrum analysis, encryption/decryption, and RF systems",
     "counterintel": "a counterintelligence specialist with expertise in threat detection, insider threat programs, security protocols, adversary tactics analysis, and operational security (OPSEC)",
+    "cryptographer": "a cryptography and encryption specialist with expertise in AES/RSA, PKI, post-quantum cryptography, TLS/SSL, key management, zero-knowledge proofs, homomorphic encryption, and blockchain cryptographic primitives",
+    "zero_trust": "a zero trust architecture specialist with expertise in identity-centric security, micro-segmentation, continuous verification, NIST 800-207, DOD Zero Trust Reference Architecture, SASE/SSE, conditional access policies, and least-privilege enforcement",
     # Existing roles — enhanced descriptions
     "hacker": "an elite penetration tester and red team operator with expertise in exploit development, vulnerability research, network intrusion, social engineering, and adversarial threat simulation",
     "scout": "a reconnaissance and open-source intelligence (OSINT) specialist who finds, verifies, and synthesizes information from multiple sources with precision",

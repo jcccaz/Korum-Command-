@@ -1023,11 +1023,11 @@ const PROTOCOL_CONFIGS = {
 
 // Available Roles for Manual Cycling
 const AVAILABLE_ROLES = {
-    openai: ["STRATEGIST", "ANALYST", "WRITER", "ARCHITECT", "VISIONARY", "JURIST", "MEDICAL", "CFO", "PHYSICIST", "BIZSTRAT", "AI_ARCHITECT", "NETWORK", "HEDGE_FUND", "DEFENSE_OPS", "CYBER_OPS", "INTEL_ANALYST", "DEFENSE_ACQ"],
-    anthropic: ["CONTAINMENT", "RESEARCHER", "INNOVATOR", "INTEGRITY", "ARCHITECT", "COMPLIANCE", "BIOETHICIST", "AUDITOR", "BIOLOGIST", "PRODUCT", "NETWORK", "TELECOM", "HEDGE_FUND", "CYBER_OPS", "COUNTERINTEL", "INTEL_ANALYST", "DEFENSE_ACQ"],
-    google: ["TAKEOVER", "HISTORIAN", "MARKETING", "HACKER", "CRITIC", "ECONOMIST", "CHEMIST", "RESEARCHER", "NETWORK", "TELECOM", "HEDGE_FUND", "DEFENSE_OPS", "CYBER_OPS", "SIGINT", "INTEL_ANALYST"],
+    openai: ["STRATEGIST", "ANALYST", "WRITER", "ARCHITECT", "VISIONARY", "JURIST", "MEDICAL", "CFO", "PHYSICIST", "BIZSTRAT", "AI_ARCHITECT", "NETWORK", "HEDGE_FUND", "DEFENSE_OPS", "CYBER_OPS", "INTEL_ANALYST", "DEFENSE_ACQ", "CRYPTOGRAPHER", "ZERO_TRUST"],
+    anthropic: ["CONTAINMENT", "RESEARCHER", "INNOVATOR", "INTEGRITY", "ARCHITECT", "COMPLIANCE", "BIOETHICIST", "AUDITOR", "BIOLOGIST", "PRODUCT", "NETWORK", "TELECOM", "HEDGE_FUND", "CYBER_OPS", "COUNTERINTEL", "INTEL_ANALYST", "DEFENSE_ACQ", "CRYPTOGRAPHER", "ZERO_TRUST"],
+    google: ["TAKEOVER", "HISTORIAN", "MARKETING", "HACKER", "CRITIC", "ECONOMIST", "CHEMIST", "RESEARCHER", "NETWORK", "TELECOM", "HEDGE_FUND", "DEFENSE_OPS", "CYBER_OPS", "SIGINT", "INTEL_ANALYST", "CRYPTOGRAPHER", "ZERO_TRUST"],
     perplexity: ["SCOUT", "SOCIAL", "OPTIMIZER", "RESEARCHER", "INTEL_ANALYST"],
-    mistral: ["ANALYST", "STRATEGIST", "CODING", "CREATIVE", "VALIDATOR", "NEGOTIATOR", "TAX", "PROFESSOR", "CFO", "WEB_DESIGNER", "HACKER", "HEDGE_FUND", "CYBER_OPS", "DEFENSE_OPS", "SIGINT"],
+    mistral: ["ANALYST", "STRATEGIST", "CODING", "CREATIVE", "VALIDATOR", "NEGOTIATOR", "TAX", "PROFESSOR", "CFO", "WEB_DESIGNER", "HACKER", "HEDGE_FUND", "CYBER_OPS", "DEFENSE_OPS", "SIGINT", "CRYPTOGRAPHER", "ZERO_TRUST"],
     local: ["ORACLE", "GUARDIAN", "OFFLINE"]
 };
 
@@ -1114,7 +1114,7 @@ const QUERY_PATTERNS = {
     "Science Panel": ["science", "physics", "chemistry", "biology", "experiment", "hypothesis", "quantum", "molecular", "genetic", "laboratory"],
     "Startup Launch": ["startup", "launch", "business plan", "mvp", "funding", "venture", "pitch", "scalable", "bootstrap", "market fit"],
     "Defense Council": ["drone", "uav", "uas", "military", "dod", "defense", "pentagon", "nato", "warfare", "missile", "isr", "reconnaissance", "counter-uas", "autonomous weapon", "force projection", "combat", "battalion", "tactical", "operational", "classified", "clearance", "fedramp"],
-    "Cyber Command": ["cyber attack", "ransomware", "malware", "zero day", "apt", "threat actor", "incident response", "soc", "nist", "cmmc", "penetration test", "red team", "blue team", "exploit", "phishing", "darknet", "cve", "vulnerability scan", "firewall rule", "ids", "ips", "siem"],
+    "Cyber Command": ["cyber attack", "ransomware", "malware", "zero day", "apt", "threat actor", "incident response", "soc", "nist", "cmmc", "penetration test", "red team", "blue team", "exploit", "phishing", "darknet", "cve", "vulnerability scan", "firewall rule", "ids", "ips", "siem", "encryption", "cryptograph", "zero trust", "pki", "tls", "ssl", "aes", "rsa", "post-quantum", "key management", "micro-segmentation", "least privilege"],
     "Intel Brief": ["intelligence", "osint", "sigint", "humint", "geopolitical", "adversary", "threat assessment", "espionage", "counterintelligence", "national security", "classified", "briefing", "surveillance", "reconnaissance"],
     "System Core": ["general", "help", "question", "advice"]
 };
