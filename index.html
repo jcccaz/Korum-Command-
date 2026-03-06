@@ -120,6 +120,14 @@
                     <!-- Attached File Preview -->
                     <div class="file-preview-bar" id="filePreviewBar"></div>
 
+                    <!-- SMART ROUTING SUGGESTION -->
+                    <div id="suggestionBox" class="suggestion-box hidden">
+                        <span class="suggestion-label">DETECTED:</span>
+                        <span id="detectedCategory" class="suggestion-category"></span>
+                        <button id="useSuggestedBtn" class="suggestion-apply-btn">APPLY <span id="suggestedWorkflow"></span></button>
+                        <button class="suggestion-dismiss-btn" onclick="this.parentElement.classList.add('hidden')">✕</button>
+                    </div>
+
                     <!-- COMMAND DECK (Active Agents) -->
                     <div class="command-deck">
                         <h3 class="deck-title">ACTIVE ROSTER

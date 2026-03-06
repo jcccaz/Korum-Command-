@@ -2799,6 +2799,77 @@ body.activated .sphere-texture {
     box-shadow: 0 0 20px rgba(66, 133, 244, 0.3);
 }
 
+/* SMART ROUTING SUGGESTION BOX */
+.suggestion-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 8px 14px;
+    background: rgba(0, 255, 157, 0.08);
+    border: 1px solid rgba(0, 255, 157, 0.3);
+    border-radius: 6px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.suggestion-box.hidden {
+    display: none;
+}
+
+.suggestion-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.suggestion-category {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-green);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-shadow: 0 0 8px rgba(0, 255, 157, 0.4);
+}
+
+.suggestion-apply-btn {
+    margin-left: auto;
+    background: rgba(0, 255, 157, 0.15);
+    border: 1px solid var(--accent-green);
+    color: var(--accent-green);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+}
+
+.suggestion-apply-btn:hover {
+    background: rgba(0, 255, 157, 0.3);
+    color: #FFF;
+    box-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
+}
+
+.suggestion-dismiss-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 4px;
+    transition: color 0.2s;
+}
+
+.suggestion-dismiss-btn:hover {
+    color: #FFF;
+}
+
 /* COMMAND DECK (Left Panel) */
 
 .command-deck {
