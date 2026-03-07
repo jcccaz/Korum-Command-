@@ -3113,6 +3113,7 @@ async function handleDocExport(format) {
     try {
         const payload = {
             intelligence_object: lastCouncilData.synthesis,
+            card_results: lastCouncilData.results || {},
             format: format
         };
 

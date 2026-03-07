@@ -430,10 +430,10 @@ def synthesize_results(context):
 
     # Retrieve Workflow DNA for structure
     dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
-    schema_sections = {section.lower().replace(" ", "_"): "Full narrative text..." for section in dna["output_structure"]}
+    schema_sections = {section.lower().replace(" ", "_"): "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations." for section in dna["output_structure"]}
 
     prompt = f"""
-    You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a high-fidelity "Intelligence Object" for professional {context.workflow} reporting.
+    You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a comprehensive, high-fidelity "Intelligence Object" for professional {context.workflow} reporting.
 
     MISSION CONTEXT:
     - Type: {context.workflow}
@@ -441,12 +441,15 @@ def synthesize_results(context):
     - Outcome Expected: {dna['goal']}
 
     CRITICAL RULES:
-    1. NO conversational fluff.
-    2. NO meta-commentary.
-    3. Standardize into the following structure strictly.
-    4. Ensure every section name is professional.
-    5. ONLY synthesize from the COUNCIL DISCUSSION provided. Do not invent facts.
-    6. Extract all [TAGGED] content into the "intelligence_tags" object.
+    1. NO conversational fluff or meta-commentary.
+    2. ONLY synthesize from the COUNCIL DISCUSSION provided. Do not invent facts.
+    3. Extract all [TAGGED] content into the "intelligence_tags" object.
+    4. DEPTH IS CRITICAL: Each section MUST be 3-5 detailed paragraphs minimum. Pull specific findings, data points, frameworks, product names, and recommendations from each council member. Do NOT summarize vaguely — synthesize with precision.
+    5. The "summary" field must be a substantive 4-6 sentence executive overview covering the key finding, the primary risk, and the recommended action.
+    6. The composite_truth_score must be an integer from 0-100 (NOT a decimal like 0.9).
+    7. Include AT LEAST 3 key_metrics, 3 action_items, and 3 risks extracted from the discussion.
+    8. Where council members DISAGREE, note the disagreement and which position has stronger evidence.
+    9. Where council members AGREE, flag it as high-confidence consensus.
 
     COUNCIL DISCUSSION:
     {history_text}
@@ -456,21 +459,21 @@ def synthesize_results(context):
       "meta": {{
         "title": "Concise, Descriptive Report Title",
         "generated_at": "{datetime.now().isoformat()}",
-        "summary": "1-2 sentence high-level synthesis",
-        "composite_truth_score": 0,
+        "summary": "4-6 sentence executive overview: key finding, primary risk, recommended action, and confidence level",
+        "composite_truth_score": 85,
         "models_used": [],
         "workflow": "{context.workflow}"
       }},
       "sections": {json.dumps(schema_sections, indent=8)},
       "structured_data": {{
         "key_metrics": [
-          {{"metric": "...", "value": "...", "context": "..."}}
+          {{"metric": "Name of metric", "value": "Specific value or range", "context": "Why this matters and which council members cited it"}}
         ],
         "action_items": [
-          {{"task": "...", "priority": "high|med|low", "timeline": "..."}}
+          {{"task": "Specific actionable recommendation", "priority": "high|med|low", "timeline": "Timeframe for action"}}
         ],
         "risks": [
-          {{"risk": "...", "severity": "...", "mitigation": "..."}}
+          {{"risk": "Specific risk identified", "severity": "critical|high|medium|low", "mitigation": "Recommended mitigation strategy"}}
         ]
       }},
       "intelligence_tags": {{
@@ -479,6 +482,8 @@ def synthesize_results(context):
         "metrics": ["extracted from [METRIC_ANCHOR] tags"]
       }}
     }}
+
+    REMEMBER: Each section value must be 3-5 rich paragraphs with specific details from the council discussion. This report will be exported as a professional PDF — make it worth reading.
     """
     
     try:

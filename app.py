@@ -367,11 +367,14 @@ os.makedirs(EXPORTS_DIR, exist_ok=True)
 def deploy_intelligence():
     data = request.json
     intelligence_object = data.get('intelligence_object')
+    card_results = data.get('card_results', {})
     format_type = data.get('format', 'docx')
-    
+
     if not intelligence_object:
         return jsonify({"error": "Missing intelligence data"}), 400
-        
+
+    # Attach card results so exporters can include per-provider analysis
+    intelligence_object['_card_results'] = card_results
     print(f"🚀 Deploying Intelligence Asset: {format_type.upper()}")
     
     try:

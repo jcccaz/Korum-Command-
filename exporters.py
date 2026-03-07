@@ -174,11 +174,20 @@ class WordExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
         meta, sections, structured = _extract_parts(intelligence_object)
+        card_results = intelligence_object.get("_card_results", {})
 
         doc = Document()
         style = doc.styles["Normal"]
         style.font.name = "Calibri"
         style.font.size = Pt(11)
+
+        # --- Normalize truth score ---
+        truth_raw = meta.get("composite_truth_score", "N/A")
+        try:
+            truth_val = float(truth_raw)
+            truth_display = str(int(truth_val * 100)) if truth_val <= 1 else str(int(truth_val))
+        except (ValueError, TypeError):
+            truth_display = str(truth_raw)
 
         title = doc.add_heading(meta.get("title", "KORUM Intelligence Report"), 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -187,21 +196,30 @@ class WordExporter:
         if not isinstance(models, list):
             models = [str(models)]
 
-        doc.add_paragraph(f"Generated at: {meta.get('generated_at', datetime.now().isoformat())}")
-        doc.add_paragraph(f"Composite Truth Score: {meta.get('composite_truth_score', 'N/A')}/100")
-        doc.add_paragraph("Models Used: " + ", ".join(models))
+        doc.add_paragraph(f"Generated: {meta.get('generated_at', datetime.now().isoformat())}  |  "
+                          f"Workflow: {meta.get('workflow', 'RESEARCH')}  |  "
+                          f"Truth Score: {truth_display}/100  |  Agents: {len(models)}")
         doc.add_page_break()
 
+        # --- Executive Summary ---
         doc.add_heading("Executive Summary", level=1)
         doc.add_paragraph(_as_text(meta.get("summary", "")))
-        doc.add_paragraph(_as_text(sections.get("executive_summary", "")))
+        exec_section = _as_text(sections.get("executive_summary", ""))
+        if exec_section:
+            doc.add_paragraph(exec_section)
 
+        # --- Synthesis Sections ---
         for section_id, content in sections.items():
             if section_id == "executive_summary":
                 continue
             doc.add_heading(section_id.replace("_", " ").title(), level=1)
-            doc.add_paragraph(_as_text(content))
+            text = _as_text(content)
+            for para in text.split("\n\n"):
+                para = para.strip()
+                if para:
+                    doc.add_paragraph(para)
 
+        # --- Key Metrics ---
         key_metrics = structured.get("key_metrics", [])
         if key_metrics:
             doc.add_page_break()
@@ -213,10 +231,62 @@ class WordExporter:
             hdr[1].text = "Value"
             hdr[2].text = "Context"
             for metric in key_metrics:
-                row = table.add_row().cells
-                row[0].text = _as_text(metric.get("metric", ""))
-                row[1].text = _as_text(metric.get("value", ""))
-                row[2].text = _as_text(metric.get("context", ""))
+                if isinstance(metric, dict):
+                    row = table.add_row().cells
+                    row[0].text = _as_text(metric.get("metric", ""))
+                    row[1].text = _as_text(metric.get("value", ""))
+                    row[2].text = _as_text(metric.get("context", ""))
+
+        # --- Action Items ---
+        action_items = structured.get("action_items", [])
+        if action_items:
+            doc.add_heading("Action Items", level=1)
+            table = doc.add_table(rows=1, cols=3)
+            table.style = "Table Grid"
+            hdr = table.rows[0].cells
+            hdr[0].text = "Task"
+            hdr[1].text = "Priority"
+            hdr[2].text = "Timeline"
+            for item in action_items:
+                if isinstance(item, dict):
+                    row = table.add_row().cells
+                    row[0].text = _as_text(item.get("task", ""))
+                    row[1].text = _as_text(item.get("priority", "")).upper()
+                    row[2].text = _as_text(item.get("timeline", ""))
+
+        # --- Risks ---
+        risks = structured.get("risks", [])
+        if risks:
+            doc.add_heading("Risk Assessment", level=1)
+            table = doc.add_table(rows=1, cols=3)
+            table.style = "Table Grid"
+            hdr = table.rows[0].cells
+            hdr[0].text = "Risk"
+            hdr[1].text = "Severity"
+            hdr[2].text = "Mitigation"
+            for risk in risks:
+                if isinstance(risk, dict):
+                    row = table.add_row().cells
+                    row[0].text = _as_text(risk.get("risk", ""))
+                    row[1].text = _as_text(risk.get("severity", "")).upper()
+                    row[2].text = _as_text(risk.get("mitigation", ""))
+
+        # --- Individual Council Analysis ---
+        if card_results:
+            doc.add_page_break()
+            doc.add_heading("Council Member Analysis", level=1)
+            for provider, result in card_results.items():
+                if not isinstance(result, dict) or not result.get("success"):
+                    continue
+                provider_name = provider.replace("_", " ").title()
+                role = _as_text(result.get("role", "")).upper()
+                truth = result.get("truth_meter", "N/A")
+                doc.add_heading(f"{provider_name} — {role} (Truth: {truth}/100)", level=2)
+                response_text = _as_text(result.get("response", ""))
+                for para in response_text.split("\n\n"):
+                    para = para.strip()
+                    if para:
+                        doc.add_paragraph(para)
 
         footer = doc.sections[0].footer
         paragraph = footer.paragraphs[0]
@@ -421,51 +491,142 @@ class PDFExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
         meta, sections, structured = _extract_parts(intelligence_object)
+        card_results = intelligence_object.get("_card_results", {})
         filename = f"korum_intelligence_{_timestamp()}.pdf"
         filepath = _output_path(filename, output_dir)
 
-        doc = SimpleDocTemplate(filepath, pagesize=letter)
+        doc = SimpleDocTemplate(filepath, pagesize=letter,
+                                topMargin=50, bottomMargin=50,
+                                leftMargin=50, rightMargin=50)
         styles = getSampleStyleSheet()
         story = []
 
-        story.append(Paragraph(_as_text(meta.get("title", "KORUM Intelligence Report")), styles["Title"]))
-        story.append(Spacer(1, 12))
-        story.append(Paragraph(f"Generated at: {_as_text(meta.get('generated_at', datetime.now().isoformat()))}", styles["Normal"]))
-        story.append(Paragraph(f"Composite Truth Score: {_as_text(meta.get('composite_truth_score', 'N/A'))}/100", styles["Normal"]))
-        story.append(Spacer(1, 12))
-        story.append(Paragraph("Executive Summary", styles["Heading2"]))
-        story.append(Paragraph(_as_text(meta.get("summary", "")), styles["BodyText"]))
-        story.append(Spacer(1, 12))
+        # --- Normalize truth score ---
+        truth_raw = meta.get("composite_truth_score", "N/A")
+        try:
+            truth_val = float(truth_raw)
+            truth_display = str(int(truth_val * 100)) if truth_val <= 1 else str(int(truth_val))
+        except (ValueError, TypeError):
+            truth_display = str(truth_raw)
 
+        # --- TITLE & META ---
+        story.append(Paragraph(_as_text(meta.get("title", "KORUM Intelligence Report")), styles["Title"]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(f"Generated: {_as_text(meta.get('generated_at', datetime.now().isoformat()))}  |  "
+                                f"Workflow: {_as_text(meta.get('workflow', 'RESEARCH'))}  |  "
+                                f"Truth Score: {truth_display}/100  |  "
+                                f"Agents: {len(meta.get('models_used', []))}",
+                                styles["Normal"]))
+        story.append(Spacer(1, 16))
+
+        # --- EXECUTIVE SUMMARY ---
+        story.append(Paragraph("Executive Summary", styles["Heading1"]))
+        story.append(Paragraph(_as_text(meta.get("summary", "No summary available.")), styles["BodyText"]))
+        story.append(Spacer(1, 16))
+
+        # --- SYNTHESIS SECTIONS ---
         for section_id, content in sections.items():
             story.append(Paragraph(section_id.replace("_", " ").title(), styles["Heading2"]))
-            story.append(Paragraph(_as_text(content), styles["BodyText"]))
+            text = _as_text(content)
+            # Split into paragraphs for better readability
+            for para in text.split("\n\n"):
+                para = para.strip()
+                if para:
+                    story.append(Paragraph(para, styles["BodyText"]))
+                    story.append(Spacer(1, 6))
             story.append(Spacer(1, 10))
 
+        # --- KEY METRICS TABLE ---
         key_metrics = structured.get("key_metrics", [])
         if key_metrics:
+            story.append(Paragraph("Key Intelligence Metrics", styles["Heading2"]))
             table_data = [["Metric", "Value", "Context"]]
             for metric in key_metrics:
-                table_data.append(
-                    [
+                if isinstance(metric, dict):
+                    table_data.append([
                         _as_text(metric.get("metric", "")),
                         _as_text(metric.get("value", "")),
                         _as_text(metric.get("context", "")),
-                    ]
-                )
-            table = Table(table_data, repeatRows=1)
-            table.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ]
-                )
-            )
-            story.append(Spacer(1, 12))
-            story.append(Paragraph("Key Intelligence Metrics", styles["Heading2"]))
-            story.append(table)
+                    ])
+            if len(table_data) > 1:
+                table = Table(table_data, repeatRows=1, colWidths=[150, 100, 250])
+                table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 16))
+
+        # --- ACTION ITEMS TABLE ---
+        action_items = structured.get("action_items", [])
+        if action_items:
+            story.append(Paragraph("Action Items", styles["Heading2"]))
+            table_data = [["Task", "Priority", "Timeline"]]
+            for item in action_items:
+                if isinstance(item, dict):
+                    table_data.append([
+                        _as_text(item.get("task", "")),
+                        _as_text(item.get("priority", "")).upper(),
+                        _as_text(item.get("timeline", "")),
+                    ])
+            if len(table_data) > 1:
+                table = Table(table_data, repeatRows=1, colWidths=[280, 80, 140])
+                table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 16))
+
+        # --- RISKS TABLE ---
+        risks = structured.get("risks", [])
+        if risks:
+            story.append(Paragraph("Risk Assessment", styles["Heading2"]))
+            table_data = [["Risk", "Severity", "Mitigation"]]
+            for risk in risks:
+                if isinstance(risk, dict):
+                    table_data.append([
+                        _as_text(risk.get("risk", "")),
+                        _as_text(risk.get("severity", "")).upper(),
+                        _as_text(risk.get("mitigation", "")),
+                    ])
+            if len(table_data) > 1:
+                table = Table(table_data, repeatRows=1, colWidths=[200, 80, 220])
+                table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 16))
+
+        # --- INDIVIDUAL COUNCIL ANALYSIS (Card Results) ---
+        if card_results:
+            story.append(Paragraph("Council Member Analysis", styles["Heading1"]))
+            story.append(Spacer(1, 8))
+            for provider, result in card_results.items():
+                if not isinstance(result, dict) or not result.get("success"):
+                    continue
+                provider_name = provider.replace("_", " ").title()
+                role = _as_text(result.get("role", "")).upper()
+                truth = result.get("truth_meter", "N/A")
+                story.append(Paragraph(f"{provider_name} — {role} (Truth: {truth}/100)", styles["Heading2"]))
+                response_text = _as_text(result.get("response", ""))
+                # Split into paragraphs
+                for para in response_text.split("\n\n"):
+                    para = para.strip()
+                    if para:
+                        story.append(Paragraph(para, styles["BodyText"]))
+                        story.append(Spacer(1, 4))
+                story.append(Spacer(1, 12))
 
         doc.build(story)
         return filepath
