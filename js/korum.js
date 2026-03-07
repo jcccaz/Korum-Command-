@@ -289,13 +289,18 @@ async function saveReport() {
 
 async function loadReportLibrary() {
     const list = document.getElementById('libraryList');
-    if (!list) return;
+    if (!list) { console.warn('[Reports] libraryList element not found'); return; }
     list.innerHTML = '<div class="library-empty">Loading...</div>';
 
     try {
         const resp = await authFetch('/api/reports/list');
         const data = await resp.json();
-        if (!data.success || !data.reports.length) {
+        console.log('[Reports] List response:', data);
+        if (!data.success) {
+            list.innerHTML = `<div class="library-empty">Error: ${data.error || 'Unknown'}</div>`;
+            return;
+        }
+        if (!data.reports || !data.reports.length) {
             list.innerHTML = '<div class="library-empty">No saved reports yet. Run a council query and save the results.</div>';
             return;
         }
@@ -313,7 +318,8 @@ async function loadReportLibrary() {
             </div>
         `).join('');
     } catch (e) {
-        list.innerHTML = '<div class="library-empty">Failed to load reports.</div>';
+        console.error('[Reports] Load error:', e);
+        list.innerHTML = `<div class="library-empty">Failed to load reports: ${e.message}</div>`;
     }
 }
 
