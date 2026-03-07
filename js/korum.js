@@ -2303,7 +2303,7 @@ function renderResults(data, roleName) {
             <div class="exec-brief-title">${meta.title || 'EXECUTIVE INTELLIGENCE BRIEF'}</div>
             <div class="exec-brief-meta">
                 <span>${meta.workflow || 'RESEARCH'}</span>
-                <span>TRUTH: ${meta.composite_truth_score || '—'}/100</span>
+                <span>TRUTH: ${(() => { let s = meta.composite_truth_score; if (s === undefined || s === null) return '—'; s = parseFloat(s); if (s <= 1) s = Math.round(s * 100); return s; })()}/100</span>
                 <span>${(meta.models_used || []).length} AGENTS</span>
             </div>
         </div>`;
@@ -3309,7 +3309,7 @@ function renderActionPanel(synthesis, classification) {
         <div class="exec-brief-title">${meta.title || 'EXECUTIVE INTELLIGENCE BRIEF'}</div>
         <div class="exec-brief-meta">
             <span>${meta.workflow || 'RESEARCH'}</span>
-            <span>TRUTH: ${meta.composite_truth_score || '—'}/100</span>
+            <span>TRUTH: ${(() => { let s = meta.composite_truth_score; if (s === undefined || s === null) return '—'; s = parseFloat(s); if (s <= 1) s = Math.round(s * 100); return s; })()}/100</span>
             <span>${(meta.models_used || []).length} AGENTS</span>
         </div>
     </div>`;

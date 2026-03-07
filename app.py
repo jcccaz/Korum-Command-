@@ -548,6 +548,7 @@ COLLECTED SNIPPETS:
 # --- Report Library (Save/Load/Delete) — Postgres-backed ---
 
 @app.route('/api/reports/save', methods=['POST'])
+@auth_required
 def save_report():
     data = request.json
     if not data or not isinstance(data, dict):
@@ -556,16 +557,24 @@ def save_report():
     import time as _time
     report_id = f"report_{int(_time.time())}"
 
+    def _to_json(val, default=""):
+        if val is None:
+            return json.dumps(default)
+        if isinstance(val, (dict, list)):
+            return json.dumps(val)
+        return json.dumps(default) if not isinstance(val, str) else val
+
     try:
+        results_raw = data.get("results", {})
         report = Report(
             report_id=report_id,
             query=data.get("query", ""),
-            results=json.dumps(data.get("results", {})),
-            consensus=data.get("consensus", ""),
-            synthesis=json.dumps(data.get("synthesis", "")),
-            classification=json.dumps(data.get("classification", {})),
+            results=_to_json(results_raw, {}),
+            consensus=_to_json(data.get("consensus", ""), ""),
+            synthesis=_to_json(data.get("synthesis", ""), ""),
+            classification=_to_json(data.get("classification", {}), {}),
             role_name=data.get("roleName", ""),
-            provider_count=len([k for k, v in data.get("results", {}).items() if isinstance(v, dict) and v.get("success")])
+            provider_count=len([k for k, v in (results_raw if isinstance(results_raw, dict) else {}).items() if isinstance(v, dict) and v.get("success")])
         )
         db.session.add(report)
         db.session.commit()
@@ -577,6 +586,7 @@ def save_report():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/reports/list', methods=['GET'])
+@auth_required
 def list_reports():
     try:
         rows = Report.query.order_by(Report.created_at.desc()).all()
@@ -595,18 +605,27 @@ def list_reports():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/reports/<report_id>', methods=['GET'])
+@auth_required
 def get_report(report_id):
     r = Report.query.filter_by(report_id=report_id).first()
     if not r:
         return jsonify({"success": False, "error": "Report not found"}), 404
+    def _from_json(val, default):
+        if not val:
+            return default
+        try:
+            return json.loads(val)
+        except (json.JSONDecodeError, TypeError):
+            return val if isinstance(val, str) else default
+
     try:
         report = {
             "id": r.report_id,
             "query": r.query or "",
-            "results": json.loads(r.results) if r.results else {},
-            "consensus": r.consensus or "",
-            "synthesis": json.loads(r.synthesis) if r.synthesis else "",
-            "classification": json.loads(r.classification) if r.classification else {},
+            "results": _from_json(r.results, {}),
+            "consensus": _from_json(r.consensus, ""),
+            "synthesis": _from_json(r.synthesis, ""),
+            "classification": _from_json(r.classification, {}),
             "roleName": r.role_name or "",
             "timestamp": r.created_at.strftime("%Y-%m-%d %H:%M:%S") if r.created_at else "",
             "provider_count": r.provider_count or 0
@@ -616,6 +635,7 @@ def get_report(report_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/reports/<report_id>', methods=['DELETE'])
+@auth_required
 def delete_report(report_id):
     r = Report.query.filter_by(report_id=report_id).first()
     if not r:
