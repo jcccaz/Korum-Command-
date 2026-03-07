@@ -48,6 +48,14 @@ WORKFLOW_DNA = {
         "time_horizon": "Indefinite",
         "posture": "General Counsel",
         "output_structure": ["Regulatory Exposure", "Contractual Impact", "Risk Mitigation", "Recommended Posture"]
+    },
+    "QUANTUM_SECURITY": {
+        "goal": "Assess cryptographic vulnerabilities, enforce Zero Trust architecture, and map to strict government compliance (NIST 800-207, FedRAMP, CMMC).",
+        "tone": "Authoritative, highly technical, and uncompromising on security.",
+        "risk_bias": "Zero-trust / Absolute Security",
+        "time_horizon": "Long-term (Post-Quantum Readiness)",
+        "posture": "Chief Information Security Officer (CISO) & Cryptographer",
+        "output_structure": ["Threat Landscape", "Cryptographic Vulnerabilities", "Zero Trust Controls", "Compliance Mapping (NIST/FedRAMP)", "Mitigation Architecture"]
     }
 }
 

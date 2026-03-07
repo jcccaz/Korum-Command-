@@ -97,6 +97,7 @@ The **top navigation bar** has 14 workflow presets. Click one to configure all f
 |----------|----------|
 | **Defense Council** | Military ops, UAS/drone, force projection |
 | **Cyber Command** | Cybersecurity, encryption, zero trust, incident response |
+| **Quantum Security** | Post-quantum cryptography readiness, Zero Trust, FedRAMP/CMMC compliance |
 | **Intel Brief** | OSINT, geopolitical risk, threat assessment |
 
 **On mobile:** The nav collapses into a hamburger menu (three lines) at the top-right.
@@ -363,6 +364,7 @@ Your council runs are automatically saved. Access them from the **Report Library
 | Tech Council | AI Architect | Network | Telecom | Scout | Hacker |
 | Defense Council | Defense Ops | Cyber Ops | Intel Analyst | Scout | Hacker |
 | Cyber Command | Cyber Ops | Counterintel | SIGINT | Intel Analyst | Hacker |
+| Quantum Security | Zero Trust | Cryptographer | Compliance | AI Architect | Hacker |
 | Intel Brief | Intel Analyst | Counterintel | Defense Ops | Scout | SIGINT |
 
 ---
@@ -487,6 +489,15 @@ This is the practical guide: **what situation are you in, and which personas sho
 | Google | CRYPTOGRAPHER | Encryption layers, PKI, key management |
 | Perplexity | SCOUT | Latest zero trust vendor solutions, case studies |
 | Mistral | HACKER | Finds holes in the proposed architecture |
+
+### Scenario: "Assess our current RSA-2048 cryptographic posture against a 'Harvest Now, Decrypt Later' quantum attack."
+| Card | Persona | Why |
+|------|---------|-----|
+| OpenAI | ZERO_TRUST | Enforces zero trust access controls around current data stores |
+| Anthropic | CRYPTOGRAPHER | Analyzes quantum vulnerabilities in RSA/ECC |
+| Google | COMPLIANCE | Maps exposure to FedRAMP, CMMC, and NIST PQC standards |
+| Perplexity | AI_ARCHITECT | Models the timeline of quantum computing threats |
+| Mistral | HACKER | Attacks the deployment strategy of new encryption protocols |
 
 ### Scenario: "Assess a competitor's market position"
 | Card | Persona | Why |
