@@ -51,7 +51,7 @@ class Report(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     report_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
     user_id = db.Column(db.Integer, nullable=True)
-    query = db.Column(db.Text, nullable=True)
+    query_text = db.Column("query", db.Text, nullable=True)
     results = db.Column(db.Text, nullable=True)       # JSON string
     consensus = db.Column(db.Text, nullable=True)
     synthesis = db.Column(db.Text, nullable=True)      # JSON string

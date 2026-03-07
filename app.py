@@ -571,7 +571,7 @@ def save_report():
         results_raw = data.get("results", {})
         report = Report(
             report_id=report_id,
-            query=data.get("query", ""),
+            query_text=data.get("query", ""),
             results=_to_json(results_raw, {}),
             consensus=_to_json(data.get("consensus", ""), ""),
             synthesis=_to_json(data.get("synthesis", ""), ""),
@@ -595,7 +595,7 @@ def list_reports():
         rows = Report.query.order_by(Report.created_at.desc()).all()
         reports = []
         for r in rows:
-            q = r.query or ""
+            q = r.query_text or ""
             reports.append({
                 "id": r.report_id,
                 "query": (q[:80] + "...") if len(q) > 80 else q,
@@ -605,6 +605,8 @@ def list_reports():
             })
         return jsonify({"success": True, "reports": reports})
     except Exception as e:
+        print(f"❌ Report list error: {e}")
+        import traceback; traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/reports/<report_id>', methods=['GET'])
@@ -624,7 +626,7 @@ def get_report(report_id):
     try:
         report = {
             "id": r.report_id,
-            "query": r.query or "",
+            "query": r.query_text or "",
             "results": _from_json(r.results, {}),
             "consensus": _from_json(r.consensus, ""),
             "synthesis": _from_json(r.synthesis, ""),
