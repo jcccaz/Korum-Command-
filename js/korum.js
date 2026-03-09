@@ -2421,6 +2421,8 @@ function renderResults(data, roleName) {
         // Create card
         const card = document.createElement("div");
         card.className = `agent-card ${provider} ${!res.success ? 'failed' : ''}`;
+        card.dataset.name = res.role ? res.role.toUpperCase() : getProviderName(provider);
+        card.dataset.provider = provider;
 
         // --- NEW: CLAIM HIGHLIGHTING ---
         const rawResponse = res.response;
