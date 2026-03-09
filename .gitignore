@@ -1,4 +1,4 @@
-# Python Backend (if you add it later)
+# Python Backend
 __pycache__/
 *.py[cod]
 *$py.class
@@ -25,8 +25,16 @@ Thumbs.db
 *.log
 logs/
 
-# Node modules (if you add any build tools later)
+# Node modules
 node_modules/
+
+# Database and Outputs
+instance/
+outputs/
+*.docx
+*.pdf
+*.xlsx
+*.pptx
 
 # Temporary files
 *.tmp

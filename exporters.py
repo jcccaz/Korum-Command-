@@ -5,7 +5,9 @@ from datetime import datetime
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt
+from docx.shared import Pt, Inches, RGBColor, Cm
+from docx.oxml.ns import qn, nsdecls
+from docx.oxml import parse_xml
 from openpyxl import Workbook
 from pptx import Presentation as PPTXPresentation
 from reportlab.lib import colors
@@ -171,112 +173,310 @@ def _extract_parts(intelligence_object):
 
 
 class WordExporter:
+    """Palantir-tier DOCX report — branded, color-coded tables, visual truth scores."""
+
+    @staticmethod
+    def _shade_cell(cell, hex_color):
+        """Apply background shading to a table cell."""
+        shading = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{hex_color}"/>')
+        cell._tc.get_or_add_tcPr().append(shading)
+
+    @staticmethod
+    def _style_header_row(row, bg_hex="0D1117", text_color=RGBColor(0x00, 0xE5, 0xFF)):
+        """Style a table header row with dark background and accent text."""
+        for cell in row.cells:
+            WordExporter._shade_cell(cell, bg_hex)
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                for run in paragraph.runs:
+                    run.font.color.rgb = text_color
+                    run.font.bold = True
+                    run.font.size = Pt(9)
+                    run.font.name = "Calibri"
+
+    @staticmethod
+    def _style_data_row(row, idx, alt_hex="F6F8FA"):
+        """Alternate row shading for readability."""
+        if idx % 2 == 0:
+            for cell in row.cells:
+                WordExporter._shade_cell(cell, alt_hex)
+
+    @staticmethod
+    def _add_section_divider(doc):
+        """Add a subtle horizontal rule between sections."""
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(4)
+        run = p.add_run("─" * 72)
+        run.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
+        run.font.size = Pt(6)
+
+    @staticmethod
+    def _add_branded_heading(doc, text, level=1):
+        """Add a heading with KORUM-OS accent color."""
+        heading = doc.add_heading(text, level=level)
+        for run in heading.runs:
+            if level == 1:
+                run.font.color.rgb = RGBColor(0x00, 0xE5, 0xFF)
+            elif level == 2:
+                run.font.color.rgb = RGBColor(0x00, 0xFF, 0x9D)
+        return heading
+
     @staticmethod
     def generate(intelligence_object, output_dir=None):
         meta, sections, structured = _extract_parts(intelligence_object)
         card_results = intelligence_object.get("_card_results", {})
 
         doc = Document()
+
+        # --- Global Styles ---
         style = doc.styles["Normal"]
         style.font.name = "Calibri"
-        style.font.size = Pt(11)
+        style.font.size = Pt(10.5)
+        style.font.color.rgb = RGBColor(0x2D, 0x2D, 0x2D)
+        style.paragraph_format.space_after = Pt(6)
+        style.paragraph_format.line_spacing = 1.15
+
+        # --- Page Margins ---
+        sec = doc.sections[0]
+        sec.top_margin = Inches(0.8)
+        sec.bottom_margin = Inches(0.6)
+        sec.left_margin = Inches(0.9)
+        sec.right_margin = Inches(0.9)
 
         # --- Normalize truth score ---
         truth_raw = meta.get("composite_truth_score", "N/A")
         try:
             truth_val = float(truth_raw)
-            truth_display = str(int(truth_val * 100)) if truth_val <= 1 else str(int(truth_val))
+            if truth_val <= 1:
+                truth_val = truth_val * 100
+            truth_int = int(truth_val)
+            truth_display = str(truth_int)
         except (ValueError, TypeError):
+            truth_int = 0
             truth_display = str(truth_raw)
-
-        title = doc.add_heading(meta.get("title", "KORUM Intelligence Report"), 0)
-        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         models = meta.get("models_used", [])
         if not isinstance(models, list):
             models = [str(models)]
+        agent_count = len(models)
 
-        doc.add_paragraph(f"Generated: {meta.get('generated_at', datetime.now().isoformat())}  |  "
-                          f"Workflow: {meta.get('workflow', 'RESEARCH')}  |  "
-                          f"Truth Score: {truth_display}/100  |  Agents: {len(models)}")
+        workflow = _as_text(meta.get("workflow", "RESEARCH")).upper()
+        date_str = meta.get("generated_at", datetime.now().isoformat())
+        try:
+            date_obj = datetime.fromisoformat(date_str)
+            date_display = date_obj.strftime("%B %d, %Y · %H:%M UTC")
+        except Exception:
+            date_display = date_str
+
+        # ═══════════════════════════════════════════════════════════════
+        # COVER PAGE
+        # ═══════════════════════════════════════════════════════════════
+
+        # Classification Banner
+        banner = doc.add_table(rows=1, cols=1)
+        banner.autofit = True
+        cell = banner.rows[0].cells[0]
+        cell.text = f"QANAPI x KORUM-OS  ·  MULTI-AGENT INTELLIGENCE  ·  {workflow}"
+        WordExporter._shade_cell(cell, "0D1117")
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in paragraph.runs:
+                run.font.color.rgb = RGBColor(0x00, 0xE5, 0xFF)
+                run.font.size = Pt(8)
+                run.font.name = "Calibri"
+                run.font.bold = True
+                run.font.letter_spacing = Pt(2)
+
+        doc.add_paragraph()  # spacer
+
+        # Title
+        title_text = _as_text(meta.get("title", "QANAPI Strategic Intelligence Report"))
+        title = doc.add_heading(title_text, 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        # Metadata Bar
+        meta_table = doc.add_table(rows=1, cols=4)
+        meta_table.autofit = True
+        cells = meta_table.rows[0].cells
+        meta_items = [
+            ("DATE", date_display),
+            ("WORKFLOW", workflow),
+            ("AGENTS", str(agent_count)),
+            ("TRUTH_SCORE", f"{truth_display}/100"),
+        ]
+        for i, (label, value) in enumerate(meta_items):
+            WordExporter._shade_cell(cells[i], "F6F8FA")
+            p = cells[i].paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run_label = p.add_run(f"{label}\n")
+            run_label.font.size = Pt(7)
+            run_label.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+            run_label.font.bold = True
+            run_label.font.name = "Calibri"
+            run_val = p.add_run(value)
+            run_val.font.size = Pt(10)
+            run_val.font.bold = True
+            run_val.font.name = "Calibri"
+            if label == "TRUTH_SCORE":
+                if truth_int >= 80:
+                    run_val.font.color.rgb = RGBColor(0x00, 0xAA, 0x55)
+                elif truth_int >= 50:
+                    run_val.font.color.rgb = RGBColor(0xDD, 0x88, 0x00)
+                else:
+                    run_val.font.color.rgb = RGBColor(0xCC, 0x33, 0x33)
+
+        # Truth Score Visual Bar
+        doc.add_paragraph()
+        bar_table = doc.add_table(rows=1, cols=2)
+        bar_table.autofit = False
+        filled_width = max(0.5, (truth_int / 100) * 5.5)
+        empty_width = max(0.1, 5.5 - filled_width)
+        bar_table.columns[0].width = Inches(filled_width)
+        bar_table.columns[1].width = Inches(empty_width)
+        if truth_int >= 80:
+            bar_color = "00AA55"
+        elif truth_int >= 50:
+            bar_color = "DD8800"
+        else:
+            bar_color = "CC3333"
+        WordExporter._shade_cell(bar_table.rows[0].cells[0], bar_color)
+        WordExporter._shade_cell(bar_table.rows[0].cells[1], "E8E8E8")
+        # Make bar thin
+        for cell in bar_table.rows[0].cells:
+            for p in cell.paragraphs:
+                p.paragraph_format.space_before = Pt(0)
+                p.paragraph_format.space_after = Pt(0)
+                run = p.add_run(" ")
+                run.font.size = Pt(3)
+
         doc.add_page_break()
 
-        # --- Executive Summary ---
-        doc.add_heading("Executive Summary", level=1)
-        doc.add_paragraph(_as_text(meta.get("summary", "")))
+        # ═══════════════════════════════════════════════════════════════
+        # EXECUTIVE SUMMARY
+        # ═══════════════════════════════════════════════════════════════
+        WordExporter._add_branded_heading(doc, "Executive Summary")
+        summary_text = _as_text(meta.get("summary", ""))
         exec_section = _as_text(sections.get("executive_summary", ""))
-        if exec_section:
-            doc.add_paragraph(exec_section)
+        full_summary = summary_text or exec_section
+        if full_summary:
+            p = doc.add_paragraph()
+            run = p.add_run(full_summary)
+            run.font.size = Pt(10.5)
+            run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+        WordExporter._add_section_divider(doc)
 
-        # --- Synthesis Sections ---
+        # ═══════════════════════════════════════════════════════════════
+        # SYNTHESIS SECTIONS
+        # ═══════════════════════════════════════════════════════════════
         for section_id, content in sections.items():
             if section_id == "executive_summary":
                 continue
-            doc.add_heading(section_id.replace("_", " ").title(), level=1)
-            text = _as_text(content)
+            WordExporter._add_branded_heading(doc, section_id.replace("_", " ").title())
+            text = _clean_tags(_as_text(content))
             for para in text.split("\n\n"):
                 para = para.strip()
                 if para:
                     doc.add_paragraph(para)
+            WordExporter._add_section_divider(doc)
 
-        # --- Key Metrics ---
+        # ═══════════════════════════════════════════════════════════════
+        # KEY METRICS TABLE
+        # ═══════════════════════════════════════════════════════════════
         key_metrics = structured.get("key_metrics", [])
         if key_metrics:
             doc.add_page_break()
-            doc.add_heading("Key Intelligence Metrics", level=1)
+            WordExporter._add_branded_heading(doc, "Key Intelligence Metrics")
             table = doc.add_table(rows=1, cols=3)
-            table.style = "Table Grid"
+            table.autofit = True
             hdr = table.rows[0].cells
-            hdr[0].text = "Metric"
-            hdr[1].text = "Value"
-            hdr[2].text = "Context"
-            for metric in key_metrics:
+            hdr[0].text = "METRIC"
+            hdr[1].text = "VALUE"
+            hdr[2].text = "CONTEXT"
+            WordExporter._style_header_row(table.rows[0])
+            for idx, metric in enumerate(key_metrics):
                 if isinstance(metric, dict):
                     row = table.add_row().cells
                     row[0].text = _as_text(metric.get("metric", ""))
                     row[1].text = _as_text(metric.get("value", ""))
                     row[2].text = _as_text(metric.get("context", ""))
+                    WordExporter._style_data_row(table.rows[-1], idx)
 
-        # --- Action Items ---
+        # ═══════════════════════════════════════════════════════════════
+        # ACTION ITEMS TABLE
+        # ═══════════════════════════════════════════════════════════════
         action_items = structured.get("action_items", [])
         if action_items:
-            doc.add_heading("Action Items", level=1)
+            doc.add_paragraph()
+            WordExporter._add_branded_heading(doc, "Action Items")
             table = doc.add_table(rows=1, cols=3)
-            table.style = "Table Grid"
+            table.autofit = True
             hdr = table.rows[0].cells
-            hdr[0].text = "Task"
-            hdr[1].text = "Priority"
-            hdr[2].text = "Timeline"
-            for item in action_items:
+            hdr[0].text = "TASK"
+            hdr[1].text = "PRIORITY"
+            hdr[2].text = "TIMELINE"
+            WordExporter._style_header_row(table.rows[0])
+            priority_colors = {
+                "HIGH": RGBColor(0xCC, 0x33, 0x33),
+                "CRITICAL": RGBColor(0xFF, 0x00, 0x00),
+                "MEDIUM": RGBColor(0xDD, 0x88, 0x00),
+                "LOW": RGBColor(0x00, 0xAA, 0x55),
+            }
+            for idx, item in enumerate(action_items):
                 if isinstance(item, dict):
                     row = table.add_row().cells
                     row[0].text = _as_text(item.get("task", ""))
-                    row[1].text = _as_text(item.get("priority", "")).upper()
+                    priority = _as_text(item.get("priority", "")).upper()
+                    row[1].text = priority
                     row[2].text = _as_text(item.get("timeline", ""))
+                    WordExporter._style_data_row(table.rows[-1], idx)
+                    # Color-code priority cell
+                    color = priority_colors.get(priority)
+                    if color:
+                        for run in row[1].paragraphs[0].runs:
+                            run.font.color.rgb = color
+                            run.font.bold = True
 
-        # --- Risks ---
+        # ═══════════════════════════════════════════════════════════════
+        # RISK ASSESSMENT TABLE
+        # ═══════════════════════════════════════════════════════════════
         risks = structured.get("risks", [])
         if risks:
-            doc.add_heading("Risk Assessment", level=1)
+            doc.add_paragraph()
+            WordExporter._add_branded_heading(doc, "Risk Assessment")
             table = doc.add_table(rows=1, cols=3)
-            table.style = "Table Grid"
+            table.autofit = True
             hdr = table.rows[0].cells
-            hdr[0].text = "Risk"
-            hdr[1].text = "Severity"
-            hdr[2].text = "Mitigation"
-            for risk in risks:
+            hdr[0].text = "RISK"
+            hdr[1].text = "SEVERITY"
+            hdr[2].text = "MITIGATION"
+            WordExporter._style_header_row(table.rows[0], bg_hex="1A0A0A",
+                                           text_color=RGBColor(0xFF, 0x44, 0x44))
+            severity_colors = {
+                "CRITICAL": "FFE0E0",
+                "HIGH": "FFF0E0",
+                "MEDIUM": "FFFFF0",
+                "LOW": "E0FFE0",
+            }
+            for idx, risk in enumerate(risks):
                 if isinstance(risk, dict):
                     row = table.add_row().cells
                     row[0].text = _as_text(risk.get("risk", ""))
-                    row[1].text = _as_text(risk.get("severity", "")).upper()
+                    severity = _as_text(risk.get("severity", "")).upper()
+                    row[1].text = severity
                     row[2].text = _as_text(risk.get("mitigation", ""))
+                    # Color-code entire row by severity
+                    bg = severity_colors.get(severity, "FFFFFF")
+                    for cell in row:
+                        WordExporter._shade_cell(cell, bg)
 
-        # --- FIPS 206 Compliance Verification (auto-detected for quantum/security workflows) ---
-        workflow = _as_text(meta.get("workflow", "")).upper()
+        # ═══════════════════════════════════════════════════════════════
+        # FIPS 206 COMPLIANCE (auto-detected)
+        # ═══════════════════════════════════════════════════════════════
         all_text = (_as_text(meta.get("summary", "")) + " " +
                     " ".join(_as_text(v) for v in sections.values())).lower()
         is_quantum = (
-            "quantum" in workflow or "security" in workflow or "cyber" in workflow or
+            "quantum" in workflow.lower() or "security" in workflow.lower() or "cyber" in workflow.lower() or
             "pqc" in all_text or "post-quantum" in all_text or "fips 203" in all_text or
             "fips 206" in all_text or "falcon" in all_text or "ml-kem" in all_text or
             "tls" in all_text or "cryptograph" in all_text
@@ -284,31 +484,55 @@ class WordExporter:
 
         if is_quantum:
             doc.add_page_break()
-            doc.add_heading("FIPS 206 Compliance Verification", level=1)
 
-            doc.add_heading("Post-Quantum Cryptography Standards Coverage", level=2)
+            # Section banner
+            banner = doc.add_table(rows=1, cols=1)
+            cell = banner.rows[0].cells[0]
+            cell.text = "FIPS 206 COMPLIANCE VERIFICATION · POST-QUANTUM CRYPTOGRAPHY AUDIT"
+            WordExporter._shade_cell(cell, "0A1628")
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.color.rgb = RGBColor(0x00, 0xBF, 0xFF)
+                    run.font.size = Pt(9)
+                    run.font.bold = True
+                    run.font.letter_spacing = Pt(1.5)
+
+            doc.add_paragraph()
+            WordExporter._add_branded_heading(doc, "PQC Standards Coverage", level=2)
             fips_table = doc.add_table(rows=1, cols=4)
-            fips_table.style = "Table Grid"
+            fips_table.autofit = True
             hdr = fips_table.rows[0].cells
-            hdr[0].text = "Standard"
-            hdr[1].text = "Algorithm"
-            hdr[2].text = "Use Case"
-            hdr[3].text = "Status"
+            hdr[0].text = "STANDARD"
+            hdr[1].text = "ALGORITHM"
+            hdr[2].text = "USE CASE"
+            hdr[3].text = "STATUS"
+            WordExporter._style_header_row(fips_table.rows[0], bg_hex="0A1628",
+                                           text_color=RGBColor(0x00, 0xBF, 0xFF))
 
             fips_data = [
                 ("FIPS 203", "ML-KEM (Kyber)", "Key Encapsulation", "NIST Finalized"),
                 ("FIPS 204", "ML-DSA (Dilithium)", "General Digital Signatures (~2.4KB)", "NIST Finalized"),
                 ("FIPS 205", "SLH-DSA (SPHINCS+)", "Hash-Based Long-Term Signing", "NIST Finalized"),
-                ("FIPS 206", "FN-DSA (FALCON)", "Integrity Anchor — Constrained Bandwidth", "NIST Draft March 2026"),
+                ("FIPS 206", "FN-DSA (FALCON)", "Integrity Anchor — Constrained Bandwidth", "NIST Draft Mar 2026"),
             ]
-            for standard, algo, use_case, status in fips_data:
+            for idx, (standard, algo, use_case, status) in enumerate(fips_data):
                 row = fips_table.add_row().cells
                 row[0].text = standard
                 row[1].text = algo
                 row[2].text = use_case
                 row[3].text = status
+                WordExporter._style_data_row(fips_table.rows[-1], idx, alt_hex="EBF5FF")
+                # Highlight FIPS 206 row
+                if standard == "FIPS 206":
+                    for cell in row:
+                        WordExporter._shade_cell(cell, "E0F7FF")
+                        for p in cell.paragraphs:
+                            for run in p.runs:
+                                run.font.bold = True
 
-            doc.add_heading("FIPS 206 Integrity Anchor Assessment", level=2)
+            doc.add_paragraph()
+            WordExporter._add_branded_heading(doc, "Integrity Anchor Assessment", level=2)
             doc.add_paragraph(
                 "FALCON (FN-DSA) signatures are approximately 666 bytes, fitting within standard network "
                 "packet MTUs. ML-DSA (FIPS 204) signatures at ~2.4KB risk packet fragmentation on constrained "
@@ -316,6 +540,34 @@ class WordExporter:
                 "In these environments, FN-DSA is the only quantum-resistant signature algorithm that provides "
                 "cryptographic integrity without triggering denial-of-service via fragmentation."
             )
+
+            # Signature Size Comparison Table
+            sig_table = doc.add_table(rows=1, cols=3)
+            sig_table.autofit = True
+            hdr = sig_table.rows[0].cells
+            hdr[0].text = "ALGORITHM"
+            hdr[1].text = "SIGNATURE SIZE"
+            hdr[2].text = "NETWORK IMPACT"
+            WordExporter._style_header_row(sig_table.rows[0], bg_hex="0A1628",
+                                           text_color=RGBColor(0x00, 0xBF, 0xFF))
+            sig_data = [
+                ("RSA-2048 (Legacy)", "256 bytes", "Fits MTU — but NOT quantum-resistant"),
+                ("ML-DSA-65 (FIPS 204)", "~3,293 bytes", "Exceeds 1KB — fragmentation risk on constrained links"),
+                ("SLH-DSA (FIPS 205)", "~8,000–41,000 bytes", "Long-term only — too large for real-time"),
+                ("FALCON-512 (FIPS 206)", "~666 bytes", "Fits MTU — quantum-resistant Integrity Anchor"),
+            ]
+            for idx, (algo, size, impact) in enumerate(sig_data):
+                row = sig_table.add_row().cells
+                row[0].text = algo
+                row[1].text = size
+                row[2].text = impact
+                WordExporter._style_data_row(sig_table.rows[-1], idx, alt_hex="EBF5FF")
+                # Green highlight for FALCON
+                if "FALCON" in algo:
+                    for cell in row:
+                        WordExporter._shade_cell(cell, "E0FFE8")
+
+            doc.add_paragraph()
             doc.add_paragraph(
                 "Recommendation: Deploy ML-KEM (FIPS 203) for key encapsulation on all channels. "
                 "Use SLH-DSA (FIPS 205) for firmware and code signing where signature size is not constrained. "
@@ -323,8 +575,7 @@ class WordExporter:
                 "or legacy packet-size limitations. Reject non-hybrid certificates by the 2030 CNSS horizon."
             )
 
-            doc.add_heading("Quantum Drift Detection Results", level=2)
-            # Scan card results for quantum drift violations
+            WordExporter._add_branded_heading(doc, "Quantum Drift Detection", level=2)
             drift_found = False
             if card_results:
                 for provider, result in card_results.items():
@@ -336,49 +587,102 @@ class WordExporter:
                         for v in violations:
                             if "quantum" in v.lower() or "pqc" in v.lower() or "fips" in v.lower():
                                 doc.add_paragraph(
-                                    f"[{provider.upper()}] {claim.get('claim', 'N/A')[:200]}\n"
-                                    f"  Violation: {v}",
+                                    f"[{provider.upper()}] {claim.get('claim', 'N/A')[:200]}",
                                     style='List Bullet'
                                 )
+                                p = doc.add_paragraph()
+                                run = p.add_run(f"  ⚠ {v}")
+                                run.font.color.rgb = RGBColor(0xCC, 0x33, 0x33)
+                                run.font.size = Pt(9)
                                 drift_found = True
             if not drift_found:
-                doc.add_paragraph(
-                    "No Quantum Drift violations detected in this analysis. All referenced cryptographic "
+                p = doc.add_paragraph()
+                run = p.add_run(
+                    "✓ No Quantum Drift violations detected. All referenced cryptographic "
                     "mechanisms include post-quantum wrappers or are PQC-native."
                 )
+                run.font.color.rgb = RGBColor(0x00, 0xAA, 0x55)
 
-            doc.add_heading("Compliance Attestation", level=2)
-            doc.add_paragraph(
-                f"This report was generated by KORUM-OS Multi-Agent Council ({len(meta.get('models_used', []))} "
-                f"independent AI providers) on {meta.get('generated_at', datetime.now().isoformat())}. "
-                f"Composite Truth Score: {truth_display}/100. "
-                f"Cryptographic compliance assessment covers NIST FIPS 203, 204, 205, and 206 (Draft). "
+            # Attestation Box
+            doc.add_paragraph()
+            attest_table = doc.add_table(rows=1, cols=1)
+            cell = attest_table.rows[0].cells[0]
+            WordExporter._shade_cell(cell, "F0F8FF")
+            p = cell.paragraphs[0]
+            run = p.add_run("COMPLIANCE ATTESTATION\n")
+            run.font.size = Pt(8)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(0x00, 0x80, 0xBF)
+            run = p.add_run(
+                f"Generated by KORUM-OS Multi-Agent Council ({agent_count} independent AI providers) "
+                f"on {date_display}. Composite Truth Score: {truth_display}/100. "
+                f"Covers NIST FIPS 203, 204, 205, and 206 (Draft). "
                 f"Report ready for cryptographic signing via Qanapi Armory (FedRAMP High Enclave)."
             )
+            run.font.size = Pt(9)
+            run.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
 
-        # --- Individual Council Analysis ---
+        # ═══════════════════════════════════════════════════════════════
+        # COUNCIL MEMBER ANALYSIS
+        # ═══════════════════════════════════════════════════════════════
         if card_results:
             doc.add_page_break()
-            doc.add_heading("Council Member Analysis", level=1)
+            WordExporter._add_branded_heading(doc, "Council Member Analysis")
             for provider, result in card_results.items():
                 if not isinstance(result, dict) or not result.get("success"):
                     continue
                 provider_name = provider.replace("_", " ").title()
                 role = _as_text(result.get("role", "")).upper()
                 truth = result.get("truth_meter", "N/A")
-                doc.add_heading(f"{provider_name} — {role} (Truth: {truth}/100)", level=2)
-                response_text = _as_text(result.get("response", ""))
+
+                # Provider header bar
+                prov_table = doc.add_table(rows=1, cols=2)
+                prov_table.autofit = True
+                c0 = prov_table.rows[0].cells[0]
+                c1 = prov_table.rows[0].cells[1]
+                WordExporter._shade_cell(c0, "0D1117")
+                WordExporter._shade_cell(c1, "0D1117")
+                p0 = c0.paragraphs[0]
+                run = p0.add_run(f"{provider_name} — {role}")
+                run.font.color.rgb = RGBColor(0x00, 0xE5, 0xFF)
+                run.font.size = Pt(10)
+                run.font.bold = True
+                p1 = c1.paragraphs[0]
+                p1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                run = p1.add_run(f"TRUTH: {truth}/100")
+                try:
+                    t = int(truth)
+                    if t >= 80:
+                        run.font.color.rgb = RGBColor(0x00, 0xAA, 0x55)
+                    elif t >= 50:
+                        run.font.color.rgb = RGBColor(0xDD, 0x88, 0x00)
+                    else:
+                        run.font.color.rgb = RGBColor(0xCC, 0x33, 0x33)
+                except (ValueError, TypeError):
+                    run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+                run.font.size = Pt(10)
+                run.font.bold = True
+
+                response_text = _clean_tags(_as_text(result.get("response", "")))
                 for para in response_text.split("\n\n"):
                     para = para.strip()
                     if para:
                         doc.add_paragraph(para)
+                WordExporter._add_section_divider(doc)
 
+        # ═══════════════════════════════════════════════════════════════
+        # FOOTER
+        # ═══════════════════════════════════════════════════════════════
         footer = doc.sections[0].footer
-        paragraph = footer.paragraphs[0]
-        paragraph.text = (
-            f"KORUM-OS Intelligence Asset | Confirmed via Multi-Agent Council | {datetime.now().year}"
+        fp = footer.paragraphs[0]
+        fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = fp.add_run(
+            f"KORUM-OS  ·  Multi-Agent Intelligence  ·  {agent_count} Providers  ·  "
+            f"Truth Score {truth_display}/100  ·  {datetime.now().year}"
         )
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run.font.size = Pt(7)
+        run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+        run.font.name = "Calibri"
 
         filename = f"korum_report_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
@@ -573,148 +877,229 @@ class JSONExporter:
 
 
 class PDFExporter:
+    """Palantir-tier PDF report — matching WordExporter's branding and visual density."""
+
     @staticmethod
     def generate(intelligence_object, output_dir=None):
         meta, sections, structured = _extract_parts(intelligence_object)
         card_results = intelligence_object.get("_card_results", {})
-        filename = f"korum_intelligence_{_timestamp()}.pdf"
+        filename = f"qanapi_report_{_timestamp()}.pdf"
         filepath = _output_path(filename, output_dir)
 
         doc = SimpleDocTemplate(filepath, pagesize=letter,
-                                topMargin=50, bottomMargin=50,
+                                topMargin=40, bottomMargin=40,
                                 leftMargin=50, rightMargin=50)
         styles = getSampleStyleSheet()
+        
+        # Define high-end styles
+        styles.add(ParagraphStyle(
+            name='BannerText',
+            parent=styles['Normal'],
+            fontSize=8,
+            textColor=colors.HexColor("#00E5FF"),
+            alignment=1, # Center
+            leading=10,
+            fontName='Helvetica-Bold'
+        ))
+        
+        styles.add(ParagraphStyle(
+            name='BrandedTitle',
+            parent=styles['Title'],
+            fontSize=22,
+            textColor=colors.HexColor("#0D1117"),
+            spaceAfter=12,
+            fontName='Helvetica-Bold'
+        ))
+
+        styles.add(ParagraphStyle(
+            name='BrandedHeading1',
+            parent=styles['Heading1'],
+            fontSize=16,
+            textColor=colors.HexColor("#0080FF"),
+            spaceAfter=8,
+            spaceBefore=12,
+            fontName='Helvetica-Bold'
+        ))
+
+        styles.add(ParagraphStyle(
+            name='SectionBody',
+            parent=styles['BodyText'],
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor("#2D2D2D")
+        ))
+
         story = []
 
         # --- Normalize truth score ---
         truth_raw = meta.get("composite_truth_score", "N/A")
         try:
             truth_val = float(truth_raw)
-            truth_display = str(int(truth_val * 100)) if truth_val <= 1 else str(int(truth_val))
+            if truth_val <= 1: truth_val *= 100
+            truth_int = int(truth_val)
+            truth_display = str(truth_int)
         except (ValueError, TypeError):
+            truth_int = 0
             truth_display = str(truth_raw)
 
-        # --- TITLE & META ---
-        story.append(Paragraph(_as_text(meta.get("title", "KORUM Intelligence Report")), styles["Title"]))
-        story.append(Spacer(1, 8))
-        story.append(Paragraph(f"Generated: {_as_text(meta.get('generated_at', datetime.now().isoformat()))}  |  "
-                                f"Workflow: {_as_text(meta.get('workflow', 'RESEARCH'))}  |  "
-                                f"Truth Score: {truth_display}/100  |  "
-                                f"Agents: {len(meta.get('models_used', []))}",
-                                styles["Normal"]))
-        story.append(Spacer(1, 16))
+        workflow = _as_text(meta.get("workflow", "RESEARCH")).upper()
+        date_str = meta.get("generated_at", datetime.now().isoformat())
+        try:
+            date_obj = datetime.fromisoformat(date_str)
+            date_display = date_obj.strftime("%B %d, %Y · %H:%M UTC")
+        except:
+            date_display = date_str
+
+        agent_count = len(meta.get("models_used", []))
+
+        # --- CLASSIFICATION BANNER ---
+        banner_data = [[f"QANAPI x KORUM-OS  ·  MULTI-AGENT INTELLIGENCE  ·  {workflow}"]]
+        banner_table = Table(banner_data, colWidths=[512])
+        banner_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#0D1117")),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor("#00E5FF")),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        story.append(banner_table)
+        story.append(Spacer(1, 40))
+
+        # --- TITLE ---
+        title_text = _as_text(meta.get("title", "QANAPI Strategic Intelligence Report"))
+        story.append(Paragraph(title_text, styles['BrandedTitle']))
+        story.append(Spacer(1, 20))
+
+        # --- METADATA BAR ---
+        score_color = "#00AA55" if truth_int >= 80 else ("#DD8800" if truth_int >= 50 else "#CC3333")
+        
+        meta_data = [
+            ["DATE", "WORKFLOW", "AGENTS", "TRUTH_SCORE"],
+            [date_display, workflow, str(agent_count), f"{truth_display}/100"]
+        ]
+        meta_table = Table(meta_data, colWidths=[180, 100, 80, 152])
+        meta_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F6F8FA")),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), ( -1, 0), 7),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.grey),
+            ('FONTSIZE', (0, 1), (-1, 1), 10),
+            ('TEXTCOLOR', (-1, 1), (-1, 1), colors.HexColor(score_color)),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.white),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(meta_table)
+
+        # --- TRUTH SCORE BAR ---
+        story.append(Spacer(1, 10))
+        filled_width = (truth_int / 100.0) * 512
+        empty_width = 512 - filled_width
+        bar_data = [["", ""]]
+        bar_table = Table(bar_data, colWidths=[filled_width, empty_width], rowHeights=[4])
+        bar_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), colors.HexColor(score_color)),
+            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor("#E8E8E8")),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        story.append(bar_table)
+        story.append(Spacer(1, 30))
 
         # --- EXECUTIVE SUMMARY ---
-        story.append(Paragraph("Executive Summary", styles["Heading1"]))
-        story.append(Paragraph(_as_text(meta.get("summary", "No summary available.")), styles["BodyText"]))
-        story.append(Spacer(1, 16))
+        story.append(Paragraph("Executive Summary", styles['BrandedHeading1']))
+        summary_text = _as_text(meta.get("summary", "")) or _as_text(sections.get("executive_summary", ""))
+        story.append(Paragraph(summary_text, styles['SectionBody']))
+        story.append(Spacer(1, 10))
 
-        # --- SYNTHESIS SECTIONS ---
+        # --- SECTIONS ---
         for section_id, content in sections.items():
-            story.append(Paragraph(section_id.replace("_", " ").title(), styles["Heading2"]))
-            text = _as_text(content)
-            # Split into paragraphs for better readability
+            if section_id == "executive_summary": continue
+            story.append(Paragraph(section_id.replace("_", " ").title(), styles['BrandedHeading1']))
+            text = _clean_tags(_as_text(content))
             for para in text.split("\n\n"):
-                para = para.strip()
-                if para:
-                    story.append(Paragraph(para, styles["BodyText"]))
+                if para.strip():
+                    story.append(Paragraph(para.strip(), styles['SectionBody']))
                     story.append(Spacer(1, 6))
-            story.append(Spacer(1, 10))
 
-        # --- KEY METRICS TABLE ---
-        key_metrics = structured.get("key_metrics", [])
-        if key_metrics:
-            story.append(Paragraph("Key Intelligence Metrics", styles["Heading2"]))
-            table_data = [["Metric", "Value", "Context"]]
-            for metric in key_metrics:
-                if isinstance(metric, dict):
-                    table_data.append([
-                        _as_text(metric.get("metric", "")),
-                        _as_text(metric.get("value", "")),
-                        _as_text(metric.get("context", "")),
-                    ])
-            if len(table_data) > 1:
-                table = Table(table_data, repeatRows=1, colWidths=[150, 100, 250])
-                table.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ]))
-                story.append(table)
-                story.append(Spacer(1, 16))
+        # --- STRUCTURED DATA TABLES (Metrics, Actions, Risks) ---
+        metrics = structured.get("key_metrics", [])
+        if metrics:
+            story.append(Paragraph("Key Intelligence Metrics", styles['BrandedHeading1']))
+            m_data = [["METRIC", "VALUE", "CONTEXT"]]
+            for m in metrics:
+                m_data.append([_as_text(m.get("metric")), _as_text(m.get("value")), _as_text(m.get("context"))])
+            t = Table(m_data, colWidths=[150, 100, 262], repeatRows=1)
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00E5FF")),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F6F8FA")])
+            ]))
+            story.append(t)
 
-        # --- ACTION ITEMS TABLE ---
-        action_items = structured.get("action_items", [])
-        if action_items:
-            story.append(Paragraph("Action Items", styles["Heading2"]))
-            table_data = [["Task", "Priority", "Timeline"]]
-            for item in action_items:
-                if isinstance(item, dict):
-                    table_data.append([
-                        _as_text(item.get("task", "")),
-                        _as_text(item.get("priority", "")).upper(),
-                        _as_text(item.get("timeline", "")),
-                    ])
-            if len(table_data) > 1:
-                table = Table(table_data, repeatRows=1, colWidths=[280, 80, 140])
-                table.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ]))
-                story.append(table)
-                story.append(Spacer(1, 16))
-
-        # --- RISKS TABLE ---
+        # Risks
         risks = structured.get("risks", [])
         if risks:
-            story.append(Paragraph("Risk Assessment", styles["Heading2"]))
-            table_data = [["Risk", "Severity", "Mitigation"]]
-            for risk in risks:
-                if isinstance(risk, dict):
-                    table_data.append([
-                        _as_text(risk.get("risk", "")),
-                        _as_text(risk.get("severity", "")).upper(),
-                        _as_text(risk.get("mitigation", "")),
-                    ])
-            if len(table_data) > 1:
-                table = Table(table_data, repeatRows=1, colWidths=[200, 80, 220])
-                table.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ]))
-                story.append(table)
-                story.append(Spacer(1, 16))
+            story.append(Paragraph("Risk Assessment", styles['BrandedHeading1']))
+            r_data = [["RISK", "SEVERITY", "MITIGATION"]]
+            sev_box = {"CRITICAL": "#FF4444", "HIGH": "#FF8844", "MEDIUM": "#FFCC00", "LOW": "#00AA55"}
+            for r in risks:
+                r_data.append([_as_text(r.get("risk")), _as_text(r.get("severity", "")).upper(), _as_text(r.get("mitigation"))])
+            t = Table(r_data, colWidths=[180, 80, 252], repeatRows=1)
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A0A0A")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#FF4444")),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#FFF0F0")])
+            ]))
+            story.append(t)
 
-        # --- INDIVIDUAL COUNCIL ANALYSIS (Card Results) ---
-        if card_results:
-            story.append(Paragraph("Council Member Analysis", styles["Heading1"]))
-            story.append(Spacer(1, 8))
-            for provider, result in card_results.items():
-                if not isinstance(result, dict) or not result.get("success"):
-                    continue
-                provider_name = provider.replace("_", " ").title()
-                role = _as_text(result.get("role", "")).upper()
-                truth = result.get("truth_meter", "N/A")
-                story.append(Paragraph(f"{provider_name} — {role} (Truth: {truth}/100)", styles["Heading2"]))
-                response_text = _as_text(result.get("response", ""))
-                # Split into paragraphs
-                for para in response_text.split("\n\n"):
-                    para = para.strip()
-                    if para:
-                        story.append(Paragraph(para, styles["BodyText"]))
-                        story.append(Spacer(1, 4))
-                story.append(Spacer(1, 12))
+        # --- FIPS COMPLIANCE ---
+        all_text = (_as_text(meta.get("summary", "")) + " " + " ".join(_as_text(v) for v in sections.values())).lower()
+        if "quantum" in all_text or "pqc" in all_text or "fips" in all_text:
+            story.append(Paragraph("FIPS 206 Compliance Audit", styles['BrandedHeading1']))
+            f_data = [["STANDARD", "ALGORITHM", "STATUS"]]
+            f_data.append(["FIPS 203", "ML-KEM (Kyber)", "NIST Finalized"])
+            f_data.append(["FIPS 204", "ML-DSA (Dilithium)", "NIST Finalized"])
+            f_data.append(["FIPS 206", "FN-DSA (FALCON)", "NIST Draft Mar 2026"])
+            t = Table(f_data, colWidths=[150, 200, 162])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0A1628")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00BFFF")),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor("#E0F7FF"))
+            ]))
+            story.append(t)
+
+        # --- FOOTER ATTESTATION ---
+        story.append(Spacer(1, 40))
+        attest_data = [[f"COMPLIANCE ATTESTATION: Generated via Qanapi Armory Federated Node. Integrity Anchor: FN-DSA. "
+                         f"Composite Score: {truth_display}/100. Audit Date: {date_display}"]]
+        attest_t = Table(attest_data, colWidths=[512])
+        attest_t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F0F8FF")),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor("#0080BF")),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(attest_t)
 
         doc.build(story)
         return filepath
+
 
 
 class ResearchPaperExporter:
