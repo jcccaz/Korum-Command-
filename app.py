@@ -1420,13 +1420,13 @@ def interrogate():
 
     # Round 1: Attacker tears apart the defender's response
     attacker_prompt = (
-        f"ORIGINAL QUESTION: {original_query}\n\n"
+        f"You are the Korum-OS Sentinel. You have been provided a single claim from a larger security report.\n\n"
+        f"ORIGINAL QUESTION: {original_query}\n"
         f"THE {defender_role.upper()}'S RESPONSE:\n{target_response}\n\n"
-        f"{'FOCUS YOUR ATTACK ON: ' + challenge_focus + chr(10) + chr(10) if challenge_focus else ''}"
-        f"YOUR MISSION: You are {attacker_desc}. Cross-examine this response ruthlessly. "
-        f"Find factual errors, logical gaps, unsupported claims, hidden assumptions, or dangerous oversights. "
-        f"Be specific — cite the exact claim you're attacking and explain why it fails. "
-        f"If the response is actually solid, say so — but make them prove it."
+        f"USE QANAPI_HASH CONTEXT: {data.get('qanapi_hash', 'Standard Provenance Enabled')}\n\n"
+        f"YOUR MISSION: You are {attacker_desc}. Find the 1% chance this claim is incorrect. "
+        f"Identify logic bypasses, technical inaccuracies, or hidden risks. Be ruthless. "
+        f"Cite the exact claim you're attacking."
     )
 
     # Pick provider: use OpenAI for attacker (fast, aggressive), Anthropic for defender (precise, thorough)
@@ -1444,9 +1444,9 @@ def interrogate():
         f"ORIGINAL QUESTION: {original_query}\n\n"
         f"YOUR ORIGINAL RESPONSE:\n{target_response}\n\n"
         f"THE {attacker_role.upper()}'S CHALLENGE:\n{attacker_text}\n\n"
-        f"YOUR MISSION: You are {defender_desc}. Defend your analysis or concede where the challenge is valid. "
-        f"No hand-waving — address each point specifically. If you were wrong, say exactly what was wrong and correct it. "
-        f"If the attacker is wrong, dismantle their argument with evidence."
+        f"YOUR MISSION: You are {defender_desc}. Defend your logic or concede. "
+        f"If the attacker found a valid bypass, propose a migration to FIPS-compliant PQC (ML-KEM/Kyber). "
+        f"No hand-waving."
     )
 
     defender_result = call_anthropic_claude(defender_prompt, defender_role)

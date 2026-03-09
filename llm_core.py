@@ -119,7 +119,9 @@ def call_openai_gpt4(prompt, role, model="gpt-4o", images=None):
             {"role": "system", "content": f"You are {role}. Provide expert, concise, high-impact analysis."},
             {"role": "user", "content": content}
         ],
-        "temperature": 0.7
+        "max_tokens": 4096,
+        "temperature": 0.3,
+        "top_p": 0.1
     }
     # Increased timeout to 60s
     resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data, timeout=60)
@@ -159,7 +161,8 @@ def call_anthropic_claude(prompt, role, model="claude-sonnet-4-20250514", images
         "model": model,
         "messages": [{"role": "user", "content": content}],
         "max_tokens": 4096,
-        "temperature": 0.7
+        "temperature": 0.3,
+        "top_p": 0.1
     }
     resp = requests.post("https://api.anthropic.com/v1/messages", headers=headers, json=data, timeout=60)
     
@@ -191,7 +194,12 @@ def call_google_gemini(prompt, role, model="gemini-2.0-flash", images=None):
             })
 
     data = {
-        "contents": [{"parts": parts}]
+        "contents": [{"parts": parts}],
+        "generationConfig": {
+            "maxOutputTokens": 4096,
+            "temperature": 0.3,
+            "topP": 0.1
+        }
     }
     resp = requests.post(url, headers=headers, json=data, timeout=60)
     
@@ -233,7 +241,9 @@ def call_perplexity(prompt, role, model=None):
             {"role": "system", "content": f"You are {role}. Provide accurate, sourced information. Cite sources."},
             {"role": "user", "content": prompt}
         ],
-        "temperature": 0.7
+        "max_tokens": 4096,
+        "temperature": 0.3,
+        "top_p": 0.1
     }
     
     try:
@@ -327,7 +337,9 @@ def call_mistral_api(prompt, role, model=None, images=None):
             {"role": "system", "content": f"You are {role}. Provide expert analysis."},
             {"role": "user", "content": content}
         ],
-        "temperature": 0.7
+        "max_tokens": 4096,
+        "temperature": 0.3,
+        "top_p": 0.1
     }
     
     # Mistral API endpoint

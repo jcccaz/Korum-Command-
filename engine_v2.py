@@ -194,23 +194,33 @@ def verify_claims(claims, council_history):
     """
     Cross-references claims against other advisor outputs.
     Labels them [CONFIRMED], [SUSPECT], or [UNVERIFIED].
+    NOW WITH PQC COMPLIANCE AUDIT (FIPS 203/204).
     """
     verified_results = []
     
     for c in claims:
         claim_text = c['claim']
         status = "UNVERIFIED"
-        score = 50 # Base score
+        score = 50 
         anchors = []
+        violations = []
+
+        # --- QUANTUM DRIFT CHECK (FIPS 203/204) ---
+        legacy_crypto = ["RSA", "ECC", "ECDSA", "Diffie-Hellman", "AES-128"]
+        pqc_wrappers = ["ML-KEM", "Kyber", "ML-DSA", "Dilithium", "SLH-DSA", "Sphincs+"]
+        
+        has_legacy = any(lc.lower() in claim_text.lower() for lc in legacy_crypto)
+        has_pqc = any(pqc.lower() in claim_text.lower() for pqc in pqc_wrappers)
+        
+        if has_legacy and not has_pqc:
+            violations.append("Non-PQC Compliant: RSA/ECC detected without FIPS 203/204 wrapper (Quantum Drift).")
+            score -= 20
 
         # Simple cross-provider agreement logic
         agreement_count = 0
-        contradiction_count = 0
-        
         for entry in council_history:
-            # Skip if we are looking at the same entry or if it's too early (no history)
-            # In practice, this is called AFTER all advisors speak
             content = entry['response'].lower()
+            # Basic semantic match: if the core claim text is present
             if claim_text.lower() in content:
                 agreement_count += 1
                 anchors.append(entry['ai'])
@@ -218,20 +228,18 @@ def verify_claims(claims, council_history):
         # Scoring Logic
         if agreement_count >= 2:
             status = "CONFIRMED"
-            score = 90 + (agreement_count * 2)
+            score += 40
         elif agreement_count == 1:
             status = "SUPPORTED"
-            score = 75
-        
-        # Placeholder for contradiction detection (complex NLP)
-        # If "No" or "False" appears near keywords in other responses...
+            score += 25
         
         verified_results.append({
             "claim": claim_text,
             "status": status,
-            "score": min(score, 100),
+            "score": max(0, min(score, 100)),
             "type": c['type'],
-            "anchors": anchors
+            "anchors": anchors,
+            "violations": violations
         })
         
     return verified_results

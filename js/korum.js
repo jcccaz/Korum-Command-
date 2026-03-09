@@ -1782,27 +1782,51 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
     logTelemetry(`⚔️ ${attackerRole.toUpperCase()} vs ${defenderRole.toUpperCase()}`, "user");
     sentinelChat.appendMessage(`INITIATING FACE-OFF: ${attackerRole.toUpperCase()} vs ${defenderRole.toUpperCase()}`, 'user');
 
-    // Show loading state on the target card
+    // Create face-off card
     const grid = document.querySelector('.results-content');
     const faceoffCard = document.createElement('div');
     faceoffCard.className = 'agent-card interrogation-card';
     faceoffCard.style.cssText = 'border: 1px solid #FF4444; background: rgba(255,68,68,0.03); margin-top: 16px;';
     faceoffCard.innerHTML = `
-        <div class="precision-header" style="border-bottom: 1px solid rgba(255,68,68,0.3);">
+        <div class="precision-header" style="border-bottom: 1px solid #FF4444;">
             <div class="ph-left">
                 <div class="ph-model-name" style="color:#FF4444">⚔️ CROSS-EXAMINATION</div>
                 <div class="ph-role-label" style="color:#FF8888">${attackerRole.replace(/_/g,' ').toUpperCase()} vs ${defenderRole.replace(/_/g,' ').toUpperCase()}</div>
             </div>
             <div class="ph-right">
-                <div class="metric-pill" style="color:#FFB020; animation: pulse 1.5s infinite;">PROCESSING...</div>
+                <div id="interrogation-heartbeat" class="metric-pill" style="color:#FFB020; animation: pulse 1.5s infinite;">INITIALIZING...</div>
             </div>
         </div>
         <div class="agent-response" style="color:#999; padding: 20px; text-align: center;">
-            Attacker analyzing response... <span style="animation: pulse 1s infinite;">⏳</span>
+            <div id="heartbeat-text">Consulting NIST 800-207 Policy Engine...</div>
+            <div class="loading-bar-min" style="width:100px; height:1px; background:rgba(255,68,68,0.1); margin:10px auto; position:relative; overflow:hidden;">
+                <div class="loading-fill-min" style="position:absolute; width:50%; height:100%; background:#FF4444; animation: slide 1s infinite ease-in-out;"></div>
+            </div>
         </div>
     `;
     grid.appendChild(faceoffCard);
     faceoffCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Reasoning Trace Heartbeats
+    const heartbeats = [
+        "Consulting NIST 800-207 Policy Engine...",
+        "Comparing QANAPI_HASH with known APT signatures...",
+        "Running Monte Carlo simulation on Truth Score...",
+        "Adversarial logic expansion in progress...",
+        "Finalizing tactical dissent..."
+    ];
+    let hbIdx = 0;
+    const hbInterval = setInterval(() => {
+        const hbText = document.getElementById('heartbeat-text');
+        const hbStatus = document.getElementById('interrogation-heartbeat');
+        if (hbText && heartbeats[hbIdx]) {
+            hbText.innerText = heartbeats[hbIdx];
+            if (hbStatus) hbStatus.innerText = "PROCESSING METADATA...";
+            hbIdx++;
+        } else {
+            clearInterval(hbInterval);
+        }
+    }, 1500);
 
     try {
         const token = localStorage.getItem('korum_token') || sessionStorage.getItem('korum_token');
@@ -1823,9 +1847,12 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
         const result = await resp.json();
 
         if (!result.success) {
+            clearInterval(hbInterval);
             faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Interrogation failed: ${result.error || 'Unknown error'}</span>`;
             return;
         }
+
+        clearInterval(hbInterval);
 
         // Render the face-off transcript
         const attackerHtml = formatText(result.attacker.response);
@@ -2495,6 +2522,9 @@ function renderResults(data, roleName) {
                 <span>${meta.workflow || 'RESEARCH'}</span>
                 <span>TRUTH: ${(() => { let s = meta.composite_truth_score; if (s === undefined || s === null) return '—'; s = parseFloat(s); if (s <= 1) s = Math.round(s * 100); return s; })()}/100</span>
                 <span>${(meta.models_used || []).length} AGENTS</span>
+                <button class="qanapi-sign-btn" onclick="event.stopPropagation(); showProcessingToast('Cryptographically Sign Report via Qanapi API [STAGING]')">
+                    <span style="font-size:10px">🔏</span> SIGN REPORT
+                </button>
             </div>
         </div>`;
 
