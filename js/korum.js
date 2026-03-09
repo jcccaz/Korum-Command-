@@ -1651,10 +1651,19 @@ window.openInterrogation = function (targetName) {
         "Architect": "anthropic",
         "Critic": "google",
         "Intel": "perplexity",
+        "Analyst": "mistral",
         "GPT-4o": "openai",
         "Claude": "anthropic",
         "Gemini": "google",
-        "Perplexity": "perplexity"
+        "Perplexity": "perplexity",
+        "Mistral": "mistral",
+        // V2 role names (displayed on cards)
+        "STRATEGIST": "openai",
+        "ARCHITECT": "anthropic",
+        "INTEGRATOR": "google",
+        "INTEGRATOR (CRITIC)": "google",
+        "SCOUT": "perplexity",
+        "ANALYST": "mistral",
     };
 
     // Clean name (remove emojis if any)
@@ -1669,11 +1678,17 @@ window.openInterrogation = function (targetName) {
         ? (document.getElementById(`roleLabel-${providerKey}`)?.innerText.toLowerCase() || 'analyst')
         : 'analyst';
 
-    // Get target response text
-    const targetResponse = providerKey ? sessionState.lastResponses[providerKey] : '';
+    // Get target response text — fall back to first available if key not matched
+    let targetResponse = providerKey ? sessionState.lastResponses[providerKey] : '';
     if (!targetResponse) {
-        showProcessingToast("No response to interrogate.");
-        return;
+        const fallback = Object.entries(sessionState.lastResponses).find(([k, v]) => v);
+        if (fallback) {
+            targetResponse = fallback[1];
+            sessionState.targetCard = fallback[0];
+        } else {
+            showProcessingToast("No response to interrogate.");
+            return;
+        }
     }
 
     // Show adversarial persona picker
@@ -2673,18 +2688,16 @@ function setupInterrogation() {
 
     document.getElementById('btn-challenge').addEventListener('click', () => {
         if (activeSelection) {
-            // USE SELECTIVE CONTEXT
-            const query = `INTERROGATE SELECTION: "${activeSelection}". 
-            Context: Address ONLY this specific point from the response. Detect inaccuracies, missing nuance, or logical flaws.`;
-
             tooltip.style.display = 'none';
 
-            // MIRROR TO GLOBAL COMMS (No longer overwriting queryInput)
-            sentinelChat.appendMessage(`TARGETED CHALLENGE: "${activeSelection.slice(0, 50)}..."`, 'user');
-            sentinelChat.appendMessage("Allocating Council resources for fact-check...", 'sentinel thinking');
+            // Find which agent card the selection came from
+            const sel = window.getSelection();
+            const agentCard = sel.anchorNode?.parentElement?.closest('.agent-card');
+            const providerName = agentCard?.querySelector('.ph-model-name')?.innerText || 'Target';
 
-            triggerCouncil(query);
-            // reset selection
+            // Use the new interrogation flow (2 API calls, not full council)
+            openInterrogation(providerName);
+
             window.getSelection().removeAllRanges();
             activeSelection = "";
         }
@@ -2710,22 +2723,11 @@ function setupInterrogation() {
 document.addEventListener('click', (e) => {
     if (e.target.classList.contains('claim')) {
         const claimText = e.target.innerText;
-        const status = e.target.dataset.status;
         const providerName = e.target.closest('.agent-card')?.querySelector('.ph-model-name')?.innerText || 'Target';
 
-        // Auto-trigger interrogation on the console
-        const consoleInput = document.getElementById("consoleInput");
-        if (consoleInput) {
-            // First, lock the target
-            openInterrogation(providerName);
-
-            // Then, fill the challenge
-            consoleInput.value = `FACT CHECK THIS: "${claimText}" (Labeled as ${status})`;
-            consoleInput.focus();
-
-            // UI Feedback
-            sentinelChat.appendMessage(`Targeting violation: "${claimText}"`, 'user');
-        }
+        // Use the new interrogation flow (persona picker → 2 API calls)
+        sentinelChat.appendMessage(`Targeting violation: "${claimText}"`, 'user');
+        openInterrogation(providerName);
     }
 });
 // --- KORUM OS - ORBITAL ---
