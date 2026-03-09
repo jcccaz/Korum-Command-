@@ -1661,28 +1661,212 @@ window.openInterrogation = function (targetName) {
     const cleanName = targetName.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
     const exactMatch = nameToKey[cleanName];
     const partialKey = Object.keys(nameToKey).find(k => cleanName.includes(k));
-    sessionState.targetCard = exactMatch || (partialKey ? nameToKey[partialKey] : null);
+    const providerKey = exactMatch || (partialKey ? nameToKey[partialKey] : null);
+    sessionState.targetCard = providerKey;
 
-    const consoleInput = document.getElementById("consoleInput");
-    const consoleTarget = document.getElementById("consoleTarget");
+    // Get defender's role from the deck labels
+    const defenderRole = providerKey
+        ? (document.getElementById(`roleLabel-${providerKey}`)?.innerText.toLowerCase() || 'analyst')
+        : 'analyst';
 
-    if (consoleTarget) {
-        consoleTarget.innerText = `TARGET: ${targetName.toUpperCase()}`;
-        consoleTarget.style.color = "#FF4444";
+    // Get target response text
+    const targetResponse = providerKey ? sessionState.lastResponses[providerKey] : '';
+    if (!targetResponse) {
+        showProcessingToast("No response to interrogate.");
+        return;
     }
 
-    if (consoleInput) {
-        consoleInput.value = "";
-        consoleInput.placeholder = `Challenge ${targetName}'s response...`;
-        consoleInput.focus();
-    }
-
-    // MIRROR ACTION TO COMMS
-    sentinelChat.appendMessage(`LOCKING TARGET FOR INTERROGATION: ${targetName.toUpperCase()}`, 'user');
-    sentinelChat.appendMessage(`Neural link locked on ${targetName}. Ready for tactical query.`, 'sentinel');
-
-    logTelemetry(`Interrogation Lock: ${targetName}`, "user");
+    // Show adversarial persona picker
+    showInterrogationPicker(targetName, defenderRole, targetResponse);
 };
+
+// ── ADVERSARIAL FACE-OFF PICKER ──────────────────────────────────────────
+function showInterrogationPicker(targetName, defenderRole, targetResponse) {
+    // Remove any existing picker
+    document.getElementById('interrogation-picker')?.remove();
+
+    // Smart attacker suggestions based on defender role
+    const attackerSuggestions = {
+        'cryptographer': ['hacker', 'physicist', 'zero_trust'],
+        'hacker': ['cryptographer', 'zero_trust', 'counterintel'],
+        'architect': ['critic', 'hacker', 'auditor'],
+        'strategist': ['critic', 'takeover', 'economist'],
+        'analyst': ['hacker', 'critic', 'auditor'],
+        'critic': ['architect', 'innovator', 'visionary'],
+        'scout': ['counterintel', 'analyst', 'critic'],
+        'cfo': ['auditor', 'tax', 'hedge_fund'],
+        'jurist': ['compliance', 'bioethicist', 'critic'],
+        'coding': ['hacker', 'ai_architect', 'architect'],
+        'medical': ['biologist', 'bioethicist', 'chemist'],
+        'cyber_ops': ['hacker', 'counterintel', 'zero_trust'],
+        'defense_ops': ['intel_analyst', 'counterintel', 'strategist'],
+    };
+
+    const suggested = attackerSuggestions[defenderRole] || ['hacker', 'critic', 'auditor'];
+    const allAttackers = ['hacker', 'critic', 'auditor', 'cryptographer', 'counterintel', 'zero_trust',
+        'physicist', 'jurist', 'economist', 'takeover', 'intel_analyst', 'cyber_ops', 'validator'];
+
+    const picker = document.createElement('div');
+    picker.id = 'interrogation-picker';
+    picker.style.cssText = `
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: rgba(10, 10, 15, 0.97); border: 1px solid rgba(255, 68, 68, 0.6);
+        border-radius: 6px; padding: 20px 24px; z-index: 10000; min-width: 340px;
+        box-shadow: 0 0 40px rgba(255, 68, 68, 0.15); font-family: var(--font-tactical, 'Courier New', monospace);
+    `;
+
+    picker.innerHTML = `
+        <div style="color: #FF4444; font-size: 0.7rem; letter-spacing: 0.15em; margin-bottom: 12px;">
+            ⚔️ ADVERSARIAL FACE-OFF
+        </div>
+        <div style="color: #888; font-size: 0.6rem; margin-bottom: 14px;">
+            TARGET: <span style="color: #FF8888">${targetName.toUpperCase()}</span>
+            &nbsp;·&nbsp; ROLE: <span style="color: #FFB020">${defenderRole.toUpperCase()}</span>
+        </div>
+        <div style="color: #AAA; font-size: 0.6rem; letter-spacing: 0.1em; margin-bottom: 8px;">SELECT ATTACKER:</div>
+        <div id="attacker-grid" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">
+            ${suggested.map(role => `
+                <button class="attacker-pick suggested" data-role="${role}" style="
+                    background: rgba(255,68,68,0.12); border: 1px solid rgba(255,68,68,0.5);
+                    color: #FF8888; padding: 5px 10px; border-radius: 3px; cursor: pointer;
+                    font-family: inherit; font-size: 0.6rem; letter-spacing: 0.08em;
+                    transition: all 0.15s;
+                ">${role.replace(/_/g, ' ').toUpperCase()}</button>
+            `).join('')}
+        </div>
+        <details style="margin-bottom: 14px;">
+            <summary style="color: #666; font-size: 0.55rem; cursor: pointer; letter-spacing: 0.1em;">ALL PERSONAS</summary>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">
+                ${allAttackers.filter(r => !suggested.includes(r)).map(role => `
+                    <button class="attacker-pick" data-role="${role}" style="
+                        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.15);
+                        color: #888; padding: 4px 8px; border-radius: 3px; cursor: pointer;
+                        font-family: inherit; font-size: 0.55rem; letter-spacing: 0.05em;
+                        transition: all 0.15s;
+                    ">${role.replace(/_/g, ' ').toUpperCase()}</button>
+                `).join('')}
+            </div>
+        </details>
+        <div style="display: flex; gap: 8px;">
+            <button id="interrogation-cancel" style="
+                flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2);
+                color: #888; padding: 7px; border-radius: 3px; cursor: pointer;
+                font-family: inherit; font-size: 0.6rem; letter-spacing: 0.1em;
+            ">CANCEL</button>
+        </div>
+    `;
+
+    document.body.appendChild(picker);
+
+    // Handle attacker selection
+    picker.querySelectorAll('.attacker-pick').forEach(btn => {
+        btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(255,68,68,0.25)'; btn.style.color = '#FF4444'; });
+        btn.addEventListener('mouseleave', () => { btn.style.background = btn.classList.contains('suggested') ? 'rgba(255,68,68,0.12)' : 'rgba(255,255,255,0.04)'; btn.style.color = btn.classList.contains('suggested') ? '#FF8888' : '#888'; });
+        btn.addEventListener('click', () => {
+            const attackerRole = btn.dataset.role;
+            picker.remove();
+            executeInterrogation(attackerRole, defenderRole, targetResponse, targetName);
+        });
+    });
+
+    // Cancel
+    document.getElementById('interrogation-cancel').addEventListener('click', () => picker.remove());
+
+    // ESC to close
+    const escHandler = (e) => { if (e.key === 'Escape') { picker.remove(); document.removeEventListener('keydown', escHandler); } };
+    document.addEventListener('keydown', escHandler);
+}
+
+// ── EXECUTE ADVERSARIAL INTERROGATION ────────────────────────────────────
+async function executeInterrogation(attackerRole, defenderRole, targetResponse, targetName) {
+    logTelemetry(`⚔️ ${attackerRole.toUpperCase()} vs ${defenderRole.toUpperCase()}`, "user");
+    sentinelChat.appendMessage(`INITIATING FACE-OFF: ${attackerRole.toUpperCase()} vs ${defenderRole.toUpperCase()}`, 'user');
+
+    // Show loading state on the target card
+    const grid = document.querySelector('.results-content');
+    const faceoffCard = document.createElement('div');
+    faceoffCard.className = 'agent-card interrogation-card';
+    faceoffCard.style.cssText = 'border: 1px solid #FF4444; background: rgba(255,68,68,0.03); margin-top: 16px;';
+    faceoffCard.innerHTML = `
+        <div class="precision-header" style="border-bottom: 1px solid rgba(255,68,68,0.3);">
+            <div class="ph-left">
+                <div class="ph-model-name" style="color:#FF4444">⚔️ CROSS-EXAMINATION</div>
+                <div class="ph-role-label" style="color:#FF8888">${attackerRole.replace(/_/g,' ').toUpperCase()} vs ${defenderRole.replace(/_/g,' ').toUpperCase()}</div>
+            </div>
+            <div class="ph-right">
+                <div class="metric-pill" style="color:#FFB020; animation: pulse 1.5s infinite;">PROCESSING...</div>
+            </div>
+        </div>
+        <div class="agent-response" style="color:#999; padding: 20px; text-align: center;">
+            Attacker analyzing response... <span style="animation: pulse 1s infinite;">⏳</span>
+        </div>
+    `;
+    grid.appendChild(faceoffCard);
+    faceoffCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    try {
+        const token = localStorage.getItem('korum_token') || sessionStorage.getItem('korum_token');
+        const resp = await fetch('/api/interrogate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+                original_query: sessionState.originalQuery || '',
+                target_response: targetResponse,
+                attacker_role: attackerRole,
+                defender_role: defenderRole,
+            }),
+        });
+
+        const result = await resp.json();
+
+        if (!result.success) {
+            faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Interrogation failed: ${result.error || 'Unknown error'}</span>`;
+            return;
+        }
+
+        // Render the face-off transcript
+        const attackerHtml = formatText(result.attacker.response);
+        const defenderHtml = formatText(result.defender.response);
+
+        faceoffCard.innerHTML = `
+            <div class="precision-header" style="border-bottom: 1px solid rgba(255,68,68,0.3);">
+                <div class="ph-left">
+                    <div class="ph-model-name" style="color:#FF4444">⚔️ CROSS-EXAMINATION COMPLETE</div>
+                    <div class="ph-role-label" style="color:#FF8888">
+                        ${attackerRole.replace(/_/g,' ').toUpperCase()} (${result.attacker.model}) vs ${defenderRole.replace(/_/g,' ').toUpperCase()} (${result.defender.model})
+                    </div>
+                </div>
+                <div class="ph-right">
+                    <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.agent-card').innerText, 'Cross-examination copied')" title="Copy">📋</div>
+                </div>
+            </div>
+            <div style="padding: 12px 16px;">
+                <div style="border-left: 3px solid #FF4444; padding: 10px 14px; margin-bottom: 16px; background: rgba(255,68,68,0.04);">
+                    <div style="color: #FF4444; font-size: 0.6rem; letter-spacing: 0.12em; margin-bottom: 6px;">
+                        🗡️ ATTACKER · ${result.attacker.role_display.toUpperCase()}
+                    </div>
+                    <div class="agent-response" style="margin: 0;">${attackerHtml}</div>
+                </div>
+                <div style="border-left: 3px solid #00FF9D; padding: 10px 14px; background: rgba(0,255,157,0.04);">
+                    <div style="color: #00FF9D; font-size: 0.6rem; letter-spacing: 0.12em; margin-bottom: 6px;">
+                        🛡️ DEFENDER · ${result.defender.role_display.toUpperCase()}
+                    </div>
+                    <div class="agent-response" style="margin: 0;">${defenderHtml}</div>
+                </div>
+            </div>
+        `;
+
+        sentinelChat.appendMessage(`Cross-examination complete. ${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'sentinel');
+        logTelemetry(`Interrogation complete: ${attackerRole} vs ${defenderRole}`, "process");
+
+    } catch (err) {
+        faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Network error: ${err.message}</span>`;
+        console.error('Interrogation failed:', err);
+    }
+}
 
 // --- PROMPT REFINEMENT (Enhance) ---
 function openEnhanceModal(originalText, enhancedText) {
@@ -3607,3 +3791,45 @@ PreviewManager.init();
 // --- SAVED REPORTS CLOSE HANDLERS ---
 document.getElementById('closeLibraryBtn')?.addEventListener('click', () => toggleReportLibrary(false));
 document.getElementById('libraryOverlay')?.addEventListener('click', () => toggleReportLibrary(false));
+
+// ============================================================
+// KORUM WORLDVIEW BRIDGE
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const anomalyId = params.get('worldview_anomaly');
+    if (anomalyId) {
+        logTelemetry("Korum WorldView Handoff Detected: anomaly_id=" + anomalyId, "system");
+        showProcessingToast("Importing context from WorldView Engine...");
+        
+        // Fetch the anomaly context from WorldView backend (runs on 5001)
+        fetch(`http://localhost:5001/api/anomalies/${anomalyId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.severity) {
+                    const qInput = document.getElementById('queryInput');
+                    if (qInput) {
+                        const eventsText = (data.contributing_events || []).slice(0, 10).map(e => 
+                            `- [${(e.feed_type || 'UNKNOWN').toUpperCase()}] ${e.title || 'Event'} at ${parseFloat(e.latitude).toFixed(2)},${parseFloat(e.longitude).toFixed(2)}`
+                        ).join('\n');
+
+                        qInput.value = `[KORUM WORLDVIEW DIRECTIVE]\nPRIORITY: ${data.severity}\nLOCATION: H3 Cell ${data.h3_cell}\n\nCORRELATED INTELLIGENCE:\n${eventsText}\n\nProvide an immediate threat assessment, kinetic escalation pathways, and recommended countermeasures for this anomaly cluster.`;
+                        
+                        // Auto-show the intake modal since the query is prepopulated
+                        const modal = document.getElementById('intakeModal');
+                        if (modal) {
+                            modal.style.display = 'flex';
+                            // Switch to War Room DNA naturally
+                            const workflowSelect = document.getElementById('workflowSelect');
+                            if (workflowSelect) workflowSelect.value = 'WAR_ROOM';
+                        }
+                        showProcessingToast("Context Imported Successfully!");
+                    }
+                }
+            })
+            .catch(err => {
+                console.error("WorldView Bridge Error: Could not fetch anomaly data", err);
+                logTelemetry("WorldView context sync failed", "error");
+            });
+    }
+});

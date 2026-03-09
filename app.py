@@ -1396,6 +1396,84 @@ def ask_council():
 
     return jsonify(response_data)
 
+
+# ── ADVERSARIAL INTERROGATION (1v1 Face-Off) ─────────────────────────────
+# Two API calls: attacker challenges → defender rebuts. No full council re-run.
+@app.route('/api/interrogate', methods=['POST'])
+@auth_required
+@limiter.limit("30 per minute")
+def interrogate():
+    from llm_core import expand_role
+
+    data = request.json
+    original_query = sanitize_input(data.get('original_query', ''))
+    target_response = data.get('target_response', '')[:3000]
+    attacker_role = data.get('attacker_role', 'hacker')
+    defender_role = data.get('defender_role', 'cryptographer')
+    challenge_focus = sanitize_input(data.get('challenge_focus', ''))
+
+    if not target_response.strip():
+        return jsonify({"error": "Target response is required"}), 400
+
+    attacker_desc = expand_role(attacker_role)
+    defender_desc = expand_role(defender_role)
+
+    # Round 1: Attacker tears apart the defender's response
+    attacker_prompt = (
+        f"ORIGINAL QUESTION: {original_query}\n\n"
+        f"THE {defender_role.upper()}'S RESPONSE:\n{target_response}\n\n"
+        f"{'FOCUS YOUR ATTACK ON: ' + challenge_focus + chr(10) + chr(10) if challenge_focus else ''}"
+        f"YOUR MISSION: You are {attacker_desc}. Cross-examine this response ruthlessly. "
+        f"Find factual errors, logical gaps, unsupported claims, hidden assumptions, or dangerous oversights. "
+        f"Be specific — cite the exact claim you're attacking and explain why it fails. "
+        f"If the response is actually solid, say so — but make them prove it."
+    )
+
+    # Pick provider: use OpenAI for attacker (fast, aggressive), Anthropic for defender (precise, thorough)
+    print(f"⚔️ INTERROGATION: {attacker_role.upper()} vs {defender_role.upper()}")
+    attacker_result = call_openai_gpt4(attacker_prompt, attacker_role)
+
+    if not attacker_result.get('success'):
+        # Fallback to Gemini if OpenAI fails
+        attacker_result = call_google_gemini(attacker_prompt, attacker_role)
+
+    attacker_text = attacker_result.get('response', 'Attack failed.')
+
+    # Round 2: Defender rebuts the attacker's challenges
+    defender_prompt = (
+        f"ORIGINAL QUESTION: {original_query}\n\n"
+        f"YOUR ORIGINAL RESPONSE:\n{target_response}\n\n"
+        f"THE {attacker_role.upper()}'S CHALLENGE:\n{attacker_text}\n\n"
+        f"YOUR MISSION: You are {defender_desc}. Defend your analysis or concede where the challenge is valid. "
+        f"No hand-waving — address each point specifically. If you were wrong, say exactly what was wrong and correct it. "
+        f"If the attacker is wrong, dismantle their argument with evidence."
+    )
+
+    defender_result = call_anthropic_claude(defender_prompt, defender_role)
+
+    if not defender_result.get('success'):
+        defender_result = call_google_gemini(defender_prompt, defender_role)
+
+    defender_text = defender_result.get('response', 'Defense failed.')
+
+    return jsonify({
+        "success": True,
+        "attacker": {
+            "role": attacker_role,
+            "role_display": attacker_desc.split(' with expertise')[0],
+            "response": attacker_text,
+            "model": attacker_result.get('model', 'unknown'),
+        },
+        "defender": {
+            "role": defender_role,
+            "role_display": defender_desc.split(' with expertise')[0],
+            "response": defender_text,
+            "model": defender_result.get('model', 'unknown'),
+        },
+        "original_query": original_query,
+    })
+
+
 @app.route('/api/v2/reasoning_chain', methods=['POST'])
 @auth_required
 @limiter.limit("30 per minute")
