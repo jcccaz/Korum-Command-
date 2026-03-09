@@ -1386,11 +1386,11 @@ function setupActionBindings() {
         }
 
         const agentCard = target.closest('.agent-card');
-        if (agentCard && !target.closest('button') && !target.closest('.tool-action')) {
+        if (agentCard && !agentCard.classList.contains('no-interrogate') && !target.closest('button') && !target.closest('.tool-action')) {
             const data = agentCard.dataset;
             openCardModal({
-                name: data.name,
-                meta: data.meta,
+                name: data.name || 'Response',
+                meta: data.meta || '',
                 content: agentCard.querySelector('.agent-response')?.innerHTML
             });
         }
@@ -1804,7 +1804,8 @@ window.executeVerify = async function (claimText, providerName) {
     // Create verification card
     const grid = document.querySelector('.results-content');
     const verifyCard = document.createElement('div');
-    verifyCard.className = 'agent-card verify-card';
+    verifyCard.className = 'agent-card verify-card no-interrogate';
+    verifyCard.dataset.name = 'SOURCE VERIFICATION';
     verifyCard.style.cssText = 'border: 1px solid #00BFFF; background: rgba(0,191,255,0.03); margin-top: 16px;';
     verifyCard.innerHTML = `
         <div class="precision-header" style="border-bottom: 1px solid #00BFFF;">
@@ -1880,7 +1881,8 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
     // Create face-off card
     const grid = document.querySelector('.results-content');
     const faceoffCard = document.createElement('div');
-    faceoffCard.className = 'agent-card interrogation-card';
+    faceoffCard.className = 'agent-card interrogation-card no-interrogate';
+    faceoffCard.dataset.name = `CROSS-EXAMINATION: ${attackerRole.toUpperCase()} vs ${defenderRole.toUpperCase()}`;
     faceoffCard.style.cssText = 'border: 1px solid #FF4444; background: rgba(255,68,68,0.03); margin-top: 16px;';
     faceoffCard.innerHTML = `
         <div class="precision-header" style="border-bottom: 1px solid #FF4444;">
