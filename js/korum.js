@@ -2624,7 +2624,7 @@ function renderResults(data, roleName) {
                 <span>${meta.workflow || 'RESEARCH'}</span>
                 <span>TRUTH: ${(() => { let s = meta.composite_truth_score; if (s === undefined || s === null) return '—'; s = parseFloat(s); if (s <= 1) s = Math.round(s * 100); return s; })()}/100</span>
                 <span>${(meta.models_used || []).length} AGENTS</span>
-                <button class="qanapi-sign-btn" onclick="event.stopPropagation(); showProcessingToast('Cryptographically Sign Report via Qanapi API [STAGING]')">
+                <button class="qanapi-sign-btn" onclick="event.stopPropagation(); showProcessingToast('Qanapi Armory · FedRAMP High Enclave · Cryptographic Signature Ready [STAGING]')">
                     <span style="font-size:10px">🔏</span> SIGN REPORT
                 </button>
             </div>

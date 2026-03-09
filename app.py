@@ -1445,7 +1445,7 @@ def interrogate():
         f"YOUR ORIGINAL RESPONSE:\n{target_response}\n\n"
         f"THE {attacker_role.upper()}'S CHALLENGE:\n{attacker_text}\n\n"
         f"YOUR MISSION: You are {defender_desc}. Defend your logic or concede. "
-        f"If the attacker found a valid bypass, propose a migration to FIPS-compliant PQC (ML-KEM/Kyber). "
+        f"If the attacker found a valid bypass, propose migration to FIPS-compliant PQC (ML-KEM/FIPS 203, SLH-DSA/FIPS 205, or FALCON/FIPS 206). "
         f"No hand-waving."
     )
 

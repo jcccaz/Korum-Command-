@@ -205,15 +205,15 @@ def verify_claims(claims, council_history):
         anchors = []
         violations = []
 
-        # --- QUANTUM DRIFT CHECK (FIPS 203/204) ---
-        legacy_crypto = ["RSA", "ECC", "ECDSA", "Diffie-Hellman", "AES-128"]
-        pqc_wrappers = ["ML-KEM", "Kyber", "ML-DSA", "Dilithium", "SLH-DSA", "Sphincs+"]
-        
+        # --- QUANTUM DRIFT CHECK (FIPS 203/204/205/206) ---
+        legacy_crypto = ["RSA", "ECC", "ECDSA", "Diffie-Hellman", "AES-128", "DSA", "3DES", "RC4", "MD5", "SHA-1"]
+        pqc_wrappers = ["ML-KEM", "Kyber", "ML-DSA", "Dilithium", "SLH-DSA", "Sphincs+", "FALCON", "FN-DSA"]
+
         has_legacy = any(lc.lower() in claim_text.lower() for lc in legacy_crypto)
         has_pqc = any(pqc.lower() in claim_text.lower() for pqc in pqc_wrappers)
-        
+
         if has_legacy and not has_pqc:
-            violations.append("Non-PQC Compliant: RSA/ECC detected without FIPS 203/204 wrapper (Quantum Drift).")
+            violations.append("Non-PQC Compliant: Legacy cryptography detected without FIPS 203/204/205/206 wrapper (Quantum Drift). Recommend ML-KEM, SLH-DSA, or FALCON migration.")
             score -= 20
 
         # Simple cross-provider agreement logic
