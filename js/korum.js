@@ -1792,6 +1792,86 @@ function showInterrogationPicker(targetName, defenderRole, targetResponse) {
     document.addEventListener('keydown', escHandler);
 }
 
+// ── SCALPEL MODE: SOURCE VERIFICATION ────────────────────────────────────
+window.executeVerify = async function (claimText, providerName) {
+    // If full response passed, truncate to selected text or first 500 chars
+    const selection = window.getSelection()?.toString().trim();
+    const claim = selection && selection.length > 10 ? selection : claimText.substring(0, 500);
+
+    logTelemetry(`🔎 VERIFY: "${claim.slice(0, 60)}..."`, "user");
+    sentinelChat.appendMessage(`SOURCE CHECK: "${claim.slice(0, 80)}..."`, 'user');
+
+    // Create verification card
+    const grid = document.querySelector('.results-content');
+    const verifyCard = document.createElement('div');
+    verifyCard.className = 'agent-card verify-card';
+    verifyCard.style.cssText = 'border: 1px solid #00BFFF; background: rgba(0,191,255,0.03); margin-top: 16px;';
+    verifyCard.innerHTML = `
+        <div class="precision-header" style="border-bottom: 1px solid #00BFFF;">
+            <div class="ph-left">
+                <div class="ph-model-name" style="color:#00BFFF">🔎 SOURCE VERIFICATION</div>
+                <div class="ph-role-label" style="color:#66D9FF">PERPLEXITY · FACT CHECK</div>
+            </div>
+            <div class="ph-right">
+                <div class="metric-pill" style="color:#FFB020; animation: pulse 1.5s infinite;">SEARCHING...</div>
+            </div>
+        </div>
+        <div class="agent-response" style="color:#999; padding: 20px; text-align: center;">
+            <div>Querying authoritative sources...</div>
+        </div>
+    `;
+    grid.appendChild(verifyCard);
+    verifyCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    try {
+        const token = localStorage.getItem('korum_token') || sessionStorage.getItem('korum_token');
+        const resp = await fetch('/api/verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                claim: claim,
+                original_query: sessionState.originalQuery || '',
+            })
+        });
+
+        const result = await resp.json();
+
+        if (!result.success) {
+            verifyCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Verification failed: ${result.error || 'Unknown error'}</span>`;
+            return;
+        }
+
+        const verifiedHtml = formatText(result.verification);
+        verifyCard.innerHTML = `
+            <div class="precision-header" style="border-bottom: 1px solid #00BFFF;">
+                <div class="ph-left">
+                    <div class="ph-model-name" style="color:#00BFFF">🔎 SOURCE VERIFICATION</div>
+                    <div class="ph-role-label" style="color:#66D9FF">PERPLEXITY · ${result.model || 'sonar'}</div>
+                </div>
+                <div class="ph-right">
+                    <div class="metric-pill" style="color:#00FF9D">COMPLETE</div>
+                    <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.agent-card').querySelector('.agent-response').innerText, 'Verification copied')" title="Copy">📋</div>
+                </div>
+            </div>
+            <div style="padding: 12px 16px; border-bottom: 1px solid rgba(0,191,255,0.15);">
+                <div style="color:#66D9FF; font-size: 0.6rem; letter-spacing: 0.1em; margin-bottom: 4px;">CLAIM UNDER REVIEW</div>
+                <div style="color:#AAA; font-size: 0.75rem; font-style: italic;">"${claim.length > 200 ? claim.substring(0, 200) + '...' : claim}"</div>
+            </div>
+            <div class="agent-response">${verifiedHtml}</div>
+        `;
+
+        sentinelChat.appendMessage(`Source verification complete for: "${claim.slice(0, 50)}..."`, 'sentinel');
+        logTelemetry("🔎 Verification complete", "success");
+
+    } catch (e) {
+        console.error('Verify error:', e);
+        verifyCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Verification error: ${e.message}</span>`;
+    }
+};
+
 // ── EXECUTE ADVERSARIAL INTERROGATION ────────────────────────────────────
 async function executeInterrogation(attackerRole, defenderRole, targetResponse, targetName) {
     logTelemetry(`⚔️ ${attackerRole.toUpperCase()} vs ${defenderRole.toUpperCase()}`, "user");
@@ -2452,6 +2532,9 @@ function renderResults(data, roleName) {
                     <button class="interrogate-btn" onclick="event.stopPropagation(); openInterrogation('${getProviderName(provider)}')">
                         🔍 INTERROGATE
                     </button>
+                    <button class="verify-btn" onclick="event.stopPropagation(); executeVerify(decodeURIComponent('${encodeURIComponent(rawResponse)}'), '${getProviderName(provider)}')">
+                        🔎 VERIFY
+                    </button>
                     <div class="metric-pill">$${cost.toFixed(4)}</div>
                     <div class="metric-pill time">${time}s</div>
                     <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); saveReport()" title="Save">💾</div>
@@ -2699,6 +2782,22 @@ function setupInterrogation() {
 
             // Use the new interrogation flow (2 API calls, not full council)
             openInterrogation(providerName);
+
+            window.getSelection().removeAllRanges();
+            activeSelection = "";
+        }
+    });
+
+    document.getElementById('btn-verify-select')?.addEventListener('click', () => {
+        if (activeSelection) {
+            tooltip.style.display = 'none';
+
+            // Find which agent card the selection came from
+            const sel = window.getSelection();
+            const agentCard = sel.anchorNode?.parentElement?.closest('.agent-card');
+            const providerName = agentCard?.querySelector('.ph-model-name')?.innerText || 'Council';
+
+            executeVerify(activeSelection, providerName);
 
             window.getSelection().removeAllRanges();
             activeSelection = "";

@@ -1474,6 +1474,54 @@ def interrogate():
     })
 
 
+@app.route('/api/verify', methods=['POST'])
+@auth_required
+@limiter.limit("30 per minute")
+def verify_claim():
+    """
+    Scalpel Mode: Send a single claim to Perplexity for source verification.
+    Returns cited sources and evidence assessment. 1 API call only.
+    """
+    data = request.json
+    claim = sanitize_input(data.get('claim', ''))
+    original_query = sanitize_input(data.get('original_query', ''))
+
+    if not claim.strip():
+        return jsonify({"error": "No claim provided"}), 400
+
+    verify_prompt = (
+        f"VERIFY THIS SPECIFIC CLAIM with authoritative sources:\n\n"
+        f"\"{claim}\"\n\n"
+        f"CONTEXT: This claim was made in response to: {original_query}\n\n"
+        f"YOUR TASK:\n"
+        f"1. Is this claim ACCURATE, PARTIALLY ACCURATE, or INACCURATE?\n"
+        f"2. Cite specific sources (URLs, papers, standards) that confirm or contradict it.\n"
+        f"3. If partially accurate, state exactly what is correct and what is wrong.\n"
+        f"4. Provide the authoritative reference (NIST, RFC, CVE, etc.) if applicable.\n\n"
+        f"Be precise. No filler. Sources are mandatory."
+    )
+
+    try:
+        result = call_perplexity(verify_prompt, "fact_checker")
+        if not result.get('success'):
+            # Fallback to Google if Perplexity is down
+            result = call_google_gemini(verify_prompt, "fact_checker")
+
+        if result.get('success'):
+            return jsonify({
+                "success": True,
+                "claim": claim,
+                "verification": result['response'],
+                "model": result.get('model', 'unknown'),
+                "provider": "perplexity",
+            })
+        else:
+            return jsonify({"success": False, "error": "Verification failed"}), 500
+    except Exception as e:
+        print(f"[VERIFY] Error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/api/v2/reasoning_chain', methods=['POST'])
 @auth_required
 @limiter.limit("30 per minute")
