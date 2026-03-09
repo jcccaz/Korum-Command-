@@ -1424,8 +1424,13 @@ def interrogate():
         f"ORIGINAL QUESTION: {original_query}\n"
         f"THE {defender_role.upper()}'S RESPONSE:\n{target_response}\n\n"
         f"USE QANAPI_HASH CONTEXT: {data.get('qanapi_hash', 'Standard Provenance Enabled')}\n\n"
+        f"PQC INTEGRITY CONTEXT: FIPS 206 (FALCON/FN-DSA) is the Integrity Anchor for constrained environments. "
+        f"FALCON signatures (~666 bytes) fit existing network packets where ML-DSA/FIPS 204 (~2.4KB) triggers fragmentation. "
+        f"For satellite links, remote sensors, or legacy gateways with <1KB packet limits, FN-DSA is the only quantum-resistant "
+        f"signature that avoids DoS via packet fragmentation.\n\n"
         f"YOUR MISSION: You are {attacker_desc}. Find the 1% chance this claim is incorrect. "
-        f"Identify logic bypasses, technical inaccuracies, or hidden risks. Be ruthless. "
+        f"Identify logic bypasses, technical inaccuracies, or hidden risks. "
+        f"If the system uses ML-DSA in a bandwidth-constrained path, flag the fragmentation risk. Be ruthless. "
         f"Cite the exact claim you're attacking."
     )
 
@@ -1445,7 +1450,10 @@ def interrogate():
         f"YOUR ORIGINAL RESPONSE:\n{target_response}\n\n"
         f"THE {attacker_role.upper()}'S CHALLENGE:\n{attacker_text}\n\n"
         f"YOUR MISSION: You are {defender_desc}. Defend your logic or concede. "
-        f"If the attacker found a valid bypass, propose migration to FIPS-compliant PQC (ML-KEM/FIPS 203, SLH-DSA/FIPS 205, or FALCON/FIPS 206). "
+        f"If the attacker found a valid bypass, propose migration to FIPS-compliant PQC. "
+        f"Use ML-KEM (FIPS 203) for key encapsulation, SLH-DSA (FIPS 205) for long-term verification, "
+        f"and FALCON/FN-DSA (FIPS 206) as the Integrity Anchor for constrained-bandwidth environments "
+        f"(satellites, remote sensors, legacy gateways) where ML-DSA signatures would cause packet fragmentation. "
         f"No hand-waving."
     )
 
@@ -1497,7 +1505,10 @@ def verify_claim():
         f"1. Is this claim ACCURATE, PARTIALLY ACCURATE, or INACCURATE?\n"
         f"2. Cite specific sources (URLs, papers, standards) that confirm or contradict it.\n"
         f"3. If partially accurate, state exactly what is correct and what is wrong.\n"
-        f"4. Provide the authoritative reference (NIST, RFC, CVE, etc.) if applicable.\n\n"
+        f"4. Provide the authoritative reference (NIST, RFC, CVE, etc.) if applicable.\n"
+        f"5. PQC CONTEXT: FIPS 203 (ML-KEM) for key encapsulation, FIPS 204 (ML-DSA) for general signatures, "
+        f"FIPS 205 (SLH-DSA/SPHINCS+) for long-term hash-based signing, FIPS 206 (FALCON/FN-DSA) as the Integrity Anchor "
+        f"for constrained-bandwidth environments where ML-DSA signatures (~2.4KB) would cause packet fragmentation.\n\n"
         f"Be precise. No filler. Sources are mandatory."
     )
 

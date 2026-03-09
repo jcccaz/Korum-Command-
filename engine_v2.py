@@ -213,7 +213,7 @@ def verify_claims(claims, council_history):
         has_pqc = any(pqc.lower() in claim_text.lower() for pqc in pqc_wrappers)
 
         if has_legacy and not has_pqc:
-            violations.append("Non-PQC Compliant: Legacy cryptography detected without FIPS 203/204/205/206 wrapper (Quantum Drift). Recommend ML-KEM, SLH-DSA, or FALCON migration.")
+            violations.append("Non-PQC Compliant: Legacy cryptography detected without FIPS 203/204/205/206 wrapper (Quantum Drift). Recommend ML-KEM (key encapsulation), SLH-DSA (long-term signing), or FALCON/FN-DSA as Integrity Anchor for constrained-bandwidth paths.")
             score -= 20
 
         # Simple cross-provider agreement logic
