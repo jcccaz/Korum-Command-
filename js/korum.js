@@ -3447,7 +3447,8 @@ async function handleDocExport(format) {
         const payload = {
             intelligence_object: lastCouncilData.synthesis,
             card_results: lastCouncilData.results || {},
-            format: format
+            format: format,
+            mission_context: sessionState.missionContext || null
         };
 
         const response = await authFetch('/api/deploy_intelligence', {

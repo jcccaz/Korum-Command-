@@ -369,12 +369,18 @@ def deploy_intelligence():
     intelligence_object = data.get('intelligence_object')
     card_results = data.get('card_results', {})
     format_type = data.get('format', 'docx')
+    mission_context = data.get('mission_context')
 
     if not intelligence_object:
         return jsonify({"error": "Missing intelligence data"}), 400
 
     # Attach card results so exporters can include per-provider analysis
     intelligence_object['_card_results'] = card_results
+
+    # Attach mission context for dynamic report branding
+    if mission_context:
+        intelligence_object['_mission_context'] = mission_context
+
     print(f"🚀 Deploying Intelligence Asset: {format_type.upper()}")
     
     try:
