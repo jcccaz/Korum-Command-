@@ -280,6 +280,14 @@
     padding-top: 12px;
 }
 
+.chat-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
 .dock-toolbar {
     display: flex;
     gap: 8px;

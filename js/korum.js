@@ -2798,6 +2798,14 @@ const sentinelChat = {
         }
     },
 
+    clear: function () {
+        this.history = [];
+        const wrapper = document.querySelector('.sentinel-wrapper');
+        if (wrapper) wrapper.innerHTML = '';
+        this.refreshEmptyState();
+        logTelemetry("Global Comms cleared", "system");
+    },
+
     appendMessage: function (text, type) {
         const wrapper = document.querySelector('.sentinel-wrapper');
         if (!wrapper) return null;
