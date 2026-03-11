@@ -1854,13 +1854,9 @@ window.executeVerify = async function (claimText, providerName) {
     verifyCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     try {
-        const token = localStorage.getItem('korum_token') || sessionStorage.getItem('korum_token');
-        const resp = await fetch('/api/verify', {
+        const resp = await authFetch('/api/verify', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 claim: claim,
                 original_query: sessionState.originalQuery || '',
@@ -1955,13 +1951,9 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
     }, 1500);
 
     try {
-        const token = localStorage.getItem('korum_token') || sessionStorage.getItem('korum_token');
-        const resp = await fetch('/api/interrogate', {
+        const resp = await authFetch('/api/interrogate', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 original_query: sessionState.originalQuery || '',
                 target_response: targetResponse,
