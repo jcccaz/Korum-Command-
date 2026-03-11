@@ -5,8 +5,8 @@ from datetime import datetime
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt, Inches, RGBColor, Cm
-from docx.oxml.ns import qn, nsdecls
+from docx.shared import Pt, Inches, RGBColor
+from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
 from openpyxl import Workbook
 from pptx import Presentation as PPTXPresentation
@@ -286,7 +286,11 @@ class WordExporter:
         else:
             branding_prefix = "KORUM-OS INTERNAL"
             is_client_branded = False
-        
+
+        # Classification Banner
+        banner = doc.add_table(rows=1, cols=1)
+        banner.autofit = True
+        cell = banner.rows[0].cells[0]
         cell.text = f"{branding_prefix}  ·  MULTI-AGENT INTELLIGENCE  ·  {workflow}"
         WordExporter._shade_cell(cell, "0D1117")
         for paragraph in cell.paragraphs:
@@ -906,8 +910,10 @@ class PDFExporter:
         doc = SimpleDocTemplate(filepath, pagesize=letter,
                                 topMargin=40, bottomMargin=40,
                                 leftMargin=50, rightMargin=50)
+        from reportlab.lib.styles import ParagraphStyle
+
         styles = getSampleStyleSheet()
-        
+
         # Define high-end styles
         styles.add(ParagraphStyle(
             name='BannerText',
