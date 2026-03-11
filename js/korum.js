@@ -1061,27 +1061,19 @@ let actionBindingsInitialized = false;
 function cycleRole(provider, event) {
     if (event) event.stopPropagation();
 
-    // Toggle Logic: If clicking card background or avatar, toggle silenced status
-    const isLabelClick = event && (event.target.id === `roleLabel-${provider}` || event.target.classList.contains('deck-role'));
+    // If clicking the X button, toggle silenced — handled separately
+    if (event && event.target.classList.contains('deck-x')) return;
 
-    if (!isLabelClick) {
-        const card = document.querySelector(`.deck-card.${provider}`);
-        const isSilenced = card?.classList.contains('silenced');
+    const card = document.querySelector(`.deck-card.${provider}`);
 
-        if (isSilenced) {
-            card.classList.remove('silenced');
-            logTelemetry(`${provider.toUpperCase()} ACTIVATED`, "success");
-        } else {
-            card?.classList.add('silenced');
-            logTelemetry(`${provider.toUpperCase()} SILENCED`, "system");
-        }
+    // If silenced, clicking the card body re-enables it
+    if (card?.classList.contains('silenced')) {
+        card.classList.remove('silenced');
+        logTelemetry(`${provider.toUpperCase()} ACTIVATED`, "success");
         return;
     }
 
-    // Don't cycle if silenced
-    const card = document.querySelector(`.deck-card.${provider}`);
-    if (card?.classList.contains('silenced')) return;
-
+    // Card body click = cycle persona
     const label = document.getElementById(`roleLabel-${provider}`);
     if (!label) return;
 
@@ -1096,6 +1088,20 @@ function cycleRole(provider, event) {
     if (card) {
         card.classList.add('active');
         setTimeout(() => card.classList.remove('active'), 200);
+    }
+}
+
+// X button: toggle provider off/on
+function toggleProvider(provider) {
+    const card = document.querySelector(`.deck-card.${provider}`);
+    if (!card) return;
+
+    if (card.classList.contains('silenced')) {
+        card.classList.remove('silenced');
+        logTelemetry(`${provider.toUpperCase()} ACTIVATED`, "success");
+    } else {
+        card.classList.add('silenced');
+        logTelemetry(`${provider.toUpperCase()} SILENCED`, "system");
     }
 }
 
@@ -1282,6 +1288,14 @@ function setupActionBindings() {
         const run = (e) => cycleRole(provider, e);
         card.addEventListener('click', run);
         card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); run(e); } });
+    });
+
+    // X buttons on deck cards — toggle provider on/off
+    document.querySelectorAll('.deck-x[data-provider]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleProvider(btn.dataset.provider);
+        });
     });
 
     document.querySelectorAll('[data-mode-toggle]').forEach(btn => {
@@ -2421,7 +2435,7 @@ async function executeCouncil(query, roleName) {
         question: query,
         council_mode: true,
         council_roles: roleConfig,
-        active_models: ["openai", "anthropic", "google", "perplexity", "mistral", "local"].filter(p => AIHealth.isAvailable(p)),
+        active_models: ["openai", "anthropic", "google", "perplexity", "mistral", "local"].filter(p => AIHealth.isAvailable(p) && !document.querySelector(`.deck-card.${p}`)?.classList.contains('silenced')),
         use_v2: true,
         is_red_team: isRedTeam,
         use_serp: useSerpAPI,  // Real-time data via SerpAPI
