@@ -180,6 +180,8 @@ def method_not_allowed(e):
 @app.route('/api/auth/register', methods=['POST'])
 @limiter.limit("20 per hour")
 def register():
+    return jsonify({"success": False, "error": "Registration is currently closed for the presentation."}), 403
+
     try:
         data = request.json or {}
         email = (data.get('email') or '').strip().lower()
