@@ -119,7 +119,7 @@ def call_openai_gpt4(prompt, role, model="gpt-4o", images=None):
             {"role": "system", "content": f"You are {role}. Provide expert, concise, high-impact analysis."},
             {"role": "user", "content": content}
         ],
-        "max_tokens": 4096,
+        "max_tokens": 6000,
         "temperature": 0.3,
         "top_p": 0.1
     }
@@ -160,7 +160,7 @@ def call_anthropic_claude(prompt, role, model="claude-sonnet-4-20250514", images
     data = {
         "model": model,
         "messages": [{"role": "user", "content": content}],
-        "max_tokens": 4096,
+        "max_tokens": 6000,
         "temperature": 0.3,
         "top_p": 0.1
     }
@@ -241,7 +241,7 @@ def call_perplexity(prompt, role, model=None):
             {"role": "system", "content": f"You are {role}. Provide accurate, sourced information. Cite sources."},
             {"role": "user", "content": prompt}
         ],
-        "max_tokens": 4096,
+        "max_tokens": 6000,
         "temperature": 0.3,
         "top_p": 0.1
     }
@@ -338,7 +338,7 @@ def call_mistral_api(prompt, role, model=None, images=None):
             {"role": "system", "content": f"You are {role}. Provide expert analysis."},
             {"role": "user", "content": content}
         ],
-        "max_tokens": 4096,
+        "max_tokens": 6000,
         "temperature": 0.3,
         "top_p": 0.1
     }
