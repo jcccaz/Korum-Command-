@@ -265,9 +265,11 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
         for i, provider_role in enumerate(execution_order):
             # Split "provider-role"
             try:
-                provider, role = provider_role.split('-')
+                provider, role = provider_role.split('-', 1)
+                provider = provider.lower().strip()
+                role = role.strip()
             except ValueError:
-                provider = provider_role.lower()
+                provider = provider_role.lower().strip()
                 role = active_personas.get(provider, 'analyst')
 
             # NEW: Inject "Integrator" posture for the final step
