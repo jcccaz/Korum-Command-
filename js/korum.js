@@ -1674,6 +1674,8 @@ window.challengeSelection = function () {
 };
 
 window.openInterrogation = function (targetName) {
+    // Auto-close the card modal so user can see interrogation running
+    closeCardModal();
     // Map display name back to provider key if possible
     const nameToKey = {
         "Strategic Core": "openai",
