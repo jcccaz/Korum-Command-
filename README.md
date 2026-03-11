@@ -59,10 +59,10 @@ KorumOS/
 └── docs/              # Documentation
 ```
 
-## Origin
-
-Extracted from the TriAI Council project on 2026-02-13.
-
 ## License
 
-MIT License
+KorumOS Enterprise — Commercial Licensing Available.
+
+All rights reserved. This software, including its source code, architecture, and associated documentation, is proprietary and confidential. No part of this system may be reproduced, distributed, or transmitted in any form without prior written permission from the copyright holder.
+
+Contact: info@korumos.com

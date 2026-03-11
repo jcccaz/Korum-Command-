@@ -4559,3 +4559,89 @@ body.activated .sphere-texture {
     .auth-user-email { display: none; }
     .auth-status { margin-right: 4px; }
 }
+
+/* ── PROPRIETARY FOOTER ── */
+.korum-legal-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    text-align: center;
+    padding: 6px 16px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.35);
+    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.6));
+    pointer-events: none;
+}
+
+/* ── TERMS OF DEMO SPLASH ── */
+.demo-terms-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: rgba(0, 0, 0, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(12px);
+}
+.demo-terms-overlay.dismissed { display: none; }
+.demo-terms-modal {
+    max-width: 520px;
+    width: 90%;
+    text-align: center;
+    padding: 48px 40px;
+    border: 1px solid rgba(0, 200, 255, 0.15);
+    border-radius: 8px;
+    background: rgba(10, 14, 20, 0.95);
+}
+.demo-terms-logo {
+    font-family: 'Outfit', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: #00C8FF;
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+}
+.demo-terms-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 32px;
+}
+.demo-terms-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 32px;
+}
+.demo-terms-accept {
+    display: inline-block;
+    padding: 12px 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: #0A0E14;
+    background: #00C8FF;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.demo-terms-accept:hover {
+    background: #00E5FF;
+    box-shadow: 0 0 20px rgba(0, 200, 255, 0.3);
+}
+.demo-terms-badge {
+    margin-top: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: rgba(255, 200, 0, 0.5);
+}

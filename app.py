@@ -1429,7 +1429,7 @@ def interrogate():
         f"You are the Korum-OS Sentinel. You have been provided a single claim from a larger security report.\n\n"
         f"ORIGINAL QUESTION: {original_query}\n"
         f"THE {defender_role.upper()}'S RESPONSE:\n{target_response}\n\n"
-        f"USE QANAPI_HASH CONTEXT: {data.get('qanapi_hash', 'Standard Provenance Enabled')}\n\n"
+        f"PROVENANCE CONTEXT: {data.get('provenance_hash', data.get('qanapi_hash', 'Standard Provenance Enabled'))}\n\n"
         f"PQC INTEGRITY CONTEXT: FIPS 206 (FALCON/FN-DSA) is the Integrity Anchor for constrained environments. "
         f"FALCON signatures (~666 bytes) fit existing network packets where ML-DSA/FIPS 204 (~2.4KB) triggers fragmentation. "
         f"For satellite links, remote sensors, or legacy gateways with <1KB packet limits, FN-DSA is the only quantum-resistant "

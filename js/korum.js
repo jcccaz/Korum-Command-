@@ -184,10 +184,26 @@ const KorumAuth = {
     }
 };
 
-// Init auth on page load
+// Init: Demo terms gate → then auth
 document.addEventListener('DOMContentLoaded', () => {
-    KorumAuth.initListeners();
-    KorumAuth.checkStatus();
+    const termsOverlay = document.getElementById('demoTermsOverlay');
+    const termsAccept = document.getElementById('demoTermsAccept');
+    const termsAcked = sessionStorage.getItem('korum_terms_acked');
+
+    if (termsOverlay && !termsAcked) {
+        // Show splash, defer auth until acknowledged
+        termsAccept.addEventListener('click', () => {
+            sessionStorage.setItem('korum_terms_acked', '1');
+            termsOverlay.classList.add('dismissed');
+            KorumAuth.initListeners();
+            KorumAuth.checkStatus();
+        });
+    } else {
+        // Already accepted this session — go straight to auth
+        if (termsOverlay) termsOverlay.classList.add('dismissed');
+        KorumAuth.initListeners();
+        KorumAuth.checkStatus();
+    }
 });
 
 // === AUTH-AWARE FETCH WRAPPER ===
@@ -295,7 +311,6 @@ async function loadReportLibrary() {
     try {
         const resp = await authFetch('/api/reports/list');
         const data = await resp.json();
-        console.log('[Reports] List response:', data);
         if (!data.success) {
             list.innerHTML = `<div class="library-empty">Error: ${data.error || 'Unknown'}</div>`;
             return;
@@ -2401,7 +2416,6 @@ async function executeCouncil(query, roleName) {
     const isRedTeam = activeModes.red;
     const useSerpAPI = activeModes.serp;
     if (useSerpAPI) logTelemetry("LIVE MODE ACTIVE: Fetching Real-Time Data...", "process");
-    console.log(`[CORE] Executing: ${roleName} | V2: ${useV2} | Red Team: ${isRedTeam} | Live Data: ${useSerpAPI}`);
 
     const payload = {
         question: query,
@@ -2450,8 +2464,6 @@ function renderResults(data, roleName) {
     const toast = document.getElementById('processing-toast');
     if (toast) toast.style.display = 'none';
 
-    console.log("DEBUG: Full response data:", data);
-    console.log("DEBUG: Individual results:", data.results);
     const container = document.querySelector(".results-content");
     const grid = document.createElement("div"); grid.className = "results-grid";
 
@@ -2624,7 +2636,7 @@ function renderResults(data, roleName) {
                 <span>${meta.workflow || 'RESEARCH'}</span>
                 <span>TRUTH: ${(() => { let s = meta.composite_truth_score; if (s === undefined || s === null) return '—'; s = parseFloat(s); if (s <= 1) s = Math.round(s * 100); return s; })()}/100</span>
                 <span>${(meta.models_used || []).length} AGENTS</span>
-                <button class="qanapi-sign-btn" onclick="event.stopPropagation(); showProcessingToast('Qanapi Armory · FedRAMP High Enclave · Cryptographic Signature Ready [STAGING]')">
+                <button class="qanapi-sign-btn" onclick="event.stopPropagation(); showProcessingToast('Secure Enclave · FedRAMP High · Cryptographic Signature Ready [STAGING]')">
                     <span style="font-size:10px">🔏</span> SIGN REPORT
                 </button>
             </div>
