@@ -137,7 +137,8 @@ print("-" * 20)
 # 4. LOCAL (LM STUDIO)
 print("LOCAL (LM STUDIO) Connection Check:")
 try:
-    url = "http://localhost:1234/v1/chat/completions"
+    base_url = os.getenv("LOCAL_LLM_URL", "http://localhost:1234")
+    url = f"{base_url.rstrip('/')}/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
     data = {
         "model": "local-model",

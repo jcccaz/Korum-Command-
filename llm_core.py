@@ -269,7 +269,8 @@ def call_local_llm(prompt, role, model="local-model"):
     Defaults to localhost:1234
     """
     role = expand_role(role)
-    url = "http://localhost:1234/v1/chat/completions"
+    base_url = os.getenv("LOCAL_LLM_URL", "http://localhost:1234")
+    url = f"{base_url.rstrip('/')}/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
     
     # Simple retry logic for local (sometimes it's just busy)
@@ -294,7 +295,7 @@ def call_local_llm(prompt, role, model="local-model"):
             return {"success": False, "response": f"Local Error {resp.status_code}: {resp.text}"}
             
         except requests.exceptions.ConnectionError:
-            return {"success": False, "response": "Local Logic Failed: LM Studio not running on port 1234."}
+            return {"success": False, "response": f"Local Logic Failed: LM Studio not running on {base_url}."}
         except Exception as e:
             if attempt < max_retries:
                 time.sleep(1)
