@@ -1356,6 +1356,14 @@ def ask_council():
         if use_serp and serp_raw:
             v2_response["live_data"] = serp_raw
 
+        # Audit log: V2 council query
+        providers_used = list(v2_response.get('results', {}).keys())
+        truth = v2_response.get('synthesis', {}).get('meta', {}).get('composite_truth_score', 'N/A') if isinstance(v2_response.get('synthesis'), dict) else 'N/A'
+        log_audit("council_query",
+                  user_id=current_user.id if hasattr(current_user, 'id') else None,
+                  user_email=current_user.email if hasattr(current_user, 'email') else None,
+                  details=f"workflow={workflow} | providers={','.join(providers_used)} | truth_score={truth} | red_team={is_red_team} | query={query[:200]}")
+
         return jsonify(v2_response)
 
     # V1 LEGACY PARALLEL EXECUTION (The Core 4)
@@ -1399,6 +1407,13 @@ def ask_council():
     # Include raw SerpAPI data if used
     if use_serp and serp_raw:
         response_data["live_data"] = serp_raw
+
+    # Audit log: V1 council query
+    providers_used = [k for k in results.keys() if k != 'red_team']
+    log_audit("council_query",
+              user_id=current_user.id if hasattr(current_user, 'id') else None,
+              user_email=current_user.email if hasattr(current_user, 'email') else None,
+              details=f"workflow=V1_LEGACY | providers={','.join(providers_used)} | red_team={is_red_team} | query={query[:200]}")
 
     return jsonify(response_data)
 
@@ -1470,6 +1485,12 @@ def interrogate():
 
     defender_text = defender_result.get('response', 'Defense failed.')
 
+    # Audit log: interrogation
+    log_audit("interrogation",
+              user_id=current_user.id if hasattr(current_user, 'id') else None,
+              user_email=current_user.email if hasattr(current_user, 'email') else None,
+              details=f"attacker={attacker_role} | defender={defender_role} | attacker_model={attacker_result.get('model', 'unknown')} | defender_model={defender_result.get('model', 'unknown')} | query={original_query[:200]}")
+
     return jsonify({
         "success": True,
         "attacker": {
@@ -1525,6 +1546,11 @@ def verify_claim():
             result = call_google_gemini(verify_prompt, "fact_checker")
 
         if result.get('success'):
+            # Audit log: verification
+            log_audit("verify_claim",
+                      user_id=current_user.id if hasattr(current_user, 'id') else None,
+                      user_email=current_user.email if hasattr(current_user, 'email') else None,
+                      details=f"model={result.get('model', 'unknown')} | claim={claim[:200]}")
             return jsonify({
                 "success": True,
                 "claim": claim,

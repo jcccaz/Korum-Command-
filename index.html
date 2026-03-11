@@ -50,6 +50,15 @@
             <!-- Auth Status -->
             <div class="auth-status" id="authStatus" style="display:none;">
                 <span class="auth-user-email" id="authUserEmail"></span>
+                <button class="audit-nav-btn" id="auditNavBtn" title="Audit Log">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                </button>
                 <button class="auth-logout-btn" id="authLogoutBtn" title="Logout">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -556,6 +565,30 @@
         </div>
     </div>
     <div class="library-overlay" id="libraryOverlay"></div>
+
+    <!-- AUDIT LOG PANEL -->
+    <div class="audit-panel" id="auditPanel">
+        <div class="audit-header">
+            <h3>AUDIT LOG — CHAIN OF CUSTODY</h3>
+            <div class="audit-controls">
+                <select id="auditFilter" class="audit-filter">
+                    <option value="all">All Events</option>
+                    <option value="council_query">Council Queries</option>
+                    <option value="interrogation">Interrogations</option>
+                    <option value="verify_claim">Verifications</option>
+                    <option value="login">Logins</option>
+                    <option value="login_failed">Failed Logins</option>
+                </select>
+                <button class="audit-refresh" id="auditRefreshBtn" title="Refresh">&#x21bb;</button>
+                <button class="close-library" id="closeAuditBtn">&times;</button>
+            </div>
+        </div>
+        <div class="audit-stats" id="auditStats"></div>
+        <div class="audit-list" id="auditList">
+            <div class="library-empty">Loading audit log...</div>
+        </div>
+    </div>
+    <div class="audit-overlay" id="auditOverlay"></div>
 
     <!-- AUTH LOGIN MODAL -->
     <div class="auth-modal-overlay" id="authModal" style="display:none;">

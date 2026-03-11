@@ -3989,3 +3989,109 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 });
+
+// ============================================================
+// AUDIT LOG PANEL
+// ============================================================
+const AuditPanel = {
+    logs: [],
+
+    open() {
+        document.getElementById('auditPanel')?.classList.add('open');
+        document.getElementById('auditOverlay')?.classList.add('active');
+        this.load();
+    },
+
+    close() {
+        document.getElementById('auditPanel')?.classList.remove('open');
+        document.getElementById('auditOverlay')?.classList.remove('active');
+    },
+
+    async load() {
+        const list = document.getElementById('auditList');
+        const stats = document.getElementById('auditStats');
+        if (!list) return;
+        list.innerHTML = '<div class="library-empty">Loading audit log...</div>';
+
+        try {
+            const res = await authFetch('/api/auth/audit?limit=500');
+            const data = await res.json();
+            if (!data.success) {
+                list.innerHTML = `<div class="library-empty">Error: ${data.error || 'Access denied'}</div>`;
+                return;
+            }
+            this.logs = data.logs || [];
+            this.renderStats(stats);
+            this.render();
+        } catch (e) {
+            list.innerHTML = `<div class="library-empty">Failed to load audit log. Admin access required.</div>`;
+        }
+    },
+
+    renderStats(container) {
+        if (!container) return;
+        const counts = { council_query: 0, interrogation: 0, verify_claim: 0, login: 0, login_failed: 0 };
+        this.logs.forEach(l => { if (counts[l.event_type] !== undefined) counts[l.event_type]++; });
+        container.innerHTML = `
+            <div class="audit-stat"><span class="audit-stat-value">${counts.council_query}</span><span class="audit-stat-label">Queries</span></div>
+            <div class="audit-stat"><span class="audit-stat-value">${counts.interrogation}</span><span class="audit-stat-label">Interrogations</span></div>
+            <div class="audit-stat"><span class="audit-stat-value">${counts.verify_claim}</span><span class="audit-stat-label">Verifications</span></div>
+            <div class="audit-stat"><span class="audit-stat-value">${counts.login}</span><span class="audit-stat-label">Logins</span></div>
+            <div class="audit-stat"><span class="audit-stat-value">${counts.login_failed}</span><span class="audit-stat-label">Failed</span></div>
+        `;
+    },
+
+    render() {
+        const list = document.getElementById('auditList');
+        const filter = document.getElementById('auditFilter')?.value || 'all';
+        const filtered = filter === 'all' ? this.logs : this.logs.filter(l => l.event_type === filter);
+
+        if (filtered.length === 0) {
+            list.innerHTML = '<div class="library-empty">No audit events found.</div>';
+            return;
+        }
+
+        list.innerHTML = filtered.map(l => {
+            const ts = l.timestamp ? new Date(l.timestamp).toLocaleString() : 'N/A';
+            const eventLabel = (l.event_type || 'unknown').replace(/_/g, ' ').toUpperCase();
+
+            // Parse details for council queries
+            let detailsHtml = '';
+            if (l.details) {
+                const parts = l.details.split(' | ');
+                detailsHtml = parts.map(p => {
+                    const [key, ...val] = p.split('=');
+                    const v = val.join('=');
+                    if (key === 'query') return `<div><strong>Query:</strong> ${v}</div>`;
+                    if (key === 'providers') return `<div><strong>Providers:</strong> ${v}</div>`;
+                    if (key === 'truth_score') return `<div><strong>Truth Score:</strong> ${v}</div>`;
+                    if (key === 'workflow') return `<div><strong>Workflow:</strong> ${v}</div>`;
+                    if (key === 'attacker') return `<div><strong>Attacker:</strong> ${v.toUpperCase()}</div>`;
+                    if (key === 'defender') return `<div><strong>Defender:</strong> ${v.toUpperCase()}</div>`;
+                    if (key === 'claim') return `<div><strong>Claim:</strong> ${v}</div>`;
+                    if (key === 'model' || key === 'attacker_model' || key === 'defender_model') return `<div><strong>${key.replace(/_/g, ' ')}:</strong> ${v}</div>`;
+                    if (key === 'red_team') return v === 'True' ? `<div><strong>Red Team:</strong> ACTIVE</div>` : '';
+                    return `<div>${p}</div>`;
+                }).join('');
+            }
+
+            return `<div class="audit-entry ${l.event_type || ''}">
+                <div class="audit-entry-header">
+                    <span class="audit-event-type">${eventLabel}</span>
+                    <span class="audit-timestamp">${ts}</span>
+                </div>
+                ${l.user_email ? `<div class="audit-user">${l.user_email}</div>` : ''}
+                ${detailsHtml ? `<div class="audit-details">${detailsHtml}</div>` : ''}
+                ${l.ip_address ? `<div class="audit-ip">${l.ip_address}</div>` : ''}
+            </div>`;
+        }).join('');
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('auditNavBtn')?.addEventListener('click', () => AuditPanel.open());
+    document.getElementById('closeAuditBtn')?.addEventListener('click', () => AuditPanel.close());
+    document.getElementById('auditOverlay')?.addEventListener('click', () => AuditPanel.close());
+    document.getElementById('auditRefreshBtn')?.addEventListener('click', () => AuditPanel.load());
+    document.getElementById('auditFilter')?.addEventListener('change', () => AuditPanel.render());
+});
