@@ -75,33 +75,29 @@ class CouncilContext:
         })
 
 # --- PHASE 1: CLASSIFICATION (The Planner) ---
-def classify_query_v2(query, active_personas):
-    """
-    Uses GPT-4o-Mini (via OpenAI) to determine the optimal execution order.
-    FALLBACK 1: Mistral API (Cloud)
-    FALLBACK 2: Local Mistral (Private)
-    """
+def classify_query_v2(query, active_personas, active_models=None):
+    if active_models is None:
+        active_models = ["openai", "anthropic", "google", "perplexity", "mistral", "local"]
+        
+    available_list = ""
+    for p in active_models:
+        available_list += f"\n    - {p.capitalize()}: {active_personas.get(p, 'Analyst')}"
+
     prompt = f"""
     Analyze this business query and determine optimal AI execution order.
 
     QUERY: "{query}"
 
-    AVAILABLE PERSONAS (User Selected):
-    - OpenAI: {active_personas.get('openai', 'Strategist')}
-    - Anthropic: {active_personas.get('anthropic', 'Architect')}
-    - Google: {active_personas.get('google', 'Critic')}
-    - Perplexity: {active_personas.get('perplexity', 'Scout')}
-    - Mistral: {active_personas.get('mistral', 'Analyst')} (Cloud)
-    - Local: {active_personas.get('local', 'Oracle')} (Private/Offline)
+    AVAILABLE PERSONAS (User Selected):{available_list}
 
     OPTIMAL EXECUTION ORDER PRINCIPLES:
-    1. Foundation First: Research/data gathering (usually Perplexity/Scout)
-    2. Vision/Strategy: High-level direction (OpenAI/Strategist/Visionary)
-    3. Analysis/Deep Dive: Quantitative analysis, independent second opinion (Mistral/Analyst)
-    4. Implementation: Technical/tactical details (Anthropic/Architect)
-    5. Validation: Critical analysis, risk assessment, stress testing (Google/Critic)
+    1. Foundation First: Research/data gathering
+    2. Vision/Strategy: High-level direction
+    3. Analysis/Deep Dive: Quantitative analysis, independent second opinion
+    4. Implementation: Technical/tactical details
+    5. Validation: Critical analysis, risk assessment, stress testing
 
-    IMPORTANT: Always include ALL 5 cloud providers in the executionOrder. Each brings a unique perspective.
+    IMPORTANT: Only use the personas provided in the AVAILABLE PERSONAS list. Do not use any others. Include all available personas in the executionOrder.
 
     return ONLY valid JSON (no markdown):
     {{
@@ -109,7 +105,7 @@ def classify_query_v2(query, active_personas):
       "intent": "plan|build|analyze|optimize|critique|research|launch",
       "complexity": "simple|moderate|complex",
       "outputType": "presentation|technical_spec|marketing_plan|report|strategic_framework|diagram",
-      "executionOrder": ["perplexity-scout", "openai-strategist", "mistral-analyst", "anthropic-architect", "google-critic"],
+      "executionOrder": ["provider-role", "provider-role"],
       "reasoning": "Brief explanation of order"
     }}
     """
@@ -250,9 +246,9 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
-def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH"):
+def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None):
     # 1. Plan
-    classification = classify_query_v2(query, active_personas)
+    classification = classify_query_v2(query, active_personas, active_models=active_models)
     context = CouncilContext(query, classification, workflow=workflow)
     results = {}
 
