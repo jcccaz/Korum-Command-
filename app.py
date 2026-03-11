@@ -130,7 +130,7 @@ def auth_required(f):
         if not AUTH_ENABLED:
             return f(*args, **kwargs)
         if not current_user.is_authenticated:
-            log_audit("access_denied", endpoint=request.path, details="Unauthenticated request", success=False)
+            log_audit("access_denied", details="Unauthenticated request", success=False)
             return jsonify({"error": "Authentication required", "code": "AUTH_REQUIRED"}), 401
         return f(*args, **kwargs)
     return decorated
@@ -1343,7 +1343,8 @@ def ask_council():
         workflow = data.get('workflow', 'RESEARCH')
         print(f"⚡ V2 ENGINE ENGAGED [{workflow}] for query: {query}")
         # V2 Engine handles sequence and synthesis
-        v2_response = execute_council_v2(query, roles, images=images if images else None, workflow=workflow)
+        active_models_list = data.get('active_models', ["openai", "anthropic", "google", "perplexity", "mistral", "local"])
+        v2_response = execute_council_v2(query, roles, images=images if images else None, workflow=workflow, active_models=active_models_list)
         
         # If Red Team is ON, we might want to append it here explicitly 
         # OR rely on V2 engine to have included it. 
