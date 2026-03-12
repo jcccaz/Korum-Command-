@@ -643,6 +643,134 @@ class WordExporter:
             run.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
 
         # ═══════════════════════════════════════════════════════════════
+        # ANALYTIC DIVERGENCE
+        # ═══════════════════════════════════════════════════════════════
+        divergence = intelligence_object.get("divergence_analysis") or {}
+        if divergence and (divergence.get("agreement_topics") or divergence.get("contested_topics")):
+            doc.add_paragraph()
+            WordExporter._add_branded_heading(doc, "Analytic Divergence")
+
+            # Scores
+            p = doc.add_paragraph()
+            run = p.add_run(f"Consensus: {divergence.get('consensus_score', 'N/A')}/100  |  Divergence: {divergence.get('divergence_score', 'N/A')}/100")
+            run.font.bold = True
+            run.font.size = Pt(10)
+            if divergence.get('protocol_variance'):
+                run = p.add_run("  |  PROTOCOL VARIANCE DETECTED")
+                run.font.color.rgb = RGBColor(0xFF, 0x44, 0x44)
+                run.font.bold = True
+
+            if divergence.get('divergence_summary'):
+                doc.add_paragraph(_as_text(divergence['divergence_summary']))
+
+            # Areas of Agreement
+            agreement = divergence.get("agreement_topics", [])
+            if agreement:
+                p = doc.add_paragraph()
+                run = p.add_run("Areas of Agreement")
+                run.font.bold = True
+                for a in agreement:
+                    providers = ", ".join(p.upper() for p in (a.get("providers") or []))
+                    doc.add_paragraph(
+                        f"[{_as_text(a.get('confidence', 'MODERATE')).upper()}] {_as_text(a.get('topic', ''))} — {_as_text(a.get('detail', ''))}"
+                        + (f" (Supported by: {providers})" if providers else ""),
+                        style='List Bullet'
+                    )
+
+            # Contested Positions
+            contested = divergence.get("contested_topics", [])
+            if contested:
+                p = doc.add_paragraph()
+                run = p.add_run("Contested Positions")
+                run.font.bold = True
+                run.font.color.rgb = RGBColor(0xFF, 0x88, 0x44)
+                for c in contested:
+                    doc.add_paragraph(
+                        f"[{_as_text(c.get('severity', 'MEDIUM')).upper()}] {_as_text(c.get('topic', ''))}",
+                        style='List Bullet'
+                    )
+                    for pos in c.get("positions", []):
+                        doc.add_paragraph(
+                            f"{_as_text(pos.get('provider', '')).upper()}: {_as_text(pos.get('position', ''))}",
+                            style='List Bullet 2'
+                        )
+                    if c.get("operational_impact"):
+                        p = doc.add_paragraph()
+                        run = p.add_run(f"Operational Impact: {_as_text(c['operational_impact'])}")
+                        run.font.size = Pt(9)
+                        run.font.color.rgb = RGBColor(0xFF, 0x88, 0x44)
+
+            # Resolution Requirements
+            resolutions = divergence.get("resolution_requirements", [])
+            if resolutions:
+                p = doc.add_paragraph()
+                run = p.add_run("Resolution Requirements")
+                run.font.bold = True
+                for r in resolutions:
+                    doc.add_paragraph(
+                        f"[{_as_text(r.get('priority', 'MEDIUM')).upper()}] {_as_text(r.get('question', ''))}",
+                        style='List Bullet'
+                    )
+
+            WordExporter._add_section_divider(doc)
+
+        # ═══════════════════════════════════════════════════════════════
+        # CONFIDENCE & ASSUMPTIONS
+        # ═══════════════════════════════════════════════════════════════
+        conf_data = intelligence_object.get("confidence_and_assumptions") or {}
+        if conf_data:
+            doc.add_paragraph()
+            WordExporter._add_branded_heading(doc, "Confidence & Assumptions")
+            overall = _as_text(conf_data.get("overall_confidence", "moderate-to-high"))
+            p = doc.add_paragraph()
+            run = p.add_run(f"Overall Confidence: {overall.upper()}")
+            run.font.bold = True
+            run.font.size = Pt(11)
+            assumptions = conf_data.get("key_assumptions", [])
+            if assumptions:
+                p = doc.add_paragraph()
+                run = p.add_run("Key Assumptions:")
+                run.font.bold = True
+                for a in assumptions:
+                    doc.add_paragraph(_as_text(a), style='List Bullet')
+            limitations = conf_data.get("limitations", [])
+            if limitations:
+                p = doc.add_paragraph()
+                run = p.add_run("Limitations:")
+                run.font.bold = True
+                for l in limitations:
+                    doc.add_paragraph(_as_text(l), style='List Bullet')
+            WordExporter._add_section_divider(doc)
+
+        # ═══════════════════════════════════════════════════════════════
+        # COUNCIL CONTRIBUTORS
+        # ═══════════════════════════════════════════════════════════════
+        contributors = intelligence_object.get("council_contributors") or []
+        if not contributors:
+            models_used = meta.get("models_used", [])
+            if models_used:
+                contributors = [{"phase": f"Phase {i+1}", "provider": m, "role": "", "contribution_summary": ""} for i, m in enumerate(models_used)]
+        if contributors:
+            doc.add_paragraph()
+            WordExporter._add_branded_heading(doc, "Council Contributors")
+            table = doc.add_table(rows=1, cols=4)
+            table.autofit = True
+            hdr = table.rows[0].cells
+            hdr[0].text = "PHASE"
+            hdr[1].text = "PROVIDER"
+            hdr[2].text = "ROLE"
+            hdr[3].text = "CONTRIBUTION"
+            WordExporter._style_header_row(table.rows[0])
+            for idx, c in enumerate(contributors):
+                row = table.add_row().cells
+                row[0].text = _as_text(c.get("phase", ""))
+                row[1].text = _as_text(c.get("provider", ""))
+                row[2].text = _as_text(c.get("role", ""))
+                row[3].text = _as_text(c.get("contribution_summary", ""))
+                WordExporter._style_data_row(table.rows[-1], idx)
+            WordExporter._add_section_divider(doc)
+
+        # ═══════════════════════════════════════════════════════════════
         # COUNCIL MEMBER ANALYSIS
         # ═══════════════════════════════════════════════════════════════
         if card_results:
@@ -949,7 +1077,8 @@ class PDFExporter:
             parent=styles['BodyText'],
             fontSize=10,
             leading=14,
-            textColor=colors.HexColor("#2D2D2D")
+            textColor=colors.HexColor("#2D2D2D"),
+            wordWrap='CJK'
         ))
 
         story = []
@@ -1116,6 +1245,128 @@ class PDFExporter:
                 ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor("#E0F7FF"))
             ]))
             story.append(t)
+
+        # --- ANALYTIC DIVERGENCE ---
+        divergence = intelligence_object.get("divergence_analysis") or {}
+        if divergence and (divergence.get("agreement_topics") or divergence.get("contested_topics")):
+            story.append(Paragraph("Analytic Divergence", styles['BrandedHeading1']))
+
+            # Scores bar
+            cons_score = divergence.get('consensus_score', 0)
+            div_score = divergence.get('divergence_score', 0)
+            variance = divergence.get('protocol_variance', False)
+            variance_text = "PROTOCOL VARIANCE DETECTED" if variance else "CONSENSUS STABLE"
+            score_color = "#FF4444" if variance else "#00AA55"
+
+            score_data = [["CONSENSUS", "DIVERGENCE", "STATUS"],
+                          [f"{cons_score}/100", f"{div_score}/100", variance_text]]
+            score_table = Table(score_data, colWidths=[170, 170, 172], repeatRows=1)
+            score_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00E5FF")),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('TEXTCOLOR', (-1, 1), (-1, 1), colors.HexColor(score_color)),
+                ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor("#F6F8FA")),
+            ]))
+            story.append(score_table)
+            story.append(Spacer(1, 8))
+
+            if divergence.get('divergence_summary'):
+                story.append(Paragraph(_as_text(divergence['divergence_summary']), styles['SectionBody']))
+                story.append(Spacer(1, 6))
+
+            # Agreement
+            agreement = divergence.get("agreement_topics", [])
+            if agreement:
+                story.append(Paragraph("<b>Areas of Agreement</b>", styles['SectionBody']))
+                for a in agreement:
+                    providers = ", ".join(p.upper() for p in (a.get("providers") or []))
+                    text = f"<b>[{_as_text(a.get('confidence', 'MODERATE')).upper()}]</b> {_as_text(a.get('topic', ''))} — {_as_text(a.get('detail', ''))}"
+                    if providers:
+                        text += f" <i>(Supported by: {providers})</i>"
+                    story.append(Paragraph(f"&bull; {text}", styles['SectionBody']))
+
+            # Contested
+            contested = divergence.get("contested_topics", [])
+            if contested:
+                story.append(Spacer(1, 6))
+                story.append(Paragraph("<b>Contested Positions</b>", styles['SectionBody']))
+                for c in contested:
+                    story.append(Paragraph(
+                        f"&bull; <b>[{_as_text(c.get('severity', 'MEDIUM')).upper()}]</b> {_as_text(c.get('topic', ''))}",
+                        styles['SectionBody']
+                    ))
+                    for pos in c.get("positions", []):
+                        story.append(Paragraph(
+                            f"&nbsp;&nbsp;&nbsp;&nbsp;{_as_text(pos.get('provider', '')).upper()}: {_as_text(pos.get('position', ''))}",
+                            styles['SectionBody']
+                        ))
+
+            # Resolution
+            resolutions = divergence.get("resolution_requirements", [])
+            if resolutions:
+                story.append(Spacer(1, 6))
+                story.append(Paragraph("<b>Resolution Requirements</b>", styles['SectionBody']))
+                for r in resolutions:
+                    story.append(Paragraph(
+                        f"&bull; <b>[{_as_text(r.get('priority', 'MEDIUM')).upper()}]</b> {_as_text(r.get('question', ''))}",
+                        styles['SectionBody']
+                    ))
+
+            story.append(Spacer(1, 10))
+
+        # --- CONFIDENCE & ASSUMPTIONS ---
+        conf_data = intelligence_object.get("confidence_and_assumptions") or {}
+        if conf_data:
+            story.append(Paragraph("Confidence &amp; Assumptions", styles['BrandedHeading1']))
+            overall = _as_text(conf_data.get("overall_confidence", "moderate-to-high"))
+            story.append(Paragraph(f"<b>Overall Confidence:</b> {overall.upper()}", styles['SectionBody']))
+            story.append(Spacer(1, 4))
+            assumptions = conf_data.get("key_assumptions", [])
+            if assumptions:
+                story.append(Paragraph("<b>Key Assumptions:</b>", styles['SectionBody']))
+                for a in assumptions:
+                    story.append(Paragraph(f"&bull; {_as_text(a)}", styles['SectionBody']))
+            limitations = conf_data.get("limitations", [])
+            if limitations:
+                story.append(Paragraph("<b>Limitations:</b>", styles['SectionBody']))
+                for l in limitations:
+                    story.append(Paragraph(f"&bull; {_as_text(l)}", styles['SectionBody']))
+            story.append(Spacer(1, 10))
+
+        # --- COUNCIL CONTRIBUTORS ---
+        contributors = intelligence_object.get("council_contributors") or []
+        if not contributors:
+            # Fallback: build from models_used metadata
+            models_used = meta.get("models_used", [])
+            if models_used:
+                contributors = [{"phase": f"Phase {i+1}", "provider": m, "role": "", "contribution_summary": ""} for i, m in enumerate(models_used)]
+        if contributors:
+            story.append(Paragraph("Council Contributors", styles['BrandedHeading1']))
+            c_data = [["PHASE", "PROVIDER", "ROLE", "CONTRIBUTION"]]
+            for c in contributors:
+                c_data.append([
+                    _as_text(c.get("phase", "")),
+                    _as_text(c.get("provider", "")),
+                    _as_text(c.get("role", "")),
+                    _as_text(c.get("contribution_summary", ""))
+                ])
+            ct = Table(c_data, colWidths=[90, 100, 100, 222], repeatRows=1)
+            ct.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00E5FF")),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F6F8FA")])
+            ]))
+            story.append(ct)
+            story.append(Spacer(1, 10))
 
         # --- FOOTER ATTESTATION ---
         story.append(Spacer(1, 40))

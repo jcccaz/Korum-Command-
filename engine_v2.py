@@ -341,19 +341,127 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             results[provider]['truth_meter'] = calculate_truth_score(verified)
             results[provider]['verified_claims'] = verified
 
+        # --- ANALYTIC DIVERGENCE LAYER ---
+        print(f"[COUNCIL] Divergence Analysis: Comparing {len(results)} council outputs...")
+        divergence = analyze_council_divergence(results, context)
+
     except Exception as e:
         print(f"[EXECUTION ERROR] {e}")
         return {"consensus": "Error in execution plan.", "results": {}, "error": str(e)}
 
-    # 3. Synthesis
-    synthesis = synthesize_results(context)
+    # 3. Synthesis (now includes divergence data)
+    synthesis = synthesize_results(context, divergence_analysis=divergence)
 
     return {
         "consensus": f"COUNCIL ADJOURNED. Plan: {classification.get('outputType','report').upper()} generated via {len(results)} steps.",
         "results": results,
         "classification": classification,
-        "synthesis": synthesis
+        "synthesis": synthesis,
+        "divergence": divergence
     }
+
+# --- ANALYTIC DIVERGENCE LAYER (The Comparator) ---
+def analyze_council_divergence(results, context):
+    """
+    Compares council outputs to identify consensus, disagreement, and evidence gaps.
+    Runs AFTER all council phases and accountability, BEFORE synthesis.
+    Distinct from Red Team: this analyzes differences BETWEEN model conclusions.
+    """
+    # Build comparison payload from successful results
+    model_outputs = {}
+    for provider, result in results.items():
+        if isinstance(result, dict) and result.get('success'):
+            model_outputs[provider] = {
+                "role": result.get("role", "unknown"),
+                "response_excerpt": result.get("response", "")[:3000],
+                "truth_meter": result.get("truth_meter", 50)
+            }
+
+    if len(model_outputs) < 2:
+        return _empty_divergence("Insufficient council outputs for divergence analysis.")
+
+    comparison_text = ""
+    for provider, data in model_outputs.items():
+        comparison_text += f"\n[{provider.upper()} — {data['role']}] (Truth: {data['truth_meter']}/100):\n{data['response_excerpt']}\n"
+
+    prompt = f"""
+    You are an Analytic Divergence Engine. Your job is to compare multiple AI council outputs and identify where they AGREE, where they DISAGREE, and what evidence would resolve disagreements.
+
+    This is NOT Red Team. You are not attacking the analysis — you are comparing conclusions across models.
+
+    COUNCIL OUTPUTS:
+    {comparison_text}
+
+    ANALYZE THE FOLLOWING DIMENSIONS across all outputs:
+    1. Core scenario assessment (what each model thinks is happening)
+    2. Threat attribution (who/what is responsible)
+    3. Confidence level (how certain each model is)
+    4. Timeline/urgency (how immediate the threat/opportunity is)
+    5. Priority action (what each model recommends doing first)
+    6. Key assumptions (what each model takes for granted)
+
+    SCORING RULES:
+    - consensus_score: 0-100 (100 = all models perfectly aligned)
+    - divergence_score: 0-100 (100 = maximum disagreement)
+    - These should sum to approximately 100 (+/- 10 for nuance)
+    - If 4/5+ models align on a core point → consensus_score >= 70
+    - If confidence spread > 20 points across models → divergence_score += 15
+    - If attribution differs materially → divergence_score += 20
+
+    Return ONLY valid JSON (no markdown):
+    {{
+      "consensus_score": 75,
+      "divergence_score": 25,
+      "protocol_variance": false,
+      "agreement_topics": [
+        {{"topic": "Brief topic name", "detail": "What the models agree on", "confidence": "high|moderate|low", "providers": ["list of agreeing providers"]}}
+      ],
+      "contested_topics": [
+        {{"topic": "Brief topic name", "positions": [{{"provider": "name", "position": "What this model concluded", "evidence": "Supporting evidence cited"}}], "severity": "critical|high|medium|low", "operational_impact": "How this disagreement affects decision-making"}}
+      ],
+      "confidence_gaps": [
+        {{"description": "What is uncertain", "spread": "Range of confidence across models", "severity": "high|medium|low"}}
+      ],
+      "resolution_requirements": [
+        {{"question": "What evidence would resolve this disagreement", "priority": "high|medium|low"}}
+      ],
+      "divergence_summary": "2-3 sentence summary of the overall divergence picture"
+    }}
+
+    IMPORTANT:
+    - Set "protocol_variance" to true if divergence_score > 30
+    - Be specific about WHICH providers disagree on WHAT
+    - If models agree on everything, say so — don't manufacture disagreement
+    """
+
+    try:
+        resp = call_openai_gpt4(prompt, "DivergenceAnalyst", model="gpt-4o-mini")
+        if resp.get('success'):
+            content = resp['response'].replace('```json', '').replace('```', '').strip()
+            data = json.loads(content)
+            # Ensure protocol_variance flag is set correctly
+            data['protocol_variance'] = data.get('divergence_score', 0) > 30
+            print(f"[DIVERGENCE] Consensus: {data.get('consensus_score', '?')}/100 | Divergence: {data.get('divergence_score', '?')}/100 | Variance: {data.get('protocol_variance', False)}")
+            return data
+    except Exception as e:
+        print(f"[DIVERGENCE ERROR] {e}")
+
+    return _empty_divergence("Divergence analysis failed — proceeding with synthesis.")
+
+
+def _empty_divergence(reason=""):
+    """Returns a safe empty divergence structure."""
+    return {
+        "consensus_score": 50,
+        "divergence_score": 0,
+        "protocol_variance": False,
+        "agreement_topics": [],
+        "contested_topics": [],
+        "confidence_gaps": [],
+        "resolution_requirements": [],
+        "divergence_summary": reason or "Divergence analysis not available."
+    }
+
 
 def build_council_prompt(context, ai_name, persona, position, total_steps):
     # Determine the task objective
@@ -509,13 +617,25 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     return prompt
 
 # --- PHASE 4: SYNTHESIS (The Extractor) ---
-def synthesize_results(context):
+def synthesize_results(context, divergence_analysis=None):
     """
     Extracts structured data (JSON) from the conversation history.
+    Now includes divergence analysis for calibrated synthesis.
     """
     history_text = ""
     for entry in context.history:
         history_text += f"\n[{entry['ai'].upper()}]: {entry['response']}\n"
+
+    # Inject divergence context if available
+    if divergence_analysis and divergence_analysis.get('contested_topics'):
+        history_text += "\n\n[ANALYTIC DIVERGENCE LAYER — PRE-SYNTHESIS CONTEXT]:\n"
+        history_text += f"Consensus Score: {divergence_analysis.get('consensus_score', 'N/A')}/100\n"
+        history_text += f"Divergence Score: {divergence_analysis.get('divergence_score', 'N/A')}/100\n"
+        history_text += f"Summary: {divergence_analysis.get('divergence_summary', '')}\n"
+        for topic in divergence_analysis.get('contested_topics', []):
+            history_text += f"\nCONTESTED: {topic.get('topic', '')} (Severity: {topic.get('severity', 'unknown')})\n"
+            for pos in topic.get('positions', []):
+                history_text += f"  - {pos.get('provider', '').upper()}: {pos.get('position', '')}\n"
 
     # Retrieve Workflow DNA for structure
     dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
@@ -538,7 +658,7 @@ def synthesize_results(context):
     6. The composite_truth_score must be an integer from 0-100 (NOT a decimal like 0.9).
     7. Include AT LEAST 3 key_metrics, 3 action_items, and 3 risks extracted from the discussion.
     8. Where council members DISAGREE, note the disagreement and which position has stronger evidence.
-    9. Where council members AGREE, flag it as high-confidence consensus.
+    9. Where council members AGREE, flag it as moderate-to-high confidence consensus. NEVER claim "high confidence" unless 3+ council members independently agree on a specific fact with evidence. Default to "moderate confidence" when in doubt.
 
     COUNCIL DISCUSSION:
     {history_text}
@@ -569,10 +689,19 @@ def synthesize_results(context):
         "decisions": ["extracted from [DECISION_CANDIDATE] tags"],
         "risks": ["extracted from [RISK_VECTOR] tags"],
         "metrics": ["extracted from [METRIC_ANCHOR] tags"]
+      }},
+      "council_contributors": [
+        {{"phase": "Phase name (e.g. INTAKE)", "provider": "AI provider name", "role": "Assigned role", "contribution_summary": "1-2 sentence summary of what this phase uniquely contributed"}}
+      ],
+      "confidence_and_assumptions": {{
+        "overall_confidence": "low|moderate|moderate-to-high|high (default to moderate-to-high unless 3+ sources independently confirm with evidence)",
+        "key_assumptions": ["List 3-5 assumptions the analysis depends on"],
+        "limitations": ["List 2-3 limitations or gaps in the analysis"]
       }}
     }}
 
     REMEMBER: Each section value must be 3-5 rich paragraphs with specific details from the council discussion. This report will be exported as a professional PDF — make it worth reading.
+    CONFIDENCE CALIBRATION: Default to "moderate-to-high" confidence. Only use "high" if 3+ council members independently confirmed facts with specific evidence. This is an intelligence product — overconfidence is a liability.
     """
     
     try:

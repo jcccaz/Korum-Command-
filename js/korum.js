@@ -2723,6 +2723,110 @@ function renderResults(data, roleName) {
         grid.appendChild(briefCard);
     }
 
+    // --- ANALYTIC DIVERGENCE PANEL ---
+    if (data.divergence) {
+        const div = data.divergence;
+        const varianceStat = document.getElementById('protocol-variance-stat');
+        const divScore = document.getElementById('stat-divergence');
+
+        if (varianceStat && divScore) {
+            varianceStat.style.display = 'flex';
+            const score = div.divergence_score || 0;
+            divScore.textContent = score + '%';
+            if (div.protocol_variance) {
+                divScore.style.color = score > 50 ? '#FF4444' : '#FFB020';
+                varianceStat.classList.add('variance-active');
+            } else {
+                divScore.style.color = '#00FF9D';
+                varianceStat.classList.remove('variance-active');
+            }
+        }
+
+        const divCard = document.createElement("div");
+        divCard.className = `agent-card divergence-card ${div.protocol_variance ? 'variance-detected' : 'consensus-strong'}`;
+        divCard.style.marginTop = '16px';
+
+        let divHtml = `<div class="divergence-header">
+            <div class="divergence-title-row">
+                <span class="divergence-icon">${div.protocol_variance ? '⚠' : '✓'}</span>
+                <span class="divergence-label">ANALYTIC DIVERGENCE ${div.protocol_variance ? '— PROTOCOL VARIANCE DETECTED' : '— CONSENSUS STABLE'}</span>
+            </div>
+            <div class="divergence-scores">
+                <span class="div-score consensus-score">CONSENSUS: ${div.consensus_score || 0}/100</span>
+                <span class="div-score divergence-score-val">DIVERGENCE: ${div.divergence_score || 0}/100</span>
+            </div>
+        </div>`;
+
+        if (div.divergence_summary) {
+            divHtml += `<div class="divergence-summary">${formatText(div.divergence_summary)}</div>`;
+        }
+
+        if (div.agreement_topics?.length) {
+            divHtml += `<div class="div-section"><div class="div-section-title">AREAS OF AGREEMENT</div>`;
+            div.agreement_topics.forEach(a => {
+                const providers = (a.providers || []).map(p => p.toUpperCase()).join(', ');
+                divHtml += `<div class="div-agreement-item">
+                    <span class="div-confidence-badge confidence-${(a.confidence || 'moderate').toLowerCase()}">${(a.confidence || 'MODERATE').toUpperCase()}</span>
+                    <span class="div-topic-name">${a.topic || ''}</span>
+                    <div class="div-topic-detail">${a.detail || ''}</div>
+                    ${providers ? `<div class="div-providers">Supported by: ${providers}</div>` : ''}
+                </div>`;
+            });
+            divHtml += `</div>`;
+        }
+
+        if (div.contested_topics?.length) {
+            divHtml += `<div class="div-section"><div class="div-section-title contested">CONTESTED POSITIONS</div>`;
+            div.contested_topics.forEach(c => {
+                divHtml += `<div class="div-contested-item">
+                    <div class="div-contested-header">
+                        <span class="div-topic-name">${c.topic || ''}</span>
+                        <span class="div-severity severity-${(c.severity || 'medium').toLowerCase()}">${(c.severity || 'MEDIUM').toUpperCase()}</span>
+                    </div>`;
+                if (c.positions?.length) {
+                    c.positions.forEach(pos => {
+                        divHtml += `<div class="div-position">
+                            <span class="div-provider-badge">${(pos.provider || '').toUpperCase()}</span>
+                            <span class="div-position-text">${pos.position || ''}</span>
+                        </div>`;
+                    });
+                }
+                if (c.operational_impact) {
+                    divHtml += `<div class="div-impact">OPERATIONAL IMPACT: ${c.operational_impact}</div>`;
+                }
+                divHtml += `</div>`;
+            });
+            divHtml += `</div>`;
+        }
+
+        if (div.confidence_gaps?.length) {
+            divHtml += `<div class="div-section"><div class="div-section-title">CONFIDENCE GAPS</div>`;
+            div.confidence_gaps.forEach(g => {
+                divHtml += `<div class="div-gap-item severity-${(g.severity || 'medium').toLowerCase()}">
+                    <span class="div-gap-severity">${(g.severity || 'MEDIUM').toUpperCase()}</span>
+                    ${g.description || ''}
+                    ${g.spread ? `<span class="div-gap-spread">(Spread: ${g.spread})</span>` : ''}
+                </div>`;
+            });
+            divHtml += `</div>`;
+        }
+
+        if (div.resolution_requirements?.length) {
+            divHtml += `<div class="div-section"><div class="div-section-title">RESOLUTION REQUIREMENTS</div>`;
+            div.resolution_requirements.forEach(r => {
+                divHtml += `<div class="div-resolution-item">
+                    <span class="div-resolution-priority priority-${(r.priority || 'medium').toLowerCase()}">${(r.priority || 'MED').toUpperCase()}</span>
+                    ${r.question || ''}
+                </div>`;
+            });
+            divHtml += `</div>`;
+        }
+
+        divCard.innerHTML = divHtml;
+        divCard.addEventListener('click', () => openDivergenceModal());
+        grid.appendChild(divCard);
+    }
+
     container.innerHTML = "";
 
     // EXPORT COMMAND CENTER (Phase 6)
@@ -2760,6 +2864,128 @@ function renderResults(data, roleName) {
     setTimeout(() => {
         if (window.mermaid) mermaid.init(undefined, document.querySelectorAll('.mermaid'));
     }, 500);
+}
+
+// === ANALYTIC DIVERGENCE MODAL ===
+function openDivergenceModal() {
+    if (!lastCouncilData?.divergence) return;
+    const div = lastCouncilData.divergence;
+
+    // Remove existing modal
+    const existing = document.getElementById('divergence-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'divergence-modal';
+    modal.className = 'divergence-modal-overlay';
+
+    let modalHtml = `<div class="divergence-modal-content">
+        <div class="divergence-modal-header">
+            <div class="divergence-modal-title">
+                <span>${div.protocol_variance ? '⚠' : '✓'} ANALYTIC DIVERGENCE REPORT</span>
+                <span class="divergence-modal-close" onclick="document.getElementById('divergence-modal').remove()">&times;</span>
+            </div>
+            <div class="divergence-modal-scores">
+                <div class="modal-score-block">
+                    <div class="modal-score-value" style="color:${div.consensus_score >= 70 ? '#00FF9D' : '#FFB020'}">${div.consensus_score || 0}</div>
+                    <div class="modal-score-label">CONSENSUS</div>
+                </div>
+                <div class="modal-score-block">
+                    <div class="modal-score-value" style="color:${div.divergence_score > 50 ? '#FF4444' : div.divergence_score > 30 ? '#FFB020' : '#00FF9D'}">${div.divergence_score || 0}</div>
+                    <div class="modal-score-label">DIVERGENCE</div>
+                </div>
+                <div class="modal-score-block">
+                    <div class="modal-score-value ${div.protocol_variance ? 'variance-flash' : ''}" style="color:${div.protocol_variance ? '#FF4444' : '#00FF9D'}">${div.protocol_variance ? 'ACTIVE' : 'CLEAR'}</div>
+                    <div class="modal-score-label">VARIANCE</div>
+                </div>
+            </div>
+        </div>
+        <div class="divergence-modal-body">`;
+
+    if (div.divergence_summary) {
+        modalHtml += `<div class="modal-div-summary">${div.divergence_summary}</div>`;
+    }
+
+    // Agreement
+    if (div.agreement_topics?.length) {
+        modalHtml += `<div class="modal-div-section">
+            <div class="modal-div-section-title">AREAS OF AGREEMENT</div>`;
+        div.agreement_topics.forEach(a => {
+            const providers = (a.providers || []).map(p => `<span class="modal-provider-chip">${p.toUpperCase()}</span>`).join(' ');
+            modalHtml += `<div class="modal-agreement-item">
+                <div class="modal-item-header">
+                    <span class="modal-confidence confidence-${(a.confidence || 'moderate').toLowerCase()}">${(a.confidence || 'MODERATE').toUpperCase()}</span>
+                    <strong>${a.topic || ''}</strong>
+                </div>
+                <div class="modal-item-detail">${a.detail || ''}</div>
+                <div class="modal-item-providers">${providers}</div>
+            </div>`;
+        });
+        modalHtml += `</div>`;
+    }
+
+    // Contested
+    if (div.contested_topics?.length) {
+        modalHtml += `<div class="modal-div-section">
+            <div class="modal-div-section-title contested">CONTESTED POSITIONS</div>`;
+        div.contested_topics.forEach(c => {
+            modalHtml += `<div class="modal-contested-item">
+                <div class="modal-contested-header">
+                    <strong>${c.topic || ''}</strong>
+                    <span class="modal-severity severity-${(c.severity || 'medium').toLowerCase()}">${(c.severity || 'MEDIUM').toUpperCase()}</span>
+                </div>`;
+            (c.positions || []).forEach(pos => {
+                modalHtml += `<div class="modal-position">
+                    <span class="modal-provider-chip contested">${(pos.provider || '').toUpperCase()}</span>
+                    <span>${pos.position || ''}</span>
+                </div>`;
+                if (pos.evidence) {
+                    modalHtml += `<div class="modal-evidence">Evidence: ${pos.evidence}</div>`;
+                }
+            });
+            if (c.operational_impact) {
+                modalHtml += `<div class="modal-impact">OPERATIONAL IMPACT: ${c.operational_impact}</div>`;
+            }
+            modalHtml += `</div>`;
+        });
+        modalHtml += `</div>`;
+    }
+
+    // Confidence Gaps
+    if (div.confidence_gaps?.length) {
+        modalHtml += `<div class="modal-div-section">
+            <div class="modal-div-section-title">CONFIDENCE GAPS</div>`;
+        div.confidence_gaps.forEach(g => {
+            modalHtml += `<div class="modal-gap-item">
+                <span class="modal-severity severity-${(g.severity || 'medium').toLowerCase()}">${(g.severity || 'MED').toUpperCase()}</span>
+                ${g.description || ''}
+            </div>`;
+        });
+        modalHtml += `</div>`;
+    }
+
+    // Resolution
+    if (div.resolution_requirements?.length) {
+        modalHtml += `<div class="modal-div-section">
+            <div class="modal-div-section-title">WHAT WOULD RESOLVE DISAGREEMENT</div>`;
+        div.resolution_requirements.forEach(r => {
+            modalHtml += `<div class="modal-resolution-item">
+                <span class="modal-priority priority-${(r.priority || 'medium').toLowerCase()}">${(r.priority || 'MED').toUpperCase()}</span>
+                ${r.question || ''}
+            </div>`;
+        });
+        modalHtml += `</div>`;
+    }
+
+    modalHtml += `</div></div>`;
+    modal.innerHTML = modalHtml;
+
+    // Close on overlay click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
 }
 
 function setupInterrogation() {
@@ -3464,8 +3690,13 @@ async function handleDocExport(format) {
     logTelemetry(`DEPLOYING ASSET: ${format.toUpperCase()}...`, "process");
 
     try {
+        const intelligenceObj = { ...lastCouncilData.synthesis };
+        // Inject divergence data into intelligence object for exporters
+        if (lastCouncilData.divergence) {
+            intelligenceObj.divergence_analysis = lastCouncilData.divergence;
+        }
         const payload = {
-            intelligence_object: lastCouncilData.synthesis,
+            intelligence_object: intelligenceObj,
             card_results: lastCouncilData.results || {},
             format: format,
             mission_context: sessionState.missionContext || null
