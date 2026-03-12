@@ -222,6 +222,73 @@ async function authFetch(url, options = {}) {
 let lastCouncilData = null;
 let lastQueryText = '';
 
+// === PROVIDER NAME MAP (shared across interrogation, verification, score updates) ===
+const PROVIDER_NAME_MAP = {
+    "Strategic Core": "openai", "Architect": "anthropic", "Critic": "google",
+    "Intel": "perplexity", "Analyst": "mistral", "GPT-4o": "openai",
+    "Claude": "anthropic", "Gemini": "google", "Perplexity": "perplexity",
+    "Mistral": "mistral", "STRATEGIST": "openai", "ARCHITECT": "anthropic",
+    "INTEGRATOR": "google", "INTEGRATOR (CRITIC)": "google", "SCOUT": "perplexity",
+    "ANALYST": "mistral", "RESEARCHER": "google", "CRITIC": "mistral",
+    "CYBER_OPS": "openai", "COUNTERINTEL": "anthropic", "SIGINT": "google",
+    "INTEL_ANALYST": "perplexity", "HACKER": "mistral",
+    "openai": "openai", "anthropic": "anthropic", "google": "google",
+    "perplexity": "perplexity", "mistral": "mistral",
+};
+
+function resolveProviderKey(name) {
+    if (!name) return null;
+    const clean = name.replace(/[^a-zA-Z0-9\s_()-]/g, '').trim();
+    const exact = PROVIDER_NAME_MAP[clean];
+    if (exact) return exact;
+    const partial = Object.keys(PROVIDER_NAME_MAP).find(k => clean.includes(k));
+    return partial ? PROVIDER_NAME_MAP[partial] : null;
+}
+
+// === TRUTH SCORE RECALIBRATION ===
+function updateTruthScore(provider, delta, reason) {
+    if (!provider || !lastCouncilData?.results?.[provider]) return;
+
+    const result = lastCouncilData.results[provider];
+    const oldScore = result.truth_meter || 85;
+    const newScore = Math.max(0, Math.min(100, oldScore + delta));
+    result.truth_meter = newScore;
+
+    // Update UI card
+    const card = document.querySelector(`.agent-card[data-provider="${provider}"]`);
+    if (card) {
+        const scoreEl = card.querySelector('.truth-score-val');
+        const fillEl = card.querySelector('.truth-fill');
+        if (scoreEl) {
+            scoreEl.textContent = `TRUTH SCORE: ${newScore}/100`;
+            scoreEl.style.color = newScore > 80 ? '#00FF9D' : newScore > 50 ? '#FFB020' : '#FF4444';
+            // Flash animation
+            scoreEl.style.transition = 'none';
+            scoreEl.style.transform = 'scale(1.3)';
+            scoreEl.style.textShadow = delta > 0 ? '0 0 12px #00FF9D' : '0 0 12px #FF4444';
+            setTimeout(() => {
+                scoreEl.style.transition = 'all 0.6s ease';
+                scoreEl.style.transform = 'scale(1)';
+                scoreEl.style.textShadow = 'none';
+            }, 100);
+        }
+        if (fillEl) {
+            fillEl.style.transition = 'width 0.8s ease';
+            fillEl.style.width = `${newScore}%`;
+        }
+    }
+
+    // Update session stats (overall confidence)
+    const confEl = document.getElementById('stat-confidence');
+    if (confEl && lastCouncilData.results) {
+        const scores = Object.values(lastCouncilData.results).filter(r => r?.truth_meter).map(r => r.truth_meter);
+        if (scores.length) confEl.textContent = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) + '%';
+    }
+
+    const sign = delta > 0 ? '+' : '';
+    logTelemetry(`TRUTH RECALIBRATED: ${provider.toUpperCase()} ${sign}${delta} → ${newScore}/100 (${reason})`, delta > 0 ? "success" : "error");
+}
+
 // === FILE UPLOAD STATE ===
 let pendingFiles = [];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -1676,32 +1743,8 @@ window.challengeSelection = function () {
 window.openInterrogation = function (targetName) {
     // Auto-close the card modal so user can see interrogation running
     closeCardModal();
-    // Map display name back to provider key if possible
-    const nameToKey = {
-        "Strategic Core": "openai",
-        "Architect": "anthropic",
-        "Critic": "google",
-        "Intel": "perplexity",
-        "Analyst": "mistral",
-        "GPT-4o": "openai",
-        "Claude": "anthropic",
-        "Gemini": "google",
-        "Perplexity": "perplexity",
-        "Mistral": "mistral",
-        // V2 role names (displayed on cards)
-        "STRATEGIST": "openai",
-        "ARCHITECT": "anthropic",
-        "INTEGRATOR": "google",
-        "INTEGRATOR (CRITIC)": "google",
-        "SCOUT": "perplexity",
-        "ANALYST": "mistral",
-    };
-
-    // Clean name (remove emojis if any)
-    const cleanName = targetName.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-    const exactMatch = nameToKey[cleanName];
-    const partialKey = Object.keys(nameToKey).find(k => cleanName.includes(k));
-    const providerKey = exactMatch || (partialKey ? nameToKey[partialKey] : null);
+    // Resolve provider key using shared map
+    const providerKey = resolveProviderKey(targetName);
     sessionState.targetCard = providerKey;
 
     // Get defender's role from the deck labels
@@ -1894,6 +1937,24 @@ window.executeVerify = async function (claimText, providerName) {
         sentinelChat.appendMessage(`Source verification complete for: "${claim.slice(0, 50)}..."`, 'sentinel');
         logTelemetry("🔎 Verification complete", "success");
 
+        // === TRUTH SCORE FEEDBACK ===
+        const vText = (result.verification || '').toUpperCase();
+        const sourceProvider = resolveProviderKey(providerName);
+        if (sourceProvider) {
+            let delta = 0;
+            let verdict = '';
+            if (vText.includes('INACCURATE') && !vText.includes('PARTIALLY')) {
+                delta = -10; verdict = 'CLAIM INACCURATE';
+            } else if (vText.includes('PARTIALLY ACCURATE') || vText.includes('PARTIALLY')) {
+                delta = -3; verdict = 'PARTIALLY ACCURATE';
+            } else if (vText.includes('ACCURATE') || vText.includes('CONFIRMED') || vText.includes('VERIFIED')) {
+                delta = 5; verdict = 'CLAIM VERIFIED';
+            }
+            if (delta !== 0) {
+                updateTruthScore(sourceProvider, delta, verdict);
+            }
+        }
+
     } catch (e) {
         console.error('Verify error:', e);
         verifyCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Verification error: ${e.message}</span>`;
@@ -2008,6 +2069,35 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
 
         sentinelChat.appendMessage(`Cross-examination complete. ${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'sentinel');
         logTelemetry(`Interrogation complete: ${attackerRole} vs ${defenderRole}`, "process");
+
+        // === TRUTH SCORE FEEDBACK ===
+        const targetProvider = sessionState.targetCard || resolveProviderKey(targetName);
+        if (targetProvider) {
+            const defText = (result.defender.response || '').toLowerCase();
+            const atkText = (result.attacker.response || '').toLowerCase();
+            const concessionWords = ['concede', 'concession', 'acknowledged', 'valid point', 'correctly identifies',
+                                     'fair criticism', 'legitimate concern', 'understated', 'overlooked', 'gap in'];
+            const strongDefense = ['no evidence', 'unfounded', 'speculative', 'maintains', 'stands firm',
+                                   'logic maintained', 'evidence supports', 'rebuttal'];
+
+            const concessions = concessionWords.filter(w => defText.includes(w)).length;
+            const holds = strongDefense.filter(w => defText.includes(w) || atkText.includes(w)).length;
+
+            let delta = 0;
+            let verdict = '';
+            if (concessions >= 3) {
+                delta = -15; verdict = `${concessions} CONCESSIONS`;
+            } else if (concessions >= 2) {
+                delta = -10; verdict = `${concessions} CONCESSIONS`;
+            } else if (concessions >= 1) {
+                delta = -5; verdict = `${concessions} CONCESSION`;
+            } else if (holds >= 2) {
+                delta = 3; verdict = 'DEFENSE HELD';
+            } else {
+                delta = -2; verdict = 'CHALLENGED';
+            }
+            updateTruthScore(targetProvider, delta, verdict);
+        }
 
     } catch (err) {
         faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Network error: ${err.message}</span>`;
