@@ -360,38 +360,118 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     core_objective = context.query
     intent = context.classification.get('intent', 'analysis')
     output_type = context.classification.get('outputType', 'report')
-    
+
     # Retrieve Workflow DNA
     dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
 
-    if ai_name.lower() == 'perplexity' and context.workflow == "RESEARCH":
+    # --- PHASE DIRECTIVES: Each position has a unique, non-overlapping mission ---
+    PHASE_DIRECTIVES = {
+        0: {
+            "title": "INTAKE — Neutral Baseline",
+            "instruction": (
+                "You are the INTAKE analyst. Your job is to build a neutral, fact-based baseline from the raw query. "
+                "Strip assumptions. Identify the core entities, relationships, and unknowns. "
+                "Present ONLY verified facts, data points, and the key questions that need answering. "
+                "Do NOT offer opinions, strategies, or recommendations — that is not your role. "
+                "Think of yourself as redacting bias and building the raw intelligence foundation."
+            )
+        },
+        1: {
+            "title": "STRATEGIC INTERPRETATION — Scenario Analysis",
+            "instruction": (
+                "You are the STRATEGIC ANALYST. The intake baseline is provided below. "
+                "Your job is to interpret the baseline and estimate the MOST PLAUSIBLE scenario and the MOST DANGEROUS scenario. "
+                "Provide strategic context: what are the likely motives, trajectories, and second-order effects? "
+                "DO NOT repeat the baseline facts — they are already captured. Instead, focus entirely on WHAT THEY MEAN. "
+                "Offer 2-3 distinct strategic scenarios ranked by probability and severity."
+            )
+        },
+        2: {
+            "title": "COUNTERINTELLIGENCE CHALLENGE — Assumption Attack",
+            "instruction": (
+                "You are the COUNTERINTELLIGENCE OFFICER. The baseline and strategic interpretation are provided below. "
+                "Your SOLE job is to ATTACK the assumptions made so far. Look for: "
+                "1) Deception indicators — what if the premise is deliberately misleading? "
+                "2) Blind spots — what has the analysis missed or taken for granted? "
+                "3) Alternative explanations — what competing hypotheses have been ignored? "
+                "4) Confidence traps — where is the analysis over-confident without evidence? "
+                "DO NOT agree with or reinforce prior analysis. Your value is in CHALLENGING it. "
+                "If you find nothing to challenge, you are not looking hard enough."
+            )
+        },
+        3: {
+            "title": "DEFENSE OPERATIONS — Protective Action Plan",
+            "instruction": (
+                "You are the DEFENSE OPERATIONS lead. The baseline, strategic analysis, and counterintelligence challenges are provided below. "
+                "Your job is to translate ALL prior analysis into IMMEDIATE, ACTIONABLE protective measures. "
+                "DO NOT restate the analysis or rehash the threats — they are already documented. "
+                "Focus ONLY on: "
+                "1) What to do RIGHT NOW (0-72 hours) "
+                "2) What resources to allocate and where "
+                "3) Escalation triggers — what signals mean the situation is worsening "
+                "4) Contingency actions if the counterintelligence challenges prove correct "
+                "Be specific. Name tools, teams, protocols, and timelines."
+            )
+        },
+        4: {
+            "title": "STANDARDS INTEGRATION — Compliance & Framework Mapping",
+            "instruction": (
+                "You are the STANDARDS INTEGRATOR. All prior phases are provided below. "
+                "Your job is to map the entire analysis and action plan to established frameworks. "
+                "DO NOT repeat any prior analysis, scenarios, or action items. "
+                "Focus EXCLUSIVELY on: "
+                "1) Zero Trust Architecture alignment (NIST 800-207) "
+                "2) Post-Quantum Cryptography readiness (FIPS 203/204/205/206, ML-KEM, SLH-DSA) "
+                "3) Compliance framework mapping (FedRAMP, CMMC, SOC2, ISO 27001 as applicable) "
+                "4) Gaps between the proposed actions and framework requirements "
+                "5) Final confidence assessment and residual risk summary "
+                "This is the capstone — tie everything to standards that auditors and regulators recognize."
+            )
+        }
+    }
+
+    if ai_name.lower() == 'perplexity':
         # Perplexity works best with direct research questions, not persona roleplay
         prompt = f"""
         RESEARCH OBJECTIVE: "{core_objective}"
-        
+
         CONTEXT: You are contributing to a strategic intelligence report (Phase {position + 1} of {total_steps}).
         GOAL: {dna['goal']}
         INTENT: {intent.upper()} / {output_type.upper()}
         """
-        
+
         if position > 0:
             prompt += "\nRECENT DATA / PREVIOUS ANALYSIS:\n"
-            # Give Perplexity just enough context to refine its search, not the whole history
             last_entry = context.history[-1]
             prompt += f"Summary of previous findings: {last_entry['response'][:1000]}...\n"
-        
-        prompt += "\nINSTRUCTION: Provide comprehensive, well-sourced research and data to support this objective. Focus on facts, metrics, and technical details."
+
+        # Give Perplexity the phase-specific focus even in research mode
+        phase = PHASE_DIRECTIVES.get(position, PHASE_DIRECTIVES.get(min(position, 4)))
+        prompt += f"\nYOUR SPECIFIC FOCUS: {phase['title']}\n{phase['instruction']}"
+        prompt += "\nProvide comprehensive, well-sourced research and data. Focus on facts, metrics, and technical details."
         return prompt
+
+    # --- Determine which phase directive applies ---
+    # Map position to phase (if more than 5 steps, later steps get the closest directive)
+    if position == total_steps - 1 and total_steps >= 3:
+        # Final step is ALWAYS the integrator (phase 4) regardless of count
+        phase = PHASE_DIRECTIVES[4]
+    elif total_steps <= 5:
+        phase = PHASE_DIRECTIVES.get(position, PHASE_DIRECTIVES[min(position, 4)])
+    else:
+        # Scale phases across available steps
+        phase_index = int(position / total_steps * 5)
+        phase = PHASE_DIRECTIVES.get(min(phase_index, 4))
 
     # Standard Professional Template with DNA Overlay
     prompt = f"""
     ## PROFESSIONAL INTELLIGENCE BRIEF
     MISSION TYPE: {context.workflow}
     PRIMARY OBJECTIVE: "{core_objective}"
-    
+
     CURRENT FOCUS: {persona.upper()} (Assignee: {ai_name.upper()})
-    WORKFLOW STAGE: Part {position + 1} of {total_steps}
-    
+    WORKFLOW STAGE: Phase {position + 1} of {total_steps} — {phase['title']}
+
     --- WORKFLOW DNA ---
     POSTURE: {dna['posture']}
     GOAL: {dna['goal']}
@@ -399,6 +479,14 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     RISK BIAS: {dna['risk_bias']}
     TIME HORIZON: {dna['time_horizon']}
     --------------------
+
+    ## YOUR PHASE MISSION
+    {phase['instruction']}
+
+    ## CRITICAL RULE: ZERO REPETITION
+    The prior phases are provided for CONTEXT ONLY. DO NOT restate, summarize, or echo their findings.
+    Your ONLY job is to add what is MISSING — the unique contribution defined by your phase mission above.
+    If your output overlaps with prior phases, you have FAILED your mission.
 
     ## INTERNAL STRUCTURING (FOR SYSTEM PARSING)
     You MUST use the following tags to mark high-value intelligence:
@@ -411,17 +499,12 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     """
 
     if position == 0:
-        prompt += f"\n## INITIAL ASSIGNMENT:\nEstablish the foundation for this {context.workflow} mission. Follow the defined POSTURE. Provide facts and initial strategy."
+        prompt += f"\n## ASSIGNMENT:\nBuild the neutral intake baseline for this {context.workflow} mission. Facts only. No opinions. No strategy."
     else:
-        prompt += "\n## COLLABORATIVE CONTEXT:\nReview the previous analysis below. Build upon, critique, or pivot the strategy as necessary to reach the target output."
-        prompt += "\n\n### PREVIOUS CONTRIBUTIONS:\n"
+        prompt += "\n## PRIOR PHASE CONTEXT (for reference — DO NOT REPEAT):\n"
         for entry in context.history:
-            # Provide the most relevant history (prioritizing the previous step)
-            snippet = (entry['response'][:2500] + '...') if len(entry['response']) > 2500 else entry['response']
-            prompt += f"\n-- {entry['ai'].upper()} [{entry['persona'].upper()}]:\n{snippet}\n"
-        
-        if position == total_steps - 1:
-            prompt += f"\n\n## FINAL SYNTHESIS:\nYou are the lead integrator. Synthesize all collaborative context into the final {output_type.upper()} artifact. Follow the defined TONE and POSTURE strictly."
+            snippet = (entry['response'][:2000] + '...') if len(entry['response']) > 2000 else entry['response']
+            prompt += f"\n-- PHASE [{entry['persona'].upper()}] ({entry['ai'].upper()}):\n{snippet}\n"
 
     return prompt
 
