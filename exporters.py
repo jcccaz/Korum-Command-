@@ -203,24 +203,50 @@ class WordExporter:
 
     @staticmethod
     def _add_section_divider(doc):
-        """Add a subtle horizontal rule between sections."""
-        p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(4)
-        p.paragraph_format.space_after = Pt(4)
-        run = p.add_run("─" * 72)
-        run.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
-        run.font.size = Pt(6)
+        """Add a styled dark rule between sections."""
+        t = doc.add_table(rows=1, cols=1)
+        t.autofit = True
+        cell = t.rows[0].cells[0]
+        WordExporter._shade_cell(cell, "161B22")
+        p = cell.paragraphs[0]
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        run = p.add_run(" ")
+        run.font.size = Pt(1)
+        # Breathing room after divider
+        spacer = doc.add_paragraph()
+        spacer.paragraph_format.space_before = Pt(2)
+        spacer.paragraph_format.space_after = Pt(2)
 
     @staticmethod
     def _add_branded_heading(doc, text, level=1):
-        """Add a heading with KORUM-OS accent color."""
-        heading = doc.add_heading(text, level=level)
-        for run in heading.runs:
-            if level == 1:
-                run.font.color.rgb = RGBColor(0x00, 0xE5, 0xFF)
-            elif level == 2:
-                run.font.color.rgb = RGBColor(0x00, 0xFF, 0x9D)
-        return heading
+        """Add a heading with dark background bar — matching PDF style."""
+        # Dark background header bar via table
+        t = doc.add_table(rows=1, cols=1)
+        t.autofit = True
+        cell = t.rows[0].cells[0]
+        WordExporter._shade_cell(cell, "0D1117")
+        p = cell.paragraphs[0]
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run(text.upper())
+        run.font.bold = True
+        run.font.name = "Calibri"
+        run.font.letter_spacing = Pt(1.5)
+        if level == 1:
+            run.font.size = Pt(13)
+            run.font.color.rgb = RGBColor(0x00, 0xE5, 0xFF)
+        elif level == 2:
+            run.font.size = Pt(11)
+            run.font.color.rgb = RGBColor(0x00, 0xFF, 0x9D)
+        else:
+            run.font.size = Pt(10)
+            run.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
+        # Small spacer after heading
+        spacer = doc.add_paragraph()
+        spacer.paragraph_format.space_before = Pt(4)
+        spacer.paragraph_format.space_after = Pt(2)
+        return t
 
     @staticmethod
     def generate(intelligence_object, output_dir=None):
@@ -304,9 +330,32 @@ class WordExporter:
 
         doc.add_paragraph()  # spacer
 
-        # Title
-        title = doc.add_heading(title_text, 0)
-        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # Title — Dark classified cover style
+        title_table = doc.add_table(rows=1, cols=1)
+        title_table.autofit = True
+        title_cell = title_table.rows[0].cells[0]
+        WordExporter._shade_cell(title_cell, "0D1117")
+        tp = title_cell.paragraphs[0]
+        tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        tp.paragraph_format.space_before = Pt(18)
+        tp.paragraph_format.space_after = Pt(18)
+        title_run = tp.add_run(title_text.upper())
+        title_run.font.size = Pt(20)
+        title_run.font.bold = True
+        title_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        title_run.font.name = "Calibri"
+        title_run.font.letter_spacing = Pt(2)
+        # Subtitle line
+        tp2 = title_cell.add_paragraph()
+        tp2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        tp2.paragraph_format.space_before = Pt(4)
+        tp2.paragraph_format.space_after = Pt(12)
+        sub_run = tp2.add_run(f"MULTI-AGENT INTELLIGENCE ASSESSMENT  ·  {workflow}")
+        sub_run.font.size = Pt(8)
+        sub_run.font.color.rgb = RGBColor(0x00, 0xE5, 0xFF)
+        sub_run.font.bold = True
+        sub_run.font.name = "Calibri"
+        sub_run.font.letter_spacing = Pt(1.5)
 
         # Metadata Bar
         meta_table = doc.add_table(rows=1, cols=4)
@@ -819,18 +868,53 @@ class WordExporter:
                 WordExporter._add_section_divider(doc)
 
         # ═══════════════════════════════════════════════════════════════
+        # COMPLIANCE ATTESTATION
+        # ═══════════════════════════════════════════════════════════════
+        doc.add_paragraph()  # spacer
+        if client_name:
+            node_desc = f"{client_name} Federated Intelligence Node"
+        elif is_client_branded and "QANAPI" in branding_prefix.upper():
+            node_desc = "Qanapi Armory Federated Node"
+        else:
+            node_desc = "KORUM-OS Secure Kernel Enclave"
+        attest_table = doc.add_table(rows=1, cols=1)
+        attest_table.autofit = True
+        attest_cell = attest_table.rows[0].cells[0]
+        WordExporter._shade_cell(attest_cell, "F0F8FF")
+        ap = attest_cell.paragraphs[0]
+        ap.paragraph_format.space_before = Pt(6)
+        ap.paragraph_format.space_after = Pt(6)
+        attest_run = ap.add_run(
+            f"COMPLIANCE ATTESTATION: Generated via {node_desc}. "
+            f"Integrity Anchor: FN-DSA. Composite Score: {truth_display}/100. "
+            f"Audit Date: {date_display}"
+        )
+        attest_run.font.size = Pt(7.5)
+        attest_run.font.color.rgb = RGBColor(0x00, 0x80, 0xBF)
+        attest_run.font.name = "Calibri"
+        attest_run.font.bold = True
+
+        # ═══════════════════════════════════════════════════════════════
         # FOOTER
         # ═══════════════════════════════════════════════════════════════
+        # Footer with branding
         footer = doc.sections[0].footer
         fp = footer.paragraphs[0]
         fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = fp.add_run(
-            f"KORUM-OS  ·  Multi-Agent Intelligence  ·  {agent_count} Providers  ·  "
-            f"Truth Score {truth_display}/100  ·  {datetime.now().year}"
-        )
-        run.font.size = Pt(7)
-        run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+        # Top rule
+        rule_run = fp.add_run("━" * 60 + "\n")
+        rule_run.font.size = Pt(5)
+        rule_run.font.color.rgb = RGBColor(0x00, 0xE5, 0xFF)
+        rule_run.font.name = "Calibri"
+        # Branding text
+        brand_text = (f"{branding_prefix}  ·  MULTI-AGENT INTELLIGENCE  ·  "
+                      f"{agent_count} PROVIDERS  ·  TRUTH SCORE {truth_display}/100  ·  CONFIDENTIAL")
+        run = fp.add_run(brand_text)
+        run.font.size = Pt(6.5)
+        run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+        run.font.bold = True
         run.font.name = "Calibri"
+        run.font.letter_spacing = Pt(0.5)
 
         filename = f"korum_report_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
