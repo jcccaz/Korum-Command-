@@ -2587,7 +2587,7 @@ function renderResults(data, roleName) {
     grid.appendChild(consensusCard);
 
     // Agents - Process results and update health status
-    ["google", "openai", "anthropic", "perplexity", "mistral", "local"].forEach(provider => {
+    ["openai", "anthropic", "google", "perplexity", "mistral", "local"].forEach(provider => {
         const res = data.results[provider];
 
         // Update AI Health Status
