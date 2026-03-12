@@ -1035,7 +1035,7 @@ const PROTOCOL_CONFIGS = {
     "Finance Desk": { openai: "cfo", anthropic: "auditor", google: "hedge_fund", perplexity: "scout", mistral: "tax" },
     "Science Panel": { openai: "physicist", anthropic: "biologist", google: "chemist", perplexity: "scout", mistral: "professor" },
     "Startup Launch": { openai: "bizstrat", anthropic: "product", google: "marketing", perplexity: "scout", mistral: "cfo" },
-    "Tech Council": { openai: "ai_architect", anthropic: "network", google: "telecom", perplexity: "scout", mistral: "hacker" },
+    "Tech Council": { openai: "strategist", anthropic: "analyst", google: "researcher", perplexity: "scout", mistral: "critic" },
     // --- DEFENSE & INTELLIGENCE ---
     "Defense Council": { openai: "defense_ops", anthropic: "cyber_ops", google: "intel_analyst", perplexity: "scout", mistral: "hacker" },
     "Cyber Command": { openai: "cyber_ops", anthropic: "counterintel", google: "sigint", perplexity: "intel_analyst", mistral: "hacker" },
