@@ -834,6 +834,12 @@ body.activated .globe-container {
     transform: scale(1);
 }
 
+/* Fix for texture leakage in activated state */
+body.activated .globe,
+body.activated .sphere-container {
+    overflow: hidden !important;
+}
+
 /* RESULTS DRAWER - SLIDE UP */
 .results-container {
     position: absolute;
@@ -5120,6 +5126,11 @@ body.activated .sphere-texture {
     font-size: 9px; font-weight: 700; margin-right: 8px;
     padding: 2px 6px; border-radius: 3px;
 }
+@media (max-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: 25% 40% 35% !important;
+    }
+}
 
 /* Desktop guard:
    If viewport width dips below 768px (zoom/devtools/layout jitter) on a desktop-class
@@ -5141,6 +5152,7 @@ body.activated .sphere-texture {
     }
 
     .dashboard-grid {
+        display: grid !important;
         grid-template-columns: 25% 40% 35% !important;
         grid-template-rows: none !important;
         gap: 12px !important;
@@ -5148,12 +5160,14 @@ body.activated .sphere-texture {
 
     .results-container {
         position: absolute !important;
+        bottom: 0 !important;
         height: 60% !important;
         max-height: 65vh !important;
         padding: 40px !important;
     }
 
     .results-grid {
+        display: grid !important;
         grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)) !important;
     }
 

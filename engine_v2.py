@@ -90,12 +90,12 @@ def classify_query_v2(query, active_personas, active_models=None):
 
     AVAILABLE PERSONAS (User Selected):{available_list}
 
-    OPTIMAL EXECUTION ORDER PRINCIPLES:
-    1. Foundation First: Research/data gathering
-    2. Vision/Strategy: High-level direction
-    3. Analysis/Deep Dive: Quantitative analysis, independent second opinion
-    4. Implementation: Technical/tactical details
-    5. Validation: Critical analysis, risk assessment, stress testing
+    OPTIMAL EXECUTION ORDER PRINCIPLES (STRICT 5-PHASE PIPELINE):
+    Phase 1 - INTAKE: Neutral baseline analysis — best for a broad strategist or analyst (prefer OpenAI)
+    Phase 2 - STRATEGIC SCENARIO ANALYSIS: Build scenarios from intake — best for a deep analyst (prefer Anthropic)
+    Phase 3 - COUNTERINTELLIGENCE: Challenge assumptions from Phase 2 — best for a researcher or scout (prefer Google or Perplexity)
+    Phase 4 - DEFENSE OPERATIONS: Protective actions based on surviving analysis — best for a scout or operator (prefer Perplexity or Mistral)
+    Phase 5 - STANDARDS & VALIDATION: Zero Trust, compliance, final stress test — best for a critic or validator (prefer Mistral)
 
     IMPORTANT: Only use the personas provided in the AVAILABLE PERSONAS list. Do not use any others. Include all available personas in the executionOrder.
 

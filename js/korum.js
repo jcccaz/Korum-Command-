@@ -2497,7 +2497,7 @@ function renderResults(data, roleName) {
     grid.appendChild(consensusCard);
 
     // Agents - Process results and update health status
-    ["openai", "anthropic", "google", "perplexity", "mistral", "local"].forEach(provider => {
+    ["google", "openai", "anthropic", "perplexity", "mistral", "local"].forEach(provider => {
         const res = data.results[provider];
 
         // Update AI Health Status
@@ -3695,6 +3695,7 @@ async function handleDocExport(format) {
         if (lastCouncilData.divergence) {
             intelligenceObj.divergence_analysis = lastCouncilData.divergence;
         }
+        console.log('[EXPORT] Divergence in payload:', !!intelligenceObj.divergence_analysis, intelligenceObj.divergence_analysis);
         const payload = {
             intelligence_object: intelligenceObj,
             card_results: lastCouncilData.results || {},

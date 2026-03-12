@@ -646,7 +646,7 @@ class WordExporter:
         # ANALYTIC DIVERGENCE
         # ═══════════════════════════════════════════════════════════════
         divergence = intelligence_object.get("divergence_analysis") or {}
-        if divergence and (divergence.get("agreement_topics") or divergence.get("contested_topics")):
+        if divergence and divergence.get("divergence_summary"):
             doc.add_paragraph()
             WordExporter._add_branded_heading(doc, "Analytic Divergence")
 
@@ -1193,11 +1193,15 @@ class PDFExporter:
 
         # --- STRUCTURED DATA TABLES (Metrics, Actions, Risks) ---
         metrics = structured.get("key_metrics", [])
+        tbl_cell = ParagraphStyle('TblCell', parent=styles['SectionBody'], fontSize=8, leading=10, wordWrap='CJK')
+        tbl_hdr = ParagraphStyle('TblHdr', parent=tbl_cell, textColor=colors.HexColor("#00E5FF"), fontName='Helvetica-Bold')
         if metrics:
             story.append(Paragraph("Key Intelligence Metrics", styles['BrandedHeading1']))
-            m_data = [["METRIC", "VALUE", "CONTEXT"]]
+            m_data = [[Paragraph("METRIC", tbl_hdr), Paragraph("VALUE", tbl_hdr), Paragraph("CONTEXT", tbl_hdr)]]
             for m in metrics:
-                m_data.append([_as_text(m.get("metric")), _as_text(m.get("value")), _as_text(m.get("context"))])
+                m_data.append([Paragraph(_as_text(m.get("metric")), tbl_cell),
+                               Paragraph(_as_text(m.get("value")), tbl_cell),
+                               Paragraph(_as_text(m.get("context")), tbl_cell)])
             t = Table(m_data, colWidths=[150, 100, 262], repeatRows=1)
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
@@ -1214,10 +1218,13 @@ class PDFExporter:
         risks = structured.get("risks", [])
         if risks:
             story.append(Paragraph("Risk Assessment", styles['BrandedHeading1']))
-            r_data = [["RISK", "SEVERITY", "MITIGATION"]]
+            risk_hdr = ParagraphStyle('RiskHdr', parent=tbl_cell, textColor=colors.HexColor("#FF4444"), fontName='Helvetica-Bold')
+            r_data = [[Paragraph("RISK", risk_hdr), Paragraph("SEVERITY", risk_hdr), Paragraph("MITIGATION", risk_hdr)]]
             sev_box = {"CRITICAL": "#FF4444", "HIGH": "#FF8844", "MEDIUM": "#FFCC00", "LOW": "#00AA55"}
             for r in risks:
-                r_data.append([_as_text(r.get("risk")), _as_text(r.get("severity", "")).upper(), _as_text(r.get("mitigation"))])
+                r_data.append([Paragraph(_as_text(r.get("risk")), tbl_cell),
+                               Paragraph(_as_text(r.get("severity", "")).upper(), tbl_cell),
+                               Paragraph(_as_text(r.get("mitigation")), tbl_cell)])
             t = Table(r_data, colWidths=[180, 80, 252], repeatRows=1)
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A0A0A")),
@@ -1248,7 +1255,7 @@ class PDFExporter:
 
         # --- ANALYTIC DIVERGENCE ---
         divergence = intelligence_object.get("divergence_analysis") or {}
-        if divergence and (divergence.get("agreement_topics") or divergence.get("contested_topics")):
+        if divergence and divergence.get("divergence_summary"):
             story.append(Paragraph("Analytic Divergence", styles['BrandedHeading1']))
 
             # Scores bar
@@ -1347,15 +1354,18 @@ class PDFExporter:
                 contributors = [{"phase": f"Phase {i+1}", "provider": m, "role": "", "contribution_summary": ""} for i, m in enumerate(models_used)]
         if contributors:
             story.append(Paragraph("Council Contributors", styles['BrandedHeading1']))
-            c_data = [["PHASE", "PROVIDER", "ROLE", "CONTRIBUTION"]]
+            cell_style = ParagraphStyle('CellText', parent=styles['SectionBody'], fontSize=8, leading=10, wordWrap='CJK')
+            hdr_style = ParagraphStyle('CellHdr', parent=cell_style, textColor=colors.HexColor("#00E5FF"), fontName='Helvetica-Bold')
+            c_data = [[Paragraph("PHASE", hdr_style), Paragraph("PROVIDER", hdr_style),
+                        Paragraph("ROLE", hdr_style), Paragraph("CONTRIBUTION", hdr_style)]]
             for c in contributors:
                 c_data.append([
-                    _as_text(c.get("phase", "")),
-                    _as_text(c.get("provider", "")),
-                    _as_text(c.get("role", "")),
-                    _as_text(c.get("contribution_summary", ""))
+                    Paragraph(_as_text(c.get("phase", "")), cell_style),
+                    Paragraph(_as_text(c.get("provider", "")), cell_style),
+                    Paragraph(_as_text(c.get("role", "")), cell_style),
+                    Paragraph(_as_text(c.get("contribution_summary", "")), cell_style)
                 ])
-            ct = Table(c_data, colWidths=[90, 100, 100, 222], repeatRows=1)
+            ct = Table(c_data, colWidths=[80, 70, 70, 292], repeatRows=1)
             ct.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00E5FF")),

@@ -383,7 +383,8 @@ def deploy_intelligence():
     if mission_context:
         intelligence_object['_mission_context'] = mission_context
 
-    print(f"🚀 Deploying Intelligence Asset: {format_type.upper()}")
+    div_data = intelligence_object.get("divergence_analysis")
+    print(f"🚀 Deploying Intelligence Asset: {format_type.upper()} | Divergence present: {bool(div_data)} | Keys: {list(div_data.keys()) if isinstance(div_data, dict) else 'N/A'}")
     
     try:
         from exporters import (
