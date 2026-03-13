@@ -60,11 +60,12 @@ WORKFLOW_DNA = {
 }
 
 class CouncilContext:
-    def __init__(self, query, classification, workflow="RESEARCH"):
+    def __init__(self, query, classification, workflow="RESEARCH", previous_context=None):
         self.query = query
         self.classification = classification
         self.workflow = workflow.upper() if workflow else "RESEARCH"
         self.history = []
+        self.previous_context = previous_context or []
 
     def add_entry(self, ai_name, persona, response):
         self.history.append({
@@ -75,18 +76,32 @@ class CouncilContext:
         })
 
 # --- PHASE 1: CLASSIFICATION (The Planner) ---
-def classify_query_v2(query, active_personas, active_models=None):
+def classify_query_v2(query, active_personas, active_models=None, previous_context=None):
     if active_models is None:
         active_models = ["openai", "anthropic", "google", "perplexity", "mistral", "local"]
-        
+
     available_list = ""
     for p in active_models:
         available_list += f"\n    - {p.capitalize()}: {active_personas.get(p, 'Analyst')}"
+
+    # Build prior session context block if this is a follow-up query
+    prior_block = ""
+    if previous_context:
+        prior_block = "\n    FOLLOW-UP CONTEXT — This query builds on a previous council session:\n"
+        for entry in previous_context[-2:]:
+            prior_block += f"    - Previous Query: \"{entry.get('query', 'N/A')}\"\n"
+            prior_block += f"    - Consensus Score: {entry.get('consensus_score', 'N/A')}/100\n"
+            prior_block += f"    - Summary: {entry.get('summary', 'N/A')}\n"
+            contested = entry.get('contested_topics', [])
+            if contested:
+                prior_block += f"    - Unresolved Topics: {', '.join(contested)}\n"
+        prior_block += "    The council should build on these prior conclusions, not repeat them.\n"
 
     prompt = f"""
     Analyze this business query and determine optimal AI execution order.
 
     QUERY: "{query}"
+{prior_block}
 
     AVAILABLE PERSONAS (User Selected):{available_list}
 
@@ -246,10 +261,13 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
-def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None):
+def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None):
     # 1. Plan
-    classification = classify_query_v2(query, active_personas, active_models=active_models)
-    context = CouncilContext(query, classification, workflow=workflow)
+    classification = classify_query_v2(query, active_personas, active_models=active_models, previous_context=previous_context)
+    context = CouncilContext(query, classification, workflow=workflow, previous_context=previous_context)
+
+    if previous_context:
+        print(f"[COUNCIL] Follow-up mode: {len(previous_context)} prior session(s) loaded")
     results = {}
 
     print(f"[COUNCIL] Efficiency Plan: {classification['executionOrder']}")
@@ -606,8 +624,25 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     Do not let these tags disrupt your narrative flow; they are for the backend extractor.
     """
 
+    # Inject prior session context for follow-up queries
+    if context.previous_context:
+        prompt += "\n## PRIOR SESSION CONTEXT (Follow-up Query)\n"
+        prompt += "The council previously analyzed a related query. Build on these conclusions — do NOT repeat them.\n"
+        for entry in context.previous_context[-2:]:
+            prompt += f"\n**Previous Query:** \"{entry.get('query', 'N/A')}\"\n"
+            prompt += f"**Prior Consensus ({entry.get('consensus_score', 'N/A')}/100):** {entry.get('summary', 'N/A')}\n"
+            contested = entry.get('contested_topics', [])
+            if contested:
+                prompt += f"**Unresolved Disputes:** {', '.join(contested)}\n"
+            div_summary = entry.get('divergence_summary', '')
+            if div_summary and div_summary != 'Divergence analysis not available.':
+                prompt += f"**Divergence:** {div_summary}\n"
+        prompt += "\n--------------------\n"
+
     if position == 0:
         prompt += f"\n## ASSIGNMENT:\nBuild the neutral intake baseline for this {context.workflow} mission. Facts only. No opinions. No strategy."
+        if context.previous_context:
+            prompt += "\nNote: A prior session's conclusions are provided above. Acknowledge them briefly, then focus on what is NEW in this follow-up query."
     else:
         prompt += "\n## PRIOR PHASE CONTEXT (for reference — DO NOT REPEAT):\n"
         for entry in context.history:

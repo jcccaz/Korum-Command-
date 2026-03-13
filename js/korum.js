@@ -1709,8 +1709,49 @@ let sessionState = {
     mainMissionData: null,
     isSubTask: false,
     missionContext: null, // Captures Client, Industry, Priority, etc.
-    isMissionLocked: false
+    isMissionLocked: false,
+    threadHistory: []  // Follow-up memory: accumulates prior session summaries
 };
+
+// --- FOLLOW-UP MEMORY UI ---
+function updateFollowUpBadge() {
+    let badge = document.getElementById('followUpBadge');
+    const wrapper = document.querySelector('.input-wrapper');
+    if (!wrapper) return;
+
+    if (sessionState.threadHistory.length === 0) {
+        if (badge) badge.remove();
+        return;
+    }
+
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'followUpBadge';
+        badge.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 10px;margin-bottom:4px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);border-radius:6px;font-size:11px;color:#00E5FF;letter-spacing:0.5px;';
+
+        const label = document.createElement('span');
+        label.className = 'followup-label';
+        label.textContent = '';
+        badge.appendChild(label);
+
+        const newTopicBtn = document.createElement('button');
+        newTopicBtn.textContent = 'NEW TOPIC';
+        newTopicBtn.title = 'Clear session memory and start fresh';
+        newTopicBtn.style.cssText = 'background:rgba(255,68,68,0.15);border:1px solid rgba(255,68,68,0.4);color:#FF6B6B;padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;letter-spacing:0.5px;font-family:inherit;';
+        newTopicBtn.addEventListener('click', () => {
+            sessionState.threadHistory = [];
+            updateFollowUpBadge();
+            logTelemetry("Session memory cleared — New Topic", "system");
+        });
+        badge.appendChild(newTopicBtn);
+
+        wrapper.parentElement.insertBefore(badge, wrapper);
+    }
+
+    const label = badge.querySelector('.followup-label');
+    const count = sessionState.threadHistory.length;
+    label.textContent = `FOLLOW-UP MODE — ${count} prior session${count > 1 ? 's' : ''} in context`;
+}
 
 // NOTE: window.onload is defined later in this file after all functions are declared
 
@@ -2523,8 +2564,13 @@ async function executeCouncil(query, roleName) {
         use_v2: true,
         is_red_team: isRedTeam,
         use_serp: useSerpAPI,  // Real-time data via SerpAPI
-        workflow: sessionState.missionContext?.workflow || "RESEARCH"
+        workflow: sessionState.missionContext?.workflow || "RESEARCH",
+        previous_context: sessionState.threadHistory.length > 0 ? sessionState.threadHistory.slice(-2) : null
     };
+
+    if (payload.previous_context) {
+        logTelemetry(`FOLLOW-UP MODE: ${sessionState.threadHistory.length} prior session(s) loaded`, "process");
+    }
 
     // Use FormData when files are attached, JSON otherwise
     let response;
@@ -2551,6 +2597,19 @@ async function executeCouncil(query, roleName) {
 
     renderResults(data, roleName);
     incrementQueryCount();
+
+    // Accumulate session context for follow-up memory
+    const synthesis = data.synthesis || {};
+    const divergence = data.divergence || {};
+    sessionState.threadHistory.push({
+        query: query,
+        summary: synthesis.meta?.summary || '',
+        consensus_score: divergence.consensus_score || null,
+        contested_topics: (divergence.contested_topics || []).map(t => t.topic || t),
+        divergence_summary: divergence.divergence_summary || ''
+    });
+    updateFollowUpBadge();
+
     resetUI();
 }
 

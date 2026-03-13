@@ -1342,10 +1342,14 @@ def ask_council():
 
     if use_v2:
         workflow = data.get('workflow', 'RESEARCH')
-        print(f"⚡ V2 ENGINE ENGAGED [{workflow}] for query: {query}")
+        previous_context = data.get('previous_context', None)
+        if previous_context:
+            print(f"⚡ V2 ENGINE ENGAGED [{workflow}] FOLLOW-UP MODE ({len(previous_context)} prior session(s))")
+        else:
+            print(f"⚡ V2 ENGINE ENGAGED [{workflow}] for query: {query}")
         # V2 Engine handles sequence and synthesis
         active_models_list = data.get('active_models', ["openai", "anthropic", "google", "perplexity", "mistral", "local"])
-        v2_response = execute_council_v2(query, roles, images=images if images else None, workflow=workflow, active_models=active_models_list)
+        v2_response = execute_council_v2(query, roles, images=images if images else None, workflow=workflow, active_models=active_models_list, previous_context=previous_context)
         
         # If Red Team is ON, we might want to append it here explicitly 
         # OR rely on V2 engine to have included it. 
