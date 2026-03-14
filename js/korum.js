@@ -1347,10 +1347,14 @@ function setupActionBindings() {
                 if (sugWf) sugWf.textContent = suggestedWorkflow;
                 if (suggestionBox) suggestionBox.classList.remove('hidden');
                 if (suggestedRoles) {
-                    document.getElementById('roleSelectOpenAI').value = suggestedRoles.openai;
-                    document.getElementById('roleSelectAnthropic').value = suggestedRoles.anthropic;
-                    document.getElementById('roleSelectGoogle').value = suggestedRoles.google;
-                    document.getElementById('roleSelectPerplexity').value = suggestedRoles.perplexity;
+                    const rsOai = document.getElementById('roleSelectOpenAI');
+                    const rsAnt = document.getElementById('roleSelectAnthropic');
+                    const rsGoo = document.getElementById('roleSelectGoogle');
+                    const rsPer = document.getElementById('roleSelectPerplexity');
+                    if (rsOai) rsOai.value = suggestedRoles.openai;
+                    if (rsAnt) rsAnt.value = suggestedRoles.anthropic;
+                    if (rsGoo) rsGoo.value = suggestedRoles.google;
+                    if (rsPer) rsPer.value = suggestedRoles.perplexity;
                 }
                 logTelemetry(`Query Analyzed: ${suggestedWorkflow}`, "process");
             }, 800);
@@ -1690,6 +1694,7 @@ async function executeReasoningChain(query) {
             local: document.getElementById('roleLabel-local')?.innerText.toLowerCase() || 'oracle'
         };
     } else {
+        const activeRoleName = document.querySelector('.nav-links a.active')?.dataset.role || 'System Core';
         roleConfig = PROTOCOL_CONFIGS[activeRoleName] || PROTOCOL_CONFIGS['System Core'];
         if (!roleConfig.mistral) roleConfig.mistral = "analyst";
         if (!roleConfig.local) roleConfig.local = "oracle";
