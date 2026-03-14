@@ -1546,8 +1546,27 @@ function setupActionBindings() {
         }
 
         const agentCard = target.closest('.agent-card');
-        if (agentCard && !agentCard.classList.contains('no-interrogate') && !target.closest('button') && !target.closest('.tool-action') && !target.closest('.analysis-action-bar')) {
-            selectCard(agentCard);
+        if (agentCard && !target.closest('button') && !target.closest('.tool-action') && !target.closest('.analysis-action-bar')) {
+            // Special cards (divergence, exec-brief, verify, interrogation) open modal directly
+            if (agentCard.classList.contains('no-interrogate') || agentCard.classList.contains('divergence-card') || agentCard.classList.contains('exec-brief-card')) {
+                openCardModal({
+                    name: agentCard.dataset.name || agentCard.querySelector('.ph-model-name')?.innerText || 'Analysis',
+                    meta: '',
+                    content: agentCard.querySelector('.agent-response, .exec-brief, .divergence-summary')?.innerHTML || agentCard.innerHTML
+                });
+            } else {
+                selectCard(agentCard);
+            }
+        }
+
+        // Consensus card — open modal on click
+        const consensusCard = target.closest('.consensus-card');
+        if (consensusCard) {
+            openCardModal({
+                name: 'COUNCIL DECISION',
+                meta: '',
+                content: consensusCard.querySelector('.consensus-body')?.innerHTML || consensusCard.innerHTML
+            });
         }
     });
 
@@ -4959,25 +4978,25 @@ function renderExecutionDashboard(metrics) {
     console.log("[TELEMETRY] Rendering Execution Dashboard...", metrics);
 
     // 1. Update Cost Matrix
-    const runCostEl = document.getElementById('run-cost-val');
-    const sessionCostEl = document.getElementById('session-cost-val');
+    const runCostEl = document.getElementById('dash-run-cost');
+    const sessionCostEl = document.getElementById('dash-session-cost');
     if (runCostEl) runCostEl.textContent = `$${(metrics.run_cost || 0).toFixed(4)}`;
     if (sessionCostEl) sessionCostEl.textContent = `$${(metrics.session_total_cost || 0).toFixed(4)}`;
 
     // 2. Update Execution Telemetry
-    const responseTimeEl = document.getElementById('response-time-val');
-    const workflowNameEl = document.getElementById('workflow-name-val');
-    const modelsUsedEl = document.getElementById('models-used-val');
+    const responseTimeEl = document.getElementById('stat-latency');
+    const workflowNameEl = document.getElementById('stat-workflow');
+    const modelsUsedEl = document.getElementById('stat-models-count');
 
     if (responseTimeEl) responseTimeEl.textContent = `${(metrics.total_latency_ms / 1000).toFixed(2)}s`;
     if (workflowNameEl) workflowNameEl.textContent = (metrics.workflow || "RESEARCH").toUpperCase();
     if (modelsUsedEl) {
         const models = metrics.models_used || [];
-        modelsUsedEl.textContent = models.join(', ') || "N/A";
+        modelsUsedEl.textContent = models.length || "0";
     }
 
     // 3. Render Contribution Bars
-    const contributionGrid = document.getElementById('contribution-grid');
+    const contributionGrid = document.getElementById('contribution-bars');
     if (contributionGrid && metrics.ai_cost_breakdown) {
         contributionGrid.innerHTML = '';
         
