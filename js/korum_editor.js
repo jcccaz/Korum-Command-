@@ -6,7 +6,7 @@ let currentPreviewData = null; // Global State for the Editor
 
 // OVERRIDE: Open Modal with Editor
 window.openArtifactModal = function (type, data) {
-    console.log("Interactive Editor Launching for:", type);
+    if (typeof logTelemetry === 'function') logTelemetry(`Editor launching: ${type}`, "system");
     currentPreviewData = JSON.parse(JSON.stringify(data)); // Deep Copy
     currentPreviewData.type = type; // Store type
     renderPreviewEditor();

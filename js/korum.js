@@ -386,11 +386,12 @@ async function saveReport() {
             showProcessingToast("Report saved to library");
             logTelemetry(`Report saved: ${data.id}`, "success");
         } else {
-            showProcessingToast("Save failed: " + (data.error || "Unknown"));
+            logTelemetry(`Save failed: ${data.error}`, "error");
+            showProcessingToast("Report could not be saved. Please try again.");
         }
     } catch (e) {
-        console.error("Save report error:", e);
-        showProcessingToast("Save failed: " + e.message);
+        logTelemetry(`Save report error: ${e.message}`, "error");
+        showProcessingToast("Report could not be saved. Please try again.");
     }
 }
 
@@ -403,7 +404,7 @@ async function loadReportLibrary() {
         const resp = await authFetch('/api/reports/list');
         const data = await resp.json();
         if (!data.success) {
-            list.innerHTML = `<div class="library-empty">Error: ${data.error || 'Unknown'}</div>`;
+            list.innerHTML = `<div class="library-empty">Unable to load reports. Please refresh and try again.</div>`;
             return;
         }
         if (!data.reports || !data.reports.length) {
@@ -425,7 +426,8 @@ async function loadReportLibrary() {
         `).join('');
     } catch (e) {
         console.error('[Reports] Load error:', e);
-        list.innerHTML = `<div class="library-empty">Failed to load reports: ${e.message}</div>`;
+        logTelemetry(`Report library error: ${e.message}`, "error");
+        list.innerHTML = `<div class="library-empty">Unable to load reports. Please refresh and try again.</div>`;
     }
 }
 
@@ -458,7 +460,8 @@ async function recallReport(id) {
         // Close library
         toggleReportLibrary(false);
     } catch (e) {
-        showProcessingToast("Failed to recall report: " + e.message);
+        logTelemetry(`Report recall error: ${e.message}`, "error");
+        showProcessingToast("Unable to recall report. Please try again.");
     }
 }
 
@@ -469,7 +472,8 @@ async function deleteReport(id) {
         logTelemetry(`Report deleted: ${id}`, "system");
         loadReportLibrary(); // Refresh list
     } catch (e) {
-        showProcessingToast("Delete failed: " + e.message);
+        logTelemetry(`Report delete error: ${e.message}`, "error");
+        showProcessingToast("Unable to delete report. Please try again.");
     }
 }
 
@@ -946,7 +950,7 @@ const ResearchDock = {
                     ...s,
                     timestamp: new Date(s.timestamp)
                 }));
-                console.log("📂 Dock loaded from Mission Intelligence Cloud");
+                logTelemetry("Dock loaded from Mission Intelligence Cloud", "system");
             } else {
                 // Fallback to local
                 const saved = localStorage.getItem('korum-dock');
@@ -1374,7 +1378,7 @@ function setupActionBindings() {
         customRolesActive = !customRolesActive;
     });
 
-    document.getElementById('dismissSuggestionBtn')?.addEventListener('click', () => {
+    document.querySelector('.suggestion-dismiss-btn')?.addEventListener('click', () => {
         if (suggestionBox) suggestionBox.classList.add('hidden');
         if (roleCustomization) roleCustomization.classList.add('hidden');
     });
@@ -1638,7 +1642,7 @@ async function triggerCouncil(query) {
     animateActivation();
     startProcessingLogs();
 
-    const isV2 = document.getElementById('v2Toggle')?.checked;
+    const isV2 = activeModes.v2;
 
     try {
         if (isV2) {
@@ -1668,7 +1672,7 @@ async function executeReasoningChain(query) {
     triggerNetworkAnimation(); // FIRE LIGHTNING
 
     // Check Hacker Toggle
-    const hackerMode = document.getElementById('hackerToggle')?.checked || false;
+    const hackerMode = activeModes.red || document.getElementById('hackerToggle')?.checked || false;
 
     const payload = {
         query: query,
@@ -2488,7 +2492,8 @@ window.executeVerify = async function (claimText, providerName) {
         const result = await resp.json();
 
         if (!result.success) {
-            verifyCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Verification failed: ${result.error || 'Unknown error'}</span>`;
+            logTelemetry(`Verification error: ${result.error}`, "error");
+            verifyCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Verification could not be completed. Please try again.</span>`;
             return;
         }
 
@@ -2534,7 +2539,8 @@ window.executeVerify = async function (claimText, providerName) {
 
     } catch (e) {
         console.error('Verify error:', e);
-        verifyCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Verification error: ${e.message}</span>`;
+        logTelemetry(`Verification network error: ${e.message}`, "error");
+        verifyCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Connection issue — unable to verify claim. Please retry.</span>`;
     }
 };
 
@@ -2613,7 +2619,8 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
 
         if (!result.success) {
             clearInterval(hbInterval);
-            faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Interrogation failed: ${result.error || 'Unknown error'}</span>`;
+            logTelemetry(`Interrogation error: ${result.error}`, "error");
+            faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Cross-examination could not be completed. Please try again.</span>`;
             return;
         }
 
@@ -2684,7 +2691,8 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
         }
 
     } catch (err) {
-        faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Network error: ${err.message}</span>`;
+        logTelemetry(`Interrogation network error: ${err.message}`, "error");
+        faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Connection issue — unable to complete cross-examination. Please retry.</span>`;
         console.error('Interrogation failed:', err);
     }
 }
@@ -2744,7 +2752,8 @@ window.enhancePrompt = async function () {
             logTelemetry(`Directive Optimized (${data.model})`, "success");
             openEnhanceModal(draft, data.enhanced_text);
         } else {
-            showProcessingToast("Enhancement Failed: " + (data.error || "Unknown"));
+            logTelemetry(`Enhancement error: ${data.error}`, "error");
+            showProcessingToast("Enhancement could not be completed. Please try again.");
         }
     } catch (e) {
         console.error(e);
@@ -3055,6 +3064,44 @@ function copyAsCSV(content) {
         }).join('\n');
 }
 
+function renderSkeletonCards(providers) {
+    const councilPane = document.getElementById('pane-council');
+    if (!councilPane) return;
+    councilPane.innerHTML = '';
+
+    const grid = document.createElement('div');
+    grid.className = 'results-grid skeleton-grid';
+
+    providers.forEach(provider => {
+        const role = document.getElementById(`roleLabel-${provider}`)?.innerText || provider.toUpperCase();
+        const card = document.createElement('div');
+        card.className = `agent-card ${provider} skeleton-card`;
+        card.innerHTML = `
+            <div class="precision-header">
+                <div class="ph-left">
+                    <div class="ph-model-name">${role}</div>
+                    <div class="ph-role-label">${getProviderName(provider)} | analyzing...</div>
+                </div>
+                <div class="ph-right">
+                    <div class="metric-pill" style="color:#FFB020; animation: pulse 1.5s infinite;">PROCESSING</div>
+                </div>
+            </div>
+            <div class="agent-response" style="padding:16px;">
+                <div class="skeleton-line" style="width:90%; height:10px; background:rgba(255,255,255,0.04); border-radius:3px; margin-bottom:8px; animation: shimmer 1.5s infinite;"></div>
+                <div class="skeleton-line" style="width:75%; height:10px; background:rgba(255,255,255,0.03); border-radius:3px; margin-bottom:8px; animation: shimmer 1.5s infinite 0.2s;"></div>
+                <div class="skeleton-line" style="width:60%; height:10px; background:rgba(255,255,255,0.02); border-radius:3px; animation: shimmer 1.5s infinite 0.4s;"></div>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+
+    councilPane.appendChild(grid);
+
+    // Make dock visible and switch to council tab
+    document.querySelector('.results-container')?.classList.add('visible');
+    switchDockTab('council');
+}
+
 async function executeCouncil(query, roleName) {
     // Check if it's a sub-task (visualization/interrogation)
     const isSubTask = query.startsWith("INTERROGATE") || query.startsWith("FACT CHECK") || query.startsWith("VISUALIZE");
@@ -3067,11 +3114,15 @@ async function executeCouncil(query, roleName) {
     triggerNetworkAnimation(); // FIRE LIGHTNING
 
     // Set all AIs to "responding" state
-    ["openai", "anthropic", "google", "perplexity", "mistral", "local"].forEach(p => {
-        if (AIHealth.isAvailable(p)) {
-            AIHealth.setResponding(p, true);
-        }
-    });
+    const activeProviders = ["openai", "anthropic", "google", "perplexity", "mistral", "local"].filter(p =>
+        AIHealth.isAvailable(p) && !document.querySelector(`.deck-card.${p}`)?.classList.contains('silenced')
+    );
+    activeProviders.forEach(p => AIHealth.setResponding(p, true));
+
+    // Show skeleton loading cards in council pane
+    if (!isSubTask) {
+        renderSkeletonCards(activeProviders);
+    }
 
     let roleConfig;
 
@@ -3206,6 +3257,124 @@ function incrementInterrogationBadge() {
     }
 }
 
+// ── EXECUTIVE SUMMARY CARD ───────────────────────────────────────────────
+function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
+    const card = document.createElement('div');
+    card.className = 'consensus-card exec-summary-card';
+    card.style.cssText = 'border-color: rgba(0,229,255,0.3); margin-bottom: 16px;';
+
+    // Determine data sources
+    const synthesis = data.synthesis || {};
+    const meta = synthesis.meta || {};
+    const structured = synthesis.structured_data || {};
+    const divergence = data.divergence || {};
+    const results = data.results || {};
+
+    // Count responding agents
+    const respondingProviders = Object.entries(results)
+        .filter(([k, v]) => k !== 'red_team' && v && v.success)
+        .map(([k]) => getProviderName(k).toUpperCase());
+    const agentCount = respondingProviders.length;
+
+    // Truth score: prefer composite, fallback to average
+    let truthScore = meta.composite_truth_score;
+    if (truthScore === undefined || truthScore === null) truthScore = Math.round(avgConfidence);
+    else if (truthScore <= 1) truthScore = Math.round(truthScore * 100);
+    const truthColor = truthScore > 80 ? '#00FF9D' : truthScore > 50 ? '#FFB020' : '#FF4444';
+
+    // Summary text: prefer synthesis, fallback to consensus
+    const summaryText = meta.summary || data.consensus || 'Council analysis complete.';
+
+    // Workflow
+    const workflow = meta.workflow || roleName || 'COUNCIL';
+
+    // Divergence indicator
+    const divScore = divergence.divergence_score || 0;
+    const hasVariance = divergence.protocol_variance || false;
+
+    // Action items count
+    const actionCount = structured.action_items?.length || 0;
+    const riskCount = structured.risks?.length || 0;
+
+    // Build header metrics
+    let metricsHtml = `
+        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+            <div style="text-align:center;">
+                <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">TRUTH SCORE</div>
+                <div style="color:${truthColor}; font-size:1.2rem; font-weight:bold;">${truthScore}<span style="font-size:0.6rem; color:#555">/100</span></div>
+            </div>
+            <div style="text-align:center;">
+                <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">AGENTS</div>
+                <div style="color:#00E5FF; font-size:1.2rem; font-weight:bold;">${agentCount}</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">LATENCY</div>
+                <div style="color:#AAA; font-size:1.2rem; font-weight:bold;">${totalTime.toFixed(1)}<span style="font-size:0.6rem; color:#555">s</span></div>
+            </div>
+            ${divScore > 0 ? `<div style="text-align:center;">
+                <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">DIVERGENCE</div>
+                <div style="color:${hasVariance ? '#FF4444' : '#FFB020'}; font-size:1.2rem; font-weight:bold;">${divScore}<span style="font-size:0.6rem; color:#555">%</span></div>
+            </div>` : ''}
+            ${actionCount > 0 ? `<div style="text-align:center;">
+                <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">ACTIONS</div>
+                <div style="color:#FFB020; font-size:1.2rem; font-weight:bold;">${actionCount}</div>
+            </div>` : ''}
+            ${riskCount > 0 ? `<div style="text-align:center;">
+                <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">RISKS</div>
+                <div style="color:#FF4444; font-size:1.2rem; font-weight:bold;">${riskCount}</div>
+            </div>` : ''}
+        </div>
+    `;
+
+    // Build action items preview (top 3)
+    let actionsHtml = '';
+    if (structured.action_items?.length) {
+        const topActions = structured.action_items.slice(0, 3);
+        actionsHtml = `<div style="margin-top:10px; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
+            <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em; margin-bottom:6px;">PRIORITY ACTIONS</div>
+            ${topActions.map(item => {
+                const pc = item.priority === 'high' ? '#FF4444' : item.priority === 'med' ? '#FFB020' : '#00FF9D';
+                return `<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                    <span style="background:${pc}20; color:${pc}; border:1px solid ${pc}40; padding:1px 6px; border-radius:2px; font-size:0.5rem; letter-spacing:0.08em;">${(item.priority || 'MED').toUpperCase()}</span>
+                    <span style="color:#AAA; font-size:0.6rem;">${item.task || ''}</span>
+                </div>`;
+            }).join('')}
+        </div>`;
+    }
+
+    // Build risks preview (top 2)
+    let risksHtml = '';
+    if (structured.risks?.length) {
+        const topRisks = structured.risks.slice(0, 2);
+        risksHtml = `<div style="margin-top:10px; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
+            <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em; margin-bottom:6px;">KEY RISKS</div>
+            ${topRisks.map(r => `<div style="display:flex; align-items:baseline; gap:8px; margin-bottom:4px;">
+                <span style="color:#FF4444; font-size:0.55rem;">&#x26A0;</span>
+                <span style="color:#AAA; font-size:0.6rem;">${r.risk || ''}</span>
+                ${r.severity ? `<span style="color:#FF8888; font-size:0.5rem;">[${r.severity.toUpperCase()}]</span>` : ''}
+            </div>`).join('')}
+        </div>`;
+    }
+
+    card.innerHTML = `
+        <div class="consensus-title" style="color:#00E5FF;">
+            <span style="font-size:14px;">&#x1F4CB;</span> EXECUTIVE SUMMARY · ${workflow.toUpperCase()}
+            <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.consensus-card').querySelector('.consensus-body').innerText, 'Executive summary copied')" title="Copy" style="display:inline-block;margin-left:10px;cursor:pointer;">&#x1F4CB;</div>
+        </div>
+        <div class="consensus-body">
+            ${metricsHtml}
+            <div style="color:#CCC; font-size:0.65rem; line-height:1.6;">${formatText(summaryText)}</div>
+            <div style="color:#555; font-size:0.5rem; margin-top:8px; letter-spacing:0.08em;">
+                COUNCIL: ${respondingProviders.join(' · ')}
+            </div>
+            ${actionsHtml}
+            ${risksHtml}
+        </div>
+    `;
+
+    return card;
+}
+
 function renderResults(data, roleName) {
     // Store for export functionality
     lastCouncilData = { ...data, roleName };
@@ -3283,13 +3452,32 @@ function renderResults(data, roleName) {
         const displayContent = highlightClaims(formatText(rawResponse), verifiedClaims);
         const cost = res.cost || 0.0091;
         const time = res.time || 12.34;
+        const citations = res.citations || [];
+
+        // Build citations footer if sources exist
+        let citationsHtml = '';
+        if (citations.length > 0) {
+            citationsHtml = `
+                <div class="citations-footer" style="border-top:1px solid rgba(255,255,255,0.06); padding:8px 16px; background:rgba(0,229,255,0.02);">
+                    <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em; margin-bottom:4px;">SOURCES (${citations.length})</div>
+                    ${citations.map((url, i) => {
+                        const domain = (() => { try { return new URL(url).hostname.replace('www.',''); } catch(e) { return url; } })();
+                        return `<div style="margin-bottom:2px;">
+                            <a href="${url}" target="_blank" rel="noopener" style="color:#00DCFF; font-size:0.55rem; text-decoration:none; opacity:0.8; transition:opacity 0.15s;"
+                               onmouseenter="this.style.opacity='1';this.style.textDecoration='underline'" onmouseleave="this.style.opacity='0.8';this.style.textDecoration='none'">
+                                <span style="color:#555;">[${i+1}]</span> ${domain}
+                            </a>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+        }
 
         card.innerHTML = `
             <div class="precision-header">
                 <div class="ph-left">
                     <div class="ph-model-name">${res.role ? res.role.toUpperCase() : getProviderName(provider)}</div>
                     <div class="ph-role-label">${getProviderName(provider)} | ${res.model || "v2.0"}</div>
-                    
+
                     <div class="ph-truth-container">
                         <div class="truth-score-val" style="color: ${truthScore > 80 ? '#00FF9D' : truthScore > 50 ? '#FFB020' : '#FF4444'}">
                             TRUTH SCORE: ${truthScore}/100
@@ -3302,11 +3490,13 @@ function renderResults(data, roleName) {
                 <div class="ph-right">
                     <div class="metric-pill">$${cost.toFixed(4)}</div>
                     <div class="metric-pill time">${time}s</div>
+                    ${citations.length > 0 ? `<div class="metric-pill" style="color:#00DCFF; border-color:rgba(0,229,255,0.3);">${citations.length} sources</div>` : ''}
                     <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); saveReport()" title="Save">💾</div>
                     <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); copyTextToClipboard(decodeURIComponent('${encodeURIComponent(rawResponse)}'), '${getProviderName(provider)} output copied')" title="Copy">📋</div>
                 </div>
             </div>
             <div class="agent-response">${displayContent}</div>
+            ${citationsHtml}
         `;
 
         // Single click = select card + show action bar
@@ -3629,6 +3819,10 @@ function renderResults(data, roleName) {
 
     // EXPORT COMMAND CENTER (Phase 6)
     renderExportToolbar(councilPane, data);
+
+    // EXECUTIVE SUMMARY CARD — top of Council tab
+    const execSummaryCard = buildExecutiveSummary(data, roleName, avgConfidence, totalTime);
+    if (execSummaryCard) councilPane.appendChild(execSummaryCard);
 
     councilPane.appendChild(councilGrid);
     analysisPane.appendChild(analysisGrid);
@@ -4043,7 +4237,7 @@ const sentinelChat = {
 
 // Main initialization - consolidates all onload logic
 window.onload = async function () {
-    console.log("Korum OS Initialized...");
+    logTelemetry("Korum OS Initialized", "system");
 
     positionNodes();
     setupActionBindings();
@@ -4108,7 +4302,14 @@ function formatText(text) {
             return `<div class="table-row" style="display:flex; border-bottom:1px solid rgba(255,255,255,0.05); padding:4px 0;">${cells.map(c => `<div style="flex:1; padding:4px; font-size:11px;">${c.trim()}</div>`).join('')}</div>`;
         });
 }
-function showErrorCard(msg) { const container = document.getElementById('pane-council') || document.querySelector(".results-content"); container.innerHTML = `<div class="consensus-card" style="border-color: red;"><div class="consensus-title" style="color:red;">SYSTEM FAILURE</div><div class="consensus-body">${msg}</div></div>`; document.querySelector(".results-container").classList.add("visible"); switchDockTab('council'); }
+function showErrorCard(msg) {
+    logTelemetry(`System error: ${msg}`, "error");
+    const safeMsg = "The council encountered an issue processing your query. Please try again or adjust your input.";
+    const container = document.getElementById('pane-council') || document.querySelector(".results-content");
+    container.innerHTML = `<div class="consensus-card" style="border-color: red;"><div class="consensus-title" style="color:red;">SYSTEM ERROR</div><div class="consensus-body">${safeMsg}</div></div>`;
+    document.querySelector(".results-container").classList.add("visible");
+    switchDockTab('council');
+}
 function closeResults() {
     const container = document.querySelector(".results-container");
     if (container) container.classList.remove("visible");
@@ -4182,34 +4383,6 @@ function animateActivation() {
     });
 }
 
-function pollV2Progress() {
-    authFetch('/api/v2/progress')
-        .then(res => res.json())
-        .then(data => {
-            if (data.status === 'processing') {
-                // Continue polling
-                setTimeout(pollV2Progress, 1000);
-            } else if (data.status === 'complete') {
-                updateSystemStatus("SYNTHESIZING");
-
-                // Fetch final result
-                authFetch('/api/v2/result')
-                    .then(res => res.json())
-                    .then(resultData => {
-                        renderV2Results(resultData);
-                        logTelemetry("Protocol Complete. Rendering Output.", "success");
-
-                        // Start Background Prefetch (Phase 6)
-                        PrefetchManager.initPrefetch("current_session", resultData);
-                    });
-            }
-        })
-        .catch(err => {
-            console.error("V2 Poll Error", err);
-            setTimeout(pollV2Progress, 2000);
-        });
-}
-
 // --- TELEMETRY SYSTEM ---
 const telemetryLog = document.getElementById('telemetryLog');
 const telemetryEvents = [
@@ -4279,8 +4452,7 @@ function logTelemetry(msg, type = "info") {
         trackerAgent.style.color = type === 'error' ? '#ff4444' : '#fff';
     }
 
-    // Console Fallback
-    console.log(`[TELEMETRY] ${msg}`);
+    // Telemetry stays internal — no console leak
 }
 
 // Export to window
@@ -4491,7 +4663,8 @@ function handleSocialExport(platform) {
     } catch (error) {
         console.error("Social export error:", error);
         logTelemetry(`Social export error: ${error.message}`, "error");
-        showProcessingToast(`Social export failed: ${error.message}`);
+        logTelemetry(`Social export error: ${error.message}`, "error");
+        showProcessingToast("Export could not be completed. Please try again.");
     }
 
     document.getElementById('exportSocial').selectedIndex = 0;
@@ -4525,7 +4698,7 @@ async function handleDocExport(format) {
         if (lastCouncilData.divergence) {
             intelligenceObj.divergence_analysis = lastCouncilData.divergence;
         }
-        console.log('[EXPORT] Divergence in payload:', !!intelligenceObj.divergence_analysis, intelligenceObj.divergence_analysis);
+        logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis}`, "process");
         const payload = {
             intelligence_object: intelligenceObj,
             card_results: lastCouncilData.results || {},
@@ -4565,7 +4738,8 @@ async function handleDocExport(format) {
     } catch (error) {
         console.error("Deployment Error", error);
         logTelemetry(`Deployment Error: ${error.message}`, "error");
-        showProcessingToast(`Export failed: ${error.message}`);
+        logTelemetry(`Export error: ${error.message}`, "error");
+        showProcessingToast("Export could not be completed. Please try again.");
     }
 
     // Re-enable and reset dropdown
@@ -4612,8 +4786,7 @@ function copyTextToClipboard(text, successMessage) {
     navigator.clipboard.writeText(text).then(() => {
         showProcessingToast(successMessage);
     }).catch(() => {
-        showProcessingToast("Draft ready. Copy manually from console output.");
-        console.log("Draft content:", text);
+        showProcessingToast("Clipboard unavailable. Please select and copy text manually.");
     });
 }
 
@@ -4681,7 +4854,8 @@ function handlePresentExport(format) {
             .catch(err => {
                 console.error(err);
                 logTelemetry(`Presentation export error: ${err.message}`, "error");
-                showProcessingToast(`Error: ${err.message}`);
+                logTelemetry(`Operation error: ${err.message}`, "error");
+                showProcessingToast("Operation could not be completed. Please try again.");
             })
             .finally(() => {
                 document.getElementById('exportPresent').selectedIndex = 0;
@@ -5046,8 +5220,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (modal) {
                             modal.style.display = 'flex';
                             // Switch to War Room DNA naturally
-                            const workflowSelect = document.getElementById('workflowSelect');
-                            if (workflowSelect) workflowSelect.value = 'WAR_ROOM';
+                            const warRoomTab = document.querySelector('.nav-links a[data-role="War Room"]');
+                            warRoomTab?.click();
                         }
                         showProcessingToast("Context Imported Successfully!");
                     }
@@ -5087,7 +5261,7 @@ const AuditPanel = {
             const res = await authFetch('/api/auth/audit?limit=500');
             const data = await res.json();
             if (!data.success) {
-                list.innerHTML = `<div class="library-empty">Error: ${data.error || 'Access denied'}</div>`;
+                list.innerHTML = `<div class="library-empty">Unable to load audit log. Please check permissions and try again.</div>`;
                 return;
             }
             this.logs = data.logs || [];
@@ -5168,7 +5342,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- EXECUTION DASHBOARD RENDERER ---
 function renderExecutionDashboard(metrics) {
-    console.log("[TELEMETRY] Rendering Execution Dashboard...", metrics);
+    logTelemetry("Rendering Execution Dashboard", "system");
 
     // 1. Update Cost Matrix
     const runCostEl = document.getElementById('dash-run-cost');

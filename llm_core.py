@@ -347,10 +347,13 @@ def call_perplexity(prompt, role_key, model=None, run_id=None, session_id=None, 
             tokens_in = usage.get('prompt_tokens', 0)
             tokens_out = usage.get('completion_tokens', 0)
             cost = log_usage_telemetry(model, "perplexity", role_key, tokens_in, tokens_out, latency, True, run_id, session_id, workflow, user_id=user_id)
+            # Extract Perplexity citations array if present
+            citations = rj.get('citations', [])
             return {
-                "success": True, 
-                "response": rj['choices'][0]['message']['content'], 
+                "success": True,
+                "response": rj['choices'][0]['message']['content'],
                 "model": model,
+                "citations": citations,
                 "usage": {"input": tokens_in, "output": tokens_out, "cost": cost, "latency": latency}
             }
         
