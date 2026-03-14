@@ -297,6 +297,21 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
     try:
         execution_order = classification.get('executionOrder', [])
         if not isinstance(execution_order, list): execution_order = []
+
+        # Safety net: backfill any providers the planner skipped
+        assigned_providers = set()
+        for pr in execution_order:
+            try:
+                p = pr.split('-', 1)[0].lower().strip()
+                assigned_providers.add(p)
+            except:
+                pass
+        for model in active_models:
+            if model.lower() not in assigned_providers:
+                role = active_personas.get(model, 'analyst')
+                execution_order.append(f"{model}-{role}")
+                print(f"[COUNCIL] Backfilled missing provider: {model.upper()} as {role.upper()}")
+
         total_steps = len(execution_order)
 
         for i, provider_role in enumerate(execution_order):
