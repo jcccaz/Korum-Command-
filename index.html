@@ -66,6 +66,12 @@
                         <line x1="21" y1="12" x2="9" y2="12"></line>
                     </svg>
                 </button>
+                <button class="billing-nav-btn" id="billingNavBtn" title="Tactical Billing Ledger">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="1" x2="12" y2="23"></line>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                </button>
             </div>
 
             <div class="nav-right" id="hamburgerBtn" title="Saved Reports">
@@ -697,6 +703,51 @@
             </div>
             <button class="demo-terms-accept" id="demoTermsAccept">ACKNOWLEDGE &amp; ENTER</button>
             <div class="demo-terms-badge">COMMERCIAL LICENSE REQUIRED FOR DEPLOYMENT</div>
+        </div>
+    </div>
+
+    <!-- TACTICAL BILLING LEDGER MODAL -->
+    <div class="billing-modal-overlay" id="billingModalOverlay" style="display:none;">
+        <div class="billing-modal">
+            <div class="billing-modal-header">
+                <div>
+                    <div class="billing-modal-title">TACTICAL USAGE LEDGER</div>
+                    <div class="billing-modal-subtitle">REAL-TIME AI COST GOVERNANCE</div>
+                </div>
+                <button class="billing-close-btn" id="billingCloseBtn">&times;</button>
+            </div>
+            
+            <div class="billing-modal-grid">
+                <!-- STATS SUMMARY -->
+                <div class="billing-panel billing-summary">
+                    <div class="panel-tag">TOTAL EXPENDITURE</div>
+                    <div class="total-cost-display" id="totalSpendDisplay">$0.0000</div>
+                    <div class="cost-disclaimer">Aggregated estimate across all active mission contexts.</div>
+                </div>
+
+                <!-- DAILY HISTORY CHART -->
+                <div class="billing-panel">
+                    <div class="panel-tag">DAILY MISSION FOOTNET (LAST 7 DAYS)</div>
+                    <div class="daily-chart-container" id="dailyChartContainer">
+                        <!-- Bars injected by JS -->
+                        <div class="bar-placeholder">Fetching telemetry...</div>
+                    </div>
+                </div>
+
+                <!-- PROVIDER BREAKDOWN CHART -->
+                <div class="billing-panel">
+                    <div class="panel-tag">PROVIDER COST DISTRIBUTION (30D)</div>
+                    <div class="provider-chart-container" id="providerChartContainer">
+                        <!-- Bars injected by JS -->
+                        <div class="bar-placeholder">Calculating deity footprints...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="billing-modal-footer">
+                <div class="footer-badge">FINANCIAL INTEGRITY VERIFIED</div>
+                <div class="footer-timestamp" id="billingLastUpdate">LAST SYNC: N/A</div>
+            </div>
         </div>
     </div>
 

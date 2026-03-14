@@ -2017,6 +2017,48 @@ def enhance_prompt():
     
     return jsonify({"success": False, "error": "Enhancement services unavailable"}), 503
 
+@app.route('/api/usage/stats', methods=['GET'])
+@auth_required
+def get_usage_stats():
+    """Returns aggregated usage statistics for the billing ledger."""
+    try:
+        # Total spend (all time)
+        total_spend = db.session.query(func.sum(UsageLog.cost_estimate)).filter(UsageLog.user_id == current_user.id).scalar() or 0.0
+
+        # Daily spend (last 7 days)
+        from datetime import timedelta
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        
+        daily_stats_query = db.session.query(
+            func.date(UsageLog.created_at).label('date'),
+            func.sum(UsageLog.cost_estimate).label('cost')
+        ).filter(
+            UsageLog.user_id == current_user.id,
+            UsageLog.created_at >= seven_days_ago
+        ).group_by(func.date(UsageLog.created_at)).order_by('date').all()
+        
+        daily_stats = [{"date": str(row.date), "cost": float(row.cost)} for row in daily_stats_query]
+
+        # Provider breakdown (last 30 days) agg
+        provider_stats_query = db.session.query(
+            UsageLog.provider_name,
+            func.sum(UsageLog.cost_estimate).label('cost')
+        ).filter(
+            UsageLog.user_id == current_user.id
+        ).group_by(UsageLog.provider_name).all()
+        
+        provider_stats = {row[0] or "unknown": float(row[1]) for row in provider_stats_query}
+
+        return jsonify({
+            "total_spend": float(total_spend),
+            "daily_stats": daily_stats,
+            "provider_breakdown": provider_stats,
+            "currency": "USD"
+        })
+    except Exception as e:
+        print(f"Usage stats error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/sentinel', methods=['POST'])
 @auth_required
 def ask_sentinel():

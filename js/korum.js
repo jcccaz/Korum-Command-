@@ -4865,4 +4865,121 @@ function renderExecutionDashboard(metrics) {
     }
 }
 
+// --- TACTICAL BILLING LEDGER ---
+const BillingLedger = {
+    modal: null,
+    btn: null,
+    closeBtn: null,
+
+    init() {
+        this.modal = document.getElementById('billingModalOverlay');
+        this.btn = document.getElementById('billingNavBtn');
+        this.closeBtn = document.getElementById('billingCloseBtn');
+
+        if (this.btn) {
+            this.btn.addEventListener('click', () => this.open());
+        }
+        if (this.closeBtn) {
+            this.closeBtn.addEventListener('click', () => this.close());
+        }
+        if (this.modal) {
+            this.modal.addEventListener('click', (e) => {
+                if (e.target === this.modal) this.close();
+            });
+        }
+    },
+
+    async open() {
+        if (!this.modal) return;
+        this.modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        await this.fetchStats();
+    },
+
+    close() {
+        if (!this.modal) return;
+        this.modal.style.display = 'none';
+        document.body.style.overflow = '';
+    },
+
+    async fetchStats() {
+        try {
+            const res = await fetch('/api/usage/stats');
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            this.render(data);
+        } catch (e) {
+            console.error('[BILLING] Fetch failed:', e);
+        }
+    },
+
+    render(data) {
+        // 1. Total Spend
+        const totalDisp = document.getElementById('totalSpendDisplay');
+        if (totalDisp) totalDisp.textContent = `$${data.total_spend.toFixed(4)}`;
+
+        // 2. Daily Chart
+        const dailyContainer = document.getElementById('dailyChartContainer');
+        if (dailyContainer) {
+            dailyContainer.innerHTML = '';
+            const maxDaily = Math.max(...data.daily_stats.map(s => s.cost), 0.01);
+            
+            data.daily_stats.forEach(s => {
+                const pct = (s.cost / maxDaily) * 100;
+                const dateLabel = s.date.split('-').slice(1).join('/'); // MM/DD
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = 'billing-bar-wrapper';
+                wrapper.innerHTML = `
+                    <div class="bar-value">$${s.cost.toFixed(2)}</div>
+                    <div class="billing-bar" style="height: ${pct}%"></div>
+                    <div class="bar-label">${dateLabel}</div>
+                `;
+                dailyContainer.appendChild(wrapper);
+            });
+        }
+
+        // 3. Provider Breakdown
+        const providerContainer = document.getElementById('providerChartContainer');
+        if (providerContainer) {
+            providerContainer.innerHTML = '';
+            const providers = Object.entries(data.provider_breakdown);
+            const maxProv = Math.max(...providers.map(p => p[1]), 0.01);
+
+            const PROVIDER_MYTHICAL_SHORT = {
+                "openai": "Odin",
+                "anthropic": "Tyr",
+                "google": "Heimdall",
+                "perplexity": "Huginn",
+                "mistral": "Mimir",
+                "local": "Oracle"
+            };
+
+            providers.forEach(([name, cost]) => {
+                const pct = (cost / maxProv) * 100;
+                const displayName = PROVIDER_MYTHICAL_SHORT[name] || name.toUpperCase();
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = 'billing-bar-wrapper';
+                wrapper.innerHTML = `
+                    <div class="bar-value">$${cost.toFixed(2)}</div>
+                    <div class="billing-bar" style="height: ${pct}%"></div>
+                    <div class="bar-label">${displayName}</div>
+                `;
+                providerContainer.appendChild(wrapper);
+            });
+        }
+
+        // 4. Footer timestamp
+        const lastUpd = document.getElementById('billingLastUpdate');
+        if (lastUpd) lastUpd.textContent = `LAST SYNC: ${new Date().toLocaleTimeString()}`;
+    }
+};
+
+// Initialize after DOM load
+document.addEventListener('DOMContentLoaded', () => {
+    BillingLedger.init();
+});
+
 // End of KorumOS Sentinel Logic

@@ -654,3 +654,188 @@
     text-align: center;
     padding: 10px 0;
 }
+
+/* --- TACTICAL BILLING LEDGER --- */
+
+.billing-nav-btn {
+    background: rgba(255, 176, 32, 0.1);
+    border: 1px solid rgba(255, 176, 32, 0.3);
+    color: #FFB020;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+    margin-left: 10px;
+}
+
+.billing-nav-btn:hover {
+    background: rgba(255, 176, 32, 0.2);
+    box-shadow: 0 0 10px rgba(255, 176, 32, 0.2);
+}
+
+.billing-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.billing-modal {
+    width: 900px;
+    max-width: 95vw;
+    max-height: 85vh;
+    background: #0d0d0d;
+    border: 1px solid #FFB02040;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.billing-modal-header {
+    background: rgba(255, 176, 32, 0.05);
+    padding: 20px;
+    border-bottom: 1px solid #FFB02030;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.billing-modal-title {
+    font-family: var(--font-head);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #FFB020;
+}
+
+.billing-modal-subtitle {
+    font-size: 11px;
+    color: #888;
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+}
+
+.billing-close-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.billing-close-btn:hover {
+    color: #fff;
+}
+
+.billing-modal-grid {
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    overflow-y: auto;
+}
+
+.billing-summary {
+    grid-column: span 2;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed #FFB02040;
+    padding: 24px;
+    text-align: center;
+}
+
+.billing-panel {
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-tag {
+    font-size: 10px;
+    color: #FFB020;
+    font-weight: 700;
+    margin-bottom: 15px;
+    opacity: 0.8;
+}
+
+.total-cost-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 48px;
+    font-weight: 700;
+    color: #FFB020;
+    text-shadow: 0 0 20px rgba(255, 176, 32, 0.4);
+}
+
+.cost-disclaimer {
+    font-size: 11px;
+    color: #666;
+    margin-top: 10px;
+}
+
+.daily-chart-container, .provider-chart-container {
+    height: 180px;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding-bottom: 10px;
+}
+
+.billing-bar-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.billing-bar {
+    width: 100%;
+    background: #FFB020;
+    border-radius: 4px 4px 0 0;
+    position: relative;
+    transition: height 1s cubic-bezier(0.16, 1, 0.3, 1);
+    min-height: 2px;
+}
+
+.billing-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to top, rgba(0,0,0,0), rgba(255,255,255,0.2));
+}
+
+.bar-label {
+    font-size: 9px;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    text-align: center;
+}
+
+.bar-value {
+    font-size: 9px;
+    color: #FFB020;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
