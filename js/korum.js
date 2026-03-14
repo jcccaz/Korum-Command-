@@ -1546,13 +1546,15 @@ function setupActionBindings() {
         }
 
         const agentCard = target.closest('.agent-card');
-        if (agentCard && !agentCard.classList.contains('no-interrogate') && !target.closest('button') && !target.closest('.tool-action')) {
-            const data = agentCard.dataset;
-            openCardModal({
-                name: data.name || 'Response',
-                meta: data.meta || '',
-                content: agentCard.querySelector('.agent-response')?.innerHTML
-            });
+        if (agentCard && !agentCard.classList.contains('no-interrogate') && !target.closest('button') && !target.closest('.tool-action') && !target.closest('.analysis-action-bar')) {
+            selectCard(agentCard);
+        }
+    });
+
+    // Deselect when clicking empty space in results container
+    document.querySelector('.results-content')?.addEventListener('click', (e) => {
+        if (e.target.classList.contains('results-content') || e.target.classList.contains('results-grid')) {
+            deselectCard();
         }
     });
 }
@@ -1777,8 +1779,105 @@ let sessionState = {
     missionContext: null, // Captures Client, Industry, Priority, etc.
     isMissionLocked: false,
     threadHistory: [],  // Follow-up memory: accumulates prior session summaries
-    activeThreadId: null  // Persistent thread UUID (server-side)
+    activeThreadId: null, // Persistent thread UUID (server-side)
+    selectedCardId: null,
+    selectedCardProvider: null,
+    selectedCardResponse: null
 };
+
+// --- CARD SELECTION & ANALYSIS ACTION BAR ---
+
+function selectCard(cardEl) {
+    // Remove selection from all cards
+    document.querySelectorAll('.agent-card.card-selected').forEach(c => {
+        c.classList.remove('card-selected');
+        c.querySelector('.analysis-action-bar')?.remove();
+    });
+
+    if (!cardEl || cardEl.classList.contains('no-interrogate')) return;
+
+    // Select this card
+    cardEl.classList.add('card-selected');
+    sessionState.selectedCardId = cardEl.dataset.cardId || null;
+    sessionState.selectedCardProvider = cardEl.dataset.provider || null;
+    sessionState.selectedCardResponse = cardEl.querySelector('.agent-response')?.innerText || '';
+
+    // Inject action bar after precision-header
+    const actionBar = buildAnalysisActionBar();
+    const header = cardEl.querySelector('.precision-header');
+    if (header) {
+        header.insertAdjacentElement('afterend', actionBar);
+    }
+}
+
+function deselectCard() {
+    document.querySelectorAll('.agent-card.card-selected').forEach(c => {
+        c.classList.remove('card-selected');
+        c.querySelector('.analysis-action-bar')?.remove();
+    });
+    sessionState.selectedCardId = null;
+    sessionState.selectedCardProvider = null;
+    sessionState.selectedCardResponse = null;
+}
+
+function buildAnalysisActionBar() {
+    const bar = document.createElement('div');
+    bar.className = 'analysis-action-bar';
+    bar.innerHTML = `
+        <button class="aab-btn aab-interrogate" data-action="interrogate">
+            <span class="aab-icon">&#x1F50D;</span> INTERROGATE
+        </button>
+        <button class="aab-btn aab-verify" data-action="verify">
+            <span class="aab-icon">&#x1F50E;</span> VERIFY
+        </button>
+        <button class="aab-btn aab-defend" data-action="defend">
+            <span class="aab-icon">&#x1F6E1;</span> DEFEND
+        </button>
+        <button class="aab-btn aab-visualize" data-action="visualize">
+            <span class="aab-icon">&#x1F4CA;</span> VISUALIZE
+        </button>
+        <button class="aab-btn aab-document" data-action="document">
+            <span class="aab-icon">&#x1F4C4;</span> DOCUMENT
+        </button>
+    `;
+    bar.addEventListener('click', handleActionBarClick);
+    return bar;
+}
+
+function handleActionBarClick(e) {
+    const btn = e.target.closest('.aab-btn');
+    if (!btn) return;
+    e.stopPropagation();
+    const action = btn.dataset.action;
+    const card = btn.closest('.agent-card');
+    if (!card) return;
+    const provider = card.dataset.provider || '';
+    const providerName = getProviderName(provider);
+    const response = card.querySelector('.agent-response')?.innerText || '';
+
+    switch (action) {
+        case 'interrogate':
+            openInterrogation(providerName);
+            break;
+        case 'verify':
+            executeVerify(response, providerName);
+            break;
+        case 'defend':
+            openInterrogation(providerName);
+            break;
+        case 'visualize':
+            window.visualizeSelection(response);
+            break;
+        case 'document':
+            saveReport();
+            break;
+    }
+}
+
+// Deselect on ESC
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') deselectCard();
+});
 
 // --- THREAD MANAGEMENT UI ---
 function updateThreadBadge() {
@@ -2983,6 +3082,7 @@ function renderResults(data, roleName) {
         card.className = `agent-card ${provider} ${!res.success ? 'failed' : ''}`;
         card.dataset.name = res.role ? res.role.toUpperCase() : getProviderName(provider);
         card.dataset.provider = provider;
+        card.dataset.cardId = `card-${provider}-${Date.now()}`;
 
         // --- NEW: CLAIM HIGHLIGHTING ---
         const rawResponse = res.response;
@@ -3009,11 +3109,11 @@ function renderResults(data, roleName) {
                     </div>
                 </div>
                 <div class="ph-right">
-                    <button class="interrogate-btn" onclick="event.stopPropagation(); openInterrogation('${getProviderName(provider)}')">
-                        🔍 INTERROGATE
+                    <button class="interrogate-btn" onclick="event.stopPropagation(); openInterrogation('${getProviderName(provider)}')" title="Interrogate">
+                        &#x1F50D;
                     </button>
-                    <button class="verify-btn" onclick="event.stopPropagation(); executeVerify(decodeURIComponent('${encodeURIComponent(rawResponse)}'), '${getProviderName(provider)}')">
-                        🔎 VERIFY
+                    <button class="verify-btn" onclick="event.stopPropagation(); executeVerify(decodeURIComponent('${encodeURIComponent(rawResponse)}'), '${getProviderName(provider)}')" title="Verify">
+                        &#x1F50E;
                     </button>
                     <div class="metric-pill">$${cost.toFixed(4)}</div>
                     <div class="metric-pill time">${time}s</div>
@@ -3025,8 +3125,14 @@ function renderResults(data, roleName) {
             <div class="agent-response">${displayContent}</div>
         `;
 
-        // Make card clickable
-        card.addEventListener('click', () => {
+        // Single click = select card + show action bar
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('button') || e.target.closest('.tool-action') || e.target.closest('.analysis-action-bar')) return;
+            selectCard(card);
+        });
+        // Double click = open full-screen modal
+        card.addEventListener('dblclick', (e) => {
+            if (e.target.closest('button') || e.target.closest('.tool-action') || e.target.closest('.analysis-action-bar')) return;
             openCardModal({
                 name: getProviderName(provider),
                 meta: `<div class="agent-meta"><span>${getProviderName(provider)}</span><span>${res.model || provider}</span></div>`,
@@ -3556,7 +3662,7 @@ function setupInterrogation() {
 
     document.getElementById('btn-visualize-select').addEventListener('click', () => {
         if (activeSelection) {
-            const query = `VISUALIZE SELECTION: "${activeSelection}". 
+            const query = `VISUALIZE SELECTION: "${activeSelection}".
             Create a Mermaid JS chart (flowchart or pie) specifically based on this data.`;
             tooltip.style.display = 'none';
 
@@ -3564,6 +3670,16 @@ function setupInterrogation() {
             sentinelChat.appendMessage(`VISUALIZING: "${activeSelection.slice(0, 50)}..."`, 'user');
 
             triggerCouncil(query);
+            window.getSelection().removeAllRanges();
+            activeSelection = "";
+        }
+    });
+
+    document.getElementById('btn-document-select')?.addEventListener('click', () => {
+        if (activeSelection) {
+            tooltip.style.display = 'none';
+            logTelemetry("DOCUMENT REQUESTED", "process");
+            saveReport();
             window.getSelection().removeAllRanges();
             activeSelection = "";
         }
