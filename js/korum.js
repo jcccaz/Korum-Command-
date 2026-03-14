@@ -215,9 +215,22 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // === AUTH-AWARE FETCH WRAPPER ===
-async function authFetch(url, options = {}) {
+async function authFetch(url, options = {}, timeoutMs = 120000) {
     options.credentials = 'include';
-    const response = await fetch(url, options);
+    const controller = new AbortController();
+    options.signal = controller.signal;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let response;
+    try {
+        response = await fetch(url, options);
+    } catch (e) {
+        clearTimeout(timer);
+        if (e.name === 'AbortError') {
+            throw new Error('Request timed out — the server took too long to respond. Please try again.');
+        }
+        throw e;
+    }
+    clearTimeout(timer);
     if (response.status === 401 && KorumAuth.authEnabled) {
         KorumAuth.authenticated = false;
         KorumAuth.showModal();
@@ -4536,7 +4549,19 @@ function closeResults() {
         }
     }, 500);
 }
-function resetUI() { const btn = document.querySelector('.trigger-scan'); const field = document.querySelector('.glass-textarea'); if (btn) btn.innerText = "Convene Council"; if (field) field.disabled = false; updateSystemStatus("READY"); }
+function resetUI() {
+    const btn = document.querySelector('.trigger-scan');
+    const field = document.querySelector('.glass-textarea');
+    if (btn) btn.innerText = "Convene Council";
+    if (field) field.disabled = false;
+    updateSystemStatus("READY");
+    // Clean up processing animations
+    document.body.classList.remove("activated");
+    const globe = document.querySelector(".globe");
+    if (globe) globe.classList.remove("processing");
+    const activeCard = document.getElementById("activeAgentCard");
+    if (activeCard) activeCard.classList.remove("visible");
+}
 function triggerNetworkAnimation() {
     document.body.classList.add("activated");
     updateSystemStatus("PROCESSING");
