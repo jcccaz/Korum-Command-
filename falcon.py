@@ -1,12 +1,12 @@
 """
-KorumOS Falcon Mode — Secure Preprocessing & Redaction Engine
+KorumOS Falcon Protocol — Secure Preprocessing & Redaction Engine
 =============================================================
 
 Data minimization layer that strips sensitive entities from user queries
 and uploaded document text BEFORE content reaches any external AI provider.
 
 IMPORTANT: This module provides exposure reduction, NOT perfect anonymization.
-Some meaning may still be inferable from surrounding context. Falcon Mode
+Some meaning may still be inferable from surrounding context. Falcon Protocol
 should be framed as data minimization and secure preprocessing — never as
 guaranteed de-identification.
 
@@ -502,7 +502,7 @@ def falcon_debug_report(result: FalconResult) -> str:
 
 def _run_self_tests() -> bool:
     """
-    Internal test suite for Falcon Mode. Run with:
+    Internal test suite for Falcon Protocol. Run with:
         python falcon.py
 
     Tests placeholder stability, overlap resolution, category isolation,
@@ -704,7 +704,7 @@ def _run_self_tests() -> bool:
     # ------------------------------------------------------------------
     total = passed + failed
     print(f"\n{'='*50}")
-    print(f"Falcon Self-Test: {passed}/{total} passed, {failed} failed")
+    print(f"Falcon Protocol Self-Test: {passed}/{total} passed, {failed} failed")
     print(f"{'='*50}")
     return failed == 0
 

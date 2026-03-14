@@ -2805,7 +2805,7 @@ async function executeCouncil(query, roleName) {
     const isRedTeam = activeModes.red;
     const useSerpAPI = activeModes.serp;
     if (useSerpAPI) logTelemetry("LIVE MODE ACTIVE: Fetching Real-Time Data...", "process");
-    if (activeModes.falcon) logTelemetry(`FALCON MODE ACTIVE [${document.getElementById('falcon-level-select')?.value || 'STANDARD'}]: Secure preprocessing enabled`, "warning");
+    if (activeModes.falcon) logTelemetry(`FALCON PROTOCOL ACTIVE [${document.getElementById('falcon-level-select')?.value || 'STANDARD'}]: Secure preprocessing enabled`, "warning");
 
     const payload = {
         question: query,

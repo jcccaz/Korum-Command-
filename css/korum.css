@@ -3353,7 +3353,7 @@ body.activated .sphere-texture {
     }
 }
 
-/* Falcon Mode Active State */
+/* Falcon Protocol Active State */
 .mode-btn.active[data-mode-toggle="falcon"] {
     background: rgba(255, 176, 32, 0.2) !important;
     border-color: #FFB020 !important;

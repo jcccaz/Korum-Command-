@@ -16,7 +16,7 @@ from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from sqlalchemy import case, func
 from db import db, init_db
-from falcon import falcon_preprocess, falcon_rehydrate  # Falcon Mode: secure redaction layer
+from falcon import falcon_preprocess, falcon_rehydrate  # Falcon Protocol: secure redaction layer
 
 # Initialize early
 load_dotenv()
@@ -1422,7 +1422,7 @@ def ask_council():
         doc_context = "\n\n--- ATTACHED DOCUMENTS ---\n" + "\n\n".join(doc_texts)
         query = query + doc_context
 
-    # --- FALCON MODE: SECURE PREPROCESSING / REDACTION ---
+    # --- FALCON PROTOCOL: SECURE PREPROCESSING / REDACTION ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
     falcon_meta = None
