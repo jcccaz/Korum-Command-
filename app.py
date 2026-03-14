@@ -13,6 +13,8 @@ from flask_cors import CORS
 from flask_login import LoginManager, login_user, logout_user, current_user
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_session import Session
+import redis
 from dotenv import load_dotenv
 from sqlalchemy import case, func
 from db import db, init_db
@@ -48,6 +50,18 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.getenv("FLASK_ENV") == "production"
 app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour
 
+# --- Redis Configuration ---
+REDIS_URL = os.getenv("REDIS_URL", None)
+if REDIS_URL:
+    app.config["SESSION_TYPE"] = "redis"
+    app.config["SESSION_REDIS"] = redis.from_url(REDIS_URL)
+    app.config["SESSION_PERMANENT"] = True
+    app.config["SESSION_KEY_PREFIX"] = "korum:"
+    Session(app)
+    logger.info(f"[REDIS] Session persistence enabled via Redis")
+else:
+    logger.warning("[REDIS] REDIS_URL not set — using default Flask sessions (non-persistent)")
+
 # Auth can be disabled for local dev via env var
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
 
@@ -58,7 +72,7 @@ limiter = Limiter(
     app=app,
     key_func=get_remote_address,
     default_limits=["200 per minute"],
-    storage_uri="memory://",
+    storage_uri=REDIS_URL if REDIS_URL else "memory://",
 )
 
 # --- Flask-Login Setup ---
