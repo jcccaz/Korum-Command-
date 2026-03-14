@@ -60,12 +60,13 @@ WORKFLOW_DNA = {
 }
 
 class CouncilContext:
-    def __init__(self, query, classification, workflow="RESEARCH", session_id=None, run_id=None, previous_context=None):
+    def __init__(self, query, classification, workflow="RESEARCH", session_id=None, run_id=None, previous_context=None, user_id=None):
         self.query = query
         self.classification = classification
         self.workflow = workflow.upper() if workflow else "RESEARCH"
         self.session_id = session_id
         self.run_id = run_id
+        self.user_id = user_id
         self.history = []
         self.previous_context = previous_context or []
 
@@ -79,7 +80,7 @@ class CouncilContext:
         })
 
 # --- PHASE 1: CLASSIFICATION (The Planner) ---
-def classify_query_v2(query, active_personas, active_models=None, previous_context=None):
+def classify_query_v2(query, active_personas, active_models=None, previous_context=None, user_id=None):
     if active_models is None:
         active_models = ["openai", "anthropic", "google", "perplexity", "mistral", "local"]
 
@@ -137,7 +138,7 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
     
     # 1. Try OpenAI (Primary)
     try:
-        plan_response = call_openai_gpt4(prompt, "Planner")
+        plan_response = call_openai_gpt4(prompt, "Planner", user_id=user_id)
         if plan_response['success']:
              content = plan_response['response'].replace('```json', '').replace('```', '').strip()
              return json.loads(content)
@@ -148,7 +149,7 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
 
     # 2. Try Mistral API (Cloud Fallback)
     try:
-        plan_response = call_mistral_api(prompt, "Planner")
+        plan_response = call_mistral_api(prompt, "Planner", user_id=user_id)
         if plan_response['success']:
              content = plan_response['response'].replace('```json', '').replace('```', '').strip()
              return json.loads(content)
@@ -159,7 +160,7 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
 
     # 3. Try Local LLM (Emergency Fallback)
     try:
-        local_response = call_local_llm(prompt, "Planner")
+        local_response = call_local_llm(prompt, "Planner", user_id=user_id)
         if local_response['success']:
             content = local_response['response'].replace('```json', '').replace('```', '').strip()
             # Local models can be chatty, try to find JSON blob
@@ -180,7 +181,7 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
 # --- PHASE 2: SEQUENTIAL EXECUTION (The Runner) ---
 # --- PHASE 8: AI ACCOUNTABILITY (The Enforcer) ---
 
-def identify_claims(text, ai_name):
+def identify_claims(text, ai_name, user_id=None):
     """
     Parses AI response for specific, testable claims.
     Uses a lightweight LLM call or regex to find metrics/absolute statements.
@@ -203,7 +204,7 @@ def identify_claims(text, ai_name):
     """
     try:
         # Use GPT-4o-mini for speed/consistency in parsing
-        resp = call_openai_gpt4(prompt, "ClaimExtractor", model="gpt-4o-mini")
+        resp = call_openai_gpt4(prompt, "ClaimExtractor", model="gpt-4o-mini", user_id=user_id)
         if resp['success']:
             content = resp['response'].replace('```json', '').replace('```', '').strip()
             return json.loads(content)
@@ -271,14 +272,14 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
-def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None):
+def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None):
     # 1. Setup IDs
     import uuid
     if not run_id: run_id = str(uuid.uuid4())
     
     # 2. Plan
-    classification = classify_query_v2(query, active_personas, active_models=active_models, previous_context=previous_context)
-    context = CouncilContext(query, classification, workflow=workflow, session_id=session_id, run_id=run_id, previous_context=previous_context)
+    classification = classify_query_v2(query, active_personas, active_models=active_models, previous_context=previous_context, user_id=user_id)
+    context = CouncilContext(query, classification, workflow=workflow, session_id=session_id, run_id=run_id, previous_context=previous_context, user_id=user_id)
 
     if previous_context:
         print(f"[COUNCIL] Follow-up mode: {len(previous_context)} prior session(s) loaded")
@@ -316,7 +317,7 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             response_obj = {"success": False, "response": "Provider unknown"}
 
             # Primary Call — pass IDs for telemetry
-            telemetry_kwargs = {"run_id": run_id, "session_id": session_id, "workflow": workflow}
+            telemetry_kwargs = {"run_id": run_id, "session_id": session_id, "workflow": workflow, "user_id": user_id}
             try:
                 if provider == 'openai': response_obj = call_openai_gpt4(prompt, role, images=images, **telemetry_kwargs)
                 elif provider == 'anthropic': response_obj = call_anthropic_claude(prompt, role, images=images, **telemetry_kwargs)
@@ -381,21 +382,21 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
         print(f"[COUNCIL] Audit Initiated: Verifying {len(results)} responses...")
         for provider in results:
             text = results[provider]['response']
-            claims = identify_claims(text, provider)
+            claims = identify_claims(text, provider, user_id=user_id)
             verified = verify_claims(claims, context.history)
             results[provider]['truth_meter'] = calculate_truth_score(verified)
             results[provider]['verified_claims'] = verified
 
         # --- DIVERGENCE ---
         print(f"[COUNCIL] Divergence Analysis...")
-        divergence = analyze_council_divergence(results, context)
+        divergence = analyze_council_divergence(results, context, user_id=user_id)
 
     except Exception as e:
         print(f"[EXECUTION ERROR] {e}")
         return {"consensus": "Error in execution plan.", "results": {}, "error": str(e)}
 
     # 4. Synthesis
-    synthesis = synthesize_results(context, divergence_analysis=divergence)
+    synthesis = synthesize_results(context, divergence_analysis=divergence, user_id=user_id)
 
     # --- CONTRIBUTION SCORING ---
     # Derived from: token share + used in synthesis + truth score
@@ -434,7 +435,7 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
     }
 
 # --- ANALYTIC DIVERGENCE LAYER (The Comparator) ---
-def analyze_council_divergence(results, context):
+def analyze_council_divergence(results, context, user_id=None):
     """
     Compares council outputs to identify consensus, disagreement, and evidence gaps.
     Runs AFTER all council phases and accountability, BEFORE synthesis.
@@ -508,7 +509,7 @@ def analyze_council_divergence(results, context):
     """
 
     try:
-        resp = call_openai_gpt4(prompt, "DivergenceAnalyst", model="gpt-4o-mini")
+        resp = call_openai_gpt4(prompt, "DivergenceAnalyst", model="gpt-4o-mini", user_id=user_id)
         if resp.get('success'):
             content = resp['response'].replace('```json', '').replace('```', '').strip()
             data = json.loads(content)
@@ -714,7 +715,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     return prompt
 
 # --- PHASE 4: SYNTHESIS (The Extractor) ---
-def synthesize_results(context, divergence_analysis=None):
+def synthesize_results(context, divergence_analysis=None, user_id=None):
     """
     Extracts structured data (JSON) from the conversation history.
     Now includes divergence analysis for calibrated synthesis.
@@ -805,7 +806,7 @@ def synthesize_results(context, divergence_analysis=None):
         # Extract models from context
         models_used = [f"{entry['ai']} ({entry['persona']})" for entry in context.history]
         
-        resp = call_openai_gpt4(prompt, "Synthesizer")
+        resp = call_openai_gpt4(prompt, "Synthesizer", user_id=user_id)
         if not resp.get('success'):
             print(f"[SYNTHESIS] OpenAI failed: {resp.get('response', 'Unknown error')}")
             return {"executive_summary": "Synthesis unavailable", "meta": {"models_used": [], "truth_score": 0}}
@@ -840,7 +841,7 @@ def synthesize_results(context, divergence_analysis=None):
         return {"error": "Failed to synthesize structured data."}
 
 # --- PHASE 6: ARTIFACT GENERATION (The Creator) ---
-def generate_presentation_preview(synthesized_data, classification):
+def generate_presentation_preview(synthesized_data, classification, user_id=None):
     """
     Generates a structured JSON outline for a presentation based on synthesized data.
     """
@@ -892,7 +893,7 @@ def generate_presentation_preview(synthesized_data, classification):
     """
     
     try:
-        resp = call_openai_gpt4(prompt, "Designer")
+        resp = call_openai_gpt4(prompt, "Designer", user_id=user_id)
         content = resp['response'].replace('```json', '').replace('```', '').strip()
         return json.loads(content)
     except Exception as e:

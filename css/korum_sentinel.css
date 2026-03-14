@@ -8,16 +8,16 @@
 
 .falcon-brand-container {
     position: relative;
-    width: 60px;
-    height: 60px;
+    width: 80px;
+    height: 80px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .falcon-brand-logo {
-    width: 60px;
-    height: 60px;
+    width: 80px;
+    height: 80px;
     object-fit: contain;
     filter: drop-shadow(0 0 10px rgba(255, 176, 32, 0.3));
     border-radius: 8px;

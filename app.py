@@ -1981,38 +1981,22 @@ def enhance_prompt():
     4. Maintain the user's original intent but make it professional.
     5. RETURN ONLY THE REWRITTEN PROMPT. NO INTRO/OUTRO."""
 
-    enhanced_text = ""
-    model_used = ""
-
+    user_id = current_user.id if hasattr(current_user, 'id') else None
+    from llm_core import call_google_gemini, call_openai_gpt4
+    
+    full_prompt = f"{system_instruction}\n\nUser Input: {draft}"
+    
     # Try Gemini First
-    if google_client:
-        try:
-            response = google_client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=f"{system_instruction}\n\nUser Input: {draft}"
-            )
-            enhanced_text = response.text.strip()
-            model_used = "Gemini Flash"
-        except Exception as e:
-            print(f"⚠️ Enhanced Prompt (Gemini) failed: {e}")
-
+    res = call_google_gemini(full_prompt, "PromptEngineer", model="gemini-2.0-flash", user_id=user_id)
+    if res.get('success'):
+        return jsonify({"success": True, "enhanced_text": res['response'], "model": "Gemini Flash"})
+    
     # Fallback to OpenAI
-    if not enhanced_text and openai_client:
-        try:
-            response = openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": draft}
-                ]
-            )
-            enhanced_text = response.choices[0].message.content.strip()
-            model_used = "GPT-4o"
-        except Exception as e:
-            print(f"⚠️ Enhanced Prompt (OpenAI) failed: {e}")
+    res = call_openai_gpt4(full_prompt, "PromptEngineer", model="gpt-4o", user_id=user_id)
+    if res.get('success'):
+        return jsonify({"success": True, "enhanced_text": res['response'], "model": "GPT-4o"})
 
-    if enhanced_text:
-        return jsonify({"success": True, "enhanced_text": enhanced_text, "model": model_used})
+    return jsonify({"success": False, "error": "Enhancement services unavailable"}), 503
     
     return jsonify({"success": False, "error": "Enhancement services unavailable"}), 503
 
@@ -2070,43 +2054,34 @@ def ask_sentinel():
 
     system_instruction = "You are THE SENTINEL, a tactical aide inside a decision intelligence platform called KORUM-OS. Be concise, direct, and factual. ALWAYS answer the user's question to the best of your ability — provide research, analysis, examples, product names, frameworks, and specifics. You have conversation memory — use prior exchanges for context when the user references earlier questions or asks follow-ups. Only suggest 'Convene the Council' if the user explicitly asks for a multi-provider consensus analysis. Never deflect, never refuse to answer, never say a question is too complex. You are a knowledgeable assistant — act like one."
 
+    user_id = current_user.id if hasattr(current_user, 'id') else None
     # Use Gemini Flash for speed (The Sentinel)
-    if google_client:
-        try:
-            # Build conversation thread for Gemini
-            thread = f"{system_instruction}\n\n"
-            for msg in history[:-1]:  # All except current (already in query)
-                role_label = "User" if msg.get('role') == 'user' else "Sentinel"
-                thread += f"{role_label}: {msg.get('content', '')}\n\n"
-            thread += f"User: {query}"
+    from llm_core import call_google_gemini, call_openai_gpt4
+    
+    try:
+        # Build conversation thread/prompt for Gemini
+        # We'll prepend history to the query for the wrapper
+        full_prompt = f"{system_instruction}\n\n"
+        for msg in history[:-1]:
+            role_label = "User" if msg.get('role') == 'user' else "Sentinel"
+            full_prompt += f"{role_label}: {msg.get('content', '')}\n\n"
+        full_prompt += f"User: {query}"
 
-            response = google_client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=thread
-            )
-            return jsonify({"success": True, "response": response.text, "model": "Gemini Flash"})
-        except Exception as e:
-            print(f"Sentinel Error: {e}")
-            return jsonify({"success": False, "error": str(e)})
+        # Try Gemini First
+        res = call_google_gemini(full_prompt, "Sentinel", model="gemini-2.0-flash", user_id=user_id)
+        if res.get('success'):
+            return jsonify({"success": True, "response": res['response'], "model": "Gemini Flash"})
+        
+        # Fallback to OpenAI if Gemini fails
+        res = call_openai_gpt4(full_prompt, "Sentinel", model="gpt-4o", user_id=user_id)
+        if res.get('success'):
+            return jsonify({"success": True, "response": res['response'], "model": "GPT-4o"})
+            
+        return jsonify({"success": False, "error": res.get('response', 'Sentinel failed')})
 
-    # Fallback to OpenAI if Gemini missing
-    elif openai_client:
-        try:
-            messages = [{"role": "system", "content": system_instruction}]
-            for msg in history[:-1]:  # All except current
-                role = msg.get('role', 'user')
-                if role not in ('user', 'assistant'):
-                    role = 'user'
-                messages.append({"role": role, "content": msg.get('content', '')})
-            messages.append({"role": "user", "content": query})
-
-            response = openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages
-            )
-            return jsonify({"success": True, "response": response.choices[0].message.content, "model": "GPT-4o"})
-        except Exception as e:
-            return jsonify({"success": False, "error": str(e)})
+    except Exception as e:
+        print(f"Sentinel Error: {e}")
+        return jsonify({"success": False, "error": str(e)})
 
     return jsonify({"success": False, "error": "No available models for Sentinel"})
 

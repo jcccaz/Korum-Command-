@@ -100,7 +100,13 @@ class TestSynthesizer(unittest.TestCase):
                 "outputType": "report"
             }
             
-            result = execute_council_v2(query, personas)
+            with patch('engine_v2.identify_claims') as mock_claims, \
+                 patch('engine_v2.analyze_council_divergence') as mock_div:
+                
+                mock_claims.return_value = []
+                mock_div.return_value = {}
+                
+                result = execute_council_v2(query, personas)
             
             # 4. Analyze Results
             # Check Order
@@ -113,7 +119,7 @@ class TestSynthesizer(unittest.TestCase):
             
             self.assertTrue(len(orchestration_prompts) > 0)
             prompt_sent_to_openai = orchestration_prompts[0]
-            self.assertIn("PREVIOUS CONTRIBUTIONS", prompt_sent_to_openai)
+            self.assertIn("PRIOR PHASE CONTEXT", prompt_sent_to_openai)
             self.assertIn("Perplexity: Found trend X", prompt_sent_to_openai)
             
             print("\n[TEST] Verified that Step 2 (OpenAI) received Context from Step 1 (Perplexity).")
