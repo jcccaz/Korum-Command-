@@ -539,6 +539,9 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
 
     # --- PHASE DIRECTIVES: Each position has a unique, non-overlapping mission ---
+    # Directives are domain-adaptive: the structure stays constant but the
+    # language flexes to match the actual query topic so that a solarpunk
+    # water-purification prompt doesn't get forced through crypto/NIST.
     PHASE_DIRECTIVES = {
         0: {
             "title": "INTAKE — Neutral Baseline",
@@ -574,32 +577,36 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
             )
         },
         3: {
-            "title": "DEFENSE OPERATIONS — Protective Action Plan",
+            "title": "OPERATIONS — Actionable Implementation Plan",
             "instruction": (
-                "You are the DEFENSE OPERATIONS lead. The baseline, strategic analysis, and counterintelligence challenges are provided below. "
-                "Your job is to translate ALL prior analysis into IMMEDIATE, ACTIONABLE protective measures. "
-                "DO NOT restate the analysis or rehash the threats — they are already documented. "
+                "You are the OPERATIONS lead. The baseline, strategic analysis, and counterintelligence challenges are provided below. "
+                "Your job is to translate ALL prior analysis into IMMEDIATE, ACTIONABLE steps. "
+                "DO NOT restate the analysis or rehash prior findings — they are already documented. "
                 "Focus ONLY on: "
-                "1) What to do RIGHT NOW (0-72 hours) "
-                "2) What resources to allocate and where "
-                "3) Escalation triggers — what signals mean the situation is worsening "
+                "1) What to do RIGHT NOW (immediate next steps, 0-72 hours) "
+                "2) What resources, tools, or teams to allocate and where "
+                "3) Key indicators — what signals mean the situation is changing "
                 "4) Contingency actions if the counterintelligence challenges prove correct "
-                "Be specific. Name tools, teams, protocols, and timelines."
+                "Be specific. Name concrete tools, methods, partners, and timelines. "
+                "Match your operational language to the DOMAIN of the query — do not default to military or cybersecurity framing unless the query is actually about those topics."
             )
         },
         4: {
-            "title": "STANDARDS INTEGRATION — Compliance & Framework Mapping",
+            "title": "VALIDATION — Standards, Frameworks & Confidence Assessment",
             "instruction": (
-                "You are the STANDARDS INTEGRATOR. All prior phases are provided below. "
-                "Your job is to map the entire analysis and action plan to established frameworks. "
+                "You are the VALIDATION ANALYST. All prior phases are provided below. "
+                "Your job is to assess the quality of the entire analysis and map it to relevant standards. "
                 "DO NOT repeat any prior analysis, scenarios, or action items. "
                 "Focus EXCLUSIVELY on: "
-                "1) Zero Trust Architecture alignment (NIST 800-207) "
-                "2) Post-Quantum Cryptography readiness (FIPS 203/204/205/206, ML-KEM, SLH-DSA) "
-                "3) Compliance framework mapping (FedRAMP, CMMC, SOC2, ISO 27001 as applicable) "
-                "4) Gaps between the proposed actions and framework requirements "
-                "5) Final confidence assessment and residual risk summary "
-                "This is the capstone — tie everything to standards that auditors and regulators recognize."
+                "1) What established frameworks, standards, or best practices apply to THIS SPECIFIC DOMAIN? "
+                "   (e.g., for cybersecurity: NIST 800-207, FedRAMP, CMMC; for engineering: ISO standards, IEEE; "
+                "   for business: industry benchmarks, regulatory requirements; for science: peer-reviewed methodology, reproducibility) "
+                "2) Gaps between the proposed actions and those framework requirements "
+                "3) Final confidence assessment — how strong is the evidence behind each recommendation? "
+                "4) Residual risks and open questions that remain unresolved "
+                "5) Quality score: rate the overall council output on rigor, completeness, and actionability "
+                "IMPORTANT: Match your frameworks to the actual query domain. Do NOT default to cryptography "
+                "or cybersecurity standards unless the query is specifically about those topics."
             )
         }
     }
