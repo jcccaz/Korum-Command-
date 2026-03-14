@@ -138,7 +138,7 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
     
     # 1. Try OpenAI (Primary)
     try:
-        plan_response = call_openai_gpt4(prompt, "Planner", user_id=user_id)
+        plan_response = call_openai_gpt4(prompt, "Planner", user_id=user_id, timeout=20)
         if plan_response['success']:
              content = plan_response['response'].replace('```json', '').replace('```', '').strip()
              return json.loads(content)
@@ -149,7 +149,7 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
 
     # 2. Try Mistral API (Cloud Fallback)
     try:
-        plan_response = call_mistral_api(prompt, "Planner", user_id=user_id)
+        plan_response = call_mistral_api(prompt, "Planner", user_id=user_id, timeout=20)
         if plan_response['success']:
              content = plan_response['response'].replace('```json', '').replace('```', '').strip()
              return json.loads(content)

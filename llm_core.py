@@ -155,7 +155,7 @@ def retry_with_backoff(retries=3, backoff_in_seconds=1):
 # --- PROVIDER HELPERS ---
 
 @retry_with_backoff()
-def call_openai_gpt4(prompt, role_key, model="gpt-4o", images=None, run_id=None, session_id=None, workflow=None, user_id=None):
+def call_openai_gpt4(prompt, role_key, model="gpt-4o", images=None, run_id=None, session_id=None, workflow=None, user_id=None, timeout=60):
     role = expand_role(role_key)
     api_key = os.getenv("OPENAI_API_KEY")
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -183,7 +183,7 @@ def call_openai_gpt4(prompt, role_key, model="gpt-4o", images=None, run_id=None,
     
     start_time = time.time()
     try:
-        resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data, timeout=60)
+        resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data, timeout=timeout)
         latency = int((time.time() - start_time) * 1000)
         
         if resp.status_code == 200:
@@ -405,7 +405,7 @@ def call_local_llm(prompt, role_key, model="local-model", run_id=None, session_i
         return {"success": False, "response": f"Local Exception: {str(e)}"}
 
 @retry_with_backoff()
-def call_mistral_api(prompt, role_key, model=None, images=None, run_id=None, session_id=None, workflow=None, user_id=None):
+def call_mistral_api(prompt, role_key, model=None, images=None, run_id=None, session_id=None, workflow=None, user_id=None, timeout=60):
     role = expand_role(role_key)
     if model is None:
         model = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
@@ -427,7 +427,7 @@ def call_mistral_api(prompt, role_key, model=None, images=None, run_id=None, ses
     
     start_time = time.time()
     try:
-        resp = requests.post("https://api.mistral.ai/v1/chat/completions", headers=headers, json=data, timeout=60)
+        resp = requests.post("https://api.mistral.ai/v1/chat/completions", headers=headers, json=data, timeout=timeout)
         latency = int((time.time() - start_time) * 1000)
         
         if resp.status_code == 200:
