@@ -515,3 +515,128 @@
 .tag-add-input::placeholder {
     color: #444;
 }
+
+/* --- EXECUTION DASHBOARD (Billing & Telemetry) --- */
+.execution-dashboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dash-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dash-panel:last-child {
+    grid-column: span 2;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 10px;
+}
+
+.dash-panel-header {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.dash-metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dash-metric {
+    display: flex;
+    flex-direction: column;
+}
+
+.dm-label {
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.dm-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: #fff;
+}
+
+.dash-mini-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+}
+
+.text-accent {
+    color: var(--accent-blue, #00f2ff);
+}
+
+.text-gold {
+    color: var(--accent-gold, #ffb020);
+}
+
+/* Contribution Bars */
+.contribution-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.contribution-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.contrib-name {
+    width: 80px;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contrib-bar-wrap {
+    flex-grow: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+}
+
+.contrib-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00f2ff, #0066ff);
+    width: 0%;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 8px rgba(0, 242, 255, 0.3);
+}
+
+.contrib-score {
+    width: 30px;
+    font-size: 0.65rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: right;
+}
+
+.empty-contribution {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.2);
+    font-style: italic;
+    text-align: center;
+    padding: 10px 0;
+}

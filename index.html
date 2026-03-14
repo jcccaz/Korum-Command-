@@ -200,6 +200,14 @@
                         <button id="btn-mode-serp" class="mode-btn" data-mode-toggle="serp">
                             <span class="mode-icon" aria-hidden="true">🌐</span> LIVE
                         </button>
+                        <button id="btn-mode-falcon" class="mode-btn" data-mode-toggle="falcon">
+                            <span class="mode-icon" aria-hidden="true">&#x1F985;</span> FALCON
+                        </button>
+                        <select id="falcon-level-select" class="falcon-level-picker" style="display:none;">
+                            <option value="LIGHT">LIGHT</option>
+                            <option value="STANDARD" selected>STANDARD</option>
+                            <option value="BLACK">BLACK</option>
+                        </select>
                     </div>
 
                     <button class="btn-primary trigger-scan">
@@ -317,34 +325,49 @@
                     </div>
                 </div>
 
-                <!-- BOTTOM: MISSION TELEMETRY -->
-                <div class="panel aux-card">
-                    <div class="aux-header">
-                        <span class="aux-title">Mission Telemetry</span>
-                        <div class="live-dot"></div>
-                    </div>
+                    <!-- NEW: Execution Dashboard Panels -->
+                    <div class="execution-dashboard">
+                        <!-- Panel 1: Cost Matrix -->
+                        <div class="dash-panel">
+                            <div class="dash-panel-header">COST MATRIX</div>
+                            <div class="dash-metrics">
+                                <div class="dash-metric">
+                                    <span class="dm-label">RUN COST</span>
+                                    <span class="dm-value" id="dash-run-cost">$0.0000</span>
+                                </div>
+                                <div class="dash-metric">
+                                    <span class="dm-label">SESSION TOTAL</span>
+                                    <span class="dm-value text-accent" id="dash-session-cost">$0.0000</span>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="provider-status-strip" id="activeProviderStrip">
-                        <!-- Dynamic Provider Pills -->
-                    </div>
+                        <!-- Panel 2: Execution Telemetry -->
+                        <div class="dash-panel">
+                            <div class="dash-panel-header">EXECUTION TELEMETRY</div>
+                            <div class="dash-metrics">
+                                <div class="dash-mini-row">
+                                    <span class="dm-label">LATENCY</span>
+                                    <span class="dm-value" id="stat-latency">-- ms</span>
+                                </div>
+                                <div class="dash-mini-row">
+                                    <span class="dm-label">WORKFLOW</span>
+                                    <span class="dm-value text-gold" id="stat-workflow">RESEARCH</span>
+                                </div>
+                                <div class="dash-mini-row">
+                                    <span class="dm-label">MODELS</span>
+                                    <span class="dm-value" id="stat-models-count">0</span>
+                                </div>
+                            </div>
+                        </div>
 
-                    <!-- Session Stats -->
-                    <div class="session-stats">
-                        <div class="session-stat">
-                            <div class="session-stat-value" id="stat-latency">--</div>
-                            <div class="session-stat-label">LATENCY</div>
-                        </div>
-                        <div class="session-stat">
-                            <div class="session-stat-value" id="stat-confidence">--</div>
-                            <div class="session-stat-label">STRENGTH</div>
-                        </div>
-                        <div class="session-stat">
-                            <div class="session-stat-value" id="stat-violations">--</div>
-                            <div class="session-stat-label">VIOLATIONS</div>
-                        </div>
-                        <div class="session-stat protocol-variance-stat" id="protocol-variance-stat" style="display:none; cursor:pointer;" onclick="openDivergenceModal()">
-                            <div class="session-stat-value" id="stat-divergence">--</div>
-                            <div class="session-stat-label">VARIANCE</div>
+                        <!-- Panel 3: Council Contribution Scores -->
+                        <div class="dash-panel">
+                            <div class="dash-panel-header">COUNCIL CONTRIBUTION</div>
+                            <div class="contribution-list" id="contribution-bars">
+                                <!-- Dynamic Bars: Odin, Tyr, Heimdall, etc. -->
+                                <div class="empty-contribution">Pending Execution...</div>
+                            </div>
                         </div>
                     </div>
 

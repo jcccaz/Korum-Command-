@@ -5,8 +5,68 @@ import time
 import json
 from functools import wraps
 from dotenv import load_dotenv
+from db import db
 
 load_dotenv()
+
+# --- Usage Cost Config (USD per token) ---
+# Standardized across providers
+MODEL_COST = {
+    # OpenAI
+    "gpt-4o": {"input": 0.0000025, "output": 0.00001},
+    "gpt-4o-mini": {"input": 0.00000015, "output": 0.0000006},
+    # Claude
+    "claude-3-5-sonnet-20241022": {"input": 0.000003, "output": 0.000015},
+    "claude-3-5-haiku-20241022": {"input": 0.0000008, "output": 0.000004},
+    "claude-sonnet-4-20250514": {"input": 0.000003, "output": 0.000015},
+    # Gemini
+    "gemini-2.0-flash": {"input": 0.0000001, "output": 0.0000004},
+    "gemini-1.5-flash": {"input": 0.000000075, "output": 0.0000003},
+    # Perplexity
+    "sonar-pro": {"input": 0.000003, "output": 0.000015},
+    "sonar": {"input": 0.000001, "output": 0.000001},
+    # Mistral
+    "mistral-large-latest": {"input": 0.000002, "output": 0.000006},
+    "mistral-small-latest": {"input": 0.0000002, "output": 0.0000006},
+    "pixtral-large-latest": {"input": 0.000002, "output": 0.000006},
+}
+
+def estimate_cost(model_name, input_tokens=None, output_tokens=None):
+    """Calculate estimated USD cost based on token counts."""
+    rates = MODEL_COST.get(model_name)
+    if not rates:
+        return 0.0
+    input_count = input_tokens or 0
+    output_count = output_tokens or 0
+    return (input_count * rates["input"]) + (output_count * rates["output"])
+
+def log_usage_telemetry(model, provider, persona, tokens_in, tokens_out, latency, success=True, run_id=None, session_id=None, workflow=None):
+    """Log model execution telemetry to database."""
+    try:
+        from models import UsageLog
+        cost = estimate_cost(model, tokens_in, tokens_out)
+        
+        # Ensure we are in a Flask context if needed, but db.session usually works if initialized
+        log = UsageLog(
+            model=model,
+            provider_name=provider,
+            persona=persona,
+            tokens_input=tokens_in,
+            tokens_output=tokens_out,
+            cost_estimate=cost,
+            latency_ms=latency,
+            success=success,
+            run_id=run_id,
+            session_id=session_id,
+            workflow_name=workflow
+        )
+        db.session.add(log)
+        db.session.commit()
+        return cost
+    except Exception as e:
+        db.session.rollback()
+        print(f"[TELEMETRY] Failed to log usage: {e}")
+        return 0.0
 
 # --- ROLE EXPANSION MAP ---
 # Converts short role keys into rich system-prompt descriptions.
@@ -94,21 +154,18 @@ def retry_with_backoff(retries=3, backoff_in_seconds=1):
 # --- PROVIDER HELPERS ---
 
 @retry_with_backoff()
-def call_openai_gpt4(prompt, role, model="gpt-4o", images=None):
-    role = expand_role(role)
+def call_openai_gpt4(prompt, role_key, model="gpt-4o", images=None, run_id=None, session_id=None, workflow=None):
+    role = expand_role(role_key)
     api_key = os.getenv("OPENAI_API_KEY")
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-    # Build content — multimodal when images are attached
+    # Build content
     if images:
         content = [{"type": "text", "text": prompt}]
         for img in images:
             content.append({
                 "type": "image_url",
-                "image_url": {
-                    "url": f"data:{img['mime_type']};base64,{img['base64']}",
-                    "detail": "auto"
-                }
+                "image_url": {"url": f"data:{img['mime_type']};base64,{img['base64']}", "detail": "auto"}
             })
     else:
         content = prompt
@@ -120,38 +177,51 @@ def call_openai_gpt4(prompt, role, model="gpt-4o", images=None):
             {"role": "user", "content": content}
         ],
         "max_tokens": 6000,
-        "temperature": 0.3,
-        "top_p": 0.1
+        "temperature": 0.3
     }
-    # Increased timeout to 60s
-    resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data, timeout=60)
     
-    if resp.status_code == 200:
-        return {"success": True, "response": resp.json()['choices'][0]['message']['content'], "model": model}
-    
-    # Trigger retry for server errors or rate limits
-    if resp.status_code in [429, 500, 502, 503, 504]:
-        raise Exception(f"API Error {resp.status_code}: {resp.text}")
+    start_time = time.time()
+    try:
+        resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data, timeout=60)
+        latency = int((time.time() - start_time) * 1000)
         
-    return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
+        if resp.status_code == 200:
+            rj = resp.json()
+            tokens_in = rj.get('usage', {}).get('prompt_tokens', 0)
+            tokens_out = rj.get('usage', {}).get('completion_tokens', 0)
+            cost = log_usage_telemetry(model, "openai", role_key, tokens_in, tokens_out, latency, True, run_id, session_id, workflow)
+            return {
+                "success": True, 
+                "response": rj['choices'][0]['message']['content'], 
+                "model": model,
+                "usage": {"input": tokens_in, "output": tokens_out, "cost": cost, "latency": latency}
+            }
+        
+        # Log failure
+        log_usage_telemetry(model, "openai", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        
+        if resp.status_code in [429, 500, 502, 503, 504]:
+            raise Exception(f"API Error {resp.status_code}: {resp.text}")
+            
+        return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
+    except Exception as e:
+        if "API Error" not in str(e): # Don't log twice if it's a raised exception
+            latency = int((time.time() - start_time) * 1000)
+            log_usage_telemetry(model, "openai", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        raise e
 
 @retry_with_backoff()
-def call_anthropic_claude(prompt, role, model="claude-sonnet-4-20250514", images=None):
-    role = expand_role(role)
+def call_anthropic_claude(prompt, role_key, model="claude-sonnet-4-20250514", images=None, run_id=None, session_id=None, workflow=None):
+    role = expand_role(role_key)
     api_key = os.getenv("ANTHROPIC_API_KEY")
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"}
 
-    # Build content — multimodal when images are attached
     if images:
         content = []
         for img in images:
             content.append({
                 "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": img['mime_type'],
-                    "data": img['base64']
-                }
+                "source": {"type": "base64", "media_type": img['mime_type'], "data": img['base64']}
             })
         content.append({"type": "text", "text": f"Role: {role}\n\n{prompt}"})
     else:
@@ -161,75 +231,95 @@ def call_anthropic_claude(prompt, role, model="claude-sonnet-4-20250514", images
         "model": model,
         "messages": [{"role": "user", "content": content}],
         "max_tokens": 6000,
-        "temperature": 0.3,
-        "top_p": 0.1
+        "temperature": 0.3
     }
-    resp = requests.post("https://api.anthropic.com/v1/messages", headers=headers, json=data, timeout=60)
     
-    if resp.status_code == 200:
-        return {"success": True, "response": resp.json()['content'][0]['text'], "model": model}
+    start_time = time.time()
+    try:
+        resp = requests.post("https://api.anthropic.com/v1/messages", headers=headers, json=data, timeout=60)
+        latency = int((time.time() - start_time) * 1000)
         
-    if resp.status_code in [429, 500, 502, 503, 504]:
-        raise Exception(f"API Error {resp.status_code}: {resp.text}")
-        
-    return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
+        if resp.status_code == 200:
+            rj = resp.json()
+            tokens_in = rj.get('usage', {}).get('input_tokens', 0)
+            tokens_out = rj.get('usage', {}).get('output_tokens', 0)
+            cost = log_usage_telemetry(model, "anthropic", role_key, tokens_in, tokens_out, latency, True, run_id, session_id, workflow)
+            return {
+                "success": True, 
+                "response": rj['content'][0]['text'], 
+                "model": model,
+                "usage": {"input": tokens_in, "output": tokens_out, "cost": cost, "latency": latency}
+            }
+            
+        log_usage_telemetry(model, "anthropic", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        if resp.status_code in [429, 500, 502, 503, 504]:
+            raise Exception(f"API Error {resp.status_code}: {resp.text}")
+            
+        return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
+    except Exception as e:
+        if "API Error" not in str(e):
+            latency = int((time.time() - start_time) * 1000)
+            log_usage_telemetry(model, "anthropic", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        raise e
 
 @retry_with_backoff()
-def call_google_gemini(prompt, role, model="gemini-2.0-flash", images=None):
-    role = expand_role(role)
+def call_google_gemini(prompt, role_key, model="gemini-2.0-flash", images=None, run_id=None, session_id=None, workflow=None):
+    role = expand_role(role_key)
     api_key = os.getenv("GOOGLE_API_KEY")
-    # v1beta required for gemini-2.0-flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
 
-    # Build parts — multimodal when images are attached
     parts = [{"text": f"Role: {role}\n\n{prompt}"}]
     if images:
         for img in images:
-            parts.append({
-                "inline_data": {
-                    "mime_type": img['mime_type'],
-                    "data": img['base64']
-                }
-            })
+            parts.append({"inline_data": {"mime_type": img['mime_type'], "data": img['base64']}})
 
     data = {
         "contents": [{"parts": parts}],
-        "generationConfig": {
-            "maxOutputTokens": 4096,
-            "temperature": 0.3,
-            "topP": 0.1
-        }
+        "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.3}
     }
-    resp = requests.post(url, headers=headers, json=data, timeout=60)
     
-    if resp.status_code == 200:
-        return {"success": True, "response": resp.json()['candidates'][0]['content']['parts'][0]['text'], "model": model}
+    start_time = time.time()
+    try:
+        resp = requests.post(url, headers=headers, json=data, timeout=60)
+        latency = int((time.time() - start_time) * 1000)
         
-    if resp.status_code in [429, 500, 502, 503, 504]:
-        raise Exception(f"API Error {resp.status_code}: {resp.text}")
-        
-    return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
+        if resp.status_code == 200:
+            rj = resp.json()
+            # Gemini usage metadata
+            usage = rj.get('usageMetadata', {})
+            tokens_in = usage.get('promptTokenCount', 0)
+            tokens_out = usage.get('candidatesTokenCount', 0)
+            cost = log_usage_telemetry(model, "google", role_key, tokens_in, tokens_out, latency, True, run_id, session_id, workflow)
+            return {
+                "success": True, 
+                "response": rj['candidates'][0]['content']['parts'][0]['text'], 
+                "model": model,
+                "usage": {"input": tokens_in, "output": tokens_out, "cost": cost, "latency": latency}
+            }
+            
+        log_usage_telemetry(model, "google", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        if resp.status_code in [429, 500, 502, 503, 504]:
+            raise Exception(f"API Error {resp.status_code}: {resp.text}")
+            
+        return {"success": False, "response": f"Error {resp.status_code}: {resp.text}"}
+    except Exception as e:
+        if "API Error" not in str(e):
+            latency = int((time.time() - start_time) * 1000)
+            log_usage_telemetry(model, "google", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        raise e
 
 @retry_with_backoff(retries=2, backoff_in_seconds=2)
-def call_perplexity(prompt, role, model=None):
-    role = expand_role(role)
+def call_perplexity(prompt, role_key, model=None, run_id=None, session_id=None, workflow=None):
+    role = expand_role(role_key)
     # Respect env var if model not explicitly passed
     if model is None:
-        model = os.getenv("PERPLEXITY_MODEL", "sonar")
+        model = os.getenv("PERPLEXITY_MODEL", "sonar-pro")
     
-    enabled = os.getenv("PERPLEXITY_ENABLED", "true").lower() == "true"
     api_key = os.getenv("PERPLEXITY_API_KEY")
-
-    if not enabled:
-        print(f"[PERPLEXITY] Skipped: PERPLEXITY_ENABLED is false")
-        return {"success": False, "response": "Perplexity search is currently disabled."}
-
     if not api_key:
-        print(f"[PERPLEXITY] Error: PERPLEXITY_API_KEY is missing")
         return {"success": False, "response": "Perplexity API key is not configured."}
 
-    print(f"[PERPLEXITY] Calling with model={model}...")
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -242,116 +332,121 @@ def call_perplexity(prompt, role, model=None):
             {"role": "user", "content": prompt}
         ],
         "max_tokens": 6000,
-        "temperature": 0.3,
-        "top_p": 0.1
+        "temperature": 0.3
     }
     
+    start_time = time.time()
     try:
         resp = requests.post("https://api.perplexity.ai/chat/completions", headers=headers, json=data, timeout=60)
+        latency = int((time.time() - start_time) * 1000)
         
         if resp.status_code == 200:
-            print(f"✅ Perplexity Success ({model})")
-            return {"success": True, "response": resp.json()['choices'][0]['message']['content'], "model": model}
+            rj = resp.json()
+            usage = rj.get('usage', {})
+            tokens_in = usage.get('prompt_tokens', 0)
+            tokens_out = usage.get('completion_tokens', 0)
+            cost = log_usage_telemetry(model, "perplexity", role_key, tokens_in, tokens_out, latency, True, run_id, session_id, workflow)
+            return {
+                "success": True, 
+                "response": rj['choices'][0]['message']['content'], 
+                "model": model,
+                "usage": {"input": tokens_in, "output": tokens_out, "cost": cost, "latency": latency}
+            }
         
-        print(f"❌ Perplexity error {resp.status_code}: {resp.text[:200]}")
-        
+        log_usage_telemetry(model, "perplexity", role_key, 0, 0, latency, False, run_id, session_id, workflow)
         if resp.status_code in [429, 500, 502, 503, 504]:
             raise Exception(f"Perplexity API Error {resp.status_code}: {resp.text}")
             
         return {"success": False, "response": f"Perplexity Error {resp.status_code}: {resp.text}"}
     except Exception as e:
-        print(f"⚠️ Perplexity exception: {e}")
-        raise e # Trigger retry
+        if "API Error" not in str(e):
+            latency = int((time.time() - start_time) * 1000)
+            log_usage_telemetry(model, "perplexity", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        raise e
 
-def call_local_llm(prompt, role, model="local-model"):
+def call_local_llm(prompt, role_key, model="local-model", run_id=None, session_id=None, workflow=None):
     """
-    Calls a local LLM running via LM Studio (or compatible OpenAI-API local server).
-    Defaults to localhost:1234
+    Calls a local LLM running via LM Studio.
     """
-    role = expand_role(role)
+    role = expand_role(role_key)
     base_url = os.getenv("LOCAL_LLM_URL", "http://localhost:1234")
     url = f"{base_url.rstrip('/')}/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
     
-    # Simple retry logic for local (sometimes it's just busy)
-    max_retries = 2
-    for attempt in range(max_retries + 1):
-        try:
-            data = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": f"You are {role}. Provide clear, short answers."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.7
-            }
-            # Short timeout ensuring we don't hang if server is dead, but enough for processing
-            resp = requests.post(url, headers=headers, json=data, timeout=120) 
-            
-            if resp.status_code == 200:
-                content = resp.json()['choices'][0]['message']['content']
-                return {"success": True, "response": content, "model": "local-mistral"}
-            
-            return {"success": False, "response": f"Local Error {resp.status_code}: {resp.text}"}
-            
-        except requests.exceptions.ConnectionError:
-            return {"success": False, "response": f"Local Logic Failed: LM Studio not running on {base_url}."}
-        except Exception as e:
-            if attempt < max_retries:
-                time.sleep(1)
-                continue
-            return {"success": False, "response": f"Local Exception: {str(e)}"}
+    start_time = time.time()
+    try:
+        data = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": f"You are {role}. Provide clear, short answers."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7
+        }
+        resp = requests.post(url, headers=headers, json=data, timeout=120) 
+        latency = int((time.time() - start_time) * 1000)
+        
+        if resp.status_code == 200:
+            content = resp.json()['choices'][0]['message']['content']
+            # Log with 0 cost for local
+            log_usage_telemetry("local-mistral", "local", role_key, 0, 0, latency, True, run_id, session_id, workflow)
+            return {"success": True, "response": content, "model": "local-mistral"}
+        
+        log_usage_telemetry("local-mistral", "local", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        return {"success": False, "response": f"Local Error {resp.status_code}: {resp.text}"}
+        
+    except Exception as e:
+        latency = int((time.time() - start_time) * 1000)
+        log_usage_telemetry("local-mistral", "local", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        return {"success": False, "response": f"Local Exception: {str(e)}"}
 
 @retry_with_backoff()
-def call_mistral_api(prompt, role, model=None, images=None):
-    """
-    Calls the official Mistral AI API (Cloud Fail-Safe).
-    Switches to pixtral-large-latest for vision when images are attached.
-    """
-    role = expand_role(role)
+def call_mistral_api(prompt, role_key, model=None, images=None, run_id=None, session_id=None, workflow=None):
+    role = expand_role(role_key)
     if model is None:
         model = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
-        
-    api_key = os.getenv("MISTRAL_API_KEY")
-    if not api_key:
-        return {"success": False, "response": "Mistral API Key missing."}
-
-    # Switch to vision model when images are present
     if images:
         model = "pixtral-large-latest"
         content = [{"type": "text", "text": prompt}]
         for img in images:
-            content.append({
-                "type": "image_url",
-                "image_url": f"data:{img['mime_type']};base64,{img['base64']}"
-            })
+            content.append({"type": "image_url", "image_url": f"data:{img['mime_type']};base64,{img['base64']}"})
     else:
         content = prompt
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+    api_key = os.getenv("MISTRAL_API_KEY")
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     data = {
         "model": model,
-        "messages": [
-            {"role": "system", "content": f"You are {role}. Provide expert analysis."},
-            {"role": "user", "content": content}
-        ],
-        "max_tokens": 6000,
-        "temperature": 0.3,
-        "top_p": 0.1
+        "messages": [{"role": "system", "content": f"You are {role}. Provide expert analysis."}, {"role": "user", "content": content}],
+        "temperature": 0.3
     }
     
-    # Mistral API endpoint
-    resp = requests.post("https://api.mistral.ai/v1/chat/completions", headers=headers, json=data, timeout=60)
-    
-    if resp.status_code == 200:
-        return {"success": True, "response": resp.json()['choices'][0]['message']['content'], "model": model}
+    start_time = time.time()
+    try:
+        resp = requests.post("https://api.mistral.ai/v1/chat/completions", headers=headers, json=data, timeout=60)
+        latency = int((time.time() - start_time) * 1000)
         
-    if resp.status_code in [429, 500, 502, 503, 504]:
-        raise Exception(f"Mistral API Error {resp.status_code}: {resp.text}")
-
-    return {"success": False, "response": f"Mistral Error {resp.status_code}: {resp.text}"}
+        if resp.status_code == 200:
+            rj = resp.json()
+            usage = rj.get('usage', {})
+            tokens_in = usage.get('prompt_tokens', 0)
+            tokens_out = usage.get('completion_tokens', 0)
+            cost = log_usage_telemetry(model, "mistral", role_key, tokens_in, tokens_out, latency, True, run_id, session_id, workflow)
+            return {
+                "success": True, 
+                "response": rj['choices'][0]['message']['content'], 
+                "model": model,
+                "usage": {"input": tokens_in, "output": tokens_out, "cost": cost, "latency": latency}
+            }
+            
+        log_usage_telemetry(model, "mistral", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        if resp.status_code in [429, 500, 502, 503, 504]:
+            raise Exception(f"Mistral API Error {resp.status_code}: {resp.text}")
+        return {"success": False, "response": f"Mistral Error {resp.status_code}: {resp.text}"}
+    except Exception as e:
+        if "API Error" not in str(e):
+            latency = int((time.time() - start_time) * 1000)
+            log_usage_telemetry(model, "mistral", role_key, 0, 0, latency, False, run_id, session_id, workflow)
+        raise e
 
 

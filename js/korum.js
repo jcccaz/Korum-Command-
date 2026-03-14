@@ -236,9 +236,25 @@ const PROVIDER_NAME_MAP = {
     "perplexity": "perplexity", "mistral": "mistral",
 };
 
+// --- PROVIDER MAPPING (Mythical Labels) ---
+const PROVIDER_MYTHICAL_LABELS = {
+    "openai": "Odin / OpenAI",
+    "anthropic": "Tyr / Claude",
+    "google": "Heimdall / Gemini",
+    "perplexity": "Huginn / Perplexity",
+    "mistral": "Mimir / Mistral",
+    "local": "Oracle / Local AI"
+};
+
 function resolveProviderKey(name) {
     if (!name) return null;
     const clean = name.replace(/[^a-zA-Z0-9\s_()-]/g, '').trim();
+    
+    // Check mythical labels first
+    for (const [key, label] of Object.entries(PROVIDER_MYTHICAL_LABELS)) {
+        if (clean === label || clean.includes(label)) return key;
+    }
+
     const exact = PROVIDER_NAME_MAP[clean];
     if (exact) return exact;
     const partial = Object.keys(PROVIDER_NAME_MAP).find(k => clean.includes(k));
@@ -1173,7 +1189,7 @@ function toggleProvider(provider) {
 }
 
 // --- MODE SELECTION ---
-const activeModes = { v2: true, red: false, serp: false };
+const activeModes = { v2: true, red: false, serp: false, falcon: false };
 
 function toggleMode(mode) {
     const btn = document.getElementById(`btn-mode-${mode}`);
@@ -1186,6 +1202,7 @@ function toggleMode(mode) {
     btn.classList.toggle('mode-active-v2', mode === 'v2' && isActive);
     btn.classList.toggle('mode-active-red', mode === 'red' && isActive);
     btn.classList.toggle('mode-active-serp', mode === 'serp' && isActive);
+    btn.classList.toggle('mode-active-falcon', mode === 'falcon' && isActive);
 
     if (isActive) {
         btn.classList.add('active');
@@ -1193,6 +1210,12 @@ function toggleMode(mode) {
     } else {
         btn.classList.remove('active');
         logTelemetry(`${mode.toUpperCase()} MODE STANDBY`, "system");
+    }
+
+    // Falcon level picker visibility
+    if (mode === 'falcon') {
+        const levelPicker = document.getElementById('falcon-level-select');
+        if (levelPicker) levelPicker.style.display = isActive ? 'inline-block' : 'none';
     }
 }
 
@@ -1599,6 +1622,9 @@ async function executeReasoningChain(query) {
 
     if (data.success) {
         renderChainResults(data.pipeline_result);
+        if (data.execution_metrics) {
+            renderExecutionDashboard(data.execution_metrics);
+        }
     } else {
         throw new Error(data.error || "Pipeline Failed");
     }
@@ -1619,7 +1645,6 @@ function renderChainResults(result) {
         card.dataset.meta = `<div class="agent-meta"><span>${phase}</span><span>${model}</span></div>`;
         card.dataset.rawContent = encodeURIComponent(content);
 
-        // Use centralized formatter
         const formattedRaw = formatV2Content(content, phase);
 
         const modelToProvider = { 'claude': 'anthropic', 'gpt': 'openai', 'gemini': 'google', 'mistral': 'mistral', 'oracle': 'local' };
@@ -2780,6 +2805,7 @@ async function executeCouncil(query, roleName) {
     const isRedTeam = activeModes.red;
     const useSerpAPI = activeModes.serp;
     if (useSerpAPI) logTelemetry("LIVE MODE ACTIVE: Fetching Real-Time Data...", "process");
+    if (activeModes.falcon) logTelemetry(`FALCON MODE ACTIVE [${document.getElementById('falcon-level-select')?.value || 'STANDARD'}]: Secure preprocessing enabled`, "warning");
 
     const payload = {
         question: query,
@@ -2788,7 +2814,9 @@ async function executeCouncil(query, roleName) {
         active_models: ["openai", "anthropic", "google", "perplexity", "mistral", "local"].filter(p => AIHealth.isAvailable(p) && !document.querySelector(`.deck-card.${p}`)?.classList.contains('silenced')),
         use_v2: true,
         is_red_team: isRedTeam,
-        use_serp: useSerpAPI,  // Real-time data via SerpAPI
+        use_serp: useSerpAPI,
+        use_falcon: activeModes.falcon,
+        falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD',
         workflow: sessionState.missionContext?.workflow || "RESEARCH",
         thread_id: sessionState.activeThreadId || null
     };
@@ -2821,6 +2849,12 @@ async function executeCouncil(query, roleName) {
     }
 
     renderResults(data, roleName);
+    
+    // RENDER EXECUTION METRICS
+    if (data.execution_metrics) {
+        renderExecutionDashboard(data.execution_metrics);
+    }
+
     incrementQueryCount();
 
     // Capture thread_id from server response (auto-created on first query)
@@ -2848,6 +2882,8 @@ function renderResults(data, roleName) {
     // Store for export functionality
     lastCouncilData = { ...data, roleName };
 
+    const placeholderMap = data.falcon?.placeholder_map || {};
+
     // Hide processing toast
     const toast = document.getElementById('processing-toast');
     if (toast) toast.style.display = 'none';
@@ -2873,7 +2909,8 @@ function renderResults(data, roleName) {
 
     // Consensus
     const consensusCard = document.createElement("div"); consensusCard.className = "consensus-card";
-    consensusCard.innerHTML = `<div class="consensus-title"><span style="font-size:16px">🏛️</span> COUNCIL DECISION: ${roleName.toUpperCase()}</div><div class="consensus-body">${formatText(data.consensus || "No consensus reached.")}</div>`;
+    const consensusText = data.consensus || "No consensus reached.";
+    consensusCard.innerHTML = `<div class="consensus-title"><span style="font-size:16px">🏛️</span> COUNCIL DECISION: ${roleName.toUpperCase()}</div><div class="consensus-body">${formatText(consensusText)}</div>`;
     grid.appendChild(consensusCard);
 
     // Agents - Process results and update health status
@@ -3005,6 +3042,50 @@ function renderResults(data, roleName) {
         });
 
         grid.appendChild(card);
+    }
+
+    // FALCON REDACTION SUMMARY CARD
+    if (data.falcon && data.falcon.enabled) {
+        const fc = data.falcon;
+        const falconCard = document.createElement("div");
+        falconCard.className = "agent-card falcon-card";
+
+        const levelColor = fc.level === 'BLACK' ? '#FF4444'
+                         : fc.level === 'STANDARD' ? '#FFB020'
+                         : '#00FF9D';
+
+        const riskColor = fc.exposure_risk === 'critical' ? '#FF4444'
+                        : fc.exposure_risk === 'high' ? '#FF6B6B'
+                        : fc.exposure_risk === 'medium' ? '#FFB020'
+                        : '#00FF9D';
+
+        const countsHtml = Object.entries(fc.counts || {})
+            .map(([cat, n]) => `<span class="falcon-cat">${cat}: ${n}</span>`)
+            .join('');
+
+        falconCard.innerHTML = `
+            <div class="precision-header" style="border-bottom:1px solid ${levelColor}40;">
+                <div class="ph-left">
+                    <div class="ph-model-name" style="color:${levelColor}">&#x1F985; FALCON SCAN</div>
+                    <div class="ph-role-label" style="color:${levelColor}99">SECURE GOVERNANCE | LEVEL: ${fc.level}</div>
+                </div>
+                <div class="ph-right" style="flex-direction:row;align-items:center;gap:8px;">
+                    <div class="metric-pill" style="color:${levelColor};border-color:${levelColor}40;">${fc.redacted_entity_count} REDACTED</div>
+                    ${fc.high_risk_items_count > 0 ? `<div class="metric-pill" style="color:#FF4444;border-color:rgba(255,68,68,0.3);">${fc.high_risk_items_count} HIGH-RISK</div>` : ''}
+                    <div class="metric-pill" style="color:${riskColor};border-color:${riskColor}40;">RISK: ${fc.exposure_risk.toUpperCase()}</div>
+                </div>
+            </div>
+            <div class="agent-response" style="padding:16px;">
+                <p style="color:#8b949e;font-size:12px;margin-bottom:10px;">
+                    Sensitive entities were stripped from the query before reaching any AI provider.
+                    Placeholder tokens maintain structural integrity for reasoning without exposing protected data.
+                </p>
+                <div class="falcon-counts" style="display:flex;gap:8px;flex-wrap:wrap;">
+                    ${countsHtml}
+                </div>
+            </div>
+        `;
+        grid.insertBefore(falconCard, grid.firstChild);
     }
 
     // EXECUTIVE BRIEF CARD (Synthesis) - renders full intelligence object
@@ -4715,3 +4796,73 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('auditRefreshBtn')?.addEventListener('click', () => AuditPanel.load());
     document.getElementById('auditFilter')?.addEventListener('change', () => AuditPanel.render());
 });
+
+// --- EXECUTION DASHBOARD RENDERER ---
+function renderExecutionDashboard(metrics) {
+    console.log("[TELEMETRY] Rendering Execution Dashboard...", metrics);
+
+    // 1. Update Cost Matrix
+    const runCostEl = document.getElementById('run-cost-val');
+    const sessionCostEl = document.getElementById('session-cost-val');
+    if (runCostEl) runCostEl.textContent = `$${(metrics.run_cost || 0).toFixed(4)}`;
+    if (sessionCostEl) sessionCostEl.textContent = `$${(metrics.session_total_cost || 0).toFixed(4)}`;
+
+    // 2. Update Execution Telemetry
+    const responseTimeEl = document.getElementById('response-time-val');
+    const workflowNameEl = document.getElementById('workflow-name-val');
+    const modelsUsedEl = document.getElementById('models-used-val');
+
+    if (responseTimeEl) responseTimeEl.textContent = `${(metrics.total_latency_ms / 1000).toFixed(2)}s`;
+    if (workflowNameEl) workflowNameEl.textContent = (metrics.workflow || "RESEARCH").toUpperCase();
+    if (modelsUsedEl) {
+        const models = metrics.models_used || [];
+        modelsUsedEl.textContent = models.join(', ') || "N/A";
+    }
+
+    // 3. Render Contribution Bars
+    const contributionGrid = document.getElementById('contribution-grid');
+    if (contributionGrid && metrics.ai_cost_breakdown) {
+        contributionGrid.innerHTML = '';
+        
+        // Combine costs and contribution scores
+        const providers = Object.keys(metrics.ai_cost_breakdown);
+        providers.forEach(p => {
+            const cost = metrics.ai_cost_breakdown[p] || 0;
+            const score = metrics.contribution_scores ? (metrics.contribution_scores[p] || 0) : 0;
+            
+            // Map to mythical label or fallback to uppercase
+            const PROVIDER_MYTHICAL_LABELS = {
+                "openai": "Odin / OpenAI",
+                "anthropic": "Tyr / Claude",
+                "google": "Heimdall / Gemini",
+                "perplexity": "Huginn / Perplexity",
+                "mistral": "Mimir / Mistral",
+                "local": "Oracle / Local AI"
+            };
+            const displayName = PROVIDER_MYTHICAL_LABELS[p] || p.toUpperCase();
+            
+            const row = document.createElement('div');
+            row.className = 'contribution-row';
+            row.innerHTML = `
+                <div class="contribution-header">
+                    <span class="provider-label">${displayName}</span>
+                    <span class="provider-cost">$${cost.toFixed(4)}</span>
+                </div>
+                <div class="contribution-bar-container">
+                    <div class="contribution-bar-fill" style="width: 0%;" data-target-width="${score}%"></div>
+                    <span class="participation-pct">${Math.round(score)}%</span>
+                </div>
+            `;
+            contributionGrid.appendChild(row);
+        });
+
+        // Trigger animations
+        setTimeout(() => {
+            contributionGrid.querySelectorAll('.contribution-bar-fill').forEach(bar => {
+                bar.style.width = bar.dataset.targetWidth;
+            });
+        }, 100);
+    }
+}
+
+// End of KorumOS Sentinel Logic

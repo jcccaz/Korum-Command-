@@ -289,6 +289,14 @@
     animation: livePulse 2s ease-in-out infinite;
 }
 
+.mode-btn.active#btn-mode-falcon {
+    background: rgba(255, 176, 32, 0.15);
+    border-color: #FFB020;
+    color: #FFD060;
+    box-shadow: 0 0 12px rgba(255, 176, 32, 0.3);
+    animation: falconPulse 2s ease-in-out infinite;
+}
+
 @keyframes livePulse {
 
     0%,
@@ -299,6 +307,11 @@
     50% {
         box-shadow: 0 0 16px rgba(0, 188, 212, 0.4);
     }
+}
+
+@keyframes falconPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 176, 32, 0.3); }
+    50% { box-shadow: 0 0 28px rgba(255, 176, 32, 0.8), inset 0 0 12px rgba(255, 176, 32, 0.2); }
 }
 
 .mode-icon {

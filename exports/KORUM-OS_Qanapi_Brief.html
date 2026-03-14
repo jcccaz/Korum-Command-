@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KORUM-OS × QANAPI — Trusted Data. Trusted Decisions.</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Barlow+Condensed:wght@300;400;500;600;700&family=Barlow:wght@300;400;500&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black:   #0d0d0d;
+    --charcoal:#161616;
+    --panel:   #1c1c1c;
+    --border:  #2e2e2e;
+    --border-light: #3a3a3a;
+    --gold:    #c9a84c;
+    --gold-dim:#8a6e2f;
+    --gold-faint: rgba(201,168,76,0.08);
+    --text:    #e8e4dc;
+    --text-mid:#b0aa9e;
+    --text-dim: #6e6860;
+    --white:   #f5f2eb;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--text);
+    font-family: 'Barlow', sans-serif;
+    font-size: 14px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media print {
+    body { background: #fff; color: #111; }
+    :root {
+      --black: #fff; --charcoal: #fff; --panel: #f5f5f5;
+      --border: #ccc; --border-light: #ddd;
+      --gold: #8a6000; --gold-dim: #8a6000; --gold-faint: rgba(138,96,0,0.06);
+      --text: #111; --text-mid: #444; --text-dim: #888; --white: #111;
+    }
+    .page { box-shadow: none !important; }
+    .cover { page-break-after: always; }
+    .section-page { page-break-inside: avoid; }
+  }
+
+  .page { max-width: 900px; margin: 0 auto; padding: 0 0 80px; }
+
+  .cover {
+    min-height: 100vh; display: flex; flex-direction: column;
+    justify-content: space-between; padding: 64px 72px;
+    border-bottom: 1px solid var(--border); position: relative; overflow: hidden;
+  }
+  .cover::before {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 340px; height: 340px;
+    background: radial-gradient(circle at top right, rgba(201,168,76,0.07), transparent 70%);
+    pointer-events: none;
+  }
+  .cover::after {
+    content: ''; position: absolute; bottom: 0; left: 0;
+    width: 280px; height: 1px;
+    background: linear-gradient(90deg, var(--gold), transparent);
+  }
+  .cover-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .cover-label {
+    font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 500;
+    letter-spacing: 4px; text-transform: uppercase; color: var(--gold);
+  }
+  .cover-meta {
+    font-family: 'Courier Prime', monospace; font-size: 10px;
+    color: var(--text-dim); text-align: right; line-height: 1.9;
+  }
+  .cover-meta span { color: var(--text-mid); }
+  .cover-main { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 80px 0 60px; }
+  .cover-lockup { margin-bottom: 40px; }
+  .cover-title {
+    font-family: 'Cormorant Garamond', serif; font-size: 72px; font-weight: 300;
+    line-height: 0.95; color: var(--white); letter-spacing: -1px; margin-bottom: 4px;
+  }
+  .cover-title em { font-style: italic; color: var(--gold); }
+  .cover-divider { width: 60px; height: 1px; background: var(--gold); margin: 28px 0; }
+  .cover-tagline {
+    font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 300;
+    font-style: italic; color: var(--text-mid); letter-spacing: 0.5px;
+  }
+  .cover-summary {
+    max-width: 560px; font-size: 15px; font-weight: 300; color: var(--text-mid);
+    line-height: 1.8; border-left: 1px solid var(--gold-dim); padding-left: 20px;
+  }
+  .cover-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
+  .cover-url {
+    font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 500;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--text-dim);
+  }
+  .cover-conf {
+    font-family: 'Courier Prime', monospace; font-size: 9px; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--text-dim);
+    border: 1px solid var(--border-light); padding: 4px 10px;
+  }
+
+  .section-page { padding: 56px 72px; border-bottom: 1px solid var(--border); }
+  .section-page:last-child { border-bottom: none; }
+  .section-header {
+    display: flex; align-items: baseline; gap: 16px; margin-bottom: 36px;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border); position: relative;
+  }
+  .section-header::after {
+    content: ''; position: absolute; bottom: -1px; left: 0;
+    width: 80px; height: 1px; background: var(--gold);
+  }
+  .section-num {
+    font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 500;
+    letter-spacing: 3px; color: var(--gold); text-transform: uppercase; white-space: nowrap;
+  }
+  .section-title {
+    font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 600;
+    color: var(--white); letter-spacing: -0.3px; line-height: 1;
+  }
+
+  .body-copy { font-size: 14.5px; font-weight: 300; color: var(--text-mid); line-height: 1.85; max-width: 680px; }
+
+  .exec-summary {
+    background: var(--gold-faint); border: 1px solid var(--gold-dim);
+    border-left: 3px solid var(--gold); padding: 24px 28px; margin-bottom: 36px;
+  }
+  .exec-summary p {
+    font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 400;
+    font-style: italic; color: var(--text); line-height: 1.8;
+  }
+
+  .council-table, .score-table, .workflow-table, .fips-table, .enterprise-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .council-table th, .score-table th, .workflow-table th, .fips-table th, .enterprise-table th {
+    font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 600;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--text-dim);
+    padding: 8px 14px; text-align: left; border-bottom: 1px solid var(--border-light);
+  }
+  .council-table td, .score-table td, .workflow-table td, .fips-table td, .enterprise-table td {
+    padding: 13px 14px; border-bottom: 1px solid var(--border); vertical-align: top;
+    font-size: 13.5px; color: var(--text-mid); font-weight: 300;
+  }
+  .council-table tr:last-child td, .score-table tr:last-child td, .workflow-table tr:last-child td,
+  .fips-table tr:last-child td, .enterprise-table tr:last-child td { border-bottom: none; }
+
+  .provider-name { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 1px; color: var(--white); display: block; }
+  .model-name { font-family: 'Courier Prime', monospace; font-size: 10px; color: var(--text-dim); margin-top: 2px; display: block; }
+  .role-tag {
+    display: inline-block; font-family: 'Barlow Condensed', sans-serif; font-size: 9px;
+    font-weight: 600; letter-spacing: 2px; text-transform: uppercase;
+    padding: 3px 8px; border: 1px solid var(--border-light); color: var(--text-dim); white-space: nowrap;
+  }
+
+  .score-range { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--white); letter-spacing: 1px; white-space: nowrap; }
+  .score-label { display: inline-block; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 3px 10px; white-space: nowrap; }
+  .sl-confirmed { color: #7ec87e; border: 1px solid rgba(126,200,126,0.35); background: rgba(126,200,126,0.07); }
+  .sl-supported { color: var(--gold); border: 1px solid rgba(201,168,76,0.35); background: rgba(201,168,76,0.07); }
+  .sl-unverified { color: #c4a060; border: 1px solid rgba(196,160,96,0.3); background: rgba(196,160,96,0.06); }
+  .sl-contested { color: #c47060; border: 1px solid rgba(196,112,96,0.3); background: rgba(196,112,96,0.06); }
+
+  .cap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+  .cap-card { background: var(--panel); border: 1px solid var(--border); padding: 20px 22px; position: relative; }
+  .cap-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--gold-dim); }
+  .cap-title { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+  .cap-body { font-size: 13px; font-weight: 300; color: var(--text-mid); line-height: 1.75; }
+
+  .subhead { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin: 28px 0 14px; }
+  .subhead:first-child { margin-top: 0; }
+
+  .phases { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border); margin-top: 8px; }
+  .phase-item { display: grid; grid-template-columns: 140px 1fr; gap: 0; border-bottom: 1px solid var(--border); }
+  .phase-item:last-child { border-bottom: none; }
+  .phase-label { background: var(--panel); padding: 14px 16px; border-right: 1px solid var(--border); font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); line-height: 1.4; }
+  .phase-body { padding: 14px 18px; font-size: 13px; color: var(--text-mid); font-weight: 300; line-height: 1.7; }
+
+  .fips-std { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; color: var(--white); letter-spacing: 1px; }
+  .algo-name { font-family: 'Courier Prime', monospace; font-size: 12px; color: var(--gold); }
+  .falcon-note { background: var(--gold-faint); border: 1px solid var(--gold-dim); border-left: 3px solid var(--gold); padding: 16px 20px; margin-top: 20px; font-size: 13px; color: var(--text-mid); font-weight: 300; line-height: 1.75; }
+  .falcon-note strong { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); display: block; margin-bottom: 6px; }
+
+  .persona-families { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 8px; }
+  .persona-family { background: var(--panel); border: 1px solid var(--border); padding: 16px 18px; }
+  .pf-title { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .pf-items { font-size: 12px; color: var(--text-mid); font-weight: 300; line-height: 1.8; }
+
+  .status-tag { display: inline-block; font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 3px 9px; }
+  .st-impl { color: #7ec87e; border: 1px solid rgba(126,200,126,0.35); background: rgba(126,200,126,0.07); }
+  .st-avail { color: var(--gold); border: 1px solid rgba(201,168,76,0.35); background: rgba(201,168,76,0.07); }
+  .st-ready { color: #80b0d0; border: 1px solid rgba(128,176,208,0.35); background: rgba(128,176,208,0.07); }
+  .st-roadmap { color: var(--text-dim); border: 1px solid var(--border-light); }
+  .st-partner { color: #c07ec8; border: 1px solid rgba(192,126,200,0.35); background: rgba(192,126,200,0.07); }
+
+  .partner-matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--border-light); margin-top: 8px; }
+  .pm-col { padding: 28px 30px; }
+  .pm-col:first-child { border-right: 1px solid var(--border-light); }
+  .pm-brand { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .pm-item { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 13.5px; color: var(--text-mid); font-weight: 300; }
+  .pm-item::before { content: '\2014'; color: var(--gold-dim); flex-shrink: 0; font-family: 'Barlow Condensed', sans-serif; }
+  .pm-tagline { margin-top: 0; font-family: 'Cormorant Garamond', serif; font-size: 18px; font-style: italic; font-weight: 300; color: var(--text-mid); text-align: center; padding: 20px 24px; border-top: 1px solid var(--border); grid-column: span 2; background: var(--gold-faint); }
+
+  .control-label { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 1px; color: var(--white); }
+  .control-desc { font-size: 12.5px; color: var(--text-mid); font-weight: 300; }
+
+  .closing {
+    padding: 56px 72px; display: flex; flex-direction: column; align-items: center;
+    text-align: center; gap: 24px; border-top: 1px solid var(--border); position: relative;
+  }
+  .closing::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 80px; height: 1px; background: var(--gold); }
+  .closing-title { font-family: 'Cormorant Garamond', serif; font-size: 36px; font-weight: 300; color: var(--white); font-style: italic; letter-spacing: 0.5px; }
+  .closing-title em { color: var(--gold); font-style: normal; }
+  .closing-body { max-width: 520px; font-size: 14px; font-weight: 300; color: var(--text-mid); line-height: 1.85; }
+  .closing-url { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 4px; text-transform: uppercase; color: var(--text-dim); }
+  .closing-conf { font-family: 'Courier Prime', monospace; font-size: 9px; letter-spacing: 2px; color: var(--text-dim); border-top: 1px solid var(--border); padding-top: 20px; width: 100%; }
+
+  .mt-sm { margin-top: 12px; }
+  .mt-md { margin-top: 24px; }
+  .mt-lg { margin-top: 36px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="cover">
+  <div class="cover-top">
+    <div class="cover-label">Partnership Brief</div>
+    <div class="cover-meta">
+      <div>Date <span>March 12, 2026</span></div>
+      <div>Version <span>2.0</span></div>
+      <div>Classification <span>Proprietary &amp; Confidential</span></div>
+    </div>
+  </div>
+  <div class="cover-main">
+    <div class="cover-lockup">
+      <div class="cover-title">KORUM-OS<br><em>&times; QANAPI</em></div>
+      <div class="cover-divider"></div>
+      <div class="cover-tagline">Trusted Data. Trusted Decisions.</div>
+    </div>
+    <div class="cover-summary">
+      In high-stakes security environments, the integrity of the decision is just as critical as the integrity of the data. One platform verifies the data. The other cross-verifies the analysis. Together: end-to-end trusted intelligence &mdash; from cryptographically verified inputs to auditable AI outputs.
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-url">korum-os.com</div>
+    <div class="cover-conf">Proprietary &amp; Confidential &mdash; Not for Distribution</div>
+  </div>
+</div>
+
+<div class="section-page">
+  <div class="section-header">
+    <div class="section-num">01 //</div>
+    <div class="section-title">Executive Summary</div>
+  </div>
+  <div class="exec-summary">
+    <p>KORUM-OS provides the intelligence orchestration layer ensuring AI-driven analysis is cross-verified, auditable, and truthful. Qanapi provides quantum-resistant data protection. Together, they deliver a full-stack trusted intelligence pipeline &mdash; from cryptographically verified inputs to cross-verified, auditable AI outputs.</p>
+  </div>
+  <div class="subhead">The Neural Council</div>
+  <div class="body-copy" style="margin-bottom: 20px;">KORUM-OS does not rely on a single AI provider. It convenes a Neural Council of five independent, world-class models to analyze, verify, and stress-test intelligence in real time. Each AI runs sequentially &mdash; not in parallel &mdash; so each model has the benefit of prior perspectives before it speaks.</div>
+  <table class="council-table">
+    <thead><tr><th>Provider</th><th>Model</th><th>Council Role</th></tr></thead>
+    <tbody>
+      <tr><td><span class="provider-name">OpenAI</span></td><td><span class="model-name">GPT-4o</span></td><td><span class="role-tag">Primary Strategist</span><br><span style="font-size:12px;color:var(--text-dim);margin-top:4px;display:block;">Strong reasoning, broad knowledge base</span></td></tr>
+      <tr><td><span class="provider-name">Anthropic</span></td><td><span class="model-name">Claude Sonnet 4</span></td><td><span class="role-tag">Deep Researcher</span><br><span style="font-size:12px;color:var(--text-dim);margin-top:4px;display:block;">Nuanced, safety-conscious, thorough</span></td></tr>
+      <tr><td><span class="provider-name">Google</span></td><td><span class="model-name">Gemini 2.0 Flash</span></td><td><span class="role-tag">Fast Integrator</span><br><span style="font-size:12px;color:var(--text-dim);margin-top:4px;display:block;">Speed, data analysis, current knowledge</span></td></tr>
+      <tr><td><span class="provider-name">Perplexity</span></td><td><span class="model-name">Sonar Pro</span></td><td><span class="role-tag">Live Intelligence</span><br><span style="font-size:12px;color:var(--text-dim);margin-top:4px;display:block;">Real-time web search with citations</span></td></tr>
+      <tr><td><span class="provider-name">Mistral</span></td><td><span class="model-name">Mistral Small</span></td><td><span class="role-tag">Independent Validator</span><br><span style="font-size:12px;color:var(--text-dim);margin-top:4px;display:block;">European perspective, multilingual</span></td></tr>
+    </tbody>
+  </table>
+  <div class="body-copy mt-md" style="font-size:13px;padding:14px 16px;border:1px solid var(--border);background:var(--panel);">A sixth local AI fallback (via LM Studio) provides air-gapped operation &mdash; no data leaves the network. This maps directly to classified environments where Qanapi's encryption is most critical.</div>
+</div>
+
+<div class="section-page">
+  <div class="section-header">
+    <div class="section-num">02 //</div>
+    <div class="section-title">Consensus Truth Scoring</div>
+  </div>
+  <div class="body-copy" style="margin-bottom:24px;">Every factual claim produced by the council is cross-checked across all five providers and assigned a living score that evolves as intelligence is tested, challenged, and verified.</div>
+  <table class="score-table">
+    <thead><tr><th>Score</th><th>Label</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><span class="score-range">90 &ndash; 100</span></td><td><span class="score-label sl-confirmed">Confirmed</span></td><td>Multiple AIs independently agree</td></tr>
+      <tr><td><span class="score-range">70 &ndash; 89</span></td><td><span class="score-label sl-supported">Supported</span></td><td>Majority agreement</td></tr>
+      <tr><td><span class="score-range">50 &ndash; 69</span></td><td><span class="score-label sl-unverified">Unverified</span></td><td>Mixed signals &mdash; requires investigation</td></tr>
+      <tr><td><span class="score-range">&lt; 50</span></td><td><span class="score-label sl-contested">Contested</span></td><td>AIs disagree &mdash; treat with caution</td></tr>
+    </tbody>
+  </table>
+  <div class="subhead mt-lg">The Full Scoring Lifecycle</div>
+  <div class="phases">
+    <div class="phase-item">
+      <div class="phase-label">Phase 1<br>Accountability Pass<br><span style="color:var(--text-dim);font-weight:400;">Automated</span></div>
+      <div class="phase-body">After all 5 council phases complete, the Accountability Engine extracts every testable claim and cross-references it across all providers. Claims confirmed by 2+ providers score +40. Legacy crypto without PQC wrappers triggers an automatic &minus;20 penalty. Final score is the average across all extracted claims.</div>
+    </div>
+    <div class="phase-item">
+      <div class="phase-label">Phase 2<br>Interrogation<br><span style="color:var(--text-dim);font-weight:400;">User-Triggered</span></div>
+      <div class="phase-body">User selects a provider card and initiates adversarial cross-examination. GPT-4o attacks; Claude defends. Concessions deduct points (&minus;5 to &minus;15). Strong rebuttals with evidence add +3. Scores animate live on each provider card in real-time.</div>
+    </div>
+    <div class="phase-item">
+      <div class="phase-label">Phase 3<br>Source Verification<br><span style="color:var(--text-dim);font-weight:400;">User-Triggered</span></div>
+      <div class="phase-body">User highlights any specific claim and sends it to Perplexity for live fact-checking. Verified claims add +5. Partially accurate: &minus;3. Inaccurate: &minus;10. Citations from NIST, MITRE ATT&amp;CK, CVE, and RFC are embedded with every verdict.</div>
+    </div>
+    <div class="phase-item">
+      <div class="phase-label">Phase 4<br>Export &amp; Attestation<br><span style="color:var(--text-dim);font-weight:400;">On Export</span></div>
+      <div class="phase-body">Final truth scores are embedded in all exported reports (PDF, DOCX, Excel). Every number in a KORUM-OS report has been tested. The score tells you not just what the AI thinks &mdash; but how well it held up under attack, and whether external sources confirmed it.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section-page">
+  <div class="section-header">
+    <div class="section-num">03 //</div>
+    <div class="section-title">Core Capabilities</div>
+  </div>
+  <div class="cap-grid">
+    <div class="cap-card"><div class="cap-title">V2 Reasoning Pipeline</div><div class="cap-body">Sequential processing where five models build upon one another's logic, eliminating single-model hallucinations. Each AI sees what came before. Each one builds deeper.</div></div>
+    <div class="cap-card"><div class="cap-title">Analytic Divergence Layer</div><div class="cap-body">Compares council outputs across 6 dimensions. Produces consensus and divergence scores, contested topic analysis with per-provider positions, and flags Protocol Variance when divergence exceeds 30%.</div></div>
+    <div class="cap-card"><div class="cap-title">Red Team Mode</div><div class="cap-body">After the council finishes, an additional AI runs with a Hacker persona to attack the council's own conclusions &mdash; surfacing blind spots, fatal flaws, and exploitable weaknesses before they reach the user.</div></div>
+    <div class="cap-card"><div class="cap-title">Interrogation System</div><div class="cap-body">Select any AI's response and cross-examine it. Pick an attacker persona, pick a defender. KORUM-OS runs a targeted adversarial face-off on that specific claim. Surgical precision. Results feed back into truth scores in real-time.</div></div>
+    <div class="cap-card"><div class="cap-title">Verify Mode (Scalpel)</div><div class="cap-body">Highlight any claim from any AI and send it to Perplexity for real-time source verification with citations. One click. One API call. Show me the receipts.</div></div>
+    <div class="cap-card"><div class="cap-title">Sentinel Quick-Strike</div><div class="cap-body">Sub-2-second responses for follow-ups and quick lookups with full conversation memory for multi-turn dialogue. Speed without sacrificing context.</div></div>
+  </div>
+</div>
+
+<div class="section-page">
+  <div class="section-header">
+    <div class="section-num">04 //</div>
+    <div class="section-title">Quantum Security Workflow</div>
+  </div>
+  <div class="body-copy" style="margin-bottom:24px;">Designed specifically for the Qanapi ecosystem, this workflow configures the council for post-quantum cryptography readiness, Zero Trust architecture enforcement, and compliance auditing.</div>
+  <table class="workflow-table">
+    <thead><tr><th>Provider</th><th>Persona</th><th>Focus</th></tr></thead>
+    <tbody>
+      <tr><td><span class="control-label">OpenAI</span></td><td><span class="role-tag">Zero Trust Architect</span></td><td>NIST 800-207, DoD ZTRA, identity-centric access controls</td></tr>
+      <tr><td><span class="control-label">Anthropic</span></td><td><span class="role-tag">Cryptographer</span></td><td>AES/RSA analysis, post-quantum crypto, key management</td></tr>
+      <tr><td><span class="control-label">Google</span></td><td><span class="role-tag">Compliance Auditor</span></td><td>FedRAMP, CMMC, NIST PQC standards mapping</td></tr>
+      <tr><td><span class="control-label">Perplexity</span></td><td><span class="role-tag">AI Architect</span></td><td>Live data on quantum computing timelines and emerging threats</td></tr>
+      <tr><td><span class="control-label">Mistral</span></td><td><span class="role-tag">Red Team Hacker</span></td><td>Attacks the deployment strategy &mdash; surfaces the gaps</td></tr>
+    </tbody>
+  </table>
+  <div class="subhead mt-lg">FIPS 203&ndash;206 Integrity Anchor</div>
+  <table class="fips-table">
+    <thead><tr><th>Standard</th><th>Algorithm</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><span class="fips-std">FIPS 203</span></td><td><span class="algo-name">ML-KEM (Kyber)</span></td><td>Key encapsulation &mdash; secure key exchange</td></tr>
+      <tr><td><span class="fips-std">FIPS 204</span></td><td><span class="algo-name">ML-DSA (Dilithium)</span></td><td>Digital signatures &mdash; general purpose</td></tr>
+      <tr><td><span class="fips-std">FIPS 205</span></td><td><span class="algo-name">SLH-DSA (SPHINCS+)</span></td><td>Hash-based signatures &mdash; conservative fallback</td></tr>
+      <tr><td><span class="fips-std">FIPS 206</span></td><td><span class="algo-name">FN-DSA (FALCON)</span></td><td>Compact signatures &mdash; Integrity Anchor for constrained links</td></tr>
+    </tbody>
+  </table>
+  <div class="falcon-note">
+    <strong>Why FALCON Matters</strong>
+    ML-DSA signatures are approximately 2,420 bytes &mdash; larger than a standard network packet. On constrained-bandwidth links (satellites, remote sensors, legacy gateways with sub-1KB packet limits), this causes packet fragmentation and creates a denial-of-service risk. FALCON signatures are approximately 666 bytes &mdash; they fit inside existing packet limits without fragmentation. For constrained environments, FALCON is the only quantum-resistant signature that works.
+  </div>
+</div>
+
+<div class="section-page">
+  <div class="section-header">
+    <div class="section-num">05 //</div>
+    <div class="section-title">62+ Expert Personas &amp; 14+ Workflows</div>
+  </div>
+  <div class="body-copy" style="margin-bottom:24px;">Every AI can be assigned a specialized persona with deep system-level instructions. Any persona can be assigned to any provider with one click, or workflow presets auto-assign the optimal team.</div>
+  <div class="persona-families">
+    <div class="persona-family"><div class="pf-title">Security &amp; Crypto</div><div class="pf-items">Zero Trust Architect<br>Cryptographer<br>Cyber Ops<br>SIGINT<br>Counterintel<br>Hacker</div></div>
+    <div class="persona-family"><div class="pf-title">Defense &amp; Intel</div><div class="pf-items">Defense Ops<br>Intel Analyst<br>Defense Acquisition<br>OSINT Specialist<br>Threat Assessor</div></div>
+    <div class="persona-family"><div class="pf-title">Strategy &amp; Analysis</div><div class="pf-items">Strategist<br>Architect<br>Critic<br>Validator<br>Researcher<br>War Room Lead</div></div>
+    <div class="persona-family"><div class="pf-title">Business &amp; Finance</div><div class="pf-items">CFO<br>Hedge Fund<br>Auditor<br>BizStrat<br>Product<br>Sales</div></div>
+    <div class="persona-family"><div class="pf-title">Domain Specialists</div><div class="pf-items">Legal<br>Medical Council<br>Science Panel<br>Tech Council<br>AI Architecture</div></div>
+    <div class="persona-family"><div class="pf-title">Workflow Presets</div><div class="pf-items">Defense Council<br>Cyber Command<br>Quantum Security<br>Intel Brief<br>War Room<br>Code Audit</div></div>
+  </div>
+</div>
+
+<div class="section-page">
+  <div class="section-header">
+    <div class="section-num">06 //</div>
+    <div class="section-title">Enterprise Readiness</div>
+  </div>
+  <table class="enterprise-table">
+    <thead><tr><th>Control</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="control-label">Authentication &amp; Role-Based Access</td><td><span class="status-tag st-impl">Implemented</span></td></tr>
+      <tr><td class="control-label">Full Audit Logging <span class="control-desc">&mdash; every query, response, auth event</span></td><td><span class="status-tag st-impl">Implemented</span></td></tr>
+      <tr><td class="control-label">HTTPS/TLS + Security Headers <span class="control-desc">&mdash; HSTS, CSP, XSS protection</span></td><td><span class="status-tag st-impl">Implemented</span></td></tr>
+      <tr><td class="control-label">Rate Limiting &amp; Session Management</td><td><span class="status-tag st-impl">Implemented</span></td></tr>
+      <tr><td class="control-label">Input Validation &amp; Sanitization</td><td><span class="status-tag st-impl">Implemented</span></td></tr>
+      <tr><td class="control-label">Air-Gapped Local Fallback</td><td><span class="status-tag st-avail">Available</span></td></tr>
+      <tr><td class="control-label">FIPS-Validated Cryptography <span class="control-desc">&mdash; via Qanapi</span></td><td><span class="status-tag st-partner">Partnership</span></td></tr>
+      <tr><td class="control-label">Cryptographic Provenance &mdash; Armory Signatures</td><td><span class="status-tag st-ready">Integration Ready</span></td></tr>
+      <tr><td class="control-label">MFA / TOTP</td><td><span class="status-tag st-ready">Infra Ready</span></td></tr>
+      <tr><td class="control-label">FedRAMP SSP Documentation</td><td><span class="status-tag st-roadmap">Roadmap</span></td></tr>
+    </tbody>
+  </table>
+  <div class="body-copy mt-md" style="font-size:13px;padding:14px 16px;border:1px solid var(--border);background:var(--panel);">Architecture advantage: KORUM-OS processes queries, not PII. No personal data enters the AI pipeline. Every event is logged and auditable &mdash; aligning with FedRAMP, CMMC, and SOC 2 frameworks Qanapi's customers already operate under.</div>
+</div>
+
+<div class="section-page">
+  <div class="section-header">
+    <div class="section-num">07 //</div>
+    <div class="section-title">Security &amp; Data Architecture FAQ</div>
+  </div>
+  <div class="phases">
+    <div class="phase-item"><div class="phase-label">Where does the data go?</div><div class="phase-body">Queries are sent to cloud AI providers via their official APIs over TLS 1.2+. No data is stored by providers &mdash; all 5 have enterprise policies prohibiting training on API inputs. KORUM-OS stores session data locally (SQLite). The Local LLM fallback runs 100% air-gapped.</div></div>
+    <div class="phase-item"><div class="phase-label">How are sessions secured?</div><div class="phase-body">TLS-encrypted HTTPS for all API calls and user sessions. Security headers enforced (HSTS, X-Frame-Options, CSP). Signed cookies with configurable expiry. Rate limiting at 30 req/min on sensitive endpoints. Input sanitization with 50K char limit. AES-256 session encryption available via Qanapi SDK integration.</div></div>
+    <div class="phase-item"><div class="phase-label">Can it run air-gapped?</div><div class="phase-body">Yes. KORUM-OS includes a Local LLM provider via LM Studio that runs entirely on-premises. In full air-gap mode, all 5 council seats can be filled by local models &mdash; no internet required. Maps directly to SCIF, classified, and regulated environments.</div></div>
+    <div class="phase-item"><div class="phase-label">What gets audited?</div><div class="phase-body">Every event: council queries, provider responses, interrogations, verifications, logins, failed logins, exports. Includes timestamp, user ID, event type, provider, model, query snippet. Provides full chain-of-custody for intelligence products. Token usage and cost tracked per model.</div></div>
+    <div class="phase-item"><div class="phase-label">What does SIGN REPORT do?</div><div class="phase-body">Currently staged as an integration hook for Qanapi: FN-DSA (FALCON) digital signature on exported reports. Once connected to Qanapi's Armory, every intelligence product gets a quantum-resistant cryptographic signature providing tamper-evident provenance.</div></div>
+    <div class="phase-item"><div class="phase-label">Does it process PII?</div><div class="phase-body">No. KORUM-OS processes queries and generates analysis &mdash; it does not ingest, store, or process personally identifiable information. This dramatically simplifies GDPR, CCPA, and HIPAA compliance.</div></div>
+    <div class="phase-item"><div class="phase-label">Provider failover?</div><div class="phase-body">Each provider has an automatic fallback chain: Primary &rarr; Mistral Cloud &rarr; Local LLM. The council continues with remaining providers. Health is monitored in real-time with color-coded status indicators.</div></div>
+    <div class="phase-item"><div class="phase-label">Hallucination prevention?</div><div class="phase-body">5-phase sequential pipeline where each AI corrects predecessors. Automated claim extraction + cross-provider verification. Divergence Layer surfaces disagreement. User-triggered interrogation and verification. Confidence defaults to "moderate-to-high." Red Team attacks conclusions before delivery.</div></div>
+  </div>
+</div>
+
+<div class="section-page">
+  <div class="section-header">
+    <div class="section-num">08 //</div>
+    <div class="section-title">The Partnership Value</div>
+  </div>
+  <div class="body-copy" style="margin-bottom:28px;">One platform encrypts and verifies the data. The other cross-verifies the analysis. Together: end-to-end trusted intelligence &mdash; from source to decision.</div>
+  <div class="partner-matrix">
+    <div class="pm-col">
+      <div class="pm-brand">Qanapi Brings</div>
+      <div class="pm-item">Quantum-resistant encryption</div>
+      <div class="pm-item">Zero Trust data protection</div>
+      <div class="pm-item">Cryptographic provenance</div>
+      <div class="pm-item">FIPS validation (203&ndash;206)</div>
+      <div class="pm-item">Data-layer security</div>
+    </div>
+    <div class="pm-col">
+      <div class="pm-brand">KORUM-OS Brings</div>
+      <div class="pm-item">Multi-source AI analysis</div>
+      <div class="pm-item">Cross-verified truth scoring</div>
+      <div class="pm-item">Intelligence tagging &amp; synthesis</div>
+      <div class="pm-item">FIPS compliance reporting</div>
+      <div class="pm-item">Decision-layer security</div>
+    </div>
+    <div class="pm-tagline">Trusted Data. Trusted Decisions.</div>
+  </div>
+</div>
+
+<div class="closing">
+  <div class="closing-title">Built for environments where<br><em>the wrong answer costs everything.</em></div>
+  <div class="closing-body">KORUM-OS and Qanapi share the same foundational belief: in critical environments, trust must be provable &mdash; not assumed. This partnership closes the gap between verified data and verified analysis.</div>
+  <div class="closing-url">korum-os.com</div>
+  <div class="closing-conf">Proprietary &amp; Confidential &mdash; Version 2.0 &mdash; March 12, 2026 &mdash; Not for Public Distribution</div>
+</div>
+
+</div>
+</body>
+</html>

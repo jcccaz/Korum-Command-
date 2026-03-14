@@ -60,18 +60,21 @@ WORKFLOW_DNA = {
 }
 
 class CouncilContext:
-    def __init__(self, query, classification, workflow="RESEARCH", previous_context=None):
+    def __init__(self, query, classification, workflow="RESEARCH", session_id=None, run_id=None, previous_context=None):
         self.query = query
         self.classification = classification
         self.workflow = workflow.upper() if workflow else "RESEARCH"
+        self.session_id = session_id
+        self.run_id = run_id
         self.history = []
         self.previous_context = previous_context or []
 
-    def add_entry(self, ai_name, persona, response):
+    def add_entry(self, ai_name, persona, response, usage=None):
         self.history.append({
             "ai": ai_name,
             "persona": persona,
             "response": response,
+            "usage": usage or {},
             "timestamp": datetime.now().isoformat()
         })
 
@@ -261,10 +264,14 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
-def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None):
-    # 1. Plan
+def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None):
+    # 1. Setup IDs
+    import uuid
+    if not run_id: run_id = str(uuid.uuid4())
+    
+    # 2. Plan
     classification = classify_query_v2(query, active_personas, active_models=active_models, previous_context=previous_context)
-    context = CouncilContext(query, classification, workflow=workflow, previous_context=previous_context)
+    context = CouncilContext(query, classification, workflow=workflow, session_id=session_id, run_id=run_id, previous_context=previous_context)
 
     if previous_context:
         print(f"[COUNCIL] Follow-up mode: {len(previous_context)} prior session(s) loaded")
@@ -274,14 +281,17 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
     if images:
         print(f"[COUNCIL] {len(images)} image(s) attached — vision mode active")
 
-    # 2. Execute Step-by-Step
+    total_run_cost = 0.0
+    total_latency_ms = 0
+    models_used = []
+
+    # 3. Execute Step-by-Step
     try:
         execution_order = classification.get('executionOrder', [])
         if not isinstance(execution_order, list): execution_order = []
         total_steps = len(execution_order)
 
         for i, provider_role in enumerate(execution_order):
-            # Split "provider-role"
             try:
                 provider, role = provider_role.split('-', 1)
                 provider = provider.lower().strip()
@@ -290,7 +300,6 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
                 provider = provider_role.lower().strip()
                 role = active_personas.get(provider, 'analyst')
 
-            # NEW: Inject "Integrator" posture for the final step
             if i == total_steps - 1:
                 role = f"Integrator ({role})"
 
@@ -299,34 +308,39 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             prompt = build_council_prompt(context, provider, role, i, total_steps)
             response_obj = {"success": False, "response": "Provider unknown"}
 
-            # Primary Call — pass images to vision-capable providers
+            # Primary Call — pass IDs for telemetry
+            telemetry_kwargs = {"run_id": run_id, "session_id": session_id, "workflow": workflow}
             try:
-                if provider == 'openai': response_obj = call_openai_gpt4(prompt, role, images=images)
-                elif provider == 'anthropic': response_obj = call_anthropic_claude(prompt, role, images=images)
-                elif provider == 'google': response_obj = call_google_gemini(prompt, role, images=images)
-                elif provider == 'perplexity': response_obj = call_perplexity(prompt, role)
-                elif provider == 'mistral': response_obj = call_mistral_api(prompt, role, images=images)
-                elif provider == 'local': response_obj = call_local_llm(prompt, role)
+                if provider == 'openai': response_obj = call_openai_gpt4(prompt, role, images=images, **telemetry_kwargs)
+                elif provider == 'anthropic': response_obj = call_anthropic_claude(prompt, role, images=images, **telemetry_kwargs)
+                elif provider == 'google': response_obj = call_google_gemini(prompt, role, images=images, **telemetry_kwargs)
+                elif provider == 'perplexity': response_obj = call_perplexity(prompt, role, **telemetry_kwargs)
+                elif provider == 'mistral': response_obj = call_mistral_api(prompt, role, images=images, **telemetry_kwargs)
+                elif provider == 'local': response_obj = call_local_llm(prompt, role, **telemetry_kwargs)
             except Exception as e:
                 print(f"[COUNCIL] Primary ({provider}) Exception: {e}")
                 response_obj = {"success": False}
 
-            # 2. FALLBACK LEVEL 1: MISTRAL CLOUD (If Primary Failed and wasn't already Mistral/Local)
+            # 4. FALLBACKS (Omitted for brevity in REPLACEMENT but preserved in actual code logic)
+            # [The fallback logic remains the same but should also pass telemetry_kwargs]
+            # [I will keep the fallback logic and inject telemetry_kwargs below]
+            
+            # --- FALLBACK LEVEL 1: MISTRAL CLOUD ---
             if not response_obj.get('success', False) and provider not in ['mistral', 'local']:
                 print(f"[COUNCIL] Primary ({provider}) Failed. Fallback to ANALYST (Mistral Cloud)...")
                 try:
-                    response_obj = call_mistral_api(prompt, role)
+                    response_obj = call_mistral_api(prompt, role, **telemetry_kwargs)
                     if response_obj.get('success', False):
                         response_obj['response'] = f"[FALLBACK: ANALYST] {response_obj.get('response', '')}"
                         response_obj['model'] = f"Mistral (Fallback for {provider})"
                 except Exception as e:
                     print(f"[COUNCIL] Mistral Fallback Exception: {e}")
 
-            # 3. FALLBACK LEVEL 2: LOCAL ORACLE (If Level 1 Failed or Primary was Mistral and failed)
+            # --- FALLBACK LEVEL 2: LOCAL ORACLE ---
             if not response_obj.get('success', False) and provider != 'local':
                 print(f"[COUNCIL] Secondary Failed. Fallback to ORACLE (Local)...")
                 try:
-                    response_obj = call_local_llm(prompt, "Oracle")
+                    response_obj = call_local_llm(prompt, "Oracle", **telemetry_kwargs)
                     if response_obj.get('success', False):
                         response_obj['response'] = f"[FALLBACK: ORACLE] {response_obj.get('response', '')}"
                         response_obj['model'] = "Local Oracle (Emergency)"
@@ -334,23 +348,29 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
                     print(f"[COUNCIL] Local Fallback Exception: {e}")
             
             response_text = "No response"
+            usage = {}
             if isinstance(response_obj, dict):
                  response_text = response_obj.get('response', 'Error')
+                 usage = response_obj.get('usage', {})
+                 total_run_cost += usage.get('cost', 0.0)
+                 total_latency_ms += usage.get('latency', 0)
+                 if response_obj.get('success'):
+                     models_used.append(provider)
             else:
                  response_text = str(response_obj)
 
-            context.add_entry(provider, role, response_text)
+            context.add_entry(provider, role, response_text, usage=usage)
             
-            # Store base result with ACTUAL success status
             results[provider] = {
                 "success": response_obj.get('success', False),
                 "response": response_text,
                 "model": response_obj.get('model', 'unknown') if isinstance(response_obj, dict) else 'unknown',
                 "role": role.upper(),
+                "usage": usage,
                 "error": response_obj.get('error') if not response_obj.get('success') else None
             }
 
-        # --- NEW: ACCOUNTABILITY PASS ---
+        # --- ACCOUNTABILITY & SCORES ---
         print(f"[COUNCIL] Audit Initiated: Verifying {len(results)} responses...")
         for provider in results:
             text = results[provider]['response']
@@ -359,23 +379,51 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             results[provider]['truth_meter'] = calculate_truth_score(verified)
             results[provider]['verified_claims'] = verified
 
-        # --- ANALYTIC DIVERGENCE LAYER ---
-        print(f"[COUNCIL] Divergence Analysis: Comparing {len(results)} council outputs...")
+        # --- DIVERGENCE ---
+        print(f"[COUNCIL] Divergence Analysis...")
         divergence = analyze_council_divergence(results, context)
 
     except Exception as e:
         print(f"[EXECUTION ERROR] {e}")
         return {"consensus": "Error in execution plan.", "results": {}, "error": str(e)}
 
-    # 3. Synthesis (now includes divergence data)
+    # 4. Synthesis
     synthesis = synthesize_results(context, divergence_analysis=divergence)
+
+    # --- CONTRIBUTION SCORING ---
+    # Derived from: token share + used in synthesis + truth score
+    total_out_tokens = sum(r['usage'].get('output', 0) for r in results.values() if 'usage' in r)
+    for p, r in results.items():
+        if not r.get('success'): 
+            r['contribution_score'] = 0
+            continue
+        
+        # Token share (40%)
+        token_share = (r['usage'].get('output', 0) / total_out_tokens * 100) if total_out_tokens > 0 else 0
+        
+        # Truth score (40%)
+        truth_contribution = r.get('truth_meter', 50)
+        
+        # Used in synthesis/verif (20%) - simplified for now: if they had verified claims
+        verif_bonus = 20 if r.get('verified_claims') else 0
+        
+        r['contribution_score'] = int((token_share * 0.4) + (truth_contribution * 0.4) + verif_bonus)
+        r['contribution_score'] = max(0, min(100, r['contribution_score']))
 
     return {
         "consensus": f"COUNCIL ADJOURNED. Plan: {classification.get('outputType','report').upper()} generated via {len(results)} steps.",
         "results": results,
         "classification": classification,
         "synthesis": synthesis,
-        "divergence": divergence
+        "divergence": divergence,
+        "metrics": {
+            "run_id": run_id,
+            "session_id": session_id,
+            "run_cost": total_run_cost,
+            "latency_ms": total_latency_ms,
+            "models_used": list(set(models_used)),
+            "workflow": workflow
+        }
     }
 
 # --- ANALYTIC DIVERGENCE LAYER (The Comparator) ---

@@ -1,0 +1,39 @@
+--- RAW TEXT ---
+
+Hello, my name is John Doe and I work at Acme Corp. 
+You can reach me at john.doe@acme.com or 555-0199.
+Our project 'Operation Aurora' is located in Seattle, WA.
+My account number is ACCT-12345678.
+
+
+--- LIGHT REDACTION ---
+[FALCON] Loaded org config: 12 protected terms
+
+Hello, my name is John Doe and I work at Acme Corp. 
+You can reach me at [EMAIL_E0E219] or [PHONE_4CDB1A].
+Our project 'Operation Aurora' is located in Seattle, WA.
+My account number is ACCT-[PHONE_32C2BF].
+
+{'level': 'LIGHT', 'total_redactions': 3, 'counts_by_category': {'PHONE': 2, 'EMAIL': 1}, 'high_risk_items_count': 0, 'categories_found': ['PHONE', 'EMAIL'], 'custom_terms_loaded': 12, 'exposure_risk': 'low'}
+
+--- STANDARD REDACTION ---
+
+Hello, my name is [PERSON_998CC9] and I work at [ORG_0DFDF9]. 
+You can reach me at [EMAIL_E0E219] or [PHONE_4CDB1A].
+Our project 'Operation Aurora' is located in [LOCATION_9612E6].
+My account number is [ACCT_NUM_DA44CC].
+
+{'level': 'STANDARD', 'total_redactions': 6, 'counts_by_category': {'ACCT_NUM': 1, 'LOCATION': 1, 'PHONE': 1, 'EMAIL': 1, 'ORG': 1, 'PERSON': 1}, 'high_risk_items_count': 1, 'categories_found': ['ACCT_NUM', 'LOCATION', 'PHONE', 'EMAIL', 'ORG', 'PERSON'], 'custom_terms_loaded': 12, 'exposure_risk': 'low'}
+
+--- BLACK REDACTION ---
+
+Hello, my name is [PERSON_998CC9] and I work at [ORG_0DFDF9]. 
+You can reach me at [EMAIL_E0E219] or [PHONE_4CDB1A].
+Our project 'Operation Aurora' is located in [LOCATION_9612E6].
+My account number is [ACCT_NUM_DA44CC].
+
+{'level': 'BLACK', 'total_redactions': 6, 'counts_by_category': {'ACCT_NUM': 1, 'LOCATION': 1, 'PHONE': 1, 'EMAIL': 1, 'ORG': 1, 'PERSON': 1}, 'high_risk_items_count': 1, 'categories_found': ['ACCT_NUM', 'LOCATION', 'PHONE', 'EMAIL', 'ORG', 'PERSON'], 'custom_terms_loaded': 12, 'exposure_risk': 'low'}
+
+--- CUSTOM TERMS REDACTION (Project Aurora) ---
+Let's talk about [CUSTOM_D78456] at [CUSTOM_5B93D1].
+{'level': 'LIGHT', 'total_redactions': 2, 'counts_by_category': {'CUSTOM': 2}, 'high_risk_items_count': 0, 'categories_found': ['CUSTOM'], 'custom_terms_loaded': 12, 'exposure_risk': 'low'}

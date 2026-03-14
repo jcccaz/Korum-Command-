@@ -16,6 +16,7 @@ from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from sqlalchemy import case, func
 from db import db, init_db
+from falcon import falcon_preprocess, falcon_rehydrate  # Falcon Mode: secure redaction layer
 
 # Initialize early
 load_dotenv()
@@ -297,23 +298,8 @@ def get_audit_log():
 # Import Generator
 from engine_v2 import execute_council_v2, generate_presentation_preview, generate_pptx_file
 
-# --- Usage Cost Config (USD per token) ---
-MODEL_COST = {
-    "gpt-4o": {"input": 0.0000025, "output": 0.00001},
-    "claude-sonnet-4-20250514": {"input": 0.000003, "output": 0.000015},
-    "claude-3-5-sonnet-20241022": {"input": 0.000003, "output": 0.000015},
-    "gemini-2.0-flash": {"input": 0.0000001, "output": 0.0000004},
-    "sonar-pro": {"input": 0.000003, "output": 0.000015},
-}
-
-
-def estimate_cost(model_name, input_tokens=None, output_tokens=None):
-    rates = MODEL_COST.get(model_name)
-    if not rates:
-        return None
-    input_count = input_tokens or 0
-    output_count = output_tokens or 0
-    return (input_count * rates["input"]) + (output_count * rates["output"])
+# Cost logic moved to llm_core.py for centralization.
+from llm_core import MODEL_COST, estimate_cost
 
 
 def _env_bool(name, default=False):
@@ -1436,6 +1422,24 @@ def ask_council():
         doc_context = "\n\n--- ATTACHED DOCUMENTS ---\n" + "\n\n".join(doc_texts)
         query = query + doc_context
 
+    # --- FALCON MODE: SECURE PREPROCESSING / REDACTION ---
+    use_falcon = data.get('use_falcon', False)
+    falcon_level = data.get('falcon_level', 'STANDARD')
+    falcon_meta = None
+
+    if use_falcon:
+        if falcon_level not in ('LIGHT', 'STANDARD', 'BLACK'):
+            falcon_level = 'STANDARD'
+        print(f"[FALCON] Preprocessing at level: {falcon_level}")
+        falcon_result = falcon_preprocess(query, level=falcon_level)
+        query = falcon_result.redacted_text
+        falcon_meta = falcon_result.metadata
+        # SECURITY: placeholder_map stays in this scope only — never serialized
+        _falcon_placeholder_map = falcon_result.placeholder_map
+        print(f"[FALCON] Redacted {falcon_meta['total_redactions']} entities across {len(falcon_meta['categories_found'])} categories")
+        if falcon_meta['high_risk_items_count'] > 0:
+            print(f"[FALCON] HIGH-RISK items removed: {falcon_meta['high_risk_items_count']}")
+
     # Map roles to functions
     futures = {}
     # V2 LOGIC BRANCH
@@ -1488,16 +1492,64 @@ def ask_council():
             print(f"⚡ V2 ENGINE ENGAGED [{workflow}] for query: {query}")
         # V2 Engine handles sequence and synthesis
         active_models_list = data.get('active_models', ["openai", "anthropic", "google", "perplexity", "mistral", "local"])
-        v2_response = execute_council_v2(query, roles, images=images if images else None, workflow=workflow, active_models=active_models_list, previous_context=previous_context)
         
-        # If Red Team is ON, we might want to append it here explicitly 
-        # OR rely on V2 engine to have included it. 
-        # For now, let's keep Red Team as a distinct "Final Boss" even in V2.
+        # Generation of IDs if not provided
+        import uuid
+        run_id = str(uuid.uuid4())
+        session_id = thread_id # use thread_id as session_id for continuity
+
+        v2_response = execute_council_v2(
+            query, 
+            roles, 
+            images=images if images else None, 
+            workflow=workflow, 
+            active_models=active_models_list, 
+            previous_context=previous_context,
+            session_id=session_id,
+            run_id=run_id
+        )
+        
+        # Merge metrics into response
+        metrics = v2_response.get('metrics', {})
+        
+        # Calculate session totals
+        session_total = db.session.query(func.sum(UsageLog.estimated_cost)).filter(UsageLog.session_id == session_id).scalar() or 0.0
+        
+        # AI Cost Breakdown for the current session (cumulative)
+        ai_breakdown = db.session.query(
+            UsageLog.provider_name, 
+            func.sum(UsageLog.estimated_cost)
+        ).filter(UsageLog.session_id == session_id).group_by(UsageLog.provider_name).all()
+        
+        cumulative_ai_costs = {row[0]: float(row[1]) for row in ai_breakdown}
+
+        execution_metrics = {
+            "run_id": run_id,
+            "session_id": session_id,
+            "run_cost": metrics.get('run_cost', 0.0),
+            "session_total_cost": float(session_total),
+            "latency_ms": metrics.get('latency_ms', 0),
+            "workflow_name": workflow,
+            "models_used": metrics.get('models_used', []),
+            "ai_cost_breakdown": {p: r['usage'].get('cost', 0) for p, r in v2_response['results'].items() if 'usage' in r},
+            "cumulative_ai_costs": cumulative_ai_costs,
+            "contribution_scores": {p: r.get('contribution_score', 0) for p, r in v2_response['results'].items()}
+        }
+        
+        v2_response['execution_metrics'] = execution_metrics
+
+        # If Red Team is ON...
         if is_red_team:
             print("🛡️ RED TEAM INJECTION (V2)")
             exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(v2_response['results'])}\n\nYOUR MISSION: RED TEAM THIS. Find the fatal flaw."
-            v2_response['results']['red_team'] = call_google_gemini(exploit_prompt, "HACKER")
+            from llm_core import call_google_gemini
+            rt_res = call_google_gemini(exploit_prompt, "HACKER", run_id=run_id, session_id=session_id, workflow=workflow)
+            v2_response['results']['red_team'] = rt_res
             v2_response['consensus'] += " [RED TEAM EXECUTED]"
+            # Update metrics if Red Team added cost
+            if rt_res.get('usage'):
+                v2_response['execution_metrics']['run_cost'] += rt_res['usage'].get('cost', 0)
+                v2_response['execution_metrics']['ai_cost_breakdown']['google'] = v2_response['execution_metrics']['ai_cost_breakdown'].get('google', 0) + rt_res['usage'].get('cost', 0)
 
         # Include raw SerpAPI data if used
         if use_serp and serp_raw:
@@ -1513,19 +1565,35 @@ def ask_council():
             "contested_topics": [t.get('topic', t) if isinstance(t, dict) else t for t in divergence.get('contested_topics', [])],
             "divergence_summary": divergence.get('divergence_summary', ''),
             "composite_truth_score": synthesis.get('meta', {}).get('composite_truth_score') if isinstance(synthesis.get('meta'), dict) else None,
-            "workflow": workflow
+            "workflow": workflow,
+            "run_id": run_id,
+            "execution_metrics": execution_metrics
         }
         _thread_save_message(thread_id, 'council', json.dumps(v2_response.get('results', {})), metadata=council_meta)
 
-        # Audit log: V2 council query
+        # Audit log
         providers_used = list(v2_response.get('results', {}).keys())
         truth = council_meta.get('composite_truth_score', 'N/A')
         log_audit("council_query",
                   user_id=current_user.id if hasattr(current_user, 'id') else None,
                   user_email=current_user.email if hasattr(current_user, 'email') else None,
-                  details=f"workflow={workflow} | thread={thread_id[:8]} | providers={','.join(providers_used)} | truth_score={truth} | red_team={is_red_team} | query={query[:200]}")
+                  details=f"workflow={workflow} | thread={thread_id[:8]} | cost={execution_metrics['run_cost']} | providers={','.join(providers_used)}")
 
         v2_response['thread_id'] = thread_id
+
+        # Attach Falcon metadata to response (NEVER includes placeholder_map)
+        if falcon_meta:
+            v2_response['falcon'] = {
+                "enabled": True,
+                "level": falcon_meta['level'],
+                "redacted_entity_count": falcon_meta['total_redactions'],
+                "high_risk_items_count": falcon_meta['high_risk_items_count'],
+                "categories": falcon_meta['categories_found'],
+                "counts": falcon_meta['counts_by_category'],
+                "exposure_risk": falcon_meta['exposure_risk'],
+                "placeholder_map": _falcon_placeholder_map  # Returned for local client re-hydration
+            }
+
         return jsonify(v2_response)
 
     # V1 LEGACY PARALLEL EXECUTION (The Core 4)
@@ -1575,7 +1643,32 @@ def ask_council():
     log_audit("council_query",
               user_id=current_user.id if hasattr(current_user, 'id') else None,
               user_email=current_user.email if hasattr(current_user, 'email') else None,
-              details=f"workflow=V1_LEGACY | providers={','.join(providers_used)} | red_team={is_red_team} | query={query[:200]}")
+              details=f"workflow=V1_LEGACY | providers={','.join(providers_used)} | red_team={is_red_team} | falcon={falcon_level if use_falcon else 'OFF'} | query={query[:200]}")
+
+    if falcon_meta:
+        response_data['falcon'] = {
+            "enabled": True,
+            "level": falcon_meta['level'],
+            "redacted_entity_count": falcon_meta['total_redactions'],
+            "high_risk_items_count": falcon_meta['high_risk_items_count'],
+            "categories": falcon_meta['categories_found'],
+            "counts": falcon_meta['counts_by_category'],
+            "exposure_risk": falcon_meta['exposure_risk'],
+            # "placeholder_map": _falcon_placeholder_map <-- SECURE: Server-side rehydration only
+        }
+
+    # --- REHYDRATE RESULTS SERVER-SIDE ---
+    if use_falcon and _falcon_placeholder_map:
+        # Rehydrate results
+        for provider, res in response_data['results'].items():
+            if isinstance(res, dict) and res.get('success') and res.get('response'):
+                res['response'] = falcon_rehydrate(res['response'], _falcon_placeholder_map)
+        
+        # Rehydrate v2 reasoning chain if present
+        if 'reasoning_chain' in response_data:
+            for step in response_data['reasoning_chain']:
+                if step.get('response'):
+                    step['response'] = falcon_rehydrate(step['response'], _falcon_placeholder_map)
 
     return jsonify(response_data)
 
@@ -1589,11 +1682,26 @@ def interrogate():
     from llm_core import expand_role
 
     data = request.json
-    original_query = sanitize_input(data.get('original_query', ''))
-    target_response = data.get('target_response', '')[:3000]
-    attacker_role = data.get('attacker_role', 'hacker')
-    defender_role = data.get('defender_role', 'cryptographer')
     challenge_focus = sanitize_input(data.get('challenge_focus', ''))
+    
+    # --- FALCON HARDENING: REDACT INPUTS ---
+    use_falcon = data.get('use_falcon', False)
+    falcon_level = data.get('falcon_level', 'STANDARD')
+    falcon_meta = None
+    _falcon_placeholder_map = {}
+
+    if use_falcon:
+        # Multi-variable redaction: we combine them to maintain consistent placeholders for entities
+        combined_text = f"QUERY: {original_query}\nTARGET: {target_response}"
+        falcon_res = falcon_preprocess(combined_text, level=falcon_level)
+        falcon_meta = falcon_res.metadata
+        _falcon_placeholder_map = falcon_res.placeholder_map
+        
+        # Split back (heuristically or just use the redacted text if we trust the order)
+        # Safer: redact them individually but use the same salt if we wanted. 
+        # For simplicity, just redact individually:
+        original_query = falcon_preprocess(original_query, level=falcon_level).redacted_text
+        target_response = falcon_preprocess(target_response, level=falcon_level).redacted_text
 
     if not target_response.strip():
         return jsonify({"error": "Target response is required"}), 400
@@ -1647,11 +1755,16 @@ def interrogate():
 
     defender_text = defender_result.get('response', 'Defense failed.')
 
+    # --- REHYDRATE INTERROGATION SERVER-SIDE ---
+    if use_falcon and _falcon_placeholder_map:
+        attacker_text = falcon_rehydrate(attacker_text, _falcon_placeholder_map)
+        defender_text = falcon_rehydrate(defender_text, _falcon_placeholder_map)
+
     # Audit log: interrogation
     log_audit("interrogation",
               user_id=current_user.id if hasattr(current_user, 'id') else None,
               user_email=current_user.email if hasattr(current_user, 'email') else None,
-              details=f"attacker={attacker_role} | defender={defender_role} | attacker_model={attacker_result.get('model', 'unknown')} | defender_model={defender_result.get('model', 'unknown')} | query={original_query[:200]}")
+              details=f"attacker={attacker_role} | defender={defender_role} | attacker_model={attacker_result.get('model', 'unknown')} | defender_model={defender_result.get('model', 'unknown')} | falcon={falcon_level if use_falcon else 'OFF'} | query={original_query[:200]}")
 
     response_data = {
         "success": True,
@@ -1668,6 +1781,12 @@ def interrogate():
             "model": defender_result.get('model', 'unknown'),
         },
         "original_query": original_query,
+        "falcon": {
+            "enabled": use_falcon,
+            "level": falcon_level,
+            "metadata": falcon_meta,
+            # "placeholder_map": _falcon_placeholder_map <-- SECURE: Never sent to client
+        } if use_falcon else None
     }
 
     # Save interrogation to thread if thread_id provided
@@ -1692,6 +1811,20 @@ def verify_claim():
     data = request.json
     claim = sanitize_input(data.get('claim', ''))
     original_query = sanitize_input(data.get('original_query', ''))
+
+    # --- FALCON HARDENING: REDACT INPUTS ---
+    use_falcon = data.get('use_falcon', False)
+    falcon_level = data.get('falcon_level', 'STANDARD')
+    falcon_meta = None
+    _falcon_placeholder_map = {}
+
+    if use_falcon:
+        # Redact the claim and query context
+        claim_res = falcon_preprocess(claim, level=falcon_level)
+        claim = claim_res.redacted_text
+        original_query = falcon_preprocess(original_query, level=falcon_level).redacted_text
+        falcon_meta = claim_res.metadata
+        _falcon_placeholder_map = claim_res.placeholder_map
 
     if not claim.strip():
         return jsonify({"error": "No claim provided"}), 400
@@ -1718,17 +1851,29 @@ def verify_claim():
             result = call_google_gemini(verify_prompt, "fact_checker")
 
         if result.get('success'):
+            verification_text = result['response']
+
+            # --- REHYDRATE VERIFICATION SERVER-SIDE ---
+            if use_falcon and _falcon_placeholder_map:
+                verification_text = falcon_rehydrate(verification_text, _falcon_placeholder_map)
+
             # Audit log: verification
             log_audit("verify_claim",
                       user_id=current_user.id if hasattr(current_user, 'id') else None,
                       user_email=current_user.email if hasattr(current_user, 'email') else None,
-                      details=f"model={result.get('model', 'unknown')} | claim={claim[:200]}")
+                      details=f"model={result.get('model', 'unknown')} | falcon={falcon_level if use_falcon else 'OFF'} | claim={claim[:200]}")
             verify_response = {
                 "success": True,
                 "claim": claim,
-                "verification": result['response'],
+                "verification": verification_text,
                 "model": result.get('model', 'unknown'),
                 "provider": "perplexity",
+                "falcon": {
+                    "enabled": use_falcon,
+                    "level": falcon_level,
+                    "metadata": falcon_meta,
+                    # "placeholder_map": _falcon_placeholder_map <-- SECURE: Never sent to client
+                } if use_falcon else None
             }
 
             # Save verification to thread if thread_id provided

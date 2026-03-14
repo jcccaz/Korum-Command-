@@ -28,6 +28,13 @@ def init_db(app) -> None:
                 _safe_add_column(conn, 'users', 'mfa_enabled', "BOOLEAN", "false")
                 _safe_add_column(conn, 'users', 'created_at', "TIMESTAMP")
                 _safe_add_column(conn, 'users', 'last_login', "TIMESTAMP")
+                
+                # UsageLog extensions
+                _safe_add_column(conn, 'usage_logs', 'run_id', "VARCHAR(36)")
+                _safe_add_column(conn, 'usage_logs', 'session_id', "VARCHAR(36)")
+                _safe_add_column(conn, 'usage_logs', 'workflow_name', "VARCHAR(50)")
+                _safe_add_column(conn, 'usage_logs', 'provider_name', "VARCHAR(50)")
+                
                 conn.commit()
             except Exception as e:
                 print(f"[DB] Migration note: {e}")

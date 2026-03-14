@@ -103,7 +103,11 @@ class UsageLog(db.Model):
     request_id = db.Column(
         db.String(36), default=lambda: str(uuid.uuid4()), index=True
     )
+    run_id = db.Column(db.String(36), index=True, nullable=True)
+    session_id = db.Column(db.String(36), index=True, nullable=True)
     user_id = db.Column(db.Integer, nullable=True)
+    workflow_name = db.Column(db.String(50), nullable=True)
+    provider_name = db.Column(db.String(50), nullable=True)
     model = db.Column(db.String(50), nullable=False)
     persona = db.Column(db.String(100), nullable=True)
     tokens_input = db.Column(db.Integer, nullable=True)

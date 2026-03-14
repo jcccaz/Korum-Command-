@@ -3353,6 +3353,69 @@ body.activated .sphere-texture {
     }
 }
 
+/* Falcon Mode Active State */
+.mode-btn.active[data-mode-toggle="falcon"] {
+    background: rgba(255, 176, 32, 0.2) !important;
+    border-color: #FFB020 !important;
+    color: #FFD060 !important;
+    box-shadow: 0 0 20px rgba(255, 176, 32, 0.6), inset 0 0 14px rgba(255, 176, 32, 0.15) !important;
+    animation: falconPulse 2s ease-in-out infinite;
+}
+
+@keyframes falconPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 176, 32, 0.3); }
+    50% { box-shadow: 0 0 28px rgba(255, 176, 32, 0.8), inset 0 0 12px rgba(255, 176, 32, 0.2); }
+}
+
+/* Falcon Level Picker */
+.falcon-level-picker {
+    background: rgba(255, 176, 32, 0.1);
+    border: 1px solid rgba(255, 176, 32, 0.3);
+    color: #FFD060;
+    font-family: var(--font-head);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.falcon-level-picker:focus {
+    outline: 1px solid #FFB020;
+    box-shadow: 0 0 8px rgba(255, 176, 32, 0.4);
+}
+
+.falcon-level-picker option {
+    background: #1a1a2e;
+    color: #FFD060;
+}
+
+/* Falcon Summary Card */
+.falcon-card {
+    border: 1px solid rgba(255, 176, 32, 0.3) !important;
+    background: rgba(255, 176, 32, 0.04) !important;
+}
+
+.falcon-card:hover {
+    border-color: rgba(255, 176, 32, 0.5) !important;
+    background: rgba(255, 176, 32, 0.08) !important;
+}
+
+.falcon-cat {
+    background: rgba(255, 176, 32, 0.15);
+    border: 1px solid rgba(255, 176, 32, 0.25);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #FFD060;
+    letter-spacing: 0.05em;
+}
+
 .mode-icon {
     font-size: 14px;
 }
