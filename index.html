@@ -397,7 +397,7 @@
 
         <!-- RESULTS PANEL -->
         <div class="results-container" id="resultsDock">
-            <div class="results-header" onclick="this.parentElement.classList.toggle('active')">
+            <div class="results-header" onclick="const rc = this.parentElement; if (rc.classList.contains('visible') || rc.classList.contains('active')) { rc.classList.remove('visible', 'active'); } else { rc.classList.add('active'); }">
                 <h3>ARTIFACT DOCK</h3>
                 <span class="close-results" onclick="event.stopPropagation(); this.closest('.results-container').classList.remove('visible', 'active')">✕</span>
             </div>
