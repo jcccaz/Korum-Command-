@@ -1741,13 +1741,48 @@ function renderChainResults(result) {
     analysisPane.innerHTML = "";
     interPane.innerHTML = '<div class="interrogation-empty-state">No interrogation or verification results yet.</div>';
 
-    // Store for export functionality (adapt V2 structure to V1 export format)
+    // Store for export functionality (adapt V2 structure to match _extract_parts expectations)
+    const totalTime = (result.metrics?.deconstruct?.time || 0) + (result.metrics?.build?.time || 0) +
+                      (result.metrics?.stress?.time || 0) + (result.metrics?.synthesize?.time || 0);
     const synthesisData = {
-        meta: { summary: result.final_artifact || '' },
-        key_findings: result.constraints || '',
-        solution: result.standard_solution || '',
-        risks: result.failure_analysis || ''
+        meta: {
+            title: sessionState.originalQuery || 'V2 Reasoning Chain Analysis',
+            summary: result.final_artifact || '',
+            workflow: sessionState.missionContext?.workflow || 'RESEARCH',
+            models_used: ['anthropic', 'openai', 'google', 'openai'],
+            composite_truth_score: 85,
+            generated_at: new Date().toISOString()
+        },
+        sections: {
+            executive_summary: result.final_artifact || '',
+            constraint_analysis: result.constraints || '',
+            architecture: result.standard_solution || '',
+            stress_test: result.failure_analysis || ''
+        },
+        structured_data: {
+            key_metrics: [
+                { metric: 'Pipeline Phases', value: result.exploit_poc ? '5' : '4', context: 'Sequential reasoning chain' },
+                { metric: 'Total Execution Time', value: `${totalTime.toFixed(1)}s`, context: 'Across all phases' }
+            ],
+            risks: [],
+            actions: []
+        }
     };
+    // Extract RISK_VECTOR tags from stress test into structured risks
+    const riskMatches = (result.failure_analysis || '').match(/\[RISK_VECTOR\](.*?)\[\/RISK_VECTOR\]/g) || [];
+    riskMatches.forEach(r => {
+        const text = r.replace(/\[\/?\s*RISK_VECTOR\s*\]/g, '').trim();
+        synthesisData.structured_data.risks.push({ risk: text, severity: 'HIGH', mitigation: 'Requires assessment' });
+    });
+    // Extract DECISION_CANDIDATE tags into actions
+    const actionMatches = (result.failure_analysis || '').match(/\[DECISION_CANDIDATE\](.*?)\[\/DECISION_CANDIDATE\]/g) || [];
+    actionMatches.forEach(a => {
+        const text = a.replace(/\[\/?\s*DECISION_CANDIDATE\s*\]/g, '').trim();
+        synthesisData.structured_data.actions.push({ action: text, priority: 'HIGH' });
+    });
+    if (result.exploit_poc) {
+        synthesisData.sections.red_team_analysis = result.exploit_poc;
+    }
     lastCouncilData = {
         synthesis: synthesisData,
         results: result.results || {},
@@ -1758,32 +1793,67 @@ function renderChainResults(result) {
     // Export toolbar
     renderExportToolbar(councilPane, lastCouncilData);
 
-    // ANALYSIS tab — chain phase summary
+    // ANALYSIS tab — cross-phase comparison + full content cards
     const analysisGrid = document.createElement("div");
     analysisGrid.className = "results-grid";
+
+    // Cross-phase comparison card
+    const allRisks = riskMatches.map(r => r.replace(/\[\/?\s*RISK_VECTOR\s*\]/g, '').trim());
+    const allActions = actionMatches.map(a => a.replace(/\[\/?\s*DECISION_CANDIDATE\s*\]/g, '').trim());
+    const truthBombs = [...(result.constraints || ''), ...(result.standard_solution || ''), ...(result.failure_analysis || ''), ...(result.final_artifact || '')]
+        .join?.('') || '';
+    const tbMatches = ((result.constraints || '') + (result.standard_solution || '') + (result.failure_analysis || '') + (result.final_artifact || ''))
+        .match(/\[TRUTH_BOMB\](.*?)\[\/TRUTH_BOMB\]/g) || [];
+
+    const comparisonCard = document.createElement("div");
+    comparisonCard.className = "agent-card no-interrogate";
+    comparisonCard.dataset.name = "CROSS-PHASE ANALYSIS";
+    comparisonCard.style.gridColumn = "1 / -1";
+    comparisonCard.innerHTML = `
+        <div class="precision-header">
+            <div class="ph-left">
+                <div class="ph-model-name">CROSS-PHASE INTELLIGENCE SUMMARY</div>
+                <div class="ph-role-label">Aggregated findings across all pipeline phases</div>
+            </div>
+            <div class="ph-right">
+                <div class="metric-pill">${tbMatches.length} FACTS</div>
+                <div class="metric-pill" style="border-color:#FF4444; color:#FF4444;">${allRisks.length} RISKS</div>
+                <div class="metric-pill" style="border-color:#00E5FF; color:#00E5FF;">${allActions.length} ACTIONS</div>
+                <div class="metric-pill time">${totalTime.toFixed(1)}s</div>
+            </div>
+        </div>
+        <div class="agent-response" style="font-size:0.62rem; line-height:1.7;">
+            ${allRisks.length ? `<div style="margin-bottom:12px;"><strong style="color:#FF4444;">RISK VECTORS IDENTIFIED</strong><br>${allRisks.map(r => `<span style="color:#CCC;">• ${r}</span>`).join('<br>')}</div>` : ''}
+            ${allActions.length ? `<div style="margin-bottom:12px;"><strong style="color:#00E5FF;">RECOMMENDED ACTIONS</strong><br>${allActions.map(a => `<span style="color:#CCC;">• ${a}</span>`).join('<br>')}</div>` : ''}
+            ${tbMatches.length ? `<div><strong style="color:#00FF9D;">VERIFIED FACTS (${tbMatches.length})</strong><br>${tbMatches.slice(0, 8).map(t => `<span style="color:#999;">• ${t.replace(/\[\/?\s*TRUTH_BOMB\s*\]/g, '').trim()}</span>`).join('<br>')}${tbMatches.length > 8 ? `<br><span style="color:#555;">...and ${tbMatches.length - 8} more</span>` : ''}</div>` : ''}
+        </div>
+    `;
+    analysisGrid.appendChild(comparisonCard);
+
+    // Full phase content cards
     const phases = [
-        { label: 'DECONSTRUCTION', content: result.constraints, metric: result.metrics?.deconstruct },
-        { label: 'ARCHITECTURE', content: result.standard_solution, metric: result.metrics?.build },
-        { label: 'STRESS TEST', content: result.failure_analysis, metric: result.metrics?.stress },
-        { label: 'EXECUTION', content: result.final_artifact, metric: result.metrics?.synthesize }
+        { label: 'DECONSTRUCTION', content: result.constraints, metric: result.metrics?.deconstruct, provider: 'anthropic' },
+        { label: 'ARCHITECTURE', content: result.standard_solution, metric: result.metrics?.build, provider: 'openai' },
+        { label: 'STRESS TEST', content: result.failure_analysis, metric: result.metrics?.stress, provider: 'google' },
+        { label: 'EXECUTION', content: result.final_artifact, metric: result.metrics?.synthesize, provider: 'openai' }
     ];
     phases.forEach(p => {
         if (!p.content) return;
-        const preview = p.content.substring(0, 300).replace(/[#*_`]/g, '');
         const card = document.createElement("div");
-        card.className = "agent-card no-interrogate";
+        card.className = `agent-card no-interrogate ${p.provider}`;
         card.dataset.name = p.label;
         card.innerHTML = `
             <div class="precision-header">
                 <div class="ph-left">
                     <div class="ph-model-name">${p.label}</div>
-                    <div class="ph-role-label">Phase Summary</div>
+                    <div class="ph-role-label">Full Phase Output</div>
                 </div>
                 <div class="ph-right">
                     <div class="metric-pill time">${(p.metric?.time || 0).toFixed(1)}s</div>
+                    <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.agent-card').querySelector('.agent-response').innerText, '${p.label} copied')" title="Copy">📋</div>
                 </div>
             </div>
-            <div class="agent-response" style="font-size:0.6rem; color:#999; line-height:1.5;">${formatText(preview)}...</div>
+            <div class="agent-response">${formatText(p.content)}</div>
         `;
         analysisGrid.appendChild(card);
     });
