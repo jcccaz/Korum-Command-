@@ -2225,38 +2225,159 @@ window.openInterrogation = function (targetName) {
     showInterrogationPicker(targetName, defenderRole, targetResponse);
 };
 
+// ── ADVERSARIAL FACE-OFF: ROLE REGISTRY ──────────────────────────────────
+const ATTACKER_CATEGORIES = {
+    "DEFENSE & INTEL": [
+        'defense_ops', 'cyber_ops', 'intel_analyst', 'defense_acq',
+        'sigint', 'counterintel', 'cryptographer', 'zero_trust'
+    ],
+    "SECURITY & ENGINEERING": [
+        'hacker', 'coding', 'ai_architect', 'network', 'telecom'
+    ],
+    "STRATEGY & ANALYSIS": [
+        'strategist', 'analyst', 'architect', 'containment', 'takeover',
+        'critic', 'visionary', 'optimizer'
+    ],
+    "BUSINESS & FINANCE": [
+        'cfo', 'auditor', 'bizstrat', 'hedge_fund', 'tax',
+        'negotiator', 'sales', 'economist', 'product'
+    ],
+    "SCIENCE & MEDICAL": [
+        'physicist', 'biologist', 'chemist', 'medical', 'bioethicist', 'professor'
+    ],
+    "LEGAL & COMPLIANCE": [
+        'jurist', 'compliance', 'integrity'
+    ],
+    "RESEARCH & VALIDATION": [
+        'researcher', 'scout', 'historian', 'validator'
+    ],
+    "CREATIVE & COMMS": [
+        'writer', 'innovator', 'marketing', 'social', 'creative', 'web_designer'
+    ]
+};
+
+// Counter-role suggestions: each defender gets 3 attackers that challenge its blind spots
+const ATTACKER_SUGGESTIONS = {
+    // Defense & Intel
+    'defense_ops':    ['counterintel', 'economist', 'compliance'],
+    'cyber_ops':      ['hacker', 'counterintel', 'zero_trust'],
+    'intel_analyst':  ['counterintel', 'sigint', 'critic'],
+    'defense_acq':    ['auditor', 'compliance', 'economist'],
+    'sigint':         ['counterintel', 'cryptographer', 'hacker'],
+    'counterintel':   ['hacker', 'sigint', 'intel_analyst'],
+    'cryptographer':  ['hacker', 'physicist', 'zero_trust'],
+    'zero_trust':     ['hacker', 'network', 'cryptographer'],
+    // Security & Engineering
+    'hacker':         ['cryptographer', 'zero_trust', 'counterintel'],
+    'coding':         ['hacker', 'ai_architect', 'architect'],
+    'ai_architect':   ['critic', 'bioethicist', 'hacker'],
+    'network':        ['hacker', 'zero_trust', 'telecom'],
+    'telecom':        ['sigint', 'network', 'hacker'],
+    // Strategy & Analysis
+    'strategist':     ['critic', 'takeover', 'economist'],
+    'analyst':        ['critic', 'validator', 'historian'],
+    'architect':      ['critic', 'hacker', 'auditor'],
+    'containment':    ['takeover', 'hacker', 'strategist'],
+    'takeover':       ['containment', 'compliance', 'economist'],
+    'critic':         ['innovator', 'visionary', 'architect'],
+    'visionary':      ['critic', 'economist', 'historian'],
+    'optimizer':      ['critic', 'architect', 'auditor'],
+    // Business & Finance
+    'cfo':            ['auditor', 'tax', 'hedge_fund'],
+    'auditor':        ['hacker', 'cfo', 'compliance'],
+    'bizstrat':       ['critic', 'economist', 'takeover'],
+    'hedge_fund':     ['auditor', 'economist', 'compliance'],
+    'tax':            ['auditor', 'compliance', 'jurist'],
+    'negotiator':     ['critic', 'jurist', 'takeover'],
+    'sales':          ['critic', 'auditor', 'analyst'],
+    'economist':      ['critic', 'historian', 'physicist'],
+    'product':        ['critic', 'analyst', 'sales'],
+    // Science & Medical
+    'physicist':      ['chemist', 'critic', 'economist'],
+    'biologist':      ['bioethicist', 'chemist', 'critic'],
+    'chemist':        ['physicist', 'biologist', 'critic'],
+    'medical':        ['bioethicist', 'biologist', 'compliance'],
+    'bioethicist':    ['medical', 'jurist', 'critic'],
+    'professor':      ['critic', 'innovator', 'historian'],
+    // Legal & Compliance
+    'jurist':         ['compliance', 'bioethicist', 'critic'],
+    'compliance':     ['hacker', 'jurist', 'auditor'],
+    'integrity':      ['hacker', 'auditor', 'critic'],
+    // Research & Validation
+    'researcher':     ['critic', 'validator', 'historian'],
+    'scout':          ['counterintel', 'analyst', 'validator'],
+    'historian':      ['critic', 'innovator', 'economist'],
+    'validator':      ['hacker', 'critic', 'innovator'],
+    // Creative & Comms
+    'writer':         ['critic', 'analyst', 'marketing'],
+    'innovator':      ['critic', 'economist', 'historian'],
+    'marketing':      ['critic', 'analyst', 'sales'],
+    'social':         ['critic', 'analyst', 'marketing'],
+    'creative':       ['critic', 'analyst', 'validator'],
+    'web_designer':   ['critic', 'hacker', 'optimizer'],
+};
+
+function getAttackerSuggestions(defenderRole) {
+    // Direct lookup
+    const direct = ATTACKER_SUGGESTIONS[defenderRole];
+    if (direct) return direct.filter(r => r !== defenderRole);
+
+    // Workflow-aware fallback: suggest roles from the active preset that aren't the defender
+    const workflow = sessionState?.missionContext?.workflow;
+    if (workflow) {
+        const workflowKey = Object.keys(PROTOCOL_CONFIGS).find(
+            k => k.toUpperCase().replace(/\s+/g, '_') === workflow
+        );
+        if (workflowKey) {
+            const candidates = Object.values(PROTOCOL_CONFIGS[workflowKey])
+                .filter(r => r !== defenderRole);
+            if (candidates.length >= 3) return candidates.slice(0, 3);
+        }
+    }
+
+    // Ultimate fallback
+    return ['critic', 'hacker', 'auditor'].filter(r => r !== defenderRole);
+}
+
 // ── ADVERSARIAL FACE-OFF PICKER ──────────────────────────────────────────
 function showInterrogationPicker(targetName, defenderRole, targetResponse) {
     // Remove any existing picker
     document.getElementById('interrogation-picker')?.remove();
 
-    // Smart attacker suggestions based on defender role
-    const attackerSuggestions = {
-        'cryptographer': ['hacker', 'physicist', 'zero_trust'],
-        'hacker': ['cryptographer', 'zero_trust', 'counterintel'],
-        'architect': ['critic', 'hacker', 'auditor'],
-        'strategist': ['critic', 'takeover', 'economist'],
-        'analyst': ['hacker', 'critic', 'auditor'],
-        'critic': ['architect', 'innovator', 'visionary'],
-        'scout': ['counterintel', 'analyst', 'critic'],
-        'cfo': ['auditor', 'tax', 'hedge_fund'],
-        'jurist': ['compliance', 'bioethicist', 'critic'],
-        'coding': ['hacker', 'ai_architect', 'architect'],
-        'medical': ['biologist', 'bioethicist', 'chemist'],
-        'cyber_ops': ['hacker', 'counterintel', 'zero_trust'],
-        'defense_ops': ['intel_analyst', 'counterintel', 'strategist'],
-    };
+    const suggested = getAttackerSuggestions(defenderRole);
+    const allRoles = Object.values(ATTACKER_CATEGORIES).flat();
+    const remainingCount = allRoles.filter(r => !suggested.includes(r)).length;
 
-    const suggested = attackerSuggestions[defenderRole] || ['hacker', 'critic', 'auditor'];
-    const allAttackers = ['hacker', 'critic', 'auditor', 'cryptographer', 'counterintel', 'zero_trust',
-        'physicist', 'jurist', 'economist', 'takeover', 'intel_analyst', 'cyber_ops', 'validator'];
+    // Build categorized "ALL PERSONAS" HTML
+    const categorizedHTML = Object.entries(ATTACKER_CATEGORIES).map(([category, roles]) => {
+        const filteredRoles = roles.filter(r => !suggested.includes(r));
+        if (filteredRoles.length === 0) return '';
+        return `
+            <div style="margin-top: 10px;">
+                <div style="color: #555; font-size: 0.5rem; letter-spacing: 0.12em; margin-bottom: 4px;
+                            border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 3px;">
+                    ${category}
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                    ${filteredRoles.map(role => `
+                        <button class="attacker-pick" data-role="${role}" style="
+                            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.15);
+                            color: #888; padding: 4px 8px; border-radius: 3px; cursor: pointer;
+                            font-family: inherit; font-size: 0.55rem; letter-spacing: 0.05em;
+                            transition: all 0.15s;
+                        ">${role.replace(/_/g, ' ').toUpperCase()}</button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
 
     const picker = document.createElement('div');
     picker.id = 'interrogation-picker';
     picker.style.cssText = `
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
         background: rgba(10, 10, 15, 0.97); border: 1px solid rgba(255, 68, 68, 0.6);
-        border-radius: 6px; padding: 20px 24px; z-index: 10000; min-width: 340px;
+        border-radius: 6px; padding: 20px 24px; z-index: 10000; min-width: 340px; max-width: 480px;
         box-shadow: 0 0 40px rgba(255, 68, 68, 0.15); font-family: var(--font-tactical, 'Courier New', monospace);
     `;
 
@@ -2268,7 +2389,7 @@ function showInterrogationPicker(targetName, defenderRole, targetResponse) {
             TARGET: <span style="color: #FF8888">${targetName.toUpperCase()}</span>
             &nbsp;·&nbsp; ROLE: <span style="color: #FFB020">${defenderRole.toUpperCase()}</span>
         </div>
-        <div style="color: #AAA; font-size: 0.6rem; letter-spacing: 0.1em; margin-bottom: 8px;">SELECT ATTACKER:</div>
+        <div style="color: #AAA; font-size: 0.6rem; letter-spacing: 0.1em; margin-bottom: 8px;">RECOMMENDED ATTACKERS:</div>
         <div id="attacker-grid" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">
             ${suggested.map(role => `
                 <button class="attacker-pick suggested" data-role="${role}" style="
@@ -2280,16 +2401,9 @@ function showInterrogationPicker(targetName, defenderRole, targetResponse) {
             `).join('')}
         </div>
         <details style="margin-bottom: 14px;">
-            <summary style="color: #666; font-size: 0.55rem; cursor: pointer; letter-spacing: 0.1em;">ALL PERSONAS</summary>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">
-                ${allAttackers.filter(r => !suggested.includes(r)).map(role => `
-                    <button class="attacker-pick" data-role="${role}" style="
-                        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.15);
-                        color: #888; padding: 4px 8px; border-radius: 3px; cursor: pointer;
-                        font-family: inherit; font-size: 0.55rem; letter-spacing: 0.05em;
-                        transition: all 0.15s;
-                    ">${role.replace(/_/g, ' ').toUpperCase()}</button>
-                `).join('')}
+            <summary style="color: #666; font-size: 0.55rem; cursor: pointer; letter-spacing: 0.1em;">ALL PERSONAS (${remainingCount} more)</summary>
+            <div style="max-height: 50vh; overflow-y: auto; padding-right: 4px;">
+                ${categorizedHTML}
             </div>
         </details>
         <div style="display: flex; gap: 8px;">

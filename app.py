@@ -1425,6 +1425,7 @@ def serve_css(path):
 @limiter.limit("30 per minute")
 def ask_council():
     from file_processor import process_uploaded_file
+    from llm_core import call_openai_gpt4, call_anthropic_claude, call_google_gemini, call_perplexity
 
     # Support both JSON and FormData (multipart) submissions
     if request.content_type and 'multipart/form-data' in request.content_type:
@@ -1720,7 +1721,7 @@ def ask_council():
 @limiter.limit("30 per minute")
 def interrogate():
   try:
-    from llm_core import expand_role
+    from llm_core import expand_role, call_openai_gpt4, call_anthropic_claude, call_google_gemini
 
     data = request.json
     original_query = sanitize_input(data.get('original_query', ''))
@@ -1854,6 +1855,7 @@ def verify_claim():
     Scalpel Mode: Send a single claim to Perplexity for source verification.
     Returns cited sources and evidence assessment. 1 API call only.
     """
+    from llm_core import call_perplexity, call_google_gemini
     data = request.json
     claim = sanitize_input(data.get('claim', ''))
     original_query = sanitize_input(data.get('original_query', ''))
@@ -1943,6 +1945,7 @@ def reasoning_chain():
     V2 Orchestration Route: Uses the real Sequential Council Engine.
     Maps results to the frontend's expected 'Pipeline Result' format.
     """
+    from llm_core import call_google_gemini
     data = request.json
     query = data.get('query')
     hacker_mode = data.get('hacker_mode', False)
