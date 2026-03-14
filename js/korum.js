@@ -1678,11 +1678,34 @@ async function executeReasoningChain(query) {
     // Check Hacker Toggle
     const hackerMode = activeModes.red || document.getElementById('hackerToggle')?.checked || false;
 
+    // Build role config from deck (same logic as executeCouncil)
+    let roleConfig;
+    if (customRolesActive) {
+        roleConfig = {
+            openai: document.getElementById('roleLabel-openai')?.innerText.toLowerCase() || 'strategist',
+            anthropic: document.getElementById('roleLabel-anthropic')?.innerText.toLowerCase() || 'architect',
+            google: document.getElementById('roleLabel-google')?.innerText.toLowerCase() || 'critic',
+            perplexity: document.getElementById('roleLabel-perplexity')?.innerText.toLowerCase() || 'scout',
+            mistral: document.getElementById('roleLabel-mistral')?.innerText.toLowerCase() || 'analyst',
+            local: document.getElementById('roleLabel-local')?.innerText.toLowerCase() || 'oracle'
+        };
+    } else {
+        roleConfig = PROTOCOL_CONFIGS[activeRoleName] || PROTOCOL_CONFIGS['System Core'];
+        if (!roleConfig.mistral) roleConfig.mistral = "analyst";
+        if (!roleConfig.local) roleConfig.local = "oracle";
+    }
+
     const payload = {
         query: query,
         depth: "standard",
         hacker_mode: hackerMode,
-        workflow: sessionState.missionContext?.workflow || "RESEARCH"
+        workflow: sessionState.missionContext?.workflow || "RESEARCH",
+        council_roles: roleConfig,
+        active_models: ["openai", "anthropic", "google", "perplexity", "mistral", "local"].filter(p =>
+            AIHealth.isAvailable(p) && !document.querySelector(`.deck-card.${p}`)?.classList.contains('silenced')
+        ),
+        use_falcon: activeModes.falcon,
+        falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD'
     };
 
     const response = await authFetch('/api/v2/reasoning_chain', {

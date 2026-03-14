@@ -179,7 +179,7 @@ def auth_required(f):
 def enforce_https():
     if os.getenv("FLASK_ENV") == "production":
         # Only enforce HTTPS if we are not on localhost (Railway/etc)
-        if request.headers.get("X-Forwarded-Proto", "http") == "http" and "localhost" not in request.host:
+        if request.headers.get("X-Forwarded-Proto", "http") == "http" and "localhost" not in request.host and "127.0.0.1" not in request.host:
             url = request.url.replace("http://", "https://", 1)
             return jsonify({"error": "HTTPS required", "redirect": url}), 301
 
@@ -1955,20 +1955,36 @@ def reasoning_chain():
         return jsonify({"success": False, "error": "Query required"}), 400
 
     print(f"⚡ V2 REASONING CHAIN: {query} [{workflow}]")
-    
+
+    # --- FALCON PROTOCOL: SECURE PREPROCESSING ---
+    use_falcon = data.get('use_falcon', False)
+    falcon_level = data.get('falcon_level', 'STANDARD')
+    falcon_meta = None
+    _falcon_placeholder_map = {}
+
+    if use_falcon:
+        if falcon_level not in ('LIGHT', 'STANDARD', 'BLACK'):
+            falcon_level = 'STANDARD'
+        falcon_res = falcon_preprocess(query, level=falcon_level)
+        query = falcon_res.redacted_text
+        falcon_meta = falcon_res.metadata
+        _falcon_placeholder_map = falcon_res.placeholder_map
+        print(f"🦅 FALCON [{falcon_level}]: {falcon_meta['total_redactions']} entities redacted, risk={falcon_meta['exposure_risk']}")
+
     # 1. Execute using the real engine
-    # We use a default set of personas if not provided (matching the legacy core-4/5)
-    personas = {
+    # Use frontend-provided roles if available, otherwise default
+    personas = data.get('council_roles', {
         "openai": "Strategist",
         "anthropic": "Architect",
         "google": "Critic",
         "perplexity": "Scout",
         "mistral": "Analyst"
-    }
-    
+    })
+    active_models = data.get('active_models', list(personas.keys()))
+
     try:
         user_id = current_user.id if hasattr(current_user, 'id') else None
-        results = execute_council_v2(query, personas, workflow=workflow, user_id=user_id)
+        results = execute_council_v2(query, personas, workflow=workflow, active_models=active_models, user_id=user_id)
         
         # 2. Add Red Team separately if requested (to maintain logic in app.py for now)
         if hacker_mode:
@@ -1983,13 +1999,23 @@ def reasoning_chain():
         # We look for results by provider to map to the 'Phases'
         res_map = results.get('results', {})
         
+        # --- FALCON REHYDRATION: Restore redacted entities in responses ---
+        if use_falcon and _falcon_placeholder_map:
+            for provider_key, provider_result in res_map.items():
+                if isinstance(provider_result, dict) and provider_result.get('response'):
+                    provider_result['response'] = falcon_rehydrate(provider_result['response'], _falcon_placeholder_map)
+            # Rehydrate synthesis summary
+            syn = results.get('synthesis', {})
+            if isinstance(syn, dict) and syn.get('meta', {}).get('summary'):
+                syn['meta']['summary'] = falcon_rehydrate(syn['meta']['summary'], _falcon_placeholder_map)
+
         pipeline_result = {
             "constraints": res_map.get('anthropic', {}).get('response', "Extraction Failed"),
             "standard_solution": res_map.get('openai', {}).get('response', "Generation Failed"),
             "failure_analysis": res_map.get('google', {}).get('response', "Analysis Failed"),
             "exploit_poc": res_map.get('red_team', {}).get('response') if hacker_mode else None,
             "final_artifact": results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
-            "results": res_map, # Pass raw results for truth scores
+            "results": res_map,
             "synthesis": results.get('synthesis'),
             "metrics": {
                 "deconstruct": {"cost": 0.0, "time": 0.0},
@@ -1998,11 +2024,25 @@ def reasoning_chain():
                 "synthesize": {"cost": 0.0, "time": 0.0}
             }
         }
-        
-        return jsonify({
+
+        response_data = {
             "success": True,
             "pipeline_result": pipeline_result
-        })
+        }
+
+        # Attach Falcon metadata if active
+        if use_falcon and falcon_meta:
+            response_data["falcon"] = {
+                "enabled": True,
+                "level": falcon_level,
+                "redacted_entity_count": falcon_meta['total_redactions'],
+                "high_risk_items_count": falcon_meta['high_risk_items_count'],
+                "categories": falcon_meta['categories_found'],
+                "counts": falcon_meta['counts_by_category'],
+                "exposure_risk": falcon_meta['exposure_risk'],
+            }
+
+        return jsonify(response_data)
 
     except Exception as e:
         print(f"❌ V2 Chain Error: {e}")

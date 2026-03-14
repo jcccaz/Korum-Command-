@@ -299,6 +299,8 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
         if not isinstance(execution_order, list): execution_order = []
 
         # Safety net: backfill any providers the planner skipped
+        if active_models is None:
+            active_models = list(active_personas.keys())
         assigned_providers = set()
         for pr in execution_order:
             try:
