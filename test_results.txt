@@ -1,0 +1,33 @@
+--- RAW TEXT ---
+
+Hello, my name is John Doe and I work at Acme Corp. 
+You can reach me at john.doe@acme.com or 555-0199.
+Our project 'Operation Aurora' is located in Seattle, WA.
+My account number is ACCT-12345678.
+
+
+--- STANDARD REDACTION ---
+[FALCON] Loaded org config: 12 protected terms
+
+Hello, my name is [PERSON_B4F7FD] and I work at [ORG_4AA814]. 
+You can reach me at [EMAIL_A4BA29] or [PHONE_D45C30].
+Our project 'Operation Aurora' is located in [LOCATION_18356C].
+My account number is [ACCT_NUM_73A447].
+
+{'level': 'STANDARD', 'total_redactions': 6, 'counts_by_category': {'ACCT_NUM': 1, 'LOCATION': 1, 'PHONE': 1, 'EMAIL': 1, 'ORG': 1, 'PERSON': 1}, 'high_risk_items_count': 1, 'categories_found': ['ACCT_NUM', 'LOCATION', 'PHONE', 'EMAIL', 'ORG', 'PERSON'], 'custom_terms_loaded': 24, 'execution_time_ms': 1.33, 'exposure_risk': 'low'}
+
+--- SERVER-SIDE RE-HYDRATION TEST ---
+
+Hello, my name is John Doe and I work at Acme Corp. 
+You can reach me at john.doe@acme.com or 555-0199.
+Our project 'Operation Aurora' is located in Seattle, WA.
+My account number is ACCT-12345678.
+
+SUCCESS: Rehydration restored original text perfectly.
+
+--- BLACK REDACTION + REHYDRATION ---
+SUCCESS: BLACK mode rehydration OK.
+
+--- CUSTOM TERMS REDACTION (Project Aurora) ---
+Let's talk about [CUSTOM_D16884] at [CUSTOM_A5959C].
+Rehydrated: Let's talk about Project Aurora at Qanapi.

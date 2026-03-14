@@ -3066,7 +3066,7 @@ function renderResults(data, roleName) {
         falconCard.innerHTML = `
             <div class="precision-header" style="border-bottom:1px solid ${levelColor}40;">
                 <div class="ph-left">
-                    <div class="ph-model-name" style="color:${levelColor}">&#x1F985; FALCON SCAN</div>
+                    <div class="ph-model-name" style="color:${levelColor}">&#x1F985; FALCON PROTOCOL</div>
                     <div class="ph-role-label" style="color:${levelColor}99">SECURE GOVERNANCE | LEVEL: ${fc.level}</div>
                 </div>
                 <div class="ph-right" style="flex-direction:row;align-items:center;gap:8px;">

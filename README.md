@@ -6,6 +6,7 @@
 
 - **Multi-AI Council**: Orchestrates GPT-4o, Claude 3.5, Gemini 2.0, and Perplexity
 - **Adaptive Workflows**: War Room, Deep Research, Creative Council, Code Audit, System Core
+- **Falcon Protocol**: Dual-layered PII governance (Shadow Redaction & Veil Re-hydration)
 - **V2 Reasoning Pipeline**: Full sequential execution (Deconstruction -> Architecture -> Stress Test -> Synthesis)
 - **AI Accountability System**: Real-time Truth Meter, claim highlighting, and suspect statement detection
 - **Selective Interrogation**: Targeted "Direct Command Link" interrogation via unified Global Comms
