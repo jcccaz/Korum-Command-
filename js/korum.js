@@ -1007,7 +1007,7 @@ window.dockSelection = function () {
         return;
     }
 
-    document.getElementById('interrogation-tooltip').style.display = 'none';
+    hideHighlightToolbar();
 
     // Add to dock
     const snippet = ResearchDock.add(selection, 'selection');
@@ -1144,7 +1144,6 @@ const AVAILABLE_ROLES = {
     local: ["ORACLE", "GUARDIAN", "OFFLINE"]
 };
 
-let activeSelection = "";
 let customRolesActive = false;
 let actionBindingsInitialized = false;
 
@@ -1270,7 +1269,6 @@ function analyzeQuery(query) {
 
 function initViz() {
     positionNodes();
-    setupInterrogation();
 
     document.querySelectorAll('.node').forEach(n => {
         n.classList.add('selected');
@@ -1576,11 +1574,9 @@ function setupActionBindings() {
                 content: consensusCard.querySelector('.consensus-body')?.innerHTML || consensusCard.innerHTML
             });
         }
-    });
 
-    // Deselect when clicking empty space in results container
-    document.querySelector('.results-content')?.addEventListener('click', (e) => {
-        if (e.target.classList.contains('results-content') || e.target.classList.contains('results-grid')) {
+        // Deselect when clicking empty space
+        if (target.classList.contains('results-content') || target.classList.contains('results-grid')) {
             deselectCard();
         }
     });
@@ -2150,11 +2146,6 @@ function getTimeAgo(isoString) {
     return `${days}d ago`;
 }
 
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
 
 // CSS animation for thread panel
 (function() {
@@ -2183,7 +2174,7 @@ window.challengeSelection = function () {
     const selection = window.getSelection().toString();
     if (!selection) return;
 
-    document.getElementById('interrogation-tooltip').style.display = 'none';
+    hideHighlightToolbar();
 
     // Show processing feedback
     logTelemetry("CHALLENGING SELECTION...", "process");
@@ -2672,7 +2663,7 @@ window.visualizeSelection = function (fallbackText) {
         return;
     }
 
-    document.getElementById('interrogation-tooltip').style.display = 'none';
+    hideHighlightToolbar();
 
     // Show processing feedback
     logTelemetry("VISUALIZING SELECTION...", "process");
@@ -3624,88 +3615,14 @@ function openDivergenceModal() {
 }
 
 // ============================================================
-// UX REFACTOR: CARD-LEVEL ANALYSIS & HIGHLIGHT TOOLBAR
+// UX REFACTOR: HIGHLIGHT TOOLBAR (text selection)
 // ============================================================
-let selectedCardId = null;
 let activeActionContext = {
-    type: 'card', 
+    type: 'highlight',
     provider: null,
     text: null,
     element: null
 };
-
-/**
- * Handle card selection and move the AnalysisActionBar to the selected card.
- */
-function selectCard(cardElement) {
-    const cardId = cardElement.dataset.cardId;
-    const provider = cardElement.dataset.provider;
-    
-    // Remove previous selection
-    document.querySelectorAll('.agent-card').forEach(c => c.classList.remove('card-selected'));
-    
-    // If clicking the same card, deselect
-    if (selectedCardId === cardId) {
-        selectedCardId = null;
-        hideAnalysisBar();
-        return;
-    }
-    
-    selectedCardId = cardId;
-    cardElement.classList.add('card-selected');
-    
-    showAnalysisBar(cardElement, provider);
-}
-
-function showAnalysisBar(cardElement, provider) {
-    let bar = document.getElementById('card-analysis-bar');
-    if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'card-analysis-bar';
-        bar.className = 'analysis-action-bar';
-        bar.innerHTML = `
-            <button class="aab-btn interrogation" title="Interrogate">🔎 <span class="btn-text">INTERROGATE</span></button>
-            <button class="aab-btn verify" title="Verify Evidence">⚖️ <span class="btn-text">VERIFY</span></button>
-            <button class="aab-btn defend" title="Defend Position">🛡️ <span class="btn-text">DEFEND</span></button>
-            <button class="aab-btn visualize" title="Visualize Data">📊 <span class="btn-text">VIZ</span></button>
-            <button class="aab-btn document" title="Generate Report">📄 <span class="btn-text">DOC</span></button>
-        `;
-        document.body.appendChild(bar);
-        
-        // Add listeners
-        bar.querySelector('.interrogation').onclick = (e) => { e.stopPropagation(); runCardAction('interrogate'); };
-        bar.querySelector('.verify').onclick = (e) => { e.stopPropagation(); runCardAction('verify'); };
-        bar.querySelector('.defend').onclick = (e) => { e.stopPropagation(); runCardAction('defend'); };
-        bar.querySelector('.visualize').onclick = (e) => { e.stopPropagation(); runCardAction('visualize'); };
-        bar.querySelector('.document').onclick = (e) => { e.stopPropagation(); runCardAction('document'); };
-    }
-    
-    const rect = cardElement.getBoundingClientRect();
-    const scrollY = window.scrollY;
-    
-    // Position below the precision-header
-    const header = cardElement.querySelector('.precision-header');
-    const headerRect = header.getBoundingClientRect();
-    
-    bar.style.display = 'flex';
-    bar.style.top = `${headerRect.bottom + scrollY}px`;
-    bar.style.left = `${headerRect.left}px`;
-    bar.style.width = `${headerRect.width}px`;
-    
-    activeActionContext = {
-        type: 'card',
-        provider: provider,
-        text: cardElement.querySelector('.agent-response').innerText,
-        element: cardElement
-    };
-}
-
-function hideAnalysisBar() {
-    const bar = document.getElementById('card-analysis-bar');
-    if (bar) bar.style.display = 'none';
-    selectedCardId = null;
-    activeActionContext.provider = null;
-}
 
 /**
  * Handle text selection to show the HighlightToolbar.
@@ -3773,32 +3690,6 @@ function hideHighlightToolbar() {
 }
 
 /**
- * Run actions from the card-level bar.
- */
-function runCardAction(action) {
-    const { provider, text } = activeActionContext;
-    if (!provider) return;
-    
-    switch(action) {
-        case 'interrogate':
-            openInterrogation(getProviderName(provider));
-            break;
-        case 'verify':
-            executeVerify(text, getProviderName(provider));
-            break;
-        case 'defend':
-            openInterrogation(getProviderName(provider)); 
-            break;
-        case 'visualize':
-            if (window.visualizeSelection) window.visualizeSelection(text);
-            break;
-        case 'document':
-            saveReport();
-            break;
-    }
-}
-
-/**
  * Run actions from the highlight toolbar.
  */
 function runHighlightAction(action) {
@@ -3807,7 +3698,7 @@ function runHighlightAction(action) {
     
     switch(action) {
         case 'interrogate':
-            openInterrogation(getProviderName(provider), text);
+            openInterrogation(getProviderName(provider));
             break;
         case 'verify':
             executeVerify(text, getProviderName(provider));

@@ -885,69 +885,7 @@ body.activated .sphere-container {
     overflow: hidden !important;
 }
 
-/* RESULTS DRAWER - SLIDE UP */
-.results-container {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 60%;
-    max-height: 65vh;
-    background: rgba(10, 10, 10, 0.98);
-    backdrop-filter: blur(40px);
-    border-top: 2px solid #00FF9D;
-    padding: 40px;
-    z-index: 20;
-    transform: translateY(100%);
-    transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.9);
-}
-
-.results-container.visible {
-    transform: translateY(0);
-}
-
-.results-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 16px;
-}
-
-.results-header h3 {
-    font-family: var(--font-head);
-    font-size: 18px;
-    color: var(--text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-}
-
-.close-results {
-    cursor: pointer;
-    color: var(--text-tertiary);
-    font-size: 24px;
-    transition: color 0.2s;
-}
-
-.close-results:hover {
-    color: #FFF;
-}
-
-.results-content {
-    font-family: var(--font-body);
-    font-size: 14px;
-    line-height: 1.6;
-    color: #CCC;
-    padding-right: 8px;
-    overflow-y: auto;
-    flex: 1 1 0;
-    min-height: 0;
-}
+/* Results drawer styles defined in ARTIFACT DOCK section below */
 
 /* Command Console (follow-up / interrogation input) */
 .command-console {
@@ -1305,73 +1243,7 @@ body.activated .sphere-container {
     }
 }
 
-/* INTERROGATION TOOLTIP & MERMAID */
-.interrogation-tooltip {
-    position: absolute;
-    display: none;
-    gap: 8px;
-    background: rgba(0, 0, 0, 0.9);
-    border: 1px solid var(--accent-gold);
-    padding: 8px;
-    border-radius: 6px;
-    z-index: 1000;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(10px);
-    animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.interrogation-tooltip button {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #FFF;
-    font-family: var(--font-head);
-    font-size: 10px;
-    font-weight: 700;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    transition: all 0.2s;
-}
-
-#btn-challenge:hover {
-    background: var(--accent-gold);
-    color: #000;
-    border-color: var(--accent-gold);
-    box-shadow: 0 0 10px rgba(255, 176, 32, 0.4);
-}
-
-#btn-viz:hover,
-#btn-visualize-select:hover {
-    background: var(--accent-green);
-    color: #000;
-    border-color: var(--accent-green);
-    box-shadow: 0 0 10px rgba(0, 255, 157, 0.4);
-}
-
-#btn-dock {
-    border-color: #00bcd4 !important;
-}
-
-#btn-dock:hover {
-    background: #00bcd4;
-    color: #000;
-    border-color: #00bcd4;
-    box-shadow: 0 0 10px rgba(0, 188, 212, 0.4);
-}
-
-@keyframes popIn {
-    from {
-        transform: scale(0.8) translateY(10px);
-        opacity: 0;
-    }
-
-    to {
-        transform: scale(1) translateY(0);
-        opacity: 1;
-    }
-}
+/* Interrogation tooltip replaced by highlight-toolbar (see below) */
 
 .mermaid-container {
     background: rgba(0, 0, 0, 0.4);
@@ -1820,9 +1692,10 @@ body.activated .sphere-texture {
     }
 
     .results-container {
-        position: fixed !important;
-        height: 80vh !important;
-        padding: 20px !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 55vh !important;
+        border-radius: 12px 12px 0 0 !important;
     }
 
     .results-grid {
@@ -5511,16 +5384,6 @@ body.activated .sphere-texture {
     }
 }
 
-/* Enhanced interrogation tooltip — surgical feel */
-.interrogation-tooltip {
-    border-color: rgba(255, 255, 255, 0.15) !important;
-    background: rgba(8, 8, 12, 0.95) !important;
-    border-radius: 4px !important;
-    padding: 5px !important;
-    gap: 4px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
-}
-
 /* ===================================================================
    TEXT HIGHLIGHT TOOLBAR
    =================================================================== */
@@ -5592,7 +5455,8 @@ body.activated .sphere-texture {
     backdrop-filter: blur(30px);
 }
 
-.results-container.active {
+.results-container.active,
+.results-container.visible {
     transform: translateY(0);
     background: linear-gradient(180deg, rgba(20, 20, 24, 0.99), rgba(10, 10, 12, 1));
 }
