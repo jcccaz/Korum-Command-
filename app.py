@@ -1513,12 +1513,12 @@ def ask_council():
         metrics = v2_response.get('metrics', {})
         
         # Calculate session totals
-        session_total = db.session.query(func.sum(UsageLog.estimated_cost)).filter(UsageLog.session_id == session_id).scalar() or 0.0
+        session_total = db.session.query(func.sum(UsageLog.cost_estimate)).filter(UsageLog.session_id == session_id).scalar() or 0.0
         
         # AI Cost Breakdown for the current session (cumulative)
         ai_breakdown = db.session.query(
             UsageLog.provider_name, 
-            func.sum(UsageLog.estimated_cost)
+            func.sum(UsageLog.cost_estimate)
         ).filter(UsageLog.session_id == session_id).group_by(UsageLog.provider_name).all()
         
         cumulative_ai_costs = {row[0]: float(row[1]) for row in ai_breakdown}
