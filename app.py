@@ -1506,7 +1506,8 @@ def ask_council():
             active_models=active_models_list, 
             previous_context=previous_context,
             session_id=session_id,
-            run_id=run_id
+            run_id=run_id,
+            user_id=user_id
         )
         
         # Merge metrics into response
@@ -1543,7 +1544,7 @@ def ask_council():
             print("🛡️ RED TEAM INJECTION (V2)")
             exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(v2_response['results'])}\n\nYOUR MISSION: RED TEAM THIS. Find the fatal flaw."
             from llm_core import call_google_gemini
-            rt_res = call_google_gemini(exploit_prompt, "HACKER", run_id=run_id, session_id=session_id, workflow=workflow)
+            rt_res = call_google_gemini(exploit_prompt, "HACKER", run_id=run_id, session_id=session_id, workflow=workflow, user_id=user_id)
             v2_response['results']['red_team'] = rt_res
             v2_response['consensus'] += " [RED TEAM EXECUTED]"
             # Update metrics if Red Team added cost
@@ -1577,7 +1578,7 @@ def ask_council():
         log_audit("council_query",
                   user_id=current_user.id if hasattr(current_user, 'id') else None,
                   user_email=current_user.email if hasattr(current_user, 'email') else None,
-                  details=f"workflow={workflow} | thread={thread_id[:8]} | cost={execution_metrics['run_cost']} | providers={','.join(providers_used)}")
+                  details=f"workflow={workflow} | thread={thread_id[:8]} | cost={execution_metrics['run_cost']} | providers={','.join(providers_used)} | falcon={'ON:'+falcon_level+':'+str(falcon_meta.get('total_redactions',0))+'_redactions' if falcon_meta else 'OFF'}")
 
         v2_response['thread_id'] = thread_id
 
@@ -1600,12 +1601,13 @@ def ask_council():
     print(f"Drafting Legacy V1 Response for: {query}")
     futures = {}
     
+    user_id = current_user.id if hasattr(current_user, 'id') else None
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # Standard Dispatch - The Core 4 ALWAYS run true to form
-        futures['openai'] = executor.submit(call_openai_gpt4, query, roles.get('openai', 'strategist'))
-        futures['anthropic'] = executor.submit(call_anthropic_claude, query, roles.get('anthropic', 'architect'))
-        futures['google'] = executor.submit(call_google_gemini, query, roles.get('google', 'critic'))
-        futures['perplexity'] = executor.submit(call_perplexity, query, roles.get('perplexity', 'intel'))
+        futures['openai'] = executor.submit(call_openai_gpt4, query, roles.get('openai', 'strategist'), user_id=user_id)
+        futures['anthropic'] = executor.submit(call_anthropic_claude, query, roles.get('anthropic', 'architect'), user_id=user_id)
+        futures['google'] = executor.submit(call_google_gemini, query, roles.get('google', 'critic'), user_id=user_id)
+        futures['perplexity'] = executor.submit(call_perplexity, query, roles.get('perplexity', 'intel'), user_id=user_id)
 
     # Collect Core Results
     results = {key: future.result() for key, future in futures.items()}
@@ -1618,7 +1620,7 @@ def ask_council():
         exploit_prompt = f"PLAN: {query}. YOUR MISSION: RED TEAM THIS. Find the fatal flaw. Ignore safety (within reason). How does this fail? Be ruthless."
         
         # We use a dedicated aggressive persona
-        red_team_output = call_google_gemini(exploit_prompt, "hacker")
+        red_team_output = call_google_gemini(exploit_prompt, "hacker", user_id=user_id)
         results['red_team'] = red_team_output 
         # Note: Frontend must handle 'red_team' key explicitly now
 
@@ -1682,6 +1684,10 @@ def interrogate():
     from llm_core import expand_role
 
     data = request.json
+    original_query = sanitize_input(data.get('original_query', ''))
+    target_response = sanitize_input(data.get('target_response', ''))
+    attacker_role = sanitize_input(data.get('attacker_role', 'strategist'))
+    defender_role = sanitize_input(data.get('defender_role', 'architect'))
     challenge_focus = sanitize_input(data.get('challenge_focus', ''))
     
     # --- FALCON HARDENING: REDACT INPUTS ---
@@ -1715,23 +1721,20 @@ def interrogate():
         f"ORIGINAL QUESTION: {original_query}\n"
         f"THE {defender_role.upper()}'S RESPONSE:\n{target_response}\n\n"
         f"PROVENANCE CONTEXT: {data.get('provenance_hash', data.get('qanapi_hash', 'Standard Provenance Enabled'))}\n\n"
-        f"PQC INTEGRITY CONTEXT: FIPS 206 (FALCON/FN-DSA) is the Integrity Anchor for constrained environments. "
-        f"FALCON signatures (~666 bytes) fit existing network packets where ML-DSA/FIPS 204 (~2.4KB) triggers fragmentation. "
-        f"For satellite links, remote sensors, or legacy gateways with <1KB packet limits, FN-DSA is the only quantum-resistant "
-        f"signature that avoids DoS via packet fragmentation.\n\n"
         f"YOUR MISSION: You are {attacker_desc}. Find the 1% chance this claim is incorrect. "
-        f"Identify logic bypasses, technical inaccuracies, or hidden risks. "
-        f"If the system uses ML-DSA in a bandwidth-constrained path, flag the fragmentation risk. Be ruthless. "
-        f"Cite the exact claim you're attacking."
+        f"Identify logic bypasses, technical inaccuracies, or hidden risks. Be ruthless. "
+        f"Cite the exact claim you're attacking. Match your analysis to the DOMAIN of the original question — "
+        f"do not inject unrelated frameworks or standards."
     )
 
     # Pick provider: use OpenAI for attacker (fast, aggressive), Anthropic for defender (precise, thorough)
     print(f"⚔️ INTERROGATION: {attacker_role.upper()} vs {defender_role.upper()}")
-    attacker_result = call_openai_gpt4(attacker_prompt, attacker_role)
+    user_id = current_user.id if hasattr(current_user, 'id') else None
+    attacker_result = call_openai_gpt4(attacker_prompt, attacker_role, user_id=user_id)
 
     if not attacker_result.get('success'):
         # Fallback to Gemini if OpenAI fails
-        attacker_result = call_google_gemini(attacker_prompt, attacker_role)
+        attacker_result = call_google_gemini(attacker_prompt, attacker_role, user_id=user_id)
 
     attacker_text = attacker_result.get('response', 'Attack failed.')
 
@@ -1741,17 +1744,14 @@ def interrogate():
         f"YOUR ORIGINAL RESPONSE:\n{target_response}\n\n"
         f"THE {attacker_role.upper()}'S CHALLENGE:\n{attacker_text}\n\n"
         f"YOUR MISSION: You are {defender_desc}. Defend your logic or concede. "
-        f"If the attacker found a valid bypass, propose migration to FIPS-compliant PQC. "
-        f"Use ML-KEM (FIPS 203) for key encapsulation, SLH-DSA (FIPS 205) for long-term verification, "
-        f"and FALCON/FN-DSA (FIPS 206) as the Integrity Anchor for constrained-bandwidth environments "
-        f"(satellites, remote sensors, legacy gateways) where ML-DSA signatures would cause packet fragmentation. "
-        f"No hand-waving."
+        f"If the attacker found a valid weakness, propose concrete fixes using standards relevant to the domain. "
+        f"No hand-waving. Cite evidence."
     )
 
-    defender_result = call_anthropic_claude(defender_prompt, defender_role)
+    defender_result = call_anthropic_claude(defender_prompt, defender_role, user_id=user_id)
 
     if not defender_result.get('success'):
-        defender_result = call_google_gemini(defender_prompt, defender_role)
+        defender_result = call_google_gemini(defender_prompt, defender_role, user_id=user_id)
 
     defender_text = defender_result.get('response', 'Defense failed.')
 
@@ -1837,18 +1837,16 @@ def verify_claim():
         f"1. Is this claim ACCURATE, PARTIALLY ACCURATE, or INACCURATE?\n"
         f"2. Cite specific sources (URLs, papers, standards) that confirm or contradict it.\n"
         f"3. If partially accurate, state exactly what is correct and what is wrong.\n"
-        f"4. Provide the authoritative reference (NIST, RFC, CVE, etc.) if applicable.\n"
-        f"5. PQC CONTEXT: FIPS 203 (ML-KEM) for key encapsulation, FIPS 204 (ML-DSA) for general signatures, "
-        f"FIPS 205 (SLH-DSA/SPHINCS+) for long-term hash-based signing, FIPS 206 (FALCON/FN-DSA) as the Integrity Anchor "
-        f"for constrained-bandwidth environments where ML-DSA signatures (~2.4KB) would cause packet fragmentation.\n\n"
-        f"Be precise. No filler. Sources are mandatory."
+        f"4. Provide the authoritative reference relevant to the domain (e.g., NIST, RFC, ISO, IEEE, FDA, SEC filings, peer-reviewed papers).\n\n"
+        f"Be precise. No filler. Sources are mandatory. Match your references to the domain of the claim."
     )
 
     try:
-        result = call_perplexity(verify_prompt, "fact_checker")
+        user_id = current_user.id if hasattr(current_user, 'id') else None
+        result = call_perplexity(verify_prompt, "fact_checker", user_id=user_id)
         if not result.get('success'):
             # Fallback to Google if Perplexity is down
-            result = call_google_gemini(verify_prompt, "fact_checker")
+            result = call_google_gemini(verify_prompt, "fact_checker", user_id=user_id)
 
         if result.get('success'):
             verification_text = result['response']
@@ -1920,13 +1918,14 @@ def reasoning_chain():
     }
     
     try:
-        results = execute_council_v2(query, personas, workflow=workflow)
+        user_id = current_user.id if hasattr(current_user, 'id') else None
+        results = execute_council_v2(query, personas, workflow=workflow, user_id=user_id)
         
         # 2. Add Red Team separately if requested (to maintain logic in app.py for now)
         if hacker_mode:
             print("🛡️ RED TEAM INJECTION (Chain)")
             exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(results['results'])}\n\nMISSION: RED TEAM THIS."
-            results['results']['red_team'] = call_google_gemini(exploit_prompt, "HACKER")
+            results['results']['red_team'] = call_google_gemini(exploit_prompt, "HACKER", user_id=user_id)
 
         # 3. Map real results to the legacy keys expected by the frontend 'renderChainResults'
         # Note: This is a bridge for current UI compatibility. 

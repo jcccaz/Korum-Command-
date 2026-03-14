@@ -2354,6 +2354,8 @@ window.executeVerify = async function (claimText, providerName) {
                 claim: claim,
                 original_query: sessionState.originalQuery || '',
                 thread_id: sessionState.activeThreadId || null,
+                use_falcon: activeModes.falcon,
+                falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD',
             })
         });
 
@@ -2472,6 +2474,8 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
                 attacker_role: attackerRole,
                 defender_role: defenderRole,
                 thread_id: sessionState.activeThreadId || null,
+                use_falcon: activeModes.falcon,
+                falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD',
             }),
         });
 
