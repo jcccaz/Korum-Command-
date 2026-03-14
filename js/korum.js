@@ -1710,48 +1710,271 @@ let sessionState = {
     isSubTask: false,
     missionContext: null, // Captures Client, Industry, Priority, etc.
     isMissionLocked: false,
-    threadHistory: []  // Follow-up memory: accumulates prior session summaries
+    threadHistory: [],  // Follow-up memory: accumulates prior session summaries
+    activeThreadId: null  // Persistent thread UUID (server-side)
 };
 
-// --- FOLLOW-UP MEMORY UI ---
-function updateFollowUpBadge() {
-    let badge = document.getElementById('followUpBadge');
+// --- THREAD MANAGEMENT UI ---
+function updateThreadBadge() {
+    let badge = document.getElementById('threadBadge');
     const wrapper = document.querySelector('.input-wrapper');
     if (!wrapper) return;
 
-    if (sessionState.threadHistory.length === 0) {
+    if (!sessionState.activeThreadId) {
         if (badge) badge.remove();
         return;
     }
 
     if (!badge) {
         badge = document.createElement('div');
-        badge.id = 'followUpBadge';
-        badge.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 10px;margin-bottom:4px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);border-radius:6px;font-size:11px;color:#00E5FF;letter-spacing:0.5px;';
+        badge.id = 'threadBadge';
+        badge.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:4px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);border-radius:6px;font-size:11px;color:#00E5FF;letter-spacing:0.5px;';
+
+        const icon = document.createElement('span');
+        icon.textContent = '\u25C8';  // diamond
+        icon.style.cssText = 'font-size:13px;opacity:0.7;';
+        badge.appendChild(icon);
 
         const label = document.createElement('span');
-        label.className = 'followup-label';
-        label.textContent = '';
+        label.className = 'thread-label';
+        label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
         badge.appendChild(label);
 
-        const newTopicBtn = document.createElement('button');
-        newTopicBtn.textContent = 'NEW TOPIC';
-        newTopicBtn.title = 'Clear session memory and start fresh';
-        newTopicBtn.style.cssText = 'background:rgba(255,68,68,0.15);border:1px solid rgba(255,68,68,0.4);color:#FF6B6B;padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;letter-spacing:0.5px;font-family:inherit;';
-        newTopicBtn.addEventListener('click', () => {
+        const threadsBtn = document.createElement('button');
+        threadsBtn.textContent = 'THREADS';
+        threadsBtn.title = 'View analysis threads';
+        threadsBtn.style.cssText = 'background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:#00E5FF;padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;letter-spacing:0.5px;font-family:inherit;';
+        threadsBtn.addEventListener('click', () => toggleThreadPanel());
+        badge.appendChild(threadsBtn);
+
+        const newThreadBtn = document.createElement('button');
+        newThreadBtn.textContent = 'NEW THREAD';
+        newThreadBtn.title = 'Start a fresh analysis thread';
+        newThreadBtn.style.cssText = 'background:rgba(0,255,157,0.12);border:1px solid rgba(0,255,157,0.3);color:#00FF9D;padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;letter-spacing:0.5px;font-family:inherit;';
+        newThreadBtn.addEventListener('click', () => {
+            sessionState.activeThreadId = null;
             sessionState.threadHistory = [];
-            updateFollowUpBadge();
-            logTelemetry("Session memory cleared — New Topic", "system");
+            updateThreadBadge();
+            const container = document.querySelector('.results-content');
+            if (container) container.innerHTML = '';
+            logTelemetry("New thread started", "system");
         });
-        badge.appendChild(newTopicBtn);
+        badge.appendChild(newThreadBtn);
 
         wrapper.parentElement.insertBefore(badge, wrapper);
     }
 
-    const label = badge.querySelector('.followup-label');
+    const label = badge.querySelector('.thread-label');
     const count = sessionState.threadHistory.length;
-    label.textContent = `FOLLOW-UP MODE — ${count} prior session${count > 1 ? 's' : ''} in context`;
+    const firstQuery = sessionState.threadHistory[0]?.query || 'Active Thread';
+    const title = firstQuery.length > 60 ? firstQuery.substring(0, 57) + '...' : firstQuery;
+    label.textContent = `${title}  \u2022  ${count} message${count !== 1 ? 's' : ''}`;
 }
+
+// --- THREAD PANEL (Slide-out) ---
+async function toggleThreadPanel() {
+    let panel = document.getElementById('threadPanel');
+    if (panel) {
+        panel.remove();
+        return;
+    }
+
+    panel = document.createElement('div');
+    panel.id = 'threadPanel';
+    panel.style.cssText = `
+        position:fixed;top:0;right:0;width:320px;height:100vh;
+        background:#0D1117;border-left:1px solid rgba(0,229,255,0.2);
+        z-index:9999;display:flex;flex-direction:column;
+        box-shadow:-4px 0 20px rgba(0,0,0,0.5);
+        animation:slideIn 0.2s ease-out;
+    `;
+
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:16px 20px;border-bottom:1px solid rgba(0,229,255,0.15);display:flex;align-items:center;justify-content:space-between;';
+    header.innerHTML = `
+        <span style="color:#00E5FF;font-size:13px;letter-spacing:1px;font-weight:600;">ANALYSIS THREADS</span>
+        <button id="closeThreadPanel" style="background:none;border:none;color:#8b949e;cursor:pointer;font-size:18px;padding:0 4px;">\u2715</button>
+    `;
+    panel.appendChild(header);
+
+    // Thread list container
+    const listContainer = document.createElement('div');
+    listContainer.id = 'threadList';
+    listContainer.style.cssText = 'flex:1;overflow-y:auto;padding:8px;';
+    listContainer.innerHTML = '<div style="color:#8b949e;text-align:center;padding:20px;font-size:12px;">Loading threads...</div>';
+    panel.appendChild(listContainer);
+
+    document.body.appendChild(panel);
+
+    // Close button
+    document.getElementById('closeThreadPanel').addEventListener('click', () => panel.remove());
+
+    // Load threads
+    try {
+        const resp = await authFetch('/api/threads');
+        const threads = await resp.json();
+        renderThreadList(threads);
+    } catch (e) {
+        listContainer.innerHTML = '<div style="color:#FF6B6B;padding:20px;font-size:12px;">Failed to load threads</div>';
+    }
+}
+
+function renderThreadList(threads) {
+    const container = document.getElementById('threadList');
+    if (!container) return;
+
+    if (!threads.length) {
+        container.innerHTML = '<div style="color:#8b949e;text-align:center;padding:20px;font-size:12px;">No threads yet. Run a council query to create one.</div>';
+        return;
+    }
+
+    container.innerHTML = '';
+    for (const t of threads) {
+        const isActive = t.thread_id === sessionState.activeThreadId;
+        const item = document.createElement('div');
+        item.style.cssText = `
+            padding:10px 12px;margin-bottom:4px;border-radius:6px;cursor:pointer;
+            background:${isActive ? 'rgba(0,229,255,0.1)' : 'rgba(255,255,255,0.03)'};
+            border:1px solid ${isActive ? 'rgba(0,229,255,0.3)' : 'rgba(255,255,255,0.06)'};
+            transition:background 0.15s;
+        `;
+        item.addEventListener('mouseenter', () => { if (!isActive) item.style.background = 'rgba(255,255,255,0.06)'; });
+        item.addEventListener('mouseleave', () => { if (!isActive) item.style.background = 'rgba(255,255,255,0.03)'; });
+
+        const timeAgo = getTimeAgo(t.last_activity || t.created_at);
+        item.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+                <div style="flex:1;min-width:0;">
+                    <div style="color:#e6edf3;font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        ${isActive ? '\u25C8 ' : ''}${escapeHtml(t.title)}
+                    </div>
+                    <div style="color:#8b949e;font-size:10px;margin-top:3px;">
+                        ${t.message_count} message${t.message_count !== 1 ? 's' : ''} \u2022 ${timeAgo}
+                    </div>
+                </div>
+                <button class="thread-delete-btn" data-thread-id="${t.thread_id}" title="Delete thread"
+                    style="background:none;border:none;color:#8b949e;cursor:pointer;font-size:12px;padding:2px 4px;opacity:0.5;flex-shrink:0;"
+                    onmouseenter="this.style.opacity='1';this.style.color='#FF6B6B'"
+                    onmouseleave="this.style.opacity='0.5';this.style.color='#8b949e'">
+                    \u2715
+                </button>
+            </div>
+        `;
+
+        // Click to load thread
+        item.addEventListener('click', (e) => {
+            if (e.target.closest('.thread-delete-btn')) return;
+            loadThread(t.thread_id);
+        });
+
+        container.appendChild(item);
+    }
+
+    // Delete button handlers
+    container.querySelectorAll('.thread-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const tid = btn.dataset.threadId;
+            if (!confirm('Delete this analysis thread?')) return;
+            try {
+                await authFetch(`/api/threads/${tid}`, { method: 'DELETE' });
+                if (sessionState.activeThreadId === tid) {
+                    sessionState.activeThreadId = null;
+                    sessionState.threadHistory = [];
+                    updateThreadBadge();
+                }
+                btn.closest('div[style]').remove();
+                logTelemetry(`Thread deleted: ${tid.substring(0, 8)}`, "system");
+            } catch (err) {
+                console.error('Delete thread failed:', err);
+            }
+        });
+    });
+}
+
+async function loadThread(threadId) {
+    try {
+        const resp = await authFetch(`/api/threads/${threadId}`);
+        const thread = await resp.json();
+
+        if (thread.error) {
+            console.error('Thread load error:', thread.error);
+            return;
+        }
+
+        // Set active thread
+        sessionState.activeThreadId = threadId;
+        sessionState.threadHistory = [];
+
+        // Rebuild threadHistory from council messages
+        for (const msg of thread.messages) {
+            if (msg.role === 'council' && msg.metadata) {
+                try {
+                    const meta = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
+                    sessionState.threadHistory.push({
+                        query: meta.query || '',
+                        summary: meta.summary || '',
+                        consensus_score: meta.consensus_score || null,
+                        contested_topics: meta.contested_topics || [],
+                        divergence_summary: meta.divergence_summary || ''
+                    });
+                } catch (e) { /* skip malformed */ }
+            }
+        }
+
+        // Set the original query from last user message (for interrogation/verification)
+        const lastUserMsg = [...thread.messages].reverse().find(m => m.role === 'user');
+        if (lastUserMsg) {
+            try {
+                sessionState.originalQuery = typeof lastUserMsg.content === 'string' ?
+                    (lastUserMsg.content.startsWith('"') ? JSON.parse(lastUserMsg.content) : lastUserMsg.content) : lastUserMsg.content;
+            } catch (e) { sessionState.originalQuery = lastUserMsg.content || ''; }
+        }
+
+        updateThreadBadge();
+
+        // Close panel
+        const panel = document.getElementById('threadPanel');
+        if (panel) panel.remove();
+
+        logTelemetry(`Thread loaded: ${threadId.substring(0, 8)} — ${thread.title}`, "system");
+    } catch (e) {
+        console.error('Load thread failed:', e);
+    }
+}
+
+function getTimeAgo(isoString) {
+    if (!isoString) return 'unknown';
+    const now = new Date();
+    const then = new Date(isoString);
+    const diffMs = now - then;
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// CSS animation for thread panel
+(function() {
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(320px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+})();
 
 // NOTE: window.onload is defined later in this file after all functions are declared
 
@@ -1946,6 +2169,7 @@ window.executeVerify = async function (claimText, providerName) {
             body: JSON.stringify({
                 claim: claim,
                 original_query: sessionState.originalQuery || '',
+                thread_id: sessionState.activeThreadId || null,
             })
         });
 
@@ -2063,6 +2287,7 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
                 target_response: targetResponse,
                 attacker_role: attackerRole,
                 defender_role: defenderRole,
+                thread_id: sessionState.activeThreadId || null,
             }),
         });
 
@@ -2565,11 +2790,11 @@ async function executeCouncil(query, roleName) {
         is_red_team: isRedTeam,
         use_serp: useSerpAPI,  // Real-time data via SerpAPI
         workflow: sessionState.missionContext?.workflow || "RESEARCH",
-        previous_context: sessionState.threadHistory.length > 0 ? sessionState.threadHistory.slice(-2) : null
+        thread_id: sessionState.activeThreadId || null
     };
 
-    if (payload.previous_context) {
-        logTelemetry(`FOLLOW-UP MODE: ${sessionState.threadHistory.length} prior session(s) loaded`, "process");
+    if (sessionState.activeThreadId) {
+        logTelemetry(`THREAD MODE: Continuing thread ${sessionState.activeThreadId.substring(0, 8)}`, "process");
     }
 
     // Use FormData when files are attached, JSON otherwise
@@ -2598,7 +2823,13 @@ async function executeCouncil(query, roleName) {
     renderResults(data, roleName);
     incrementQueryCount();
 
-    // Accumulate session context for follow-up memory
+    // Capture thread_id from server response (auto-created on first query)
+    if (data.thread_id) {
+        sessionState.activeThreadId = data.thread_id;
+        logTelemetry(`Thread active: ${data.thread_id.substring(0, 8)}`, "system");
+    }
+
+    // Accumulate session context for local follow-up display
     const synthesis = data.synthesis || {};
     const divergence = data.divergence || {};
     sessionState.threadHistory.push({
@@ -2608,7 +2839,7 @@ async function executeCouncil(query, roleName) {
         contested_topics: (divergence.contested_topics || []).map(t => t.topic || t),
         divergence_summary: divergence.divergence_summary || ''
     });
-    updateFollowUpBadge();
+    updateThreadBadge();
 
     resetUI();
 }

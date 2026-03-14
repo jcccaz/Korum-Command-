@@ -61,6 +61,41 @@ class Report(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
 
+class Thread(db.Model):
+    __tablename__ = "threads"
+
+    id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(db.String(36), unique=True, nullable=False, index=True,
+                          default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.Integer, nullable=True)
+    title = db.Column(db.String(200), nullable=False, default="New Analysis")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_activity = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    messages = db.relationship('Message', backref='thread', lazy='dynamic',
+                               cascade='all, delete-orphan',
+                               foreign_keys='Message.thread_id',
+                               primaryjoin='Thread.thread_id == Message.thread_id')
+
+    def __repr__(self):
+        return f"<Thread {self.thread_id[:8]} — {self.title}>"
+
+
+class Message(db.Model):
+    __tablename__ = "messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(db.String(36), db.ForeignKey('threads.thread_id'),
+                          nullable=False, index=True)
+    role = db.Column(db.String(20), nullable=False)  # user | council | interrogation | verification | system
+    content = db.Column(db.Text, nullable=True)       # JSON string
+    metadata_ = db.Column("metadata", db.Text, nullable=True)  # JSON string (scores, etc.)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Message {self.role} in {self.thread_id[:8]}>"
+
+
 class UsageLog(db.Model):
     __tablename__ = "usage_logs"
 

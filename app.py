@@ -72,7 +72,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Register models so SQLAlchemy can create tables.
-from models import User, UsageLog, AuditLog, Report
+from models import User, UsageLog, AuditLog, Report, Thread, Message
 
 init_db(app)
 
@@ -556,6 +556,121 @@ COLLECTED SNIPPETS:
             return jsonify({"success": False, "error": str(e)}), 500
     
     return jsonify({"error": "Summarization engine unavailable"}), 501
+
+# --- Thread Management (Persistent Conversation Memory) ---
+
+@app.route('/api/threads', methods=['POST'])
+@auth_required
+def create_thread():
+    data = request.json or {}
+    title = data.get('title', 'New Analysis')
+    user_id = current_user.id if hasattr(current_user, 'id') else None
+    thread = Thread(title=title[:200], user_id=user_id)
+    db.session.add(thread)
+    db.session.commit()
+    return jsonify({
+        "thread_id": thread.thread_id,
+        "title": thread.title,
+        "created_at": thread.created_at.isoformat()
+    })
+
+@app.route('/api/threads', methods=['GET'])
+@auth_required
+def list_threads():
+    user_id = current_user.id if hasattr(current_user, 'id') else None
+    query = Thread.query
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    threads = query.order_by(Thread.last_activity.desc()).limit(50).all()
+    result = []
+    for t in threads:
+        msg_count = Message.query.filter_by(thread_id=t.thread_id).count()
+        result.append({
+            "thread_id": t.thread_id,
+            "title": t.title,
+            "last_activity": t.last_activity.isoformat() if t.last_activity else None,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "message_count": msg_count
+        })
+    return jsonify(result)
+
+@app.route('/api/threads/<thread_id>', methods=['GET'])
+@auth_required
+def get_thread(thread_id):
+    thread = Thread.query.filter_by(thread_id=thread_id).first()
+    if not thread:
+        return jsonify({"error": "Thread not found"}), 404
+    messages = Message.query.filter_by(thread_id=thread_id).order_by(Message.created_at.asc()).all()
+    return jsonify({
+        "thread_id": thread.thread_id,
+        "title": thread.title,
+        "created_at": thread.created_at.isoformat(),
+        "last_activity": thread.last_activity.isoformat() if thread.last_activity else None,
+        "messages": [{
+            "id": m.id,
+            "role": m.role,
+            "content": m.content,
+            "metadata": m.metadata_,
+            "created_at": m.created_at.isoformat() if m.created_at else None
+        } for m in messages]
+    })
+
+@app.route('/api/threads/<thread_id>', methods=['DELETE'])
+@auth_required
+def delete_thread(thread_id):
+    thread = Thread.query.filter_by(thread_id=thread_id).first()
+    if not thread:
+        return jsonify({"error": "Thread not found"}), 404
+    db.session.delete(thread)  # cascade deletes messages
+    db.session.commit()
+    return jsonify({"success": True})
+
+@app.route('/api/threads/<thread_id>/title', methods=['PATCH'])
+@auth_required
+def rename_thread(thread_id):
+    thread = Thread.query.filter_by(thread_id=thread_id).first()
+    if not thread:
+        return jsonify({"error": "Thread not found"}), 404
+    data = request.json or {}
+    thread.title = data.get('title', thread.title)[:200]
+    db.session.commit()
+    return jsonify({"success": True, "title": thread.title})
+
+
+def _thread_build_previous_context(thread_id):
+    """Build previous_context array from the last 2 council messages in a thread."""
+    council_msgs = Message.query.filter_by(thread_id=thread_id, role='council') \
+        .order_by(Message.created_at.desc()).limit(2).all()
+    council_msgs.reverse()  # oldest first
+    context = []
+    for msg in council_msgs:
+        try:
+            meta = json.loads(msg.metadata_) if msg.metadata_ else {}
+        except (json.JSONDecodeError, TypeError):
+            meta = {}
+        context.append({
+            "query": meta.get("query", ""),
+            "summary": meta.get("summary", ""),
+            "consensus_score": meta.get("consensus_score"),
+            "contested_topics": meta.get("contested_topics", []),
+            "divergence_summary": meta.get("divergence_summary", "")
+        })
+    return context if context else None
+
+
+def _thread_save_message(thread_id, role, content, metadata=None):
+    """Save a message to a thread and update last_activity."""
+    msg = Message(
+        thread_id=thread_id,
+        role=role,
+        content=json.dumps(content) if not isinstance(content, str) else content,
+        metadata_=json.dumps(metadata) if metadata else None
+    )
+    db.session.add(msg)
+    Thread.query.filter_by(thread_id=thread_id).update({"last_activity": datetime.utcnow()})
+    db.session.commit()
+    return msg
+
 
 # --- Report Library (Save/Load/Delete) — Postgres-backed ---
 
@@ -1342,7 +1457,31 @@ def ask_council():
 
     if use_v2:
         workflow = data.get('workflow', 'RESEARCH')
-        previous_context = data.get('previous_context', None)
+        thread_id = data.get('thread_id', None)
+        user_id = current_user.id if hasattr(current_user, 'id') else None
+
+        # Thread management: load or create
+        if thread_id:
+            thread = Thread.query.filter_by(thread_id=thread_id).first()
+            if not thread:
+                thread_id = None  # fallback to auto-create
+
+        if not thread_id:
+            # Auto-create thread from first query
+            title = query[:100].strip()
+            if len(query) > 100:
+                title += "..."
+            thread = Thread(title=title, user_id=user_id)
+            db.session.add(thread)
+            db.session.commit()
+            thread_id = thread.thread_id
+            print(f"[THREAD] Auto-created: {thread_id[:8]} — {title[:50]}")
+
+        # Save user message to thread
+        _thread_save_message(thread_id, 'user', query)
+
+        # Build previous_context from thread history (overrides frontend version)
+        previous_context = _thread_build_previous_context(thread_id)
         if previous_context:
             print(f"⚡ V2 ENGINE ENGAGED [{workflow}] FOLLOW-UP MODE ({len(previous_context)} prior session(s))")
         else:
@@ -1364,14 +1503,29 @@ def ask_council():
         if use_serp and serp_raw:
             v2_response["live_data"] = serp_raw
 
+        # Save council response to thread
+        synthesis = v2_response.get('synthesis', {}) if isinstance(v2_response.get('synthesis'), dict) else {}
+        divergence = v2_response.get('divergence', {}) if isinstance(v2_response.get('divergence'), dict) else {}
+        council_meta = {
+            "query": query[:500],
+            "summary": synthesis.get('meta', {}).get('summary', '') if isinstance(synthesis.get('meta'), dict) else '',
+            "consensus_score": divergence.get('consensus_score'),
+            "contested_topics": [t.get('topic', t) if isinstance(t, dict) else t for t in divergence.get('contested_topics', [])],
+            "divergence_summary": divergence.get('divergence_summary', ''),
+            "composite_truth_score": synthesis.get('meta', {}).get('composite_truth_score') if isinstance(synthesis.get('meta'), dict) else None,
+            "workflow": workflow
+        }
+        _thread_save_message(thread_id, 'council', json.dumps(v2_response.get('results', {})), metadata=council_meta)
+
         # Audit log: V2 council query
         providers_used = list(v2_response.get('results', {}).keys())
-        truth = v2_response.get('synthesis', {}).get('meta', {}).get('composite_truth_score', 'N/A') if isinstance(v2_response.get('synthesis'), dict) else 'N/A'
+        truth = council_meta.get('composite_truth_score', 'N/A')
         log_audit("council_query",
                   user_id=current_user.id if hasattr(current_user, 'id') else None,
                   user_email=current_user.email if hasattr(current_user, 'email') else None,
-                  details=f"workflow={workflow} | providers={','.join(providers_used)} | truth_score={truth} | red_team={is_red_team} | query={query[:200]}")
+                  details=f"workflow={workflow} | thread={thread_id[:8]} | providers={','.join(providers_used)} | truth_score={truth} | red_team={is_red_team} | query={query[:200]}")
 
+        v2_response['thread_id'] = thread_id
         return jsonify(v2_response)
 
     # V1 LEGACY PARALLEL EXECUTION (The Core 4)
@@ -1499,7 +1653,7 @@ def interrogate():
               user_email=current_user.email if hasattr(current_user, 'email') else None,
               details=f"attacker={attacker_role} | defender={defender_role} | attacker_model={attacker_result.get('model', 'unknown')} | defender_model={defender_result.get('model', 'unknown')} | query={original_query[:200]}")
 
-    return jsonify({
+    response_data = {
         "success": True,
         "attacker": {
             "role": attacker_role,
@@ -1514,7 +1668,17 @@ def interrogate():
             "model": defender_result.get('model', 'unknown'),
         },
         "original_query": original_query,
-    })
+    }
+
+    # Save interrogation to thread if thread_id provided
+    thread_id = data.get('thread_id')
+    if thread_id:
+        _thread_save_message(thread_id, 'interrogation',
+                             json.dumps({"attacker": attacker_text[:2000], "defender": defender_text[:2000]}),
+                             metadata={"attacker_role": attacker_role, "defender_role": defender_role,
+                                       "attacker_model": attacker_result.get('model'), "defender_model": defender_result.get('model')})
+
+    return jsonify(response_data)
 
 
 @app.route('/api/verify', methods=['POST'])
@@ -1559,13 +1723,22 @@ def verify_claim():
                       user_id=current_user.id if hasattr(current_user, 'id') else None,
                       user_email=current_user.email if hasattr(current_user, 'email') else None,
                       details=f"model={result.get('model', 'unknown')} | claim={claim[:200]}")
-            return jsonify({
+            verify_response = {
                 "success": True,
                 "claim": claim,
                 "verification": result['response'],
                 "model": result.get('model', 'unknown'),
                 "provider": "perplexity",
-            })
+            }
+
+            # Save verification to thread if thread_id provided
+            thread_id = data.get('thread_id')
+            if thread_id:
+                _thread_save_message(thread_id, 'verification',
+                                     json.dumps({"claim": claim[:500], "verification": result['response'][:2000]}),
+                                     metadata={"model": result.get('model'), "provider": "perplexity"})
+
+            return jsonify(verify_response)
         else:
             return jsonify({"success": False, "error": "Verification failed"}), 500
     except Exception as e:
