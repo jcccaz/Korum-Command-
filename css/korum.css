@@ -2588,7 +2588,7 @@ body.activated .sphere-texture {
     height: 100%;
     background: rgba(0, 0, 0, 0.92);
     backdrop-filter: blur(10px);
-    z-index: 10020;
+    z-index: 9500;
     display: none;
     justify-content: center;
     align-items: center;
@@ -5620,26 +5620,9 @@ body.report-library-open .results-container {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   CARD EXPANSION MODAL
+   CARD EXPANSION MODAL (inner content box)
+   Overlay is .card-modal-overlay — see above for z-index/display rules
    ═══════════════════════════════════════════════════════════ */
-.card-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(15px);
-    z-index: 9500;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
-
-.card-modal.visible {
-    display: flex;
-}
 
 .modal-content-wrapper {
     background: linear-gradient(180deg, rgba(20, 20, 24, 0.99), rgba(10, 10, 12, 1));

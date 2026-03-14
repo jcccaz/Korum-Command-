@@ -1738,8 +1738,56 @@ function renderChainResults(result) {
     const analysisPane = document.getElementById('pane-analysis');
     const interPane = document.getElementById('pane-interrogation');
     councilPane.innerHTML = "";
-    analysisPane.innerHTML = '<div class="interrogation-empty-state">Chain pipeline does not produce analysis artifacts. Use V2 Council for full analysis.</div>';
+    analysisPane.innerHTML = "";
     interPane.innerHTML = '<div class="interrogation-empty-state">No interrogation or verification results yet.</div>';
+
+    // Store for export functionality (adapt V2 structure to V1 export format)
+    const synthesisData = {
+        meta: { summary: result.final_artifact || '' },
+        key_findings: result.constraints || '',
+        solution: result.standard_solution || '',
+        risks: result.failure_analysis || ''
+    };
+    lastCouncilData = {
+        synthesis: synthesisData,
+        results: result.results || {},
+        roleName: 'V2 Reasoning Chain',
+        pipeline_result: result
+    };
+
+    // Export toolbar
+    renderExportToolbar(councilPane, lastCouncilData);
+
+    // ANALYSIS tab — chain phase summary
+    const analysisGrid = document.createElement("div");
+    analysisGrid.className = "results-grid";
+    const phases = [
+        { label: 'DECONSTRUCTION', content: result.constraints, metric: result.metrics?.deconstruct },
+        { label: 'ARCHITECTURE', content: result.standard_solution, metric: result.metrics?.build },
+        { label: 'STRESS TEST', content: result.failure_analysis, metric: result.metrics?.stress },
+        { label: 'EXECUTION', content: result.final_artifact, metric: result.metrics?.synthesize }
+    ];
+    phases.forEach(p => {
+        if (!p.content) return;
+        const preview = p.content.substring(0, 300).replace(/[#*_`]/g, '');
+        const card = document.createElement("div");
+        card.className = "agent-card no-interrogate";
+        card.dataset.name = p.label;
+        card.innerHTML = `
+            <div class="precision-header">
+                <div class="ph-left">
+                    <div class="ph-model-name">${p.label}</div>
+                    <div class="ph-role-label">Phase Summary</div>
+                </div>
+                <div class="ph-right">
+                    <div class="metric-pill time">${(p.metric?.time || 0).toFixed(1)}s</div>
+                </div>
+            </div>
+            <div class="agent-response" style="font-size:0.6rem; color:#999; line-height:1.5;">${formatText(preview)}...</div>
+        `;
+        analysisGrid.appendChild(card);
+    });
+    analysisPane.appendChild(analysisGrid);
     const grid = document.createElement("div");
     grid.className = "results-grid";
 
