@@ -1931,7 +1931,13 @@ function renderChainResults(result) {
     councilPane.appendChild(grid);
     document.querySelector(".results-container").classList.add("visible");
     switchDockTab('council');
-    document.getElementById('recallAnalysisBtn').style.display = 'none'; // Hide recall button
+    document.getElementById('recallAnalysisBtn').style.display = 'none';
+
+    // Populate sessionState.lastResponses so follow-ups and interrogations have context
+    if (result.constraints) sessionState.lastResponses['anthropic'] = result.constraints;
+    if (result.standard_solution) sessionState.lastResponses['openai'] = result.standard_solution;
+    if (result.failure_analysis) sessionState.lastResponses['google'] = result.failure_analysis;
+    if (result.final_artifact) sessionState.lastResponses['openai_exec'] = result.final_artifact;
 
     logTelemetry("Pipeline Execution Complete.", "system");
 

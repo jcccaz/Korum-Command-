@@ -428,7 +428,7 @@ body {
 /* LAYOUT */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 25% 40% 35%;
+    grid-template-columns: 25% 1fr 35%;
     gap: 12px;
     height: calc(100% - 60px);
     position: relative;
