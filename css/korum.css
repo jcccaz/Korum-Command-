@@ -190,62 +190,49 @@ body {
     outline-offset: 4px;
 }
 
-/* Preset Color Coding — idle state accent */
-/* General */
-.nav-links a[data-role="War Room"] {
-    border-color: rgba(255, 60, 60, 0.25);
-    color: #CC4444;
-}
+@media (max-width: 768px) {
+    .mobile-nav-toggle {
+        display: block !important;
+        position: relative;
+        z-index: 1001;
+    }
 
-.nav-links a[data-role="Deep Research"] {
-    border-color: rgba(100, 200, 180, 0.25);
-    color: #55AA99;
-}
+    .nav-links {
+        display: none !important;
+        position: fixed !important;
+        top: 0;
+        right: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(10, 10, 15, 0.98) !important;
+        backdrop-filter: blur(20px);
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        z-index: 1000;
+        gap: 20px !important;
+        padding: 40px !important;
+        animation: fadeIn 0.3s ease;
+    }
 
-.nav-links a[data-role="Creative Council"] {
-    border-color: rgba(255, 100, 200, 0.25);
-    color: #CC66AA;
-}
+    .nav-links.mobile-open {
+        display: flex !important;
+    }
 
-.nav-links a[data-role="Code Audit"] {
-    border-color: rgba(255, 160, 50, 0.25);
-    color: #CC8833;
-}
+    .nav-links a {
+        flex: 0 0 auto !important;
+        width: 80% !important;
+        text-align: center !important;
+        font-size: 16px !important;
+        padding: 15px !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
 
-.nav-links a[data-role="System Core"] {
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #999;
-}
-
-/* Domain */
-.nav-links a[data-role="Legal Review"] {
-    border-color: rgba(255, 191, 0, 0.25);
-    color: #BFA24E;
-}
-
-.nav-links a[data-role="Medical Council"] {
-    border-color: rgba(255, 70, 70, 0.25);
-    color: #C95555;
-}
-
-.nav-links a[data-role="Finance Desk"] {
-    border-color: rgba(0, 255, 157, 0.25);
-    color: #4EBF7E;
-}
-
-.nav-links a[data-role="Science Panel"] {
-    border-color: rgba(80, 140, 255, 0.25);
-    color: #5588CC;
-}
-
-.nav-links a[data-role="Startup Launch"] {
-    border-color: rgba(180, 100, 255, 0.25);
-    color: #9966CC;
-}
-
-.nav-links a[data-role="Tech Council"] {
-    border-color: rgba(0, 220, 255, 0.25);
-    color: #44BBCC;
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 }
 
 /* Defense & Intelligence */
@@ -5189,7 +5176,7 @@ body.activated .sphere-texture {
     font-size: 9px; font-weight: 700; margin-right: 8px;
     padding: 2px 6px; border-radius: 3px;
 }
-@media (max-width: 1024px) {
+@media (min-width: 769px) and (max-width: 1024px) {
     .dashboard-grid {
         grid-template-columns: 25% 40% 35% !important;
     }
@@ -5246,15 +5233,121 @@ body.activated .sphere-texture {
         border-radius: 0 !important;
         padding: 0 !important;
         flex-direction: row !important;
-        flex-wrap: wrap !important;
+        flex-wrap: nowrap !important; /* FIXED: Prevent stacking in desktop guard */
+        overflow-x: auto !important;
         gap: 8px !important;
         max-height: none !important;
-        overflow: visible !important;
     }
 
     .nav-links a {
         width: auto !important;
         text-align: left !important;
         padding: 8px 16px !important;
+    }
+}
+
+/* Final touch-device mobile nav/layout override */
+@media (max-width: 768px) and (hover: none), (max-width: 768px) and (pointer: coarse) {
+    body {
+        overflow-y: auto !important;
+        height: auto !important;
+        min-height: 100vh !important;
+        align-items: flex-start !important;
+        padding: 10px 0 !important;
+    }
+
+    body.mobile-nav-open {
+        overflow: hidden !important;
+    }
+
+    .screen-container {
+        width: 100% !important;
+        height: auto !important;
+        padding: 12px !important;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto !important;
+        height: auto !important;
+        overflow: visible !important;
+        gap: 20px !important;
+    }
+
+    .top-bar {
+        position: relative !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto auto !important;
+        align-items: center !important;
+        gap: 10px !important;
+        margin-bottom: 14px !important;
+    }
+
+    .logo {
+        font-size: 20px !important;
+        letter-spacing: 0.1em !important;
+        min-width: 0 !important;
+    }
+
+    .mobile-nav-toggle {
+        display: inline-flex !important;
+        width: 38px !important;
+        height: 38px !important;
+        align-items: center !important;
+        justify-content: center !important;
+        z-index: 1102 !important;
+    }
+
+    #hamburgerBtn {
+        display: inline-flex !important;
+        width: 38px;
+        height: 38px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .auth-status {
+        grid-column: 1 / -1;
+        justify-self: end;
+        margin-right: 0 !important;
+    }
+
+    .nav-links {
+        position: fixed !important;
+        inset: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+        padding: 88px 20px 20px !important;
+        background: rgba(8, 8, 12, 0.97) !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        max-height: none !important;
+        overflow-y: auto !important;
+        z-index: 1101 !important;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(-8px);
+        transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+    }
+
+    .nav-links.mobile-open {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+    }
+
+    .nav-links a {
+        width: 100% !important;
+        text-align: center !important;
+        padding: 12px 16px !important;
+        font-size: 15px !important;
     }
 }

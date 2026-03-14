@@ -1207,9 +1207,15 @@ function toggleMode(mode) {
     if (isActive) {
         btn.classList.add('active');
         logTelemetry(`${mode.toUpperCase()} MODE ACTIVATED`, "warning");
+        if (mode === 'falcon') {
+            document.querySelector('.falcon-brand-container')?.classList.add('falcon-active');
+        }
     } else {
         btn.classList.remove('active');
         logTelemetry(`${mode.toUpperCase()} MODE STANDBY`, "system");
+        if (mode === 'falcon') {
+            document.querySelector('.falcon-brand-container')?.classList.remove('falcon-active');
+        }
     }
 
     // Falcon level picker visibility
@@ -1409,23 +1415,58 @@ function setupActionBindings() {
     document.getElementById('hamburgerBtn')?.addEventListener('click', () => toggleReportLibrary());
 
     // Mobile nav toggle
-    document.getElementById('mobileNavToggle')?.addEventListener('click', () => {
-        document.querySelector('.nav-links')?.classList.toggle('mobile-open');
+    const mobileNavToggle = document.getElementById('mobileNavToggle');
+    const navMenu = document.querySelector('.nav-links');
+    if (navMenu && !navMenu.id) navMenu.id = 'workflowNav';
+    if (mobileNavToggle && navMenu) {
+        mobileNavToggle.setAttribute('aria-controls', navMenu.id);
+        mobileNavToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    const closeMobileNav = () => {
+        if (!navMenu || !mobileNavToggle) return;
+        navMenu.classList.remove('mobile-open');
+        mobileNavToggle.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('mobile-nav-open');
+    };
+
+    const openMobileNav = () => {
+        if (!navMenu || !mobileNavToggle) return;
+        navMenu.classList.add('mobile-open');
+        mobileNavToggle.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('mobile-nav-open');
+    };
+
+    mobileNavToggle?.addEventListener('click', () => {
+        if (navMenu?.classList.contains('mobile-open')) {
+            closeMobileNav();
+        } else {
+            openMobileNav();
+        }
     });
+
     // Close mobile nav when a workflow is selected
     document.querySelectorAll('.nav-links a').forEach(a => {
         a.addEventListener('click', () => {
-            document.querySelector('.nav-links')?.classList.remove('mobile-open');
+            closeMobileNav();
         });
     });
+
     // Close mobile nav on tap outside
     document.addEventListener('click', (e) => {
-        const nav = document.querySelector('.nav-links');
-        const toggle = document.getElementById('mobileNavToggle');
-        if (nav?.classList.contains('mobile-open') && !nav.contains(e.target) && !toggle?.contains(e.target)) {
-            nav.classList.remove('mobile-open');
+        if (navMenu?.classList.contains('mobile-open') && !navMenu.contains(e.target) && !mobileNavToggle?.contains(e.target)) {
+            closeMobileNav();
         }
     });
+
+    // Close mobile nav with Escape or when switching to desktop width
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMobileNav();
+    });
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) closeMobileNav();
+    });
+
     document.getElementById('healthCheckBtn')?.addEventListener('click', () => checkAPIHealth());
     document.getElementById('rotateRolesBtn')?.addEventListener('click', () => {
         rotateRoles();
