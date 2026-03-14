@@ -401,7 +401,26 @@
                 <h3>ARTIFACT DOCK</h3>
                 <span class="close-results" onclick="event.stopPropagation(); this.closest('.results-container').classList.remove('visible', 'active')">✕</span>
             </div>
-            <div class="results-content"></div>
+            <!-- DOCK TAB BAR -->
+            <div class="dock-tab-bar" id="dockTabBar">
+                <button class="dock-tab active" data-dock-tab="council">COUNCIL</button>
+                <button class="dock-tab" data-dock-tab="analysis">ANALYSIS</button>
+                <button class="dock-tab" data-dock-tab="interrogation">
+                    INTERROGATION
+                    <span class="dock-tab-badge" id="interrogationBadge" style="display:none;">0</span>
+                </button>
+            </div>
+
+            <!-- TAB PANES -->
+            <div class="results-content">
+                <div class="dock-pane active" id="pane-council"></div>
+                <div class="dock-pane" id="pane-analysis"></div>
+                <div class="dock-pane" id="pane-interrogation">
+                    <div class="interrogation-empty-state" id="interrogationEmpty">
+                        No interrogation or verification results yet. Select a card and use INTERROGATE or VERIFY.
+                    </div>
+                </div>
+            </div>
 
             <!-- COMMAND CONSOLE -->
             <div class="command-console" id="commandConsole" style="display:none;">

@@ -703,7 +703,7 @@ const ResearchDock = {
             const data = await response.json();
             if (data.success) {
                 // Render summary in a results card
-                const container = document.querySelector(".results-content");
+                const container = document.getElementById('pane-analysis') || document.querySelector(".results-content");
                 if (container) {
                     const cardEl = document.createElement('div');
                     cardEl.className = 'agent-card google';
@@ -1576,7 +1576,7 @@ function setupActionBindings() {
         }
 
         // Deselect when clicking empty space
-        if (target.classList.contains('results-content') || target.classList.contains('results-grid')) {
+        if (target.classList.contains('results-content') || target.classList.contains('results-grid') || target.classList.contains('dock-pane')) {
             deselectCard();
         }
     });
@@ -1698,8 +1698,12 @@ async function executeReasoningChain(query) {
 }
 
 function renderChainResults(result) {
-    const container = document.querySelector(".results-content");
-    container.innerHTML = "";
+    const councilPane = document.getElementById('pane-council');
+    const analysisPane = document.getElementById('pane-analysis');
+    const interPane = document.getElementById('pane-interrogation');
+    councilPane.innerHTML = "";
+    analysisPane.innerHTML = '<div class="interrogation-empty-state">Chain pipeline does not produce analysis artifacts. Use V2 Council for full analysis.</div>';
+    interPane.innerHTML = '<div class="interrogation-empty-state">No interrogation or verification results yet.</div>';
     const grid = document.createElement("div");
     grid.className = "results-grid";
 
@@ -1770,8 +1774,9 @@ function renderChainResults(result) {
     // 4. Execution (GPT-4o) - formerly Synthesis
     grid.appendChild(createCard("PHASE 4: EXECUTION", "GPT-4o General", result.final_artifact, "EXECUTIVE DIRECTIVE", result.metrics?.synthesize));
 
-    container.appendChild(grid);
+    councilPane.appendChild(grid);
     document.querySelector(".results-container").classList.add("visible");
+    switchDockTab('council');
     document.getElementById('recallAnalysisBtn').style.display = 'none'; // Hide recall button
 
     logTelemetry("Pipeline Execution Complete.", "system");
@@ -1943,8 +1948,12 @@ function updateThreadBadge() {
             sessionState.activeThreadId = null;
             sessionState.threadHistory = [];
             updateThreadBadge();
-            const container = document.querySelector('.results-content');
-            if (container) container.innerHTML = '';
+            const cp = document.getElementById('pane-council');
+            const ap = document.getElementById('pane-analysis');
+            const ip = document.getElementById('pane-interrogation');
+            if (cp) cp.innerHTML = '';
+            if (ap) ap.innerHTML = '';
+            if (ip) ip.innerHTML = '<div class="interrogation-empty-state" id="interrogationEmpty">No interrogation or verification results yet.</div>';
             logTelemetry("New thread started", "system");
         });
         badge.appendChild(newThreadBtn);
@@ -2322,8 +2331,11 @@ window.executeVerify = async function (claimText, providerName) {
     logTelemetry(`🔎 VERIFY: "${claim.slice(0, 60)}..."`, "user");
     sentinelChat.appendMessage(`SOURCE CHECK: "${claim.slice(0, 80)}..."`, 'user');
 
-    // Create verification card
-    const grid = document.querySelector('.results-content');
+    // Create verification card → INTERROGATION pane
+    const interPane = document.getElementById('pane-interrogation');
+    const emptyState = document.getElementById('interrogationEmpty');
+    if (emptyState) emptyState.style.display = 'none';
+
     const verifyCard = document.createElement('div');
     verifyCard.className = 'agent-card verify-card no-interrogate';
     verifyCard.dataset.name = 'SOURCE VERIFICATION';
@@ -2342,7 +2354,8 @@ window.executeVerify = async function (claimText, providerName) {
             <div>Querying authoritative sources...</div>
         </div>
     `;
-    grid.appendChild(verifyCard);
+    interPane.appendChild(verifyCard);
+    incrementInterrogationBadge();
     verifyCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     try {
@@ -2416,8 +2429,11 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
     logTelemetry(`⚔️ ${attackerRole.toUpperCase()} vs ${defenderRole.toUpperCase()}`, "user");
     sentinelChat.appendMessage(`INITIATING FACE-OFF: ${attackerRole.toUpperCase()} vs ${defenderRole.toUpperCase()}`, 'user');
 
-    // Create face-off card
-    const grid = document.querySelector('.results-content');
+    // Create face-off card → INTERROGATION pane
+    const interPane = document.getElementById('pane-interrogation');
+    const emptyState = document.getElementById('interrogationEmpty');
+    if (emptyState) emptyState.style.display = 'none';
+
     const faceoffCard = document.createElement('div');
     faceoffCard.className = 'agent-card interrogation-card no-interrogate';
     faceoffCard.dataset.name = `CROSS-EXAMINATION: ${attackerRole.toUpperCase()} vs ${defenderRole.toUpperCase()}`;
@@ -2439,7 +2455,8 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
             </div>
         </div>
     `;
-    grid.appendChild(faceoffCard);
+    interPane.appendChild(faceoffCard);
+    incrementInterrogationBadge();
     faceoffCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     // Reasoning Trace Heartbeats
@@ -2757,7 +2774,7 @@ PRIMARY OBJECTIVE: ${rawQuery}
 
 // Processing Toast for user feedback
 function showLoadingState(taskName) {
-    const container = document.querySelector(".results-content");
+    const container = document.getElementById('pane-council') || document.querySelector(".results-content");
     const resultsPanel = document.querySelector(".results-container");
 
     if (resultsPanel) resultsPanel.classList.add("visible");
@@ -3040,6 +3057,41 @@ async function executeCouncil(query, roleName) {
     resetUI();
 }
 
+// ── DOCK TAB SWITCHING ─────────────────────────────────────
+let activeDockTab = 'council';
+let interrogationBadgeCount = 0;
+
+function initDockTabs() {
+    document.querySelectorAll('.dock-tab').forEach(tab => {
+        tab.addEventListener('click', () => switchDockTab(tab.dataset.dockTab));
+    });
+}
+
+function switchDockTab(tabName) {
+    activeDockTab = tabName;
+    document.querySelectorAll('.dock-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.dockTab === tabName);
+    });
+    document.querySelectorAll('.dock-pane').forEach(p => {
+        p.classList.toggle('active', p.id === `pane-${tabName}`);
+    });
+    if (tabName === 'interrogation') {
+        interrogationBadgeCount = 0;
+        const badge = document.getElementById('interrogationBadge');
+        if (badge) badge.style.display = 'none';
+    }
+}
+
+function incrementInterrogationBadge() {
+    if (activeDockTab === 'interrogation') return;
+    interrogationBadgeCount++;
+    const badge = document.getElementById('interrogationBadge');
+    if (badge) {
+        badge.textContent = interrogationBadgeCount;
+        badge.style.display = 'inline-block';
+    }
+}
+
 function renderResults(data, roleName) {
     // Store for export functionality
     lastCouncilData = { ...data, roleName };
@@ -3050,8 +3102,11 @@ function renderResults(data, roleName) {
     const toast = document.getElementById('processing-toast');
     if (toast) toast.style.display = 'none';
 
-    const container = document.querySelector(".results-content");
-    const grid = document.createElement("div"); grid.className = "results-grid";
+    const councilPane = document.getElementById('pane-council');
+    const analysisPane = document.getElementById('pane-analysis');
+    const interPane = document.getElementById('pane-interrogation');
+    const councilGrid = document.createElement("div"); councilGrid.className = "results-grid";
+    const analysisGrid = document.createElement("div"); analysisGrid.className = "results-grid";
 
     // Update Mission Stats
     const totalTime = data.results ? Object.values(data.results).reduce((acc, r) => acc + (r.time || 0), 0) : 0;
@@ -3073,7 +3128,7 @@ function renderResults(data, roleName) {
     const consensusCard = document.createElement("div"); consensusCard.className = "consensus-card";
     const consensusText = data.consensus || "No consensus reached.";
     consensusCard.innerHTML = `<div class="consensus-title"><span style="font-size:16px">🏛️</span> COUNCIL DECISION: ${roleName.toUpperCase()}<div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.consensus-card').querySelector('.consensus-body').innerText, 'Council decision copied')" title="Copy" style="display:inline-block;margin-left:10px;cursor:pointer;">📋</div></div><div class="consensus-body">${formatText(consensusText)}</div>`;
-    grid.appendChild(consensusCard);
+    analysisGrid.appendChild(consensusCard);
 
     // Agents - Process results and update health status
     ["openai", "anthropic", "google", "perplexity", "mistral", "local"].forEach(provider => {
@@ -3159,7 +3214,7 @@ function renderResults(data, roleName) {
         // Store Response for Context
         sessionState.lastResponses[provider] = res.response;
 
-        grid.appendChild(card);
+        councilGrid.appendChild(card);
     });
 
     // 5TH CARD: RED TEAM EXPLOIT (ADDITIVE)
@@ -3203,7 +3258,7 @@ function renderResults(data, roleName) {
             });
         });
 
-        grid.appendChild(card);
+        councilGrid.appendChild(card);
     }
 
     // FALCON REDACTION SUMMARY CARD
@@ -3248,7 +3303,7 @@ function renderResults(data, roleName) {
                 </div>
             </div>
         `;
-        grid.insertBefore(falconCard, grid.firstChild);
+        analysisGrid.insertBefore(falconCard, analysisGrid.firstChild);
     }
 
     // EXECUTIVE BRIEF CARD (Synthesis) - renders full intelligence object
@@ -3345,7 +3400,7 @@ function renderResults(data, roleName) {
 
         briefHtml += `</div>`;
         briefCard.innerHTML = briefHtml;
-        grid.appendChild(briefCard);
+        analysisGrid.appendChild(briefCard);
     }
 
     // --- ANALYTIC DIVERGENCE PANEL ---
@@ -3450,16 +3505,22 @@ function renderResults(data, roleName) {
 
         divCard.innerHTML = divHtml;
         divCard.addEventListener('click', () => openDivergenceModal());
-        grid.appendChild(divCard);
+        analysisGrid.appendChild(divCard);
     }
 
-    container.innerHTML = "";
+    // Clear panes and populate
+    councilPane.innerHTML = "";
+    analysisPane.innerHTML = "";
+    interPane.innerHTML = '<div class="interrogation-empty-state">No interrogation or verification results yet.</div>';
 
     // EXPORT COMMAND CENTER (Phase 6)
-    renderExportToolbar(container, data);
+    renderExportToolbar(councilPane, data);
 
-    container.appendChild(grid);
+    councilPane.appendChild(councilGrid);
+    analysisPane.appendChild(analysisGrid);
+
     document.querySelector(".results-container").classList.add("visible");
+    switchDockTab('council');
     document.getElementById('recallAnalysisBtn').style.display = 'none'; // Hide recall button when showing fresh results
     logTelemetry("Consensus Reached. Displaying Output.", "system");
 
@@ -3874,6 +3935,7 @@ window.onload = async function () {
     setupActionBindings();
     sentinelChat.init();
     setupInterrogation();
+    initDockTabs();
     pushHeartbeat();
     setInterval(pushHeartbeat, 5000);
 
@@ -3932,7 +3994,7 @@ function formatText(text) {
             return `<div class="table-row" style="display:flex; border-bottom:1px solid rgba(255,255,255,0.05); padding:4px 0;">${cells.map(c => `<div style="flex:1; padding:4px; font-size:11px;">${c.trim()}</div>`).join('')}</div>`;
         });
 }
-function showErrorCard(msg) { const container = document.querySelector(".results-content"); container.innerHTML = `<div class="consensus-card" style="border-color: red;"><div class="consensus-title" style="color:red;">SYSTEM FAILURE</div><div class="consensus-body">${msg}</div></div>`; document.querySelector(".results-container").classList.add("visible"); }
+function showErrorCard(msg) { const container = document.getElementById('pane-council') || document.querySelector(".results-content"); container.innerHTML = `<div class="consensus-card" style="border-color: red;"><div class="consensus-title" style="color:red;">SYSTEM FAILURE</div><div class="consensus-body">${msg}</div></div>`; document.querySelector(".results-container").classList.add("visible"); switchDockTab('council'); }
 function closeResults() {
     const container = document.querySelector(".results-container");
     if (container) container.classList.remove("visible");
@@ -3950,7 +4012,7 @@ function closeResults() {
         }
 
         // Show Recall Button if we have results
-        const content = document.querySelector(".results-content");
+        const content = document.getElementById('pane-council');
         if (content && content.children.length > 0) {
             document.getElementById('recallAnalysisBtn').style.display = 'block';
         }
