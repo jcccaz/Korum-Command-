@@ -101,7 +101,7 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
         prior_block += "    The council should build on these prior conclusions, not repeat them.\n"
 
     prompt = f"""
-    Analyze this business query and determine optimal AI execution order.
+    Analyze this query and determine optimal AI execution order.
 
     QUERY: "{query}"
 {prior_block}
@@ -110,21 +110,28 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
 
     OPTIMAL EXECUTION ORDER PRINCIPLES (STRICT 5-PHASE PIPELINE):
     Phase 1 - INTAKE: Neutral baseline analysis — best for a broad strategist or analyst (prefer OpenAI)
-    Phase 2 - STRATEGIC SCENARIO ANALYSIS: Build scenarios from intake — best for a deep analyst (prefer Anthropic)
-    Phase 3 - COUNTERINTELLIGENCE: Challenge assumptions from Phase 2 — best for a researcher or scout (prefer Google or Perplexity)
-    Phase 4 - DEFENSE OPERATIONS: Protective actions based on surviving analysis — best for a scout or operator (prefer Perplexity or Mistral)
-    Phase 5 - STANDARDS & VALIDATION: Zero Trust, compliance, final stress test — best for a critic or validator (prefer Mistral)
+    Phase 2 - STRATEGIC INTERPRETATION: Build scenarios from intake — best for a deep analyst or architect (prefer Anthropic)
+    Phase 3 - CHALLENGE: Stress-test assumptions from Phase 2 — best for a critic, researcher, or scout (prefer Google or Perplexity)
+    Phase 4 - OPERATIONS: Translate analysis into actionable steps — best for an operator, scout, or domain specialist (prefer Perplexity or Mistral)
+    Phase 5 - VALIDATION: Final quality check, framework mapping, confidence assessment — best for a critic or validator (prefer Mistral)
+
+    ROLE SELECTION RULES:
+    - Match each persona's role to the DOMAIN of the query, not to a fixed specialty.
+    - A medical query should use roles like medical, researcher, analyst — NOT cryptographer or zero_trust.
+    - A finance query should use roles like cfo, auditor, economist — NOT cyber_ops or defense_ops.
+    - Only assign security/crypto roles (cryptographer, zero_trust, cyber_ops, hacker) when the query is ACTUALLY about cybersecurity or cryptography.
+    - Maximize DIVERSITY across the council — avoid assigning similar roles to multiple providers.
 
     IMPORTANT: Only use the personas provided in the AVAILABLE PERSONAS list. Do not use any others. Include all available personas in the executionOrder.
 
     return ONLY valid JSON (no markdown):
     {{
-      "domain": "business|marketing|software|operations|research|strategy",
-      "intent": "plan|build|analyze|optimize|critique|research|launch",
+      "domain": "business|marketing|software|operations|research|strategy|medical|legal|creative|engineering|science|finance|cybersecurity",
+      "intent": "plan|build|analyze|optimize|critique|research|launch|design|assess",
       "complexity": "simple|moderate|complex",
-      "outputType": "presentation|technical_spec|marketing_plan|report|strategic_framework|diagram",
+      "outputType": "presentation|technical_spec|marketing_plan|report|strategic_framework|diagram|creative_brief|research_paper",
       "executionOrder": ["provider-role", "provider-role"],
-      "reasoning": "Brief explanation of order"
+      "reasoning": "Brief explanation of order and why these roles match the query domain"
     }}
     """
     
