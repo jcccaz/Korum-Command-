@@ -485,10 +485,14 @@ function toggleReportLibrary(show) {
     if (show) {
         panel.classList.add('visible');
         if (overlay) overlay.classList.add('visible');
+        document.body.classList.add('report-library-open');
+        sessionState.archivePanelOpen = true;
         loadReportLibrary();
     } else {
         panel.classList.remove('visible');
         if (overlay) overlay.classList.remove('visible');
+        document.body.classList.remove('report-library-open');
+        sessionState.archivePanelOpen = false;
     }
 }
 
@@ -1814,7 +1818,10 @@ let sessionState = {
     activeThreadId: null, // Persistent thread UUID (server-side)
     selectedCardId: null,
     selectedCardProvider: null,
-    selectedCardResponse: null
+    selectedCardResponse: null,
+    selectedText: "",
+    highlightToolbarVisible: false,
+    archivePanelOpen: false
 };
 
 // --- CARD SELECTION & ANALYSIS ACTION BAR ---
@@ -1828,18 +1835,41 @@ function selectCard(cardEl) {
 
     if (!cardEl || cardEl.classList.contains('no-interrogate')) return;
 
+    // Infer provider if card is missing data-provider (legacy/special cards)
+    if (!cardEl.dataset.provider) {
+        const nameHint = cardEl.dataset.name || cardEl.querySelector('.ph-model-name, .agent-name')?.innerText || '';
+        const inferredProvider = resolveProviderKey(nameHint);
+        if (inferredProvider) cardEl.dataset.provider = inferredProvider;
+    }
+
     // Select this card
     cardEl.classList.add('card-selected');
     sessionState.selectedCardId = cardEl.dataset.cardId || null;
     sessionState.selectedCardProvider = cardEl.dataset.provider || null;
     sessionState.selectedCardResponse = cardEl.querySelector('.agent-response')?.innerText || '';
 
-    // Inject action bar after precision-header
+    // Inject action bar after known card headers (for backward compatibility/hover-like selection)
     const actionBar = buildAnalysisActionBar();
-    const header = cardEl.querySelector('.precision-header');
+    const header = cardEl.querySelector('.precision-header, .agent-header');
     if (header) {
         header.insertAdjacentElement('afterend', actionBar);
+    } else {
+        cardEl.insertAdjacentElement('afterbegin', actionBar);
     }
+
+    // NEW: Card Expansion on Selection
+    const provider = cardEl.dataset.provider || "";
+    const name = cardEl.dataset.name || getProviderName(provider);
+    const content = cardEl.querySelector('.agent-response')?.innerText || "";
+    const model = cardEl.querySelector('.ph-role-label')?.innerText || provider;
+
+    openCardModal({
+        name: name,
+        provider: provider,
+        meta: `<div class="agent-meta"><span>${provider.toUpperCase()}</span><span>${model}</span></div>`,
+        content: content,
+        model: model
+    });
 }
 
 function deselectCard() {
@@ -2200,11 +2230,12 @@ window.challengeSelection = function () {
     triggerCouncil(query);
 };
 
-window.openInterrogation = function (targetName) {
+window.openInterrogation = function (targetName, overrideResponse = null) {
     // Auto-close the card modal so user can see interrogation running
     closeCardModal();
+    const resolvedTargetName = targetName || 'Selected Text';
     // Resolve provider key using shared map
-    const providerKey = resolveProviderKey(targetName);
+    const providerKey = resolveProviderKey(resolvedTargetName);
     sessionState.targetCard = providerKey;
 
     // Get defender's role from the deck labels
@@ -2212,8 +2243,10 @@ window.openInterrogation = function (targetName) {
         ? (document.getElementById(`roleLabel-${providerKey}`)?.innerText.toLowerCase() || 'analyst')
         : 'analyst';
 
-    // Get target response text — fall back to first available if key not matched
-    let targetResponse = providerKey ? sessionState.lastResponses[providerKey] : '';
+    // Get target response text — selected excerpt takes priority
+    let targetResponse = (typeof overrideResponse === 'string' && overrideResponse.trim())
+        ? overrideResponse.trim()
+        : (providerKey ? sessionState.lastResponses[providerKey] : '');
     if (!targetResponse) {
         const fallback = Object.entries(sessionState.lastResponses).find(([k, v]) => v);
         if (fallback) {
@@ -2226,7 +2259,7 @@ window.openInterrogation = function (targetName) {
     }
 
     // Show adversarial persona picker
-    showInterrogationPicker(targetName, defenderRole, targetResponse);
+    showInterrogationPicker(resolvedTargetName, defenderRole, targetResponse);
 };
 
 // ── ADVERSARIAL FACE-OFF: ROLE REGISTRY ──────────────────────────────────
@@ -2381,7 +2414,7 @@ function showInterrogationPicker(targetName, defenderRole, targetResponse) {
     picker.style.cssText = `
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
         background: rgba(10, 10, 15, 0.97); border: 1px solid rgba(255, 68, 68, 0.6);
-        border-radius: 6px; padding: 20px 24px; z-index: 10000; min-width: 340px; max-width: 480px;
+        border-radius: 6px; padding: 20px 24px; z-index: 10500; min-width: 340px; max-width: 480px;
         box-shadow: 0 0 40px rgba(255, 68, 68, 0.15); font-family: var(--font-tactical, 'Courier New', monospace);
     `;
 
@@ -3234,6 +3267,7 @@ function initDockTabs() {
 
 function switchDockTab(tabName) {
     activeDockTab = tabName;
+    hideHighlightToolbar();
     document.querySelectorAll('.dock-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.dockTab === tabName);
     });
@@ -3509,6 +3543,7 @@ function renderResults(data, roleName) {
             if (e.target.closest('button') || e.target.closest('.tool-action') || e.target.closest('.analysis-action-bar')) return;
             openCardModal({
                 name: getProviderName(provider),
+                provider: provider,
                 meta: `<div class="agent-meta"><span>${getProviderName(provider)}</span><span>${res.model || provider}</span></div>`,
                 content: res.response,
                 model: res.model || provider
@@ -3556,6 +3591,7 @@ function renderResults(data, roleName) {
         card.addEventListener('click', () => {
             openCardModal({
                 name: "RED TEAM EXPLOIT",
+                provider: 'red_team',
                 meta: `<div class="agent-meta"><span style="color:#FF4444">RED TEAM</span><span>EXPLOIT</span></div>`,
                 content: res.response,
                 model: "CRITICAL"
@@ -4004,9 +4040,12 @@ function handleTextSelection(e) {
     const text = selection.toString().trim();
     
     if (text && text.length > 3) {
+        if (!selection.rangeCount) return;
         const range = selection.getRangeAt(0);
         const rect = range.getBoundingClientRect();
-        const agentCard = selection.anchorNode.parentElement.closest('.agent-card');
+        const anchorEl = selection.anchorNode?.nodeType === 1 ? selection.anchorNode : selection.anchorNode?.parentElement;
+        const focusEl = selection.focusNode?.nodeType === 1 ? selection.focusNode : selection.focusNode?.parentElement;
+        const agentCard = anchorEl?.closest?.('.agent-card') || focusEl?.closest?.('.agent-card');
         
         if (!agentCard) return; // Only show for text inside agent cards
         
@@ -4042,8 +4081,16 @@ function showHighlightToolbar(rect, text, provider) {
     }
     
     toolbar.style.display = 'flex';
-    toolbar.style.left = `${rect.left + (rect.width / 2) - (toolbar.offsetWidth / 2)}px`;
-    toolbar.style.top = `${rect.top + window.scrollY - toolbar.offsetHeight - 10}px`;
+    const toolbarWidth = toolbar.offsetWidth || 280;
+    const toolbarHeight = toolbar.offsetHeight || 40;
+    const desiredLeft = rect.left + (rect.width / 2) - (toolbarWidth / 2);
+    const desiredTop = rect.top - toolbarHeight - 10;
+    const clampedLeft = Math.max(8, Math.min(desiredLeft, window.innerWidth - toolbarWidth - 8));
+    const fallbackTop = rect.bottom + 10;
+    const clampedTop = desiredTop < 8 ? Math.min(fallbackTop, window.innerHeight - toolbarHeight - 8) : desiredTop;
+
+    toolbar.style.left = `${clampedLeft}px`;
+    toolbar.style.top = `${clampedTop}px`;
     
     activeActionContext = {
         type: 'highlight',
@@ -4051,11 +4098,15 @@ function showHighlightToolbar(rect, text, provider) {
         text: text,
         element: null
     };
+    sessionState.selectedText = text;
+    sessionState.highlightToolbarVisible = true;
 }
 
 function hideHighlightToolbar() {
     const toolbar = document.getElementById('highlight-toolbar');
     if (toolbar) toolbar.style.display = 'none';
+    sessionState.selectedText = "";
+    sessionState.highlightToolbarVisible = false;
 }
 
 /**
@@ -4067,7 +4118,7 @@ function runHighlightAction(action) {
     
     switch(action) {
         case 'interrogate':
-            openInterrogation(getProviderName(provider));
+            openInterrogation(getProviderName(provider), text);
             break;
         case 'verify':
             executeVerify(text, getProviderName(provider));
@@ -4545,8 +4596,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('modalCopyBtn')?.addEventListener('click', () => {
         if (currentModalData) {
-            navigator.clipboard.writeText(currentModalData.content);
-            logTelemetry("Response Copied to Clipboard", "system");
+            // Copy clean text from rendered modal content (strips HTML tags)
+            const modalContent = document.getElementById('modalContent');
+            const cleanText = modalContent ? modalContent.innerText : currentModalData.content;
+            copyTextToClipboard(cleanText, "Response copied to clipboard");
+        }
+    });
+
+    document.getElementById('modalInterrogateBtn')?.addEventListener('click', () => {
+        if (currentModalData) {
+            const providerName = currentModalData.name || getProviderName(currentModalData.provider);
+            openInterrogation(providerName);
+        }
+    });
+
+    document.getElementById('modalVerifyBtn')?.addEventListener('click', () => {
+        if (currentModalData) {
+            const providerName = currentModalData.name || getProviderName(currentModalData.provider);
+            executeVerify(currentModalData.content, providerName);
+        }
+    });
+
+    document.getElementById('modalVisualizeBtn')?.addEventListener('click', () => {
+        if (currentModalData) {
+            window.visualizeSelection(currentModalData.content);
         }
     });
     document.getElementById('cardModal')?.addEventListener('click', (e) => {
