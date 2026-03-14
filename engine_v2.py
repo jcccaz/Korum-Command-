@@ -82,7 +82,7 @@ class CouncilContext:
 # --- PHASE 1: CLASSIFICATION (The Planner) ---
 def classify_query_v2(query, active_personas, active_models=None, previous_context=None, user_id=None):
     if active_models is None:
-        active_models = ["openai", "anthropic", "google", "perplexity", "mistral", "local"]
+        active_models = ["openai", "anthropic", "google", "perplexity", "mistral"] # Default to cloud
 
     available_list = ""
     for p in active_models:
@@ -173,7 +173,7 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
 
     # Ultimate Fallback - Use at least one cloud provider (Mistral) as a scout if possible
     return {
-        "executionOrder": ["mistral-scout", "local-strategist", "local-critic"],
+        "executionOrder": ["mistral-scout", "mistral-strategist", "mistral-critic"],
         "reasoning": "PRIMARY MODELS OFFLINE. Using Mixed Emergency Council.",
         "outputType": "report"
     }
@@ -334,7 +334,7 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             # [I will keep the fallback logic and inject telemetry_kwargs below]
             
             # --- FALLBACK LEVEL 1: MISTRAL CLOUD ---
-            if not response_obj.get('success', False) and provider not in ['mistral', 'local']:
+            if not response_obj.get('success', False) and provider != 'mistral':
                 print(f"[COUNCIL] Primary ({provider}) Failed. Fallback to ANALYST (Mistral Cloud)...")
                 try:
                     response_obj = call_mistral_api(prompt, role, **telemetry_kwargs)

@@ -52,13 +52,27 @@ app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour
 
 # --- Redis Configuration ---
 REDIS_URL = os.getenv("REDIS_URL", None)
+redis_client = None
+
 if REDIS_URL:
-    app.config["SESSION_TYPE"] = "redis"
-    app.config["SESSION_REDIS"] = redis.from_url(REDIS_URL)
-    app.config["SESSION_PERMANENT"] = True
-    app.config["SESSION_KEY_PREFIX"] = "korum:"
-    Session(app)
-    logger.info(f"[REDIS] Session persistence enabled via Redis")
+    # Handling Railway/managed rediss:// URLs
+    # We append ssl_cert_reqs=none to the URI for simple compatibility if using rediss
+    modified_redis_url = REDIS_URL
+    if REDIS_URL.startswith("rediss://") and "ssl_cert_reqs" not in REDIS_URL:
+        separator = "&" if "?" in REDIS_URL else "?"
+        modified_redis_url = f"{REDIS_URL}{separator}ssl_cert_reqs=none"
+    
+    try:
+        redis_client = redis.from_url(modified_redis_url)
+        app.config["SESSION_TYPE"] = "redis"
+        app.config["SESSION_REDIS"] = redis_client
+        app.config["SESSION_PERMANENT"] = True
+        app.config["SESSION_KEY_PREFIX"] = "korum:"
+        Session(app)
+        logger.info(f"[REDIS] Session persistence enabled via Redis")
+    except Exception as e:
+        logger.error(f"[REDIS] Connection failed: {e}")
+        redis_client = None
 else:
     logger.warning("[REDIS] REDIS_URL not set — using default Flask sessions (non-persistent)")
 
@@ -68,11 +82,21 @@ AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() in {"1", "true", "yes",
 CORS(app, supports_credentials=True)
 
 # --- Rate Limiting ---
+# Use the same modified URL for the limiter to ensure TLS compatibility
+limiter_uri = "memory://"
+if redis_client and REDIS_URL:
+    # Flask-Limiter handles the connection itself, but needs the URL
+    if REDIS_URL.startswith("rediss://") and "ssl_cert_reqs" not in REDIS_URL:
+        separator = "&" if "?" in REDIS_URL else "?"
+        limiter_uri = f"{REDIS_URL}{separator}ssl_cert_reqs=none"
+    else:
+        limiter_uri = REDIS_URL
+
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
     default_limits=["200 per minute"],
-    storage_uri=REDIS_URL if REDIS_URL else "memory://",
+    storage_uri=limiter_uri,
 )
 
 # --- Flask-Login Setup ---

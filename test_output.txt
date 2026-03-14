@@ -1,8 +1,7 @@
-..
+F.
+======================================================================
+FAIL: test_council_flow_context_passing (__main__.TestSynthesizer.test_council_flow_context_passing)
 ----------------------------------------------------------------------
-Ran 2 tests in 0.001s
-
-OK
 [COUNCIL] Efficiency Plan: ['perplexity-scout', 'openai-strategist', 'anthropic-architect', 'google-critic']
 [COUNCIL] Step 1: PERPLEXITY as SCOUT
 [COUNCIL] Step 2: OPENAI as STRATEGIST
@@ -13,5 +12,17 @@ OK
 [CLAIM ERROR] Expecting value: line 1 column 1 (char 0)
 [CLAIM ERROR] Expecting value: line 1 column 1 (char 0)
 [CLAIM ERROR] Expecting value: line 1 column 1 (char 0)
+[COUNCIL] Divergence Analysis...
+[DIVERGENCE ERROR] Expecting value: line 1 column 1 (char 0)
+Traceback (most recent call last):
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1432, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Users\carlo\Projects\KorumOS\tests\test_engine_v2.py", line 116, in test_council_flow_context_passing
+    self.assertIn("PREVIOUS CONTRIBUTIONS", prompt_sent_to_openai)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'PREVIOUS CONTRIBUTIONS' not found in '\n    ## PROFESSIONAL INTELLIGENCE BRIEF\n    MISSION TYPE: RESEARCH\n    PRIMARY OBJECTIVE: "Launch crypto token for Gen Z"\n\n    CURRENT FOCUS: STRATEGIST (Assignee: OPENAI)\n    WORKFLOW STAGE: Phase 2 of 4 ù STRATEGIC INTERPRETATION ù Scenario Analysis\n\n    --- WORKFLOW DNA ---\n    POSTURE: Objective Scientist\n    GOAL: Deep understanding and evidence-based exploration.\n    TONE: Neutral, academic, and comprehensive.\n    RISK BIAS: Balanced\n    TIME HORIZON: Long-term strategic\n    --------------------\n\n    ## YOUR PHASE MISSION\n    You are the STRATEGIC ANALYST. The intake baseline is provided below. Your job is to interpret the baseline and estimate the MOST PLAUSIBLE scenario and the MOST DANGEROUS scenario. Provide strategic context: what are the likely motives, trajectories, and second-order effects? DO NOT repeat the baseline facts ù they are already captured. Instead, focus entirely on WHAT THEY MEAN. Offer 2-3 distinct strategic scenarios ranked by probability and severity.\n\n    ## CRITICAL RULE: ZERO REPETITION\n    The prior phases are provided for CONTEXT ONLY. DO NOT restate, summarize, or echo their findings.\n    Your ONLY job is to add what is MISSING ù the unique contribution defined by your phase mission above.\n    If your output overlaps with prior phases, you have FAILED your mission.\n\n    ## INTERNAL STRUCTURING (FOR SYSTEM PARSING)\n    You MUST use the following tags to mark high-value intelligence:\n    - [DECISION_CANDIDATE] ...recommendation text... [/DECISION_CANDIDATE]\n    - [RISK_VECTOR] ...risk description... [/RISK_VECTOR]\n    - [METRIC_ANCHOR] ...metric value... [/METRIC_ANCHOR]\n    - [TRUTH_BOMB] ...critically verified fact... [/TRUTH_BOMB]\n\n    Do not let these tags disrupt your narrative flow; they are for the backend extractor.\n    \n## PRIOR PHASE CONTEXT (for reference ù DO NOT REPEAT):\n\n-- PHASE [SCOUT] (PERPLEXITY):\nPerplexity: Found trend X.\n'
 
-[TEST] Verified that Step 2 (OpenAI) received Context from Step 1 (Perplexity).
+----------------------------------------------------------------------
+Ran 2 tests in 0.005s
+
+FAILED (failures=1)

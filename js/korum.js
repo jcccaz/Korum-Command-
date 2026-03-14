@@ -184,6 +184,14 @@ const KorumAuth = {
     }
 };
 
+// Handle window resizing to clean up mobile states
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+        document.querySelector('.nav-links')?.classList.remove('mobile-open');
+        document.body.classList.remove('mobile-nav-open');
+    }
+});
+
 // Init: Demo terms gate → then auth
 document.addEventListener('DOMContentLoaded', () => {
     const termsOverlay = document.getElementById('demoTermsOverlay');

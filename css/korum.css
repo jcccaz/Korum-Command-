@@ -197,8 +197,12 @@ body {
         z-index: 1001;
     }
 
-    .nav-links {
-        display: none !important;
+    /* 
+       Updated: Only apply these vertical stacking styles if the screen is narrow 
+       AND it's NOT a desktop-class device (hover: none) OR the mobile nav is explicitly open.
+    */
+    .nav-links.mobile-open {
+        display: flex !important;
         position: fixed !important;
         top: 0;
         right: 0;
@@ -215,11 +219,7 @@ body {
         animation: fadeIn 0.3s ease;
     }
 
-    .nav-links.mobile-open {
-        display: flex !important;
-    }
-
-    .nav-links a {
+    .nav-links.mobile-open a {
         flex: 0 0 auto !important;
         width: 80% !important;
         text-align: center !important;
@@ -5266,19 +5266,6 @@ body.activated .sphere-texture {
         gap: 12px !important;
     }
 
-    .results-container {
-        position: absolute !important;
-        bottom: 0 !important;
-        height: 60% !important;
-        max-height: 65vh !important;
-        padding: 40px !important;
-    }
-
-    .results-grid {
-        display: grid !important;
-        grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)) !important;
-    }
-
     .mobile-nav-toggle {
         display: none !important;
     }
@@ -5290,11 +5277,15 @@ body.activated .sphere-texture {
         border: 0 !important;
         border-radius: 0 !important;
         padding: 0 !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important; /* FIXED: Prevent stacking in desktop guard */
+        flex-direction: row !important; /* FORCE ROW ON DESKTOP */
+        flex-wrap: nowrap !important;
         overflow-x: auto !important;
         gap: 8px !important;
         max-height: none !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: none !important;
+        pointer-events: auto !important;
     }
 
     .nav-links a {
