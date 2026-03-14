@@ -5521,9 +5521,125 @@ body.activated .sphere-texture {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
 }
 
-.interrogation-tooltip button {
-    font-size: 9px !important;
-    padding: 5px 10px !important;
-    border-radius: 3px !important;
-    letter-spacing: 0.08em !important;
+/* ===================================================================
+   TEXT HIGHLIGHT TOOLBAR
+   =================================================================== */
+
+.highlight-toolbar {
+    position: absolute;
+    display: flex;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 4px;
+    border-radius: 8px;
+    z-index: 2000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    pointer-events: auto;
+    animation: toolbarPop 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform-origin: bottom center;
+}
+
+.ht-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #FFF;
+    font-family: var(--font-head);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ht-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #FFF;
+}
+
+@keyframes toolbarPop {
+    from { transform: scale(0.8) translateY(10px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* ===================================================================
+   ARTIFACT DOCK (RESULTS CONTAINER REFACTOR)
+   =================================================================== */
+
+.results-container {
+    position: fixed;
+    bottom: 0;
+    left: 12px;
+    right: 12px;
+    height: 45vh;
+    background: linear-gradient(180deg, rgba(16, 16, 16, 0.98), rgba(0, 0, 0, 1));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 0;
+    border-radius: 20px 20px 0 0;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    transform: translateY(calc(100% - 48px)); /* Tab view by default */
+    transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), background 0.3s;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(30px);
+}
+
+.results-container.active {
+    transform: translateY(0);
+    background: linear-gradient(180deg, rgba(20, 20, 24, 0.99), rgba(10, 10, 12, 1));
+}
+
+.results-header {
+    height: 48px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.results-header h3 {
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: var(--accent-taupe);
+    text-transform: uppercase;
+}
+
+.close-results {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 18px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close-results:hover {
+    color: #FF4444;
+}
+
+.results-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.results-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.results-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
 }

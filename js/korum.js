@@ -3081,7 +3081,7 @@ function renderResults(data, roleName) {
     // Consensus
     const consensusCard = document.createElement("div"); consensusCard.className = "consensus-card";
     const consensusText = data.consensus || "No consensus reached.";
-    consensusCard.innerHTML = `<div class="consensus-title"><span style="font-size:16px">🏛️</span> COUNCIL DECISION: ${roleName.toUpperCase()}</div><div class="consensus-body">${formatText(consensusText)}</div>`;
+    consensusCard.innerHTML = `<div class="consensus-title"><span style="font-size:16px">🏛️</span> COUNCIL DECISION: ${roleName.toUpperCase()}<div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.consensus-card').querySelector('.consensus-body').innerText, 'Council decision copied')" title="Copy" style="display:inline-block;margin-left:10px;cursor:pointer;">📋</div></div><div class="consensus-body">${formatText(consensusText)}</div>`;
     grid.appendChild(consensusCard);
 
     // Agents - Process results and update health status
@@ -3140,16 +3140,9 @@ function renderResults(data, roleName) {
                     </div>
                 </div>
                 <div class="ph-right">
-                    <button class="interrogate-btn" onclick="event.stopPropagation(); openInterrogation('${getProviderName(provider)}')" title="Interrogate">
-                        &#x1F50D;
-                    </button>
-                    <button class="verify-btn" onclick="event.stopPropagation(); executeVerify(decodeURIComponent('${encodeURIComponent(rawResponse)}'), '${getProviderName(provider)}')" title="Verify">
-                        &#x1F50E;
-                    </button>
                     <div class="metric-pill">$${cost.toFixed(4)}</div>
                     <div class="metric-pill time">${time}s</div>
                     <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); saveReport()" title="Save">💾</div>
-                    <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); window.visualizeSelection(decodeURIComponent('${encodeURIComponent(rawResponse)}'))" title="Chart">📊</div>
                     <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); copyTextToClipboard(decodeURIComponent('${encodeURIComponent(rawResponse)}'), '${getProviderName(provider)} output copied')" title="Copy">📋</div>
                 </div>
             </div>
@@ -3251,6 +3244,7 @@ function renderResults(data, roleName) {
                     <div class="metric-pill" style="color:${levelColor};border-color:${levelColor}40;">${fc.redacted_entity_count} REDACTED</div>
                     ${fc.high_risk_items_count > 0 ? `<div class="metric-pill" style="color:#FF4444;border-color:rgba(255,68,68,0.3);">${fc.high_risk_items_count} HIGH-RISK</div>` : ''}
                     <div class="metric-pill" style="color:${riskColor};border-color:${riskColor}40;">RISK: ${fc.exposure_risk.toUpperCase()}</div>
+                    <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.agent-card').querySelector('.agent-response').innerText, 'Falcon Protocol copied')" title="Copy">📋</div>
                 </div>
             </div>
             <div class="agent-response" style="padding:16px;">
@@ -3286,6 +3280,7 @@ function renderResults(data, roleName) {
                 <button class="qanapi-sign-btn" onclick="event.stopPropagation(); showProcessingToast('Secure Enclave · FedRAMP High · Cryptographic Signature Ready [STAGING]')">
                     <span style="font-size:10px">🔏</span> SIGN REPORT
                 </button>
+                <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.agent-card').querySelector('.exec-brief').innerText, 'Executive Brief copied')" title="Copy" style="display:inline-block;margin-left:8px;cursor:pointer;">📋</div>
             </div>
         </div>`;
 
@@ -3393,6 +3388,7 @@ function renderResults(data, roleName) {
             <div class="divergence-scores">
                 <span class="div-score consensus-score">CONSENSUS: ${div.consensus_score || 0}/100</span>
                 <span class="div-score divergence-score-val">DIVERGENCE: ${div.divergence_score || 0}/100</span>
+                <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.agent-card').innerText, 'Divergence analysis copied')" title="Copy" style="display:inline-block;margin-left:10px;cursor:pointer;">📋</div>
             </div>
         </div>`;
 
@@ -3627,107 +3623,225 @@ function openDivergenceModal() {
     document.body.appendChild(modal);
 }
 
-function setupInterrogation() {
-    const tooltip = document.getElementById('interrogation-tooltip');
+// ============================================================
+// UX REFACTOR: CARD-LEVEL ANALYSIS & HIGHLIGHT TOOLBAR
+// ============================================================
+let selectedCardId = null;
+let activeActionContext = {
+    type: 'card', 
+    provider: null,
+    text: null,
+    element: null
+};
 
-    document.addEventListener('mouseup', (e) => {
-        const selection = window.getSelection().toString().trim();
-        if (selection && selection.length > 5) {
-            // Show Tooltip
-            activeSelection = selection;
-            tooltip.style.display = 'flex';
-            tooltip.style.left = `${e.pageX + 10}px`;
-            tooltip.style.top = `${e.pageY - 40}px`;
-        } else {
-            // Delay hidding slightly to allow clicking buttons
-            setTimeout(() => {
-                if (!window.getSelection().toString().trim()) {
-                    tooltip.style.display = 'none';
-                }
-            }, 200);
-        }
-    });
-
-    document.getElementById('btn-dock').addEventListener('click', () => {
-        if (activeSelection) {
-            ResearchDock.add(activeSelection, 'selection');
-            showProcessingToast("Snippet docked!");
-            tooltip.style.display = 'none';
-            window.getSelection().removeAllRanges();
-            activeSelection = "";
-        }
-    });
-
-    document.getElementById('btn-challenge').addEventListener('click', () => {
-        if (activeSelection) {
-            tooltip.style.display = 'none';
-
-            // Find which agent card the selection came from
-            const sel = window.getSelection();
-            const agentCard = sel.anchorNode?.parentElement?.closest('.agent-card');
-            const providerName = agentCard?.querySelector('.ph-model-name')?.innerText || 'Target';
-
-            // Use the new interrogation flow (2 API calls, not full council)
-            openInterrogation(providerName);
-
-            window.getSelection().removeAllRanges();
-            activeSelection = "";
-        }
-    });
-
-    document.getElementById('btn-verify-select')?.addEventListener('click', () => {
-        if (activeSelection) {
-            tooltip.style.display = 'none';
-
-            // Find which agent card the selection came from
-            const sel = window.getSelection();
-            const agentCard = sel.anchorNode?.parentElement?.closest('.agent-card');
-            const providerName = agentCard?.querySelector('.ph-model-name')?.innerText || 'Council';
-
-            executeVerify(activeSelection, providerName);
-
-            window.getSelection().removeAllRanges();
-            activeSelection = "";
-        }
-    });
-
-    document.getElementById('btn-visualize-select').addEventListener('click', () => {
-        if (activeSelection) {
-            const query = `VISUALIZE SELECTION: "${activeSelection}".
-            Create a Mermaid JS chart (flowchart or pie) specifically based on this data.`;
-            tooltip.style.display = 'none';
-
-            logTelemetry("VISUALIZATION REQUESTED", "process");
-            sentinelChat.appendMessage(`VISUALIZING: "${activeSelection.slice(0, 50)}..."`, 'user');
-
-            triggerCouncil(query);
-            window.getSelection().removeAllRanges();
-            activeSelection = "";
-        }
-    });
-
-    document.getElementById('btn-document-select')?.addEventListener('click', () => {
-        if (activeSelection) {
-            tooltip.style.display = 'none';
-            logTelemetry("DOCUMENT REQUESTED", "process");
-            saveReport();
-            window.getSelection().removeAllRanges();
-            activeSelection = "";
-        }
-    });
+/**
+ * Handle card selection and move the AnalysisActionBar to the selected card.
+ */
+function selectCard(cardElement) {
+    const cardId = cardElement.dataset.cardId;
+    const provider = cardElement.dataset.provider;
+    
+    // Remove previous selection
+    document.querySelectorAll('.agent-card').forEach(c => c.classList.remove('card-selected'));
+    
+    // If clicking the same card, deselect
+    if (selectedCardId === cardId) {
+        selectedCardId = null;
+        hideAnalysisBar();
+        return;
+    }
+    
+    selectedCardId = cardId;
+    cardElement.classList.add('card-selected');
+    
+    showAnalysisBar(cardElement, provider);
 }
 
-// Global listener for highlighted claims
-document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('claim')) {
-        const claimText = e.target.innerText;
-        const providerName = e.target.closest('.agent-card')?.querySelector('.ph-model-name')?.innerText || 'Target';
-
-        // Use the new interrogation flow (persona picker → 2 API calls)
-        sentinelChat.appendMessage(`Targeting violation: "${claimText}"`, 'user');
-        openInterrogation(providerName);
+function showAnalysisBar(cardElement, provider) {
+    let bar = document.getElementById('card-analysis-bar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'card-analysis-bar';
+        bar.className = 'analysis-action-bar';
+        bar.innerHTML = `
+            <button class="aab-btn interrogation" title="Interrogate">🔎 <span class="btn-text">INTERROGATE</span></button>
+            <button class="aab-btn verify" title="Verify Evidence">⚖️ <span class="btn-text">VERIFY</span></button>
+            <button class="aab-btn defend" title="Defend Position">🛡️ <span class="btn-text">DEFEND</span></button>
+            <button class="aab-btn visualize" title="Visualize Data">📊 <span class="btn-text">VIZ</span></button>
+            <button class="aab-btn document" title="Generate Report">📄 <span class="btn-text">DOC</span></button>
+        `;
+        document.body.appendChild(bar);
+        
+        // Add listeners
+        bar.querySelector('.interrogation').onclick = (e) => { e.stopPropagation(); runCardAction('interrogate'); };
+        bar.querySelector('.verify').onclick = (e) => { e.stopPropagation(); runCardAction('verify'); };
+        bar.querySelector('.defend').onclick = (e) => { e.stopPropagation(); runCardAction('defend'); };
+        bar.querySelector('.visualize').onclick = (e) => { e.stopPropagation(); runCardAction('visualize'); };
+        bar.querySelector('.document').onclick = (e) => { e.stopPropagation(); runCardAction('document'); };
     }
-});
+    
+    const rect = cardElement.getBoundingClientRect();
+    const scrollY = window.scrollY;
+    
+    // Position below the precision-header
+    const header = cardElement.querySelector('.precision-header');
+    const headerRect = header.getBoundingClientRect();
+    
+    bar.style.display = 'flex';
+    bar.style.top = `${headerRect.bottom + scrollY}px`;
+    bar.style.left = `${headerRect.left}px`;
+    bar.style.width = `${headerRect.width}px`;
+    
+    activeActionContext = {
+        type: 'card',
+        provider: provider,
+        text: cardElement.querySelector('.agent-response').innerText,
+        element: cardElement
+    };
+}
+
+function hideAnalysisBar() {
+    const bar = document.getElementById('card-analysis-bar');
+    if (bar) bar.style.display = 'none';
+    selectedCardId = null;
+    activeActionContext.provider = null;
+}
+
+/**
+ * Handle text selection to show the HighlightToolbar.
+ */
+function handleTextSelection(e) {
+    // If clicking on a toolbar button, don't hide or reset
+    if (e.target.closest('.highlight-toolbar') || e.target.closest('.analysis-action-bar')) return;
+
+    const selection = window.getSelection();
+    const text = selection.toString().trim();
+    
+    if (text && text.length > 3) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        const agentCard = selection.anchorNode.parentElement.closest('.agent-card');
+        
+        if (!agentCard) return; // Only show for text inside agent cards
+        
+        showHighlightToolbar(rect, text, agentCard.dataset.provider);
+    } else {
+        // Use a small delay to allow clicking buttons
+        setTimeout(() => {
+            if (!window.getSelection().toString().trim()) {
+                hideHighlightToolbar();
+            }
+        }, 150);
+    }
+}
+
+function showHighlightToolbar(rect, text, provider) {
+    let toolbar = document.getElementById('highlight-toolbar');
+    if (!toolbar) {
+        toolbar = document.createElement('div');
+        toolbar.id = 'highlight-toolbar';
+        toolbar.className = 'highlight-toolbar';
+        toolbar.innerHTML = `
+            <button class="ht-btn interrogate" title="Interrogate Selection">🔎 INTERROGATE</button>
+            <button class="ht-btn verify" title="Verify Selection">⚖️ VERIFY</button>
+            <button class="ht-btn visualize" title="Visualize Selection">📊 VIZ</button>
+            <button class="ht-btn document" title="Document Selection">📄 DOC</button>
+        `;
+        document.body.appendChild(toolbar);
+        
+        toolbar.querySelector('.interrogate').onclick = (e) => { e.stopPropagation(); runHighlightAction('interrogate'); };
+        toolbar.querySelector('.verify').onclick = (e) => { e.stopPropagation(); runHighlightAction('verify'); };
+        toolbar.querySelector('.visualize').onclick = (e) => { e.stopPropagation(); runHighlightAction('visualize'); };
+        toolbar.querySelector('.document').onclick = (e) => { e.stopPropagation(); runHighlightAction('document'); };
+    }
+    
+    toolbar.style.display = 'flex';
+    toolbar.style.left = `${rect.left + (rect.width / 2) - (toolbar.offsetWidth / 2)}px`;
+    toolbar.style.top = `${rect.top + window.scrollY - toolbar.offsetHeight - 10}px`;
+    
+    activeActionContext = {
+        type: 'highlight',
+        provider: provider,
+        text: text,
+        element: null
+    };
+}
+
+function hideHighlightToolbar() {
+    const toolbar = document.getElementById('highlight-toolbar');
+    if (toolbar) toolbar.style.display = 'none';
+}
+
+/**
+ * Run actions from the card-level bar.
+ */
+function runCardAction(action) {
+    const { provider, text } = activeActionContext;
+    if (!provider) return;
+    
+    switch(action) {
+        case 'interrogate':
+            openInterrogation(getProviderName(provider));
+            break;
+        case 'verify':
+            executeVerify(text, getProviderName(provider));
+            break;
+        case 'defend':
+            openInterrogation(getProviderName(provider)); 
+            break;
+        case 'visualize':
+            if (window.visualizeSelection) window.visualizeSelection(text);
+            break;
+        case 'document':
+            saveReport();
+            break;
+    }
+}
+
+/**
+ * Run actions from the highlight toolbar.
+ */
+function runHighlightAction(action) {
+    const { provider, text } = activeActionContext;
+    if (!text) return;
+    
+    switch(action) {
+        case 'interrogate':
+            openInterrogation(getProviderName(provider), text);
+            break;
+        case 'verify':
+            executeVerify(text, getProviderName(provider));
+            break;
+        case 'visualize':
+            const query = `VISUALIZE SELECTION: "${text}". Create a Mermaid JS chart.`;
+            triggerCouncil(query);
+            break;
+        case 'document':
+            saveReport();
+            break;
+    }
+    
+    window.getSelection().removeAllRanges();
+    hideHighlightToolbar();
+}
+
+function setupInterrogation() {
+    // Replaces the old mouseup logic
+    document.addEventListener('mouseup', handleTextSelection);
+
+    // Initial listener for external dock buttons if they still exist
+    const dockBtn = document.getElementById('btn-dock');
+    if (dockBtn) {
+        dockBtn.addEventListener('click', () => {
+             const selection = window.getSelection().toString().trim();
+             if (selection) {
+                 ResearchDock.add(selection, 'selection');
+                 showProcessingToast("Snippet docked!");
+                 window.getSelection().removeAllRanges();
+             }
+        });
+    }
+}
 // --- KORUM OS - ORBITAL ---
 // Consolidated JS for Visuals & Interactions
 

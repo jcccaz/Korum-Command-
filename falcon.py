@@ -292,6 +292,8 @@ def _detect_locations(text: str) -> List[Tuple[int, int, str]]:
 
 def falcon_preprocess(text: str, level: str = "STANDARD",
                       custom_terms: Optional[List[str]] = None,
+                      salt: Optional[str] = None,
+                      placeholder_cache: Optional[Dict[str, str]] = None,
                       debug: bool = False) -> FalconResult:
     """
     Run the full Falcon redaction pipeline on input text.
@@ -318,8 +320,11 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
         falcon_level = FalconLevel.STANDARD
 
     # Per-request salt: deterministic within this call, different across calls
-    salt = hashlib.sha256(f"{id(text)}:{len(text)}:{hash(text)}".encode()).hexdigest()[:12]
-    placeholder_cache: Dict[str, str] = {}  # fresh cache per request
+    if salt is None:
+        salt = hashlib.sha256(f"{id(text)}:{len(text)}:{hash(text)}".encode()).hexdigest()[:12]
+    
+    if placeholder_cache is None:
+        placeholder_cache = {}  # fresh cache per request
 
     # Merge org-specific custom terms with any caller-provided terms
     all_custom_terms = list(custom_terms or [])

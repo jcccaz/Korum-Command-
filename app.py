@@ -1719,6 +1719,7 @@ def ask_council():
 @auth_required
 @limiter.limit("30 per minute")
 def interrogate():
+  try:
     from llm_core import expand_role
 
     data = request.json
@@ -1727,7 +1728,7 @@ def interrogate():
     attacker_role = sanitize_input(data.get('attacker_role', 'strategist'))
     defender_role = sanitize_input(data.get('defender_role', 'architect'))
     challenge_focus = sanitize_input(data.get('challenge_focus', ''))
-    
+
     # --- FALCON HARDENING: REDACT INPUTS ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
@@ -1735,17 +1736,19 @@ def interrogate():
     _falcon_placeholder_map = {}
 
     if use_falcon:
-        # Multi-variable redaction: we combine them to maintain consistent placeholders for entities
+        import hashlib
+        import time
+        stable_salt = hashlib.sha256(f"interrogate:{time.time()}".encode()).hexdigest()[:12]
+        placeholder_cache = {}
+
         combined_text = f"QUERY: {original_query}\nTARGET: {target_response}"
-        falcon_res = falcon_preprocess(combined_text, level=falcon_level)
+        # Redact everything with the same salt/cache
+        falcon_res = falcon_preprocess(combined_text, level=falcon_level, salt=stable_salt, placeholder_cache=placeholder_cache)
         falcon_meta = falcon_res.metadata
         _falcon_placeholder_map = falcon_res.placeholder_map
         
-        # Split back (heuristically or just use the redacted text if we trust the order)
-        # Safer: redact them individually but use the same salt if we wanted. 
-        # For simplicity, just redact individually:
-        original_query = falcon_preprocess(original_query, level=falcon_level).redacted_text
-        target_response = falcon_preprocess(target_response, level=falcon_level).redacted_text
+        original_query = falcon_preprocess(original_query, level=falcon_level, salt=stable_salt, placeholder_cache=placeholder_cache).redacted_text
+        target_response = falcon_preprocess(target_response, level=falcon_level, salt=stable_salt, placeholder_cache=placeholder_cache).redacted_text
 
     if not target_response.strip():
         return jsonify({"error": "Target response is required"}), 400
@@ -1771,7 +1774,6 @@ def interrogate():
     attacker_result = call_openai_gpt4(attacker_prompt, attacker_role, user_id=user_id)
 
     if not attacker_result.get('success'):
-        # Fallback to Gemini if OpenAI fails
         attacker_result = call_google_gemini(attacker_prompt, attacker_role, user_id=user_id)
 
     attacker_text = attacker_result.get('response', 'Attack failed.')
@@ -1823,19 +1825,25 @@ def interrogate():
             "enabled": use_falcon,
             "level": falcon_level,
             "metadata": falcon_meta,
-            # "placeholder_map": _falcon_placeholder_map <-- SECURE: Never sent to client
         } if use_falcon else None
     }
 
     # Save interrogation to thread if thread_id provided
     thread_id = data.get('thread_id')
     if thread_id:
-        _thread_save_message(thread_id, 'interrogation',
-                             json.dumps({"attacker": attacker_text[:2000], "defender": defender_text[:2000]}),
-                             metadata={"attacker_role": attacker_role, "defender_role": defender_role,
-                                       "attacker_model": attacker_result.get('model'), "defender_model": defender_result.get('model')})
+        try:
+            _thread_save_message(thread_id, 'interrogation',
+                                 json.dumps({"attacker": attacker_text[:2000], "defender": defender_text[:2000]}),
+                                 metadata={"attacker_role": attacker_role, "defender_role": defender_role,
+                                           "attacker_model": attacker_result.get('model'), "defender_model": defender_result.get('model')})
+        except Exception as thread_err:
+            logger.error(f"[INTERROGATION] Thread save failed: {thread_err}")
 
     return jsonify(response_data)
+
+  except Exception as e:
+    logger.error(f"[INTERROGATION] Error: {e}", exc_info=True)
+    return jsonify({"success": False, "error": f"Interrogation failed: {str(e)}"}), 500
 
 
 @app.route('/api/verify', methods=['POST'])

@@ -396,10 +396,10 @@
         </main>
 
         <!-- RESULTS PANEL -->
-        <div class="results-container">
-            <div class="results-header">
+        <div class="results-container" id="resultsDock">
+            <div class="results-header" onclick="this.parentElement.classList.toggle('active')">
                 <h3>ARTIFACT DOCK</h3>
-                <span class="close-results">✕</span>
+                <span class="close-results" onclick="event.stopPropagation(); this.closest('.results-container').classList.remove('visible')">✕</span>
             </div>
             <div class="results-content"></div>
 
@@ -419,14 +419,7 @@
         </div>
     </div>
 
-    <div id="interrogation-tooltip" class="interrogation-tooltip"
-        style="display:none; position:absolute; z-index:1000;">
-        <button id="btn-dock">&#x1F4CC; DOCK</button>
-        <button id="btn-challenge">&#x26A0;&#xFE0F; CHALLENGE</button>
-        <button id="btn-verify-select">&#x1F50E; VERIFY</button>
-        <button id="btn-visualize-select">&#x1F4CA; VISUALIZE</button>
-        <button id="btn-document-select">&#x1F4C4; DOCUMENT</button>
-    </div>
+    <!-- Contextual Toolbars (Injected by JS) -->
 
     <!-- MISSION INTAKE MODAL (Elite Context Layer) -->
     <div class="intake-modal-overlay" id="intakeModal">
