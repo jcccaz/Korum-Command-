@@ -2490,6 +2490,27 @@ body.activated .sphere-texture {
     letter-spacing: 1px;
     background: rgba(0, 229, 255, 0.15);
     color: #00e5ff;
+    border: 1px solid transparent;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+/* Active Falcon scan pulse — add/remove .scanning via JS */
+.ghost-stat-docs.scanning {
+    animation: ghostDocScanPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes ghostDocScanPulse {
+    0%, 100% {
+        opacity: 1;
+        border-color: rgba(0, 229, 255, 0.0);
+        box-shadow: none;
+    }
+    50% {
+        opacity: 0.75;
+        border-color: rgba(0, 229, 255, 0.6);
+        box-shadow: 0 0 8px rgba(0, 229, 255, 0.35),
+                    inset 0 0 4px rgba(0, 229, 255, 0.1);
+    }
 }
 
 .ghost-stat-time {

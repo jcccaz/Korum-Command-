@@ -3099,7 +3099,7 @@ function openGhostModal(originalText, redactedHtml, stats) {
         const cats = (stats.categories_found || []).map(c =>
             `<span class="ghost-cat-chip">${c} <strong>${stats.counts_by_category[c] || 0}</strong></span>`
         ).join('');
-        const docBadge = stats.documents_scanned ? `<span class="ghost-stat-docs">${stats.documents_scanned} DOC${stats.documents_scanned !== 1 ? 'S' : ''} SCANNED</span>` : '';
+        const docBadge = stats.documents_scanned ? `<span class="ghost-stat-docs scanning" id="ghost-doc-badge">${stats.documents_scanned} DOC${stats.documents_scanned !== 1 ? 'S' : ''} SCANNED</span>` : '';
         statsEl.innerHTML = `
             <div class="ghost-stats-row">
                 <span class="ghost-stat-total">${stats.total_redactions} REDACTION${stats.total_redactions !== 1 ? 'S' : ''}</span>
@@ -3108,6 +3108,12 @@ function openGhostModal(originalText, redactedHtml, stats) {
                 <span class="ghost-stat-time">${stats.execution_time_ms}ms</span>
             </div>
             <div class="ghost-cats-row">${cats}</div>`;
+        // Pulse the doc badge briefly to confirm scan just completed, then settle
+        if (stats.documents_scanned) {
+            setTimeout(() => {
+                document.getElementById('ghost-doc-badge')?.classList.remove('scanning');
+            }, 3000);
+        }
     }
     modal.classList.add('visible');
 }
