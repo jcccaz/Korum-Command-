@@ -897,6 +897,8 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
         data = json.loads(content)
         
         # Inject metadata if missing or simplified
+        if "meta" not in data:
+            data["meta"] = {}
         data["meta"]["models_used"] = models_used
 
         # Deterministic council_contributors — built from pipeline data, not LLM output
@@ -923,6 +925,7 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
                 "contribution_summary": f"Phase {idx + 1} of {total_phases}",
             })
         data["council_contributors"] = contributors
+        print(f"[SYNTHESIS] Injected {len(contributors)} council_contributors: {[c['phase'] for c in contributors]}")
 
         # NEW: Post-processing safety parse for tags (in case LLM misses some)
         import re
