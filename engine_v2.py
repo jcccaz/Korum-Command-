@@ -405,8 +405,10 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             if isinstance(response_obj, dict):
                  response_text = response_obj.get('response', 'Error')
                  usage = response_obj.get('usage', {})
-                 total_run_cost += usage.get('cost', 0.0)
+                 step_cost = usage.get('cost', 0.0)
+                 total_run_cost += step_cost
                  total_latency_ms += usage.get('latency', 0)
+                 print(f"[COST DEBUG] {provider}: cost={step_cost}, latency={usage.get('latency', 0)}, running_total={total_run_cost}")
                  if response_obj.get('success'):
                      models_used.append(provider)
             else:

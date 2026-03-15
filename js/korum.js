@@ -5820,8 +5820,8 @@ function renderExecutionDashboard(metrics) {
     const workflowNameEl = document.getElementById('stat-workflow');
     const modelsUsedEl = document.getElementById('stat-models-count');
 
-    if (responseTimeEl) responseTimeEl.textContent = `${(metrics.total_latency_ms / 1000).toFixed(2)}s`;
-    if (workflowNameEl) workflowNameEl.textContent = (metrics.workflow || "RESEARCH").toUpperCase();
+    if (responseTimeEl) responseTimeEl.textContent = `${((metrics.latency_ms || metrics.total_latency_ms || 0) / 1000).toFixed(2)}s`;
+    if (workflowNameEl) workflowNameEl.textContent = (metrics.workflow_name || metrics.workflow || "RESEARCH").toUpperCase();
     if (modelsUsedEl) {
         const models = metrics.models_used || [];
         modelsUsedEl.textContent = models.length || "0";
