@@ -2549,32 +2549,34 @@ body.activated .sphere-texture {
 
 /* INTELLIGENCE TAG HIGHLIGHTS */
 .intel-tag {
-    padding: 1px 4px;
+    display: inline;
+    padding: 2px 6px;
     border-radius: 3px;
-    border-left: 2px solid;
-    margin: 0 1px;
+    border-left: 3px solid;
+    margin: 0 2px;
+    font-size: 0.95em;
 }
 
 .tag-decision {
-    background: rgba(255, 176, 32, 0.08);
+    background: rgba(255, 176, 32, 0.12);
     border-left-color: var(--accent-gold);
     color: #FFD080;
 }
 
 .tag-risk {
-    background: rgba(255, 68, 68, 0.08);
+    background: rgba(255, 68, 68, 0.12);
     border-left-color: #FF4444;
     color: #FF8888;
 }
 
 .tag-metric {
-    background: rgba(0, 255, 157, 0.08);
+    background: rgba(0, 255, 157, 0.12);
     border-left-color: var(--accent-green);
     color: #80FFD0;
 }
 
 .tag-truth {
-    background: rgba(0, 188, 212, 0.08);
+    background: rgba(0, 188, 212, 0.12);
     border-left-color: #00BCD4;
     color: #80E8F0;
 }

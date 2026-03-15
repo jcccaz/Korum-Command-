@@ -769,7 +769,12 @@ const ResearchDock = {
     // Helper for basic markdown in summary (sanitizes first, then applies formatting)
     formatMarkdown(text) {
         // Tag Filtering
-        const cleanText = text.replace(/\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]/g, "");
+        const cleanText = text
+            .replace(/\[DECISION_CANDIDATE\]([\s\S]*?)\[\/DECISION_CANDIDATE\]/g, '<span class="intel-tag tag-decision" title="DECISION CANDIDATE">$1</span>')
+            .replace(/\[RISK_VECTOR\]([\s\S]*?)\[\/RISK_VECTOR\]/g, '<span class="intel-tag tag-risk" title="RISK VECTOR">$1</span>')
+            .replace(/\[METRIC_ANCHOR\]([\s\S]*?)\[\/METRIC_ANCHOR\]/g, '<span class="intel-tag tag-metric" title="KEY METRIC">$1</span>')
+            .replace(/\[TRUTH_BOMB\]([\s\S]*?)\[\/TRUTH_BOMB\]/g, '<span class="intel-tag tag-truth" title="VERIFIED FACT">$1</span>')
+            .replace(/\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]/g, "");
 
         return this.sanitizeHtml(cleanText)
             .replace(/^# (.*$)/gim, '<h2 style="color:#00FF9D; margin-top:20px;">$1</h2>')
@@ -3195,7 +3200,12 @@ function formatV2Content(content, phase) {
 
     // NEW: Clean internal structuring tags
     let displayContent = (typeof content === 'string') ? content : JSON.stringify(content, null, 2);
-    displayContent = displayContent.replace(/\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]/g, "");
+    displayContent = displayContent
+        .replace(/\[DECISION_CANDIDATE\]([\s\S]*?)\[\/DECISION_CANDIDATE\]/g, '<span class="intel-tag tag-decision" title="DECISION CANDIDATE">$1</span>')
+        .replace(/\[RISK_VECTOR\]([\s\S]*?)\[\/RISK_VECTOR\]/g, '<span class="intel-tag tag-risk" title="RISK VECTOR">$1</span>')
+        .replace(/\[METRIC_ANCHOR\]([\s\S]*?)\[\/METRIC_ANCHOR\]/g, '<span class="intel-tag tag-metric" title="KEY METRIC">$1</span>')
+        .replace(/\[TRUTH_BOMB\]([\s\S]*?)\[\/TRUTH_BOMB\]/g, '<span class="intel-tag tag-truth" title="VERIFIED FACT">$1</span>')
+        .replace(/\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]/g, "");
 
     // SPECIAL RENDERING FOR PHASE 1 (JSON)
     if (phase === "CONSTRAINT ANALYSIS" && typeof content === 'object') {
