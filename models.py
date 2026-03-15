@@ -96,6 +96,41 @@ class Message(db.Model):
         return f"<Message {self.role} in {self.thread_id[:8]}>"
 
 
+class DecisionLedger(db.Model):
+    """Immutable, tamper-evident flight recorder for AI-assisted decisions.
+    Hash-chained per decision_id. Never stores raw PII — only hashes, counts, and metadata."""
+    __tablename__ = "decision_ledger"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    mission_id = db.Column(db.String(36), nullable=False, index=True)
+    decision_id = db.Column(db.String(36), nullable=False, index=True)
+    sequence = db.Column(db.Integer, nullable=False)  # Logical, per decision_id, starts at 1
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    operator_id = db.Column(db.Integer, nullable=True)
+    payload = db.Column(db.Text, nullable=False)  # JSON string — event-specific data
+    record_hash = db.Column(db.String(64), nullable=False)  # SHA-256 hex
+    previous_hash = db.Column(db.String(64), nullable=False)  # SHA-256 hex, "GENESIS" for first
+
+    __table_args__ = (
+        db.Index('ix_ledger_decision_sequence', 'decision_id', 'sequence'),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "event_type": self.event_type,
+            "mission_id": self.mission_id,
+            "decision_id": self.decision_id,
+            "sequence": self.sequence,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "operator_id": self.operator_id,
+            "payload": self.payload,
+            "record_hash": self.record_hash,
+            "previous_hash": self.previous_hash,
+        }
+
+
 class UsageLog(db.Model):
     __tablename__ = "usage_logs"
 

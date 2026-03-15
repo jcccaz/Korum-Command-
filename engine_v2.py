@@ -272,14 +272,42 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
-def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None):
+def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None, ledger_mission_id=None):
     # 1. Setup IDs
     import uuid
+    import hashlib as _hl
     if not run_id: run_id = str(uuid.uuid4())
-    
+
+    # Ledger helper — safe to call even if ledger is not active
+    def _ledger_write(event_type, payload):
+        if not ledger_mission_id:
+            return
+        try:
+            from ledger import LedgerService
+            LedgerService.write_event(
+                event_type=event_type,
+                mission_id=ledger_mission_id,
+                decision_id=run_id,
+                operator_id=user_id,
+                payload=payload,
+            )
+        except Exception as e:
+            print(f"[LEDGER] Warning: {event_type} write failed: {e}")
+
     # 2. Plan
     classification = classify_query_v2(query, active_personas, active_models=active_models, previous_context=previous_context, user_id=user_id)
     context = CouncilContext(query, classification, workflow=workflow, session_id=session_id, run_id=run_id, previous_context=previous_context, user_id=user_id)
+
+    # --- LEDGER: mission_created (context established for council execution) ---
+    _ledger_write("mission_created", {
+        "mission_type": workflow,
+        "classification": {
+            "domain": classification.get("domain"),
+            "intent": classification.get("intent"),
+            "complexity": classification.get("complexity"),
+            "output_type": classification.get("outputType"),
+        },
+    })
 
     if previous_context:
         print(f"[COUNCIL] Follow-up mode: {len(previous_context)} prior session(s) loaded")
@@ -395,6 +423,19 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
                 "error": response_obj.get('error') if not response_obj.get('success') else None
             }
 
+            # --- LEDGER: model_reasoning ---
+            if response_obj.get('success'):
+                _ledger_write("model_reasoning", {
+                    "model_name": response_obj.get('model', 'unknown') if isinstance(response_obj, dict) else 'unknown',
+                    "model_role": role.upper(),
+                    "latency_ms": usage.get('latency', 0),
+                    "response_hash": _hl.sha256(response_text.encode()).hexdigest(),
+                    "tokens_in": usage.get('input', 0),
+                    "tokens_out": usage.get('output', 0),
+                    "cost": usage.get('cost', 0.0),
+                    "workflow": workflow,
+                })
+
         # --- ACCOUNTABILITY & SCORES ---
         print(f"[COUNCIL] Audit Initiated: Verifying {len(results)} responses...")
         for provider in results:
@@ -415,6 +456,17 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
     # 4. Synthesis
     synthesis = synthesize_results(context, divergence_analysis=divergence, user_id=user_id)
 
+    # --- LEDGER: council_synthesis ---
+    _syn_meta = synthesis.get('meta', {}) if isinstance(synthesis, dict) else {}
+    _ledger_write("council_synthesis", {
+        "participating_models": list(results.keys()),
+        "consensus_score": divergence.get('consensus_score') if isinstance(divergence, dict) else None,
+        "composite_truth_score": _syn_meta.get('composite_truth_score'),
+        "consensus_hash": _hl.sha256(
+            (_syn_meta.get('summary', '') or '').encode()
+        ).hexdigest(),
+    })
+
     # --- CONTRIBUTION SCORING ---
     # Derived from: token share + used in synthesis + truth score
     total_out_tokens = sum(r['usage'].get('output', 0) for r in results.values() if 'usage' in r)
@@ -434,6 +486,18 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
         
         r['contribution_score'] = int((token_share * 0.4) + (truth_contribution * 0.4) + verif_bonus)
         r['contribution_score'] = max(0, min(100, r['contribution_score']))
+
+    # --- LEDGER: decision_outcome ---
+    _composite = _syn_meta.get('composite_truth_score', 0) or 0
+    _risk = "low" if _composite >= 70 else ("medium" if _composite >= 40 else "high")
+    _ledger_write("decision_outcome", {
+        "risk_score": _risk,
+        "confidence": _composite,
+        "supporting_models": list(set(models_used)),
+        "total_cost": total_run_cost,
+        "total_latency_ms": total_latency_ms,
+        "workflow": workflow,
+    })
 
     return {
         "consensus": f"COUNCIL ADJOURNED. Plan: {classification.get('outputType','report').upper()} generated via {len(results)} steps.",

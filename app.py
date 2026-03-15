@@ -111,7 +111,8 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Register models so SQLAlchemy can create tables.
-from models import User, UsageLog, AuditLog, Report, Thread, Message
+from models import User, UsageLog, AuditLog, Report, Thread, Message, DecisionLedger
+from ledger import LedgerService
 
 init_db(app)
 
@@ -330,6 +331,43 @@ def get_audit_log():
             }
             for l in logs
         ]
+    })
+
+
+# ── DECISION LEDGER API ──────────────────────────────────────────────
+@app.route('/api/ledger/<mission_id>', methods=['GET'])
+@auth_required
+def get_mission_ledger(mission_id):
+    """Fetch all ledger events for a mission, ordered by timestamp."""
+    events = LedgerService.get_mission_events(mission_id)
+    return jsonify({
+        "success": True,
+        "mission_id": mission_id,
+        "total_events": len(events),
+        "events": [e.to_dict() for e in events],
+    })
+
+
+@app.route('/api/ledger/<mission_id>/verify', methods=['GET'])
+@auth_required
+def verify_mission_ledger(mission_id):
+    """Verify hash chain integrity for all decision chains in a mission."""
+    result = LedgerService.verify_mission(mission_id)
+    return jsonify({"success": True, "mission_id": mission_id, **result})
+
+
+@app.route('/api/ledger/decision/<decision_id>/chain', methods=['GET'])
+@auth_required
+def get_decision_chain(decision_id):
+    """Fetch single decision chain, ordered by sequence."""
+    events = LedgerService.get_chain(decision_id)
+    verification = LedgerService.verify_chain(decision_id)
+    return jsonify({
+        "success": True,
+        "decision_id": decision_id,
+        "total_events": len(events),
+        "chain_valid": verification["valid"],
+        "events": [e.to_dict() for e in events],
     })
 
 
@@ -1503,6 +1541,13 @@ def ask_council():
         doc_context = "\n\n--- ATTACHED DOCUMENTS ---\n" + "\n\n".join(doc_texts)
         query = query + doc_context
 
+    # --- DECISION LEDGER: Early ID generation for event chaining ---
+    import uuid as _uuid
+    import hashlib as _hl
+    _decision_id = str(_uuid.uuid4())
+    _workflow = data.get('workflow', 'RESEARCH')
+    _operator_id = current_user.id if hasattr(current_user, 'id') else None
+
     # --- FALCON PROTOCOL: SECURE PREPROCESSING / REDACTION ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
@@ -1540,6 +1585,59 @@ def ask_council():
             print(f"[FALCON] CATEGORIES: {falcon_meta['counts_by_category']}")
         if falcon_meta['high_risk_items_count'] > 0:
             print(f"[FALCON] HIGH-RISK items removed: {falcon_meta['high_risk_items_count']}")
+
+    # --- DECISION LEDGER: prompt_received + human_checkpoint + falcon_redaction ---
+    # thread_id may not exist yet at this point; we'll use a placeholder and update later
+    _ledger_mission_id = data.get('thread_id') or 'pending'
+    try:
+        # Event 1: prompt_received — log hash of query, never the text itself
+        LedgerService.write_event(
+            event_type="prompt_received",
+            mission_id=_ledger_mission_id,
+            decision_id=_decision_id,
+            operator_id=_operator_id,
+            payload={
+                "operator_id": _operator_id,
+                "prompt_hash": _hl.sha256(query.encode()).hexdigest(),
+                "prompt_length": len(query),
+                "workflow": _workflow,
+            }
+        )
+        # Event 2: human_checkpoint — operator approved execution
+        LedgerService.write_event(
+            event_type="human_checkpoint",
+            mission_id=_ledger_mission_id,
+            decision_id=_decision_id,
+            operator_id=_operator_id,
+            payload={
+                "operator_id": _operator_id,
+                "action": "approved_execution",
+            }
+        )
+        # Event 3: falcon_redaction — only if Falcon was active
+        if use_falcon and falcon_meta:
+            counts = falcon_meta.get('counts_by_category', {})
+            LedgerService.write_event(
+                event_type="falcon_redaction",
+                mission_id=_ledger_mission_id,
+                decision_id=_decision_id,
+                operator_id=_operator_id,
+                payload={
+                    "redaction_mode": "current",
+                    "entities_detected": {
+                        "person": counts.get("PERSON", 0),
+                        "location": counts.get("LOCATION", 0),
+                        "identifier": counts.get("ALNUM_TAG", 0) + counts.get("SSN", 0) + counts.get("PHONE", 0) + counts.get("EMAIL", 0) + counts.get("CREDIT_CARD", 0),
+                        "organization": counts.get("ORG", 0),
+                        "custom": counts.get("CUSTOM", 0),
+                    },
+                    "execution_time_ms": falcon_meta.get("execution_time_ms", 0),
+                    "exposure_risk": falcon_meta.get("exposure_risk", "none"),
+                    "falcon_level": falcon_meta.get("level", falcon_level),
+                }
+            )
+    except Exception as ledger_err:
+        print(f"[LEDGER] Warning: failed to write early events: {ledger_err}")
 
     # Map roles to functions
     futures = {}
@@ -1630,21 +1728,30 @@ def ask_council():
         # V2 Engine handles sequence and synthesis
         active_models_list = data.get('active_models', ["openai", "anthropic", "google", "perplexity", "mistral", "local"])
         
-        # Generation of IDs if not provided
-        import uuid
-        run_id = str(uuid.uuid4())
-        session_id = thread_id # use thread_id as session_id for continuity
+        # Use decision_id generated earlier for ledger consistency
+        run_id = _decision_id
+        session_id = thread_id  # use thread_id as session_id for continuity
+
+        # Update ledger mission_id now that thread_id is resolved
+        if _ledger_mission_id == 'pending':
+            _ledger_mission_id = thread_id
+            # Patch early ledger events with the real mission_id
+            DecisionLedger.query.filter_by(
+                decision_id=_decision_id, mission_id='pending'
+            ).update({"mission_id": thread_id})
+            db.session.commit()
 
         v2_response = execute_council_v2(
-            query, 
-            roles, 
-            images=images if images else None, 
-            workflow=workflow, 
-            active_models=active_models_list, 
+            query,
+            roles,
+            images=images if images else None,
+            workflow=workflow,
+            active_models=active_models_list,
             previous_context=previous_context,
             session_id=session_id,
             run_id=run_id,
-            user_id=user_id
+            user_id=user_id,
+            ledger_mission_id=_ledger_mission_id,
         )
         
         # Merge metrics into response
