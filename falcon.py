@@ -381,8 +381,11 @@ def _detect_locations(text: str) -> List[Tuple[int, int, str]]:
 def _detect_proper_noun_phrases(text: str) -> List[Tuple[int, int, str]]:
     """
     Heuristic proper-noun detector for STANDARD/BLACK:
-    flags 1-4 capitalized tokens when NOT at sentence start.
-    Includes hyphenated forms (e.g., Blue-Vein).
+    Flags capitalized words (1-4 tokens) that are NOT at sentence start
+    and NOT in the COMMON_WORDS stop-word list.
+
+    Catches standalone proper nouns like "Reykjavik", "Vance", "Thorne"
+    as well as multi-word forms like "Blue-Vein", "North Ridge".
     """
     pattern = re.compile(
         r'\b([A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?(?:\s+[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?){0,3})\b'
@@ -394,18 +397,24 @@ def _detect_proper_noun_phrases(text: str) -> List[Tuple[int, int, str]]:
         if not tokens:
             continue
 
-        # Skip sentence-initial phrases.
+        # Skip sentence-initial phrases — these are likely regular words.
         i = m.start() - 1
         while i >= 0 and text[i].isspace():
             i -= 1
         if i < 0 or text[i] in ".!?\n\r":
             continue
 
-        # Skip obvious generic phrases.
+        # Skip if ALL tokens are common/stop words.
         if all(t in COMMON_WORDS for t in tokens):
             continue
-        if len(tokens) == 1 and "-" not in tokens[0]:
-            continue
+
+        # For single-word matches: skip if it's in COMMON_WORDS.
+        # Otherwise treat it as a proper noun candidate (e.g. Reykjavik, Vance).
+        if len(tokens) == 1:
+            if tokens[0] in COMMON_WORDS:
+                continue
+
+        # For two-word matches: skip if lead word is common (e.g. "The Report")
         if len(tokens) == 2 and tokens[0] in COMMON_WORDS:
             continue
 
@@ -873,6 +882,31 @@ def _run_self_tests() -> bool:
         or ("CUSTOM" in result.metadata['categories_found']),
         "Acid prompt: proper noun/location/project detected"
     )
+
+    # ------------------------------------------------------------------
+    # TEST 12: Single-word proper noun detection ("Reykjavik Gap")
+    # ------------------------------------------------------------------
+    print("\n--- Test 12: Single-Word Proper Noun Detection ---")
+    text = (
+        "we met with Vance and Thorne to discuss the relocation to Akureyri "
+        "before the handoff to Matsuda at the safe house."
+    )
+    result = falcon_preprocess(text, level="STANDARD")
+    _assert("PROPER_NOUN" in result.metadata['categories_found'],
+            "Single-word proper nouns detected")
+    _assert("Vance" not in result.redacted_text,
+            "Proper noun 'Vance' was redacted")
+    _assert("Thorne" not in result.redacted_text,
+            "Proper noun 'Thorne' was redacted")
+    _assert("Akureyri" not in result.redacted_text,
+            "Proper noun 'Akureyri' was redacted")
+    _assert("Matsuda" not in result.redacted_text,
+            "Proper noun 'Matsuda' was redacted")
+    # Common words should NOT be redacted
+    _assert("relocation" in result.redacted_text,
+            "Common word 'relocation' preserved")
+    _assert("handoff" in result.redacted_text,
+            "Common word 'handoff' preserved")
 
     # ------------------------------------------------------------------
     # SUMMARY
