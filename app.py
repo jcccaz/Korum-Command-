@@ -339,6 +339,12 @@ def get_audit_log():
 @auth_required
 def get_mission_ledger(mission_id):
     """Fetch all ledger events for a mission, ordered by timestamp."""
+    # mission_id == thread_id — verify ownership
+    thread = Thread.query.filter_by(thread_id=mission_id).first()
+    if not thread:
+        return jsonify({"error": "Mission not found"}), 404
+    if thread.user_id != current_user.id and not getattr(current_user, 'role', '') == 'admin':
+        return jsonify({"error": "Access denied"}), 403
     events = LedgerService.get_mission_events(mission_id)
     return jsonify({
         "success": True,
@@ -352,6 +358,11 @@ def get_mission_ledger(mission_id):
 @auth_required
 def verify_mission_ledger(mission_id):
     """Verify hash chain integrity for all decision chains in a mission."""
+    thread = Thread.query.filter_by(thread_id=mission_id).first()
+    if not thread:
+        return jsonify({"error": "Mission not found"}), 404
+    if thread.user_id != current_user.id and not getattr(current_user, 'role', '') == 'admin':
+        return jsonify({"error": "Access denied"}), 403
     result = LedgerService.verify_mission(mission_id)
     return jsonify({"success": True, "mission_id": mission_id, **result})
 
@@ -360,7 +371,16 @@ def verify_mission_ledger(mission_id):
 @auth_required
 def get_decision_chain(decision_id):
     """Fetch single decision chain, ordered by sequence."""
+    # Look up mission_id from first event, then verify thread ownership
     events = LedgerService.get_chain(decision_id)
+    if not events:
+        return jsonify({"error": "Decision not found"}), 404
+    mission_id = events[0].mission_id
+    thread = Thread.query.filter_by(thread_id=mission_id).first()
+    if not thread:
+        return jsonify({"error": "Mission not found"}), 404
+    if thread.user_id != current_user.id and not getattr(current_user, 'role', '') == 'admin':
+        return jsonify({"error": "Access denied"}), 403
     verification = LedgerService.verify_chain(decision_id)
     return jsonify({
         "success": True,
@@ -1586,58 +1606,45 @@ def ask_council():
         if falcon_meta['high_risk_items_count'] > 0:
             print(f"[FALCON] HIGH-RISK items removed: {falcon_meta['high_risk_items_count']}")
 
-    # --- DECISION LEDGER: prompt_received + human_checkpoint + falcon_redaction ---
-    # thread_id may not exist yet at this point; we'll use a placeholder and update later
-    _ledger_mission_id = data.get('thread_id') or 'pending'
-    try:
-        # Event 1: prompt_received — log hash of query, never the text itself
-        LedgerService.write_event(
-            event_type="prompt_received",
-            mission_id=_ledger_mission_id,
-            decision_id=_decision_id,
-            operator_id=_operator_id,
-            payload={
-                "operator_id": _operator_id,
-                "prompt_hash": _hl.sha256(query.encode()).hexdigest(),
-                "prompt_length": len(query),
-                "workflow": _workflow,
+    # --- DECISION LEDGER: Collect early events (deferred until thread_id resolved) ---
+    _ledger_early_events = []
+    # Event 1: prompt_received — log hash of query, never the text itself
+    _ledger_early_events.append({
+        "event_type": "prompt_received",
+        "payload": {
+            "operator_id": _operator_id,
+            "prompt_hash": _hl.sha256(query.encode()).hexdigest(),
+            "prompt_length": len(query),
+            "workflow": _workflow,
+        }
+    })
+    # Event 2: human_checkpoint — operator approved execution
+    _ledger_early_events.append({
+        "event_type": "human_checkpoint",
+        "payload": {
+            "operator_id": _operator_id,
+            "action": "approved_execution",
+        }
+    })
+    # Event 3: falcon_redaction — only if Falcon was active
+    if use_falcon and falcon_meta:
+        counts = falcon_meta.get('counts_by_category', {})
+        _ledger_early_events.append({
+            "event_type": "falcon_redaction",
+            "payload": {
+                "redaction_mode": "current",
+                "entities_detected": {
+                    "person": counts.get("PERSON", 0) + counts.get("PROPER_NOUN", 0),
+                    "location": counts.get("LOCATION", 0),
+                    "identifier": counts.get("ALNUM_TAG", 0) + counts.get("SSN", 0) + counts.get("PHONE", 0) + counts.get("EMAIL", 0) + counts.get("CC_NUM", 0),
+                    "organization": counts.get("ORG", 0),
+                    "custom": counts.get("CUSTOM", 0),
+                },
+                "execution_time_ms": falcon_meta.get("execution_time_ms", 0),
+                "exposure_risk": falcon_meta.get("exposure_risk", "none"),
+                "falcon_level": falcon_meta.get("level", falcon_level),
             }
-        )
-        # Event 2: human_checkpoint — operator approved execution
-        LedgerService.write_event(
-            event_type="human_checkpoint",
-            mission_id=_ledger_mission_id,
-            decision_id=_decision_id,
-            operator_id=_operator_id,
-            payload={
-                "operator_id": _operator_id,
-                "action": "approved_execution",
-            }
-        )
-        # Event 3: falcon_redaction — only if Falcon was active
-        if use_falcon and falcon_meta:
-            counts = falcon_meta.get('counts_by_category', {})
-            LedgerService.write_event(
-                event_type="falcon_redaction",
-                mission_id=_ledger_mission_id,
-                decision_id=_decision_id,
-                operator_id=_operator_id,
-                payload={
-                    "redaction_mode": "current",
-                    "entities_detected": {
-                        "person": counts.get("PERSON", 0),
-                        "location": counts.get("LOCATION", 0),
-                        "identifier": counts.get("ALNUM_TAG", 0) + counts.get("SSN", 0) + counts.get("PHONE", 0) + counts.get("EMAIL", 0) + counts.get("CREDIT_CARD", 0),
-                        "organization": counts.get("ORG", 0),
-                        "custom": counts.get("CUSTOM", 0),
-                    },
-                    "execution_time_ms": falcon_meta.get("execution_time_ms", 0),
-                    "exposure_risk": falcon_meta.get("exposure_risk", "none"),
-                    "falcon_level": falcon_meta.get("level", falcon_level),
-                }
-            )
-    except Exception as ledger_err:
-        print(f"[LEDGER] Warning: failed to write early events: {ledger_err}")
+        })
 
     # Map roles to functions
     futures = {}
@@ -1732,14 +1739,19 @@ def ask_council():
         run_id = _decision_id
         session_id = thread_id  # use thread_id as session_id for continuity
 
-        # Update ledger mission_id now that thread_id is resolved
-        if _ledger_mission_id == 'pending':
-            _ledger_mission_id = thread_id
-            # Patch early ledger events with the real mission_id
-            DecisionLedger.query.filter_by(
-                decision_id=_decision_id, mission_id='pending'
-            ).update({"mission_id": thread_id})
-            db.session.commit()
+        # --- DECISION LEDGER: Flush deferred early events now that thread_id is known ---
+        _ledger_mission_id = thread_id
+        try:
+            for evt in _ledger_early_events:
+                LedgerService.write_event(
+                    event_type=evt["event_type"],
+                    mission_id=_ledger_mission_id,
+                    decision_id=_decision_id,
+                    operator_id=_operator_id,
+                    payload=evt["payload"],
+                )
+        except Exception as ledger_err:
+            print(f"[LEDGER] Warning: failed to write early events: {ledger_err}")
 
         v2_response = execute_council_v2(
             query,
