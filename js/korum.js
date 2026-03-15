@@ -1792,7 +1792,7 @@ function renderChainResults(result) {
                       (result.metrics?.stress?.time || 0) + (result.metrics?.synthesize?.time || 0);
     const synthesisData = {
         meta: {
-            title: sessionState.originalQuery || 'V2 Reasoning Chain Analysis',
+            title: (sessionState.originalQuery || 'V2 Reasoning Chain Analysis').substring(0, 120).split('\n')[0],
             summary: result.final_artifact || '',
             workflow: sessionState.missionContext?.workflow || 'RESEARCH',
             models_used: ['anthropic', 'openai', 'google', 'openai'],

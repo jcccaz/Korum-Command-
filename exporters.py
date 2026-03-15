@@ -1123,25 +1123,45 @@ class PDFExporter:
                                 topMargin=40, bottomMargin=40,
                                 leftMargin=50, rightMargin=50)
         from reportlab.lib.styles import ParagraphStyle
+        from reportlab.graphics.shapes import Drawing, Rect as DrawRect
+
+        def _dark_page_bg(canvas, doc):
+            """Paint dark background on every page."""
+            canvas.saveState()
+            canvas.setFillColor(colors.HexColor("#0D1117"))
+            canvas.rect(0, 0, letter[0], letter[1], fill=True, stroke=False)
+            canvas.restoreState()
 
         styles = getSampleStyleSheet()
 
-        # Define high-end styles
+        # --- DARK THEME PALETTE (matches KorumOS web UI) ---
+        BG_DARK = "#0D1117"
+        BG_CARD = "#161B22"
+        BG_SURFACE = "#1C2333"
+        TEXT_PRIMARY = "#E6EDF3"
+        TEXT_SECONDARY = "#8B949E"
+        ACCENT_CYAN = "#00E5FF"
+        ACCENT_GREEN = "#00FF9D"
+        ACCENT_GOLD = "#FFB020"
+        ACCENT_RED = "#FF4444"
+        BORDER = "#30363D"
+
+        # Define high-end dark-theme styles
         styles.add(ParagraphStyle(
             name='BannerText',
             parent=styles['Normal'],
             fontSize=8,
-            textColor=colors.HexColor("#00E5FF"),
-            alignment=1, # Center
+            textColor=colors.HexColor(ACCENT_CYAN),
+            alignment=1,
             leading=10,
             fontName='Helvetica-Bold'
         ))
-        
+
         styles.add(ParagraphStyle(
             name='BrandedTitle',
             parent=styles['Title'],
             fontSize=22,
-            textColor=colors.HexColor("#0D1117"),
+            textColor=colors.HexColor(TEXT_PRIMARY),
             spaceAfter=12,
             fontName='Helvetica-Bold'
         ))
@@ -1150,7 +1170,7 @@ class PDFExporter:
             name='BrandedHeading1',
             parent=styles['Heading1'],
             fontSize=16,
-            textColor=colors.HexColor("#0080FF"),
+            textColor=colors.HexColor(ACCENT_CYAN),
             spaceAfter=8,
             spaceBefore=12,
             fontName='Helvetica-Bold'
@@ -1161,7 +1181,7 @@ class PDFExporter:
             parent=styles['BodyText'],
             fontSize=10,
             leading=14,
-            textColor=colors.HexColor("#2D2D2D"),
+            textColor=colors.HexColor(TEXT_PRIMARY),
             wordWrap='CJK'
         ))
 
@@ -1229,14 +1249,15 @@ class PDFExporter:
         ]
         meta_table = Table(meta_data, colWidths=[180, 100, 80, 152])
         meta_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F6F8FA")),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(BG_CARD)),
             ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), ( -1, 0), 7),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(TEXT_SECONDARY)),
             ('FONTSIZE', (0, 1), (-1, 1), 10),
+            ('TEXTCOLOR', (0, 1), (-1, 1), colors.HexColor(TEXT_PRIMARY)),
             ('TEXTCOLOR', (-1, 1), (-1, 1), colors.HexColor(score_color)),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
         ]))
@@ -1250,7 +1271,7 @@ class PDFExporter:
         bar_table = Table(bar_data, colWidths=[filled_width, empty_width], rowHeights=[4])
         bar_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (0, 0), colors.HexColor(score_color)),
-            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor("#E8E8E8")),
+            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor(BG_CARD)),
             ('LEFTPADDING', (0, 0), (-1, -1), 0),
             ('RIGHTPADDING', (0, 0), (-1, -1), 0),
             ('TOPPADDING', (0, 0), (-1, -1), 0),
@@ -1292,9 +1313,9 @@ class PDFExporter:
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00E5FF")),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F6F8FA")])
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor(BG_CARD), colors.HexColor(BG_SURFACE)])
             ]))
             story.append(t)
 
@@ -1312,10 +1333,10 @@ class PDFExporter:
             t = Table(r_data, colWidths=[180, 80, 252], repeatRows=1)
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A0A0A")),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#FF4444")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_RED)),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#FFF0F0")])
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor(BG_CARD), colors.HexColor("#1A1015")])
             ]))
             story.append(t)
 
@@ -1330,10 +1351,11 @@ class PDFExporter:
             t = Table(f_data, colWidths=[150, 200, 162])
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0A1628")),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00BFFF")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_CYAN)),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor("#E0F7FF"))
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor(TEXT_PRIMARY)),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor(BG_CARD), colors.HexColor(BG_SURFACE)])
             ]))
             story.append(t)
 
@@ -1353,15 +1375,16 @@ class PDFExporter:
                           [f"{cons_score}/100", f"{div_score}/100", variance_text]]
             score_table = Table(score_data, colWidths=[170, 170, 172], repeatRows=1)
             score_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00E5FF")),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(BG_DARK)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_CYAN)),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('TEXTCOLOR', (0, 1), (-1, 1), colors.HexColor(TEXT_PRIMARY)),
                 ('TEXTCOLOR', (-1, 1), (-1, 1), colors.HexColor(score_color)),
                 ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor("#F6F8FA")),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
+                ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor(BG_CARD)),
             ]))
             story.append(score_table)
             story.append(Spacer(1, 8))
@@ -1451,13 +1474,13 @@ class PDFExporter:
                 ])
             ct = Table(c_data, colWidths=[80, 70, 70, 292], repeatRows=1)
             ct.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00E5FF")),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(BG_DARK)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_CYAN)),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, -1), 8),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F6F8FA")])
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor(BG_CARD), colors.HexColor(BG_SURFACE)])
             ]))
             story.append(ct)
             story.append(Spacer(1, 10))
@@ -1474,8 +1497,8 @@ class PDFExporter:
                          f"Composite Score: {truth_display}/100. Audit Date: {date_display}"]]
         attest_t = Table(attest_data, colWidths=[512])
         attest_t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F0F8FF")),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor("#0080BF")),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(BG_SURFACE)),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor(ACCENT_CYAN)),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
@@ -1483,7 +1506,7 @@ class PDFExporter:
         ]))
         story.append(attest_t)
 
-        doc.build(story)
+        doc.build(story, onFirstPage=_dark_page_bg, onLaterPages=_dark_page_bg)
         return filepath
 
 
