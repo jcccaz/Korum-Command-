@@ -490,6 +490,7 @@ def falcon_preview():
     custom_terms = data.get('custom_terms', [])
 
     try:
+        import hashlib
         _salt = hashlib.sha256(f"ghost_preview:{time.time_ns()}".encode()).hexdigest()[:12]
         result = falcon_preprocess(
             raw_text,
