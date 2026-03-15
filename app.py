@@ -1464,13 +1464,14 @@ def ask_council():
     # --- FALCON PROTOCOL: SECURE PREPROCESSING / REDACTION ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
+    falcon_custom_terms = data.get('falcon_custom_terms', [])
     falcon_meta = None
 
     if use_falcon:
         if falcon_level not in ('LIGHT', 'STANDARD', 'BLACK'):
             falcon_level = 'STANDARD'
-        print(f"[FALCON] Preprocessing at level: {falcon_level}")
-        falcon_result = falcon_preprocess(query, level=falcon_level)
+        print(f"[FALCON] Preprocessing at level: {falcon_level} | Custom terms: {len(falcon_custom_terms)}")
+        falcon_result = falcon_preprocess(query, level=falcon_level, custom_terms=falcon_custom_terms or None)
         query = falcon_result.redacted_text
         falcon_meta = falcon_result.metadata
         # SECURITY: placeholder_map stays in this scope only — never serialized
@@ -1733,6 +1734,7 @@ def interrogate():
     # --- FALCON HARDENING: REDACT INPUTS ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
+    falcon_custom_terms = data.get('falcon_custom_terms', []) or None
     falcon_meta = None
     _falcon_placeholder_map = {}
 
@@ -1743,13 +1745,12 @@ def interrogate():
         placeholder_cache = {}
 
         combined_text = f"QUERY: {original_query}\nTARGET: {target_response}"
-        # Redact everything with the same salt/cache
-        falcon_res = falcon_preprocess(combined_text, level=falcon_level, salt=stable_salt, placeholder_cache=placeholder_cache)
+        falcon_res = falcon_preprocess(combined_text, level=falcon_level, salt=stable_salt, placeholder_cache=placeholder_cache, custom_terms=falcon_custom_terms)
         falcon_meta = falcon_res.metadata
         _falcon_placeholder_map = falcon_res.placeholder_map
-        
-        original_query = falcon_preprocess(original_query, level=falcon_level, salt=stable_salt, placeholder_cache=placeholder_cache).redacted_text
-        target_response = falcon_preprocess(target_response, level=falcon_level, salt=stable_salt, placeholder_cache=placeholder_cache).redacted_text
+
+        original_query = falcon_preprocess(original_query, level=falcon_level, salt=stable_salt, placeholder_cache=placeholder_cache, custom_terms=falcon_custom_terms).redacted_text
+        target_response = falcon_preprocess(target_response, level=falcon_level, salt=stable_salt, placeholder_cache=placeholder_cache, custom_terms=falcon_custom_terms).redacted_text
 
     if not target_response.strip():
         return jsonify({"error": "Target response is required"}), 400
@@ -1863,14 +1864,14 @@ def verify_claim():
     # --- FALCON HARDENING: REDACT INPUTS ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
+    falcon_custom_terms = data.get('falcon_custom_terms', []) or None
     falcon_meta = None
     _falcon_placeholder_map = {}
 
     if use_falcon:
-        # Redact the claim and query context
-        claim_res = falcon_preprocess(claim, level=falcon_level)
+        claim_res = falcon_preprocess(claim, level=falcon_level, custom_terms=falcon_custom_terms)
         claim = claim_res.redacted_text
-        original_query = falcon_preprocess(original_query, level=falcon_level).redacted_text
+        original_query = falcon_preprocess(original_query, level=falcon_level, custom_terms=falcon_custom_terms).redacted_text
         falcon_meta = claim_res.metadata
         _falcon_placeholder_map = claim_res.placeholder_map
 
@@ -1959,13 +1960,14 @@ def reasoning_chain():
     # --- FALCON PROTOCOL: SECURE PREPROCESSING ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
+    falcon_custom_terms = data.get('falcon_custom_terms', []) or None
     falcon_meta = None
     _falcon_placeholder_map = {}
 
     if use_falcon:
         if falcon_level not in ('LIGHT', 'STANDARD', 'BLACK'):
             falcon_level = 'STANDARD'
-        falcon_res = falcon_preprocess(query, level=falcon_level)
+        falcon_res = falcon_preprocess(query, level=falcon_level, custom_terms=falcon_custom_terms)
         query = falcon_res.redacted_text
         falcon_meta = falcon_res.metadata
         _falcon_placeholder_map = falcon_res.placeholder_map

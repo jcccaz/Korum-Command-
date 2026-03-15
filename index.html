@@ -223,6 +223,15 @@
                             <option value="STANDARD" selected>STANDARD</option>
                             <option value="BLACK">BLACK</option>
                         </select>
+                        <div id="falcon-custom-terms" class="falcon-terms-panel" style="display:none;">
+                            <label class="falcon-terms-label">PROTECTED TERMS</label>
+                            <div class="falcon-terms-input-row">
+                                <input type="text" id="falconTermInput" class="falcon-term-input"
+                                    placeholder="Add term (e.g. Zenith-9, Blue Vein)" autocomplete="off">
+                                <button id="falconTermAddBtn" class="falcon-term-add">+</button>
+                            </div>
+                            <div id="falconTermsList" class="falcon-terms-list"></div>
+                        </div>
                     </div>
 
                     <button class="btn-primary trigger-scan">

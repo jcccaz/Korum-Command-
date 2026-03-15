@@ -166,7 +166,10 @@ ORG_SUFFIXES = re.compile(
     r'Biotech|Biotechnologies|Biosciences|Biotics|Biologics|Pharma|Pharmaceuticals|'
     r'Therapeutics|Genomics|Diagnostics|Medical|Sciences|Research|Analytics|'
     r'Dynamics|Aerospace|Defense|Defence|Security|Energy|Logistics|Media|'
-    r'Digital|Software|Studio|Studios|Agency|Institute|University|Trust|Fund)\.?)\b'
+    r'Digital|Software|Studio|Studios|Agency|Institute|University|Trust|Fund|'
+    r'Infrastructure|Engineering|Architects|Architecture|Laboratories|Laboratory|'
+    r'Clinic|Hospital|Academy|Alliance|Authority|Bureau|Commission|Council|'
+    r'Federation|Ministry|Network|Platform|Protocol|Reservoir|Exchange)\.?)\b'
 )
 
 # US state abbreviations for location detection

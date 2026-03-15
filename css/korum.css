@@ -2581,6 +2581,91 @@ body.activated .sphere-texture {
     color: #80E8F0;
 }
 
+/* FALCON CUSTOM TERMS PANEL */
+.falcon-terms-panel {
+    margin-top: 6px;
+    padding: 8px;
+    background: rgba(255, 176, 32, 0.05);
+    border: 1px solid rgba(255, 176, 32, 0.15);
+    border-radius: 6px;
+}
+
+.falcon-terms-label {
+    display: block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: rgba(255, 176, 32, 0.6);
+    margin-bottom: 5px;
+}
+
+.falcon-terms-input-row {
+    display: flex;
+    gap: 4px;
+}
+
+.falcon-term-input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: #FFF;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    outline: none;
+}
+
+.falcon-term-input:focus {
+    border-color: rgba(255, 176, 32, 0.4);
+}
+
+.falcon-term-add {
+    background: rgba(255, 176, 32, 0.15);
+    border: 1px solid rgba(255, 176, 32, 0.3);
+    color: #FFB020;
+    width: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.falcon-term-add:hover {
+    background: rgba(255, 176, 32, 0.25);
+}
+
+.falcon-terms-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.falcon-term-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 176, 32, 0.1);
+    border: 1px solid rgba(255, 176, 32, 0.25);
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-size: 10px;
+    color: #FFD080;
+    font-family: var(--font-mono);
+}
+
+.falcon-term-remove {
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+    line-height: 1;
+}
+
+.falcon-term-remove:hover {
+    color: #FF4444;
+}
+
 /* CARD EXPANSION MODAL */
 .card-modal-overlay {
     position: fixed;

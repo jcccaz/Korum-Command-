@@ -1251,10 +1251,12 @@ function toggleMode(mode) {
         }
     }
 
-    // Falcon level picker visibility
+    // Falcon level picker + custom terms visibility
     if (mode === 'falcon') {
         const levelPicker = document.getElementById('falcon-level-select');
         if (levelPicker) levelPicker.style.display = isActive ? 'inline-block' : 'none';
+        const termsPanel = document.getElementById('falcon-custom-terms');
+        if (termsPanel) termsPanel.style.display = isActive ? 'block' : 'none';
     }
 }
 
@@ -1412,6 +1414,43 @@ function setupActionBindings() {
     document.getElementById('clearInputBtn')?.addEventListener('click', () => {
         if (queryInput) queryInput.value = '';
         logTelemetry("Input Cleared", "system");
+    });
+
+    // FALCON CUSTOM TERMS
+    const falconTermInput = document.getElementById('falconTermInput');
+    const falconTermAddBtn = document.getElementById('falconTermAddBtn');
+    const falconTermsList = document.getElementById('falconTermsList');
+    window._falconCustomTerms = [];
+
+    function addFalconTerm(term) {
+        term = term.trim();
+        if (!term || window._falconCustomTerms.includes(term)) return;
+        window._falconCustomTerms.push(term);
+        const chip = document.createElement('span');
+        chip.className = 'falcon-term-chip';
+        chip.innerHTML = `${term} <span class="falcon-term-remove" data-term="${term}">&times;</span>`;
+        chip.querySelector('.falcon-term-remove').addEventListener('click', () => {
+            window._falconCustomTerms = window._falconCustomTerms.filter(t => t !== term);
+            chip.remove();
+        });
+        falconTermsList?.appendChild(chip);
+    }
+
+    falconTermAddBtn?.addEventListener('click', () => {
+        if (falconTermInput?.value) {
+            addFalconTerm(falconTermInput.value);
+            falconTermInput.value = '';
+            falconTermInput.focus();
+        }
+    });
+    falconTermInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (falconTermInput.value) {
+                addFalconTerm(falconTermInput.value);
+                falconTermInput.value = '';
+            }
+        }
     });
 
     // NEW SESSION RESET
@@ -1756,7 +1795,8 @@ async function executeReasoningChain(query) {
             AIHealth.isAvailable(p) && !document.querySelector(`.deck-card.${p}`)?.classList.contains('silenced')
         ),
         use_falcon: activeModes.falcon,
-        falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD'
+        falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD',
+        falcon_custom_terms: window._falconCustomTerms || []
     };
 
     const response = await authFetch('/api/v2/reasoning_chain', {
@@ -2717,6 +2757,7 @@ window.executeVerify = async function (claimText, providerName) {
                 thread_id: sessionState.activeThreadId || null,
                 use_falcon: activeModes.falcon,
                 falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD',
+                falcon_custom_terms: window._falconCustomTerms || []
             })
         });
 
@@ -2843,6 +2884,7 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
                 thread_id: sessionState.activeThreadId || null,
                 use_falcon: activeModes.falcon,
                 falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD',
+                falcon_custom_terms: window._falconCustomTerms || []
             }),
         });
 
@@ -3397,6 +3439,7 @@ async function executeCouncil(query, roleName) {
         use_serp: useSerpAPI,
         use_falcon: activeModes.falcon,
         falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD',
+        falcon_custom_terms: window._falconCustomTerms || [],
         workflow: sessionState.missionContext?.workflow || "RESEARCH",
         thread_id: sessionState.activeThreadId || null
     };
