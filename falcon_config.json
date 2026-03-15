@@ -1,5 +1,5 @@
 {
-  "protected_terms": ["Project Aurora", "Operation Blackbird", "KorumOS", "Sentinel"],
+  "protected_terms": ["Project Aurora", "Operation Blackbird", "KorumOS", "Sentinel", "Blue-Vein", "AetherFlow", "Green-Way"],
   "protected_hostnames": ["dc01.internal", "vault.corp.local"],
   "protected_project_names": ["TITAN", "MERCURY", "Valkyrie"],
   "protected_customer_names": ["Acme Defense", "NorthStar Federal", "Qanapi"]

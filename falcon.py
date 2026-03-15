@@ -90,7 +90,7 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
     "PHONE":    re.compile(r'(?<!\d)(?:\+?1[\-.\s]?)?(?:\(?\d{3}\)?[\-.\s]?)?\d{3}[\-.\s]?\d{4}(?!\d)'),
     "SSN":      re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
     "IP_ADDR":  re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b'),
-    "ACCT_NUM": re.compile(r'\b(?:account|acct|a/c|customer\s*#|case\s*#|ticket\s*#|contract\s*#|id\s*#|office|facility|site|bldg|building)[\s#:\-]*\d{3,}\b', re.IGNORECASE),
+    "ACCT_NUM": re.compile(r'\b(?:account|acct|a/c|customer\s*#|case\s*#|ticket\s*#|contract\s*#|id\s*#|officer|office|facility|site|bldg|building|room|suite|unit|badge|agent|operative|asset)[\s#:\-]*\d{3,}\b', re.IGNORECASE),
     "CC_NUM":   re.compile(r'\b(?:\d{4}[\-\s]?){3}\d{4}\b'),
     "DATE":     re.compile(r'\b(?:\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})\b'),
     "DATE_WRITTEN": re.compile(
