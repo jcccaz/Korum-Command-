@@ -228,6 +228,9 @@
                     <button class="btn-primary trigger-scan">
                         EXECUTE PROTOCOL
                     </button>
+                    <button class="btn-reset-session" id="resetSessionBtn" title="Clear results and start fresh">
+                        NEW SESSION
+                    </button>
 
                     <!-- MICRO TRACKER (Status) -->
                     <div class="micro-tracker" id="tracker-status">
@@ -553,14 +556,17 @@
             </div>
             <div class="modal-card-content" id="modalContent"></div>
             <div class="modal-actions">
+                <button class="modal-action-btn interrogate" id="modalInterrogateBtn">
+                    <span>🔎</span> Interrogate
+                </button>
+                <button class="modal-action-btn verify" id="modalVerifyBtn">
+                    <span>⚖️</span> Verify
+                </button>
                 <button class="modal-action-btn copy" id="modalCopyBtn">
-                    <span>📋</span> Copy Response
+                    <span>📋</span> Copy
                 </button>
                 <button class="modal-action-btn visualize" id="modalVisualizeBtn">
-                    <span>📊</span> Visualize Data
-                </button>
-                <button class="modal-action-btn download" id="modalDownloadBtn">
-                    <span>💾</span> Download
+                    <span>📊</span> Visualize
                 </button>
             </div>
         </div>

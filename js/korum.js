@@ -1409,6 +1409,32 @@ function setupActionBindings() {
         logTelemetry("Input Cleared", "system");
     });
 
+    // NEW SESSION RESET
+    document.getElementById('resetSessionBtn')?.addEventListener('click', () => {
+        // Clear input
+        if (queryInput) queryInput.value = '';
+        // Close and clear results dock
+        const dock = document.querySelector('.results-container');
+        if (dock) dock.classList.remove('visible', 'active');
+        const councilPane = document.getElementById('pane-council');
+        if (councilPane) councilPane.innerHTML = '';
+        const analysisPane = document.getElementById('pane-analysis');
+        if (analysisPane) analysisPane.innerHTML = '';
+        // Clear comms log
+        const commsLog = document.getElementById('comms-log');
+        if (commsLog) commsLog.innerHTML = '<div class="comms-empty-text">Submit a query to start.</div>';
+        // Reset all UI state
+        resetUI();
+        // Hide recall and reset button
+        const recallBtn = document.getElementById('recallAnalysisBtn');
+        if (recallBtn) recallBtn.style.display = 'none';
+        document.getElementById('resetSessionBtn').style.display = 'none';
+        // Clear stored data
+        lastCouncilData = null;
+        lastQueryText = '';
+        logTelemetry("Session Reset — Ready for new query", "system");
+    });
+
     // 4. ROSTER & MODES
     document.querySelectorAll('.deck-card[data-provider]').forEach(card => {
         const provider = card.dataset.provider;
@@ -1685,6 +1711,8 @@ async function triggerCouncil(query) {
             execBtn.disabled = false;
             setTimeout(() => execBtn.classList.remove('complete'), 3000);
         }
+        // Show New Session button
+        document.getElementById('resetSessionBtn').style.display = 'block';
     }
 }
 
@@ -4542,10 +4570,11 @@ function closeResults() {
             activeCard.classList.remove("visible");
         }
 
-        // Show Recall Button if we have results
+        // Show Recall + New Session buttons if we have results
         const content = document.getElementById('pane-council');
         if (content && content.children.length > 0) {
             document.getElementById('recallAnalysisBtn').style.display = 'block';
+            document.getElementById('resetSessionBtn').style.display = 'block';
         }
     }, 500);
 }

@@ -3189,6 +3189,31 @@ body.activated .sphere-texture {
     box-shadow: 0 0 25px rgba(0, 255, 157, 0.4);
 }
 
+/* NEW SESSION RESET BUTTON */
+.btn-reset-session {
+    display: none;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    font-size: 11px;
+    margin-top: 4px;
+    width: 100%;
+}
+
+.btn-reset-session:hover {
+    background: rgba(255, 68, 68, 0.08);
+    border-color: rgba(255, 68, 68, 0.4);
+    color: #FF6B6B;
+    box-shadow: 0 0 12px rgba(255, 68, 68, 0.15);
+}
+
 /* MODE SELECTOR (Left Panel Bottom) */
 .mode-selector {
     margin-top: auto;
