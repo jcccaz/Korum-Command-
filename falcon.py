@@ -90,9 +90,19 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
     "PHONE":    re.compile(r'(?<!\d)(?:\+?1[\-.\s]?)?(?:\(?\d{3}\)?[\-.\s]?)?\d{3}[\-.\s]?\d{4}(?!\d)'),
     "SSN":      re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
     "IP_ADDR":  re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b'),
-    "ACCT_NUM": re.compile(r'\b(?:account|acct|a/c|customer\s*#|case\s*#|ticket\s*#|contract\s*#|id\s*#)[\s#:\-]*\d{4,}\b', re.IGNORECASE),
+    "ACCT_NUM": re.compile(r'\b(?:account|acct|a/c|customer\s*#|case\s*#|ticket\s*#|contract\s*#|id\s*#|office|facility|site|bldg|building)[\s#:\-]*\d{3,}\b', re.IGNORECASE),
     "CC_NUM":   re.compile(r'\b(?:\d{4}[\-\s]?){3}\d{4}\b'),
     "DATE":     re.compile(r'\b(?:\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})\b'),
+    "DATE_WRITTEN": re.compile(
+        r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December)'
+        r'\s+\d{1,2}(?:st|nd|rd|th)?,?\s*\d{2,4}\b', re.IGNORECASE
+    ),
+    "STREET_ADDR": re.compile(
+        r'\b\d{1,6}\s+[A-Za-z][A-Za-z0-9\-]+(?:\s+[A-Za-z][A-Za-z0-9\-]+){0,3}'
+        r'\s+(?:St|Street|Ave|Avenue|Blvd|Boulevard|Dr|Drive|Rd|Road|Ln|Lane|Way|Ct|Court'
+        r'|Pl|Place|Pkwy|Parkway|Cir|Circle|Hwy|Highway|Ter|Terrace|Loop|Run|Path|Trail)\.?\b',
+        re.IGNORECASE
+    ),
     "HOSTNAME": re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(?:internal|local|corp|intranet|lan|priv)\b', re.IGNORECASE),
     "PASSPORT": re.compile(r'\b[A-Z]{1,2}\d{6,8}\b'),
     "SWIFT":    re.compile(r'\b[A-Z]{6}[A-Z2-9][A-NP-Z0-9](?:[A-Z0-9]{3})?\b'),
@@ -101,8 +111,8 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
 # Which levels include which regex patterns
 LEVEL_PATTERNS = {
     FalconLevel.LIGHT:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM"},
-    FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "PASSPORT"},
-    FalconLevel.BLACK:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "DATE", "HOSTNAME", "PASSPORT", "SWIFT"},
+    FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "PASSPORT", "STREET_ADDR"},
+    FalconLevel.BLACK:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "DATE", "DATE_WRITTEN", "STREET_ADDR", "HOSTNAME", "PASSPORT", "SWIFT"},
 }
 
 
@@ -153,6 +163,7 @@ COMMON_WORDS: Set[str] = {
     "Department", "Division", "Branch", "Unit", "Office", "Center",
     "Director", "Manager", "Officer", "Administrator", "Analyst", "Engineer",
     "President", "Chief", "Senior", "Junior", "Lead", "Head", "Vice",
+    "Contact", "Please", "Note", "Meeting", "Hello", "Dear", "Regards",
 }
 
 # Organization suffix patterns
@@ -215,6 +226,40 @@ COUNTRIES = {
     # Asia-Pacific
     "Malaysia", "Myanmar", "Cambodia", "Laos", "Bangladesh", "Sri Lanka", "Nepal",
     "Mongolia", "North Korea", "Fiji", "Papua New Guinea", "Brunei",
+}
+
+# Major world cities — detected standalone without requiring "City, Country" format.
+# These are globally recognizable and likely PII-significant in context.
+MAJOR_CITIES: Set[str] = {
+    # Americas
+    "New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia",
+    "San Antonio", "San Diego", "Dallas", "San Jose", "Austin", "Jacksonville",
+    "San Francisco", "Seattle", "Denver", "Boston", "Nashville", "Baltimore",
+    "Portland", "Las Vegas", "Milwaukee", "Albuquerque", "Tucson", "Fresno",
+    "Sacramento", "Atlanta", "Miami", "Minneapolis", "Cleveland", "Pittsburgh",
+    "Detroit", "Charlotte", "Orlando", "Tampa", "St. Louis", "Cincinnati",
+    "Toronto", "Montreal", "Vancouver", "Calgary", "Ottawa", "Edmonton",
+    "Mexico City", "Guadalajara", "Monterrey", "Buenos Aires", "Santiago",
+    "Bogota", "Lima", "Caracas", "Quito", "Montevideo",
+    # Europe
+    "London", "Paris", "Berlin", "Madrid", "Rome", "Amsterdam", "Brussels",
+    "Vienna", "Zurich", "Geneva", "Stockholm", "Oslo", "Copenhagen", "Helsinki",
+    "Dublin", "Edinburgh", "Manchester", "Birmingham", "Hamburg", "Munich",
+    "Frankfurt", "Milan", "Barcelona", "Lisbon", "Prague", "Warsaw", "Budapest",
+    "Bucharest", "Athens", "Istanbul", "Kyiv", "Moscow", "Minsk",
+    "Reykjavik", "Tallinn", "Riga", "Vilnius", "Ljubljana", "Zagreb",
+    "Belgrade", "Sarajevo", "Bratislava", "Luxembourg",
+    # Middle East & Africa
+    "Dubai", "Abu Dhabi", "Riyadh", "Jeddah", "Doha", "Muscat", "Kuwait City",
+    "Manama", "Amman", "Beirut", "Tel Aviv", "Jerusalem", "Cairo", "Casablanca",
+    "Nairobi", "Lagos", "Johannesburg", "Cape Town", "Addis Ababa", "Accra",
+    "Tunis", "Algiers", "Tripoli", "Khartoum", "Kampala", "Dar es Salaam",
+    # Asia-Pacific
+    "Tokyo", "Beijing", "Shanghai", "Shenzhen", "Guangzhou", "Hong Kong",
+    "Seoul", "Taipei", "Singapore", "Bangkok", "Jakarta", "Kuala Lumpur",
+    "Manila", "Hanoi", "Mumbai", "Delhi", "Bangalore", "Chennai", "Hyderabad",
+    "Kolkata", "Karachi", "Lahore", "Islamabad", "Dhaka", "Colombo",
+    "Sydney", "Melbourne", "Brisbane", "Perth", "Auckland", "Wellington",
 }
 
 
@@ -302,7 +347,7 @@ def _detect_org_names(text: str) -> List[Tuple[int, int, str]]:
 
 
 def _detect_locations(text: str) -> List[Tuple[int, int, str]]:
-    """Detect locations: 'City, ST' patterns, 'City, Country' patterns, and known country names."""
+    """Detect locations: 'City, ST' patterns, 'City, Country' patterns, standalone cities, and country names."""
     matches = []
     # US-style: "Seattle, WA"
     for m in LOCATION_PATTERN.finditer(text):
@@ -318,6 +363,10 @@ def _detect_locations(text: str) -> List[Tuple[int, int, str]]:
     # Standalone country names
     for country in COUNTRIES:
         for m in re.finditer(re.escape(country), text):
+            matches.append((m.start(), m.end(), m.group()))
+    # Standalone major cities (globally significant, identifiable without context)
+    for city in MAJOR_CITIES:
+        for m in re.finditer(r'\b' + re.escape(city) + r'\b', text):
             matches.append((m.start(), m.end(), m.group()))
     return matches
 
@@ -386,38 +435,37 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     # -----------------------------------------------------------------------
     if falcon_level in (FalconLevel.STANDARD, FalconLevel.BLACK):
         person_hits = _detect_person_names(text)
-        print(f"[FALCON PASS B] Person detections: {person_hits}")
+        if debug:
+            print(f"[FALCON PASS B] Person detections: {person_hits}")
         for start, end, matched in person_hits:
             detections.append((start, end, matched, "PERSON"))
         org_hits = _detect_org_names(text)
-        print(f"[FALCON PASS B] Org detections: {org_hits}")
+        if debug:
+            print(f"[FALCON PASS B] Org detections: {org_hits}")
         for start, end, matched in org_hits:
             detections.append((start, end, matched, "ORG"))
         loc_hits = _detect_locations(text)
-        print(f"[FALCON PASS B] Location detections: {loc_hits}")
+        if debug:
+            print(f"[FALCON PASS B] Location detections: {loc_hits}")
         for start, end, matched in loc_hits:
             detections.append((start, end, matched, "LOCATION"))
 
     # -----------------------------------------------------------------------
     # PASS C: Custom dictionary (all levels)
-    # Automatically include terms from falcon_config.json if it exists.
+    # custom_terms already includes org config terms (merged above).
     # -----------------------------------------------------------------------
-    all_custom_terms = _get_org_custom_terms()
+    if debug:
+        print(f"[FALCON PASS C] custom_terms ({len(custom_terms) if custom_terms else 0}): {custom_terms}")
+
     if custom_terms:
-        all_custom_terms.extend(custom_terms)
-
-    print(f"[FALCON PASS C] custom_terms param: {custom_terms}")
-    print(f"[FALCON PASS C] all_custom_terms ({len(all_custom_terms)}): {all_custom_terms}")
-
-    if all_custom_terms:
         # Use set to unique and sort by length descending to match longest first
-        unique_terms = sorted(list(set(all_custom_terms)), key=len, reverse=True)
+        unique_terms = sorted(list(set(custom_terms)), key=len, reverse=True)
         for term in unique_terms:
             if len(term) < 2:
                 continue
             escaped = re.escape(term)
             found = list(re.finditer(escaped, text, re.IGNORECASE))
-            if found:
+            if found and debug:
                 print(f"[FALCON PASS C] MATCH '{term}': {len(found)} hits")
             for m in found:
                 detections.append((m.start(), m.end(), m.group(), "CUSTOM"))
@@ -441,8 +489,9 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
 
     # Sort by position descending for safe in-place replacement
     filtered.sort(key=lambda d: d[0], reverse=True)
-    print(f"[FALCON] Pre-dedup detections: {len(detections)} | Post-dedup: {len(filtered)}")
-    print(f"[FALCON] Final detections: {[(orig, cat) for _, _, orig, cat in filtered]}")
+    if debug:
+        print(f"[FALCON] Pre-dedup detections: {len(detections)} | Post-dedup: {len(filtered)}")
+        print(f"[FALCON] Final detections: {[(orig, cat) for _, _, orig, cat in filtered]}")
 
     # -----------------------------------------------------------------------
     # REPLACEMENT
@@ -471,7 +520,7 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
         "counts_by_category": counts,
         "high_risk_items_count": high_risk_count,
         "categories_found": list(counts.keys()),
-        "custom_terms_loaded": len(all_custom_terms) if all_custom_terms else 0,
+        "custom_terms_loaded": len(custom_terms) if custom_terms else 0,
         "execution_time_ms": round(execution_time_ms, 2),
         "exposure_risk": _assess_exposure_risk(len(filtered), high_risk_count),
     }
