@@ -896,7 +896,32 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
         
         # Inject metadata if missing or simplified
         data["meta"]["models_used"] = models_used
-        
+
+        # Deterministic council_contributors — built from pipeline data, not LLM output
+        PHASE_TITLES = {
+            0: "INTAKE — Neutral Baseline",
+            1: "STRATEGIC INTERPRETATION",
+            2: "COUNTERINTELLIGENCE CHALLENGE",
+            3: "OPERATIONS — Action Plan",
+            4: "VALIDATION — Standards & Confidence",
+        }
+        contributors = []
+        total_phases = len(context.history)
+        for idx, entry in enumerate(context.history):
+            if idx == total_phases - 1 and total_phases >= 3:
+                phase_title = PHASE_TITLES.get(4, f"Phase {idx + 1}")
+            elif total_phases <= 5:
+                phase_title = PHASE_TITLES.get(idx, f"Phase {idx + 1}")
+            else:
+                phase_title = PHASE_TITLES.get(min(int(idx / total_phases * 5), 4), f"Phase {idx + 1}")
+            contributors.append({
+                "phase": phase_title,
+                "provider": entry["ai"],
+                "role": entry.get("persona", ""),
+                "contribution_summary": f"Phase {idx + 1} of {total_phases}",
+            })
+        data["council_contributors"] = contributors
+
         # NEW: Post-processing safety parse for tags (in case LLM misses some)
         import re
         decisions = re.findall(r'\[DECISION_CANDIDATE\](.*?)\[/DECISION_CANDIDATE\]', history_text, re.DOTALL)
