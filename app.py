@@ -539,8 +539,35 @@ def generate_preview():
 @app.route('/api/falcon/preview', methods=['POST'])
 def falcon_preview():
     """Pre-flight check: run Falcon redaction and return the ghost text without calling any LLM."""
-    data = request.json or {}
+    from file_processor import process_uploaded_file
+
+    # Support both JSON and FormData (multipart) for file attachments
+    doc_count = 0
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        import json as _json
+        data = _json.loads(request.form.get('payload', '{}'))
+        uploaded_files = request.files.getlist('files')
+    else:
+        data = request.json or {}
+        uploaded_files = []
+
     raw_text = data.get('text', '').strip()
+
+    # Extract text from uploaded documents and append to scan
+    doc_texts = []
+    for f in uploaded_files:
+        try:
+            result = process_uploaded_file(f)
+            if result['type'] == 'document' and result.get('extracted_text'):
+                doc_texts.append(f"[Document: {result['filename']}]\n{result['extracted_text']}")
+        except (ValueError, Exception) as e:
+            print(f"⚠️ Ghost Preview file error: {e}")
+            continue
+    if doc_texts:
+        doc_context = "\n\n--- ATTACHED DOCUMENTS ---\n" + "\n\n".join(doc_texts)
+        raw_text = (raw_text + doc_context) if raw_text else doc_context.strip()
+        doc_count = len(doc_texts)
+
     if not raw_text:
         return jsonify({"success": False, "error": "No text provided"}), 400
 
@@ -571,7 +598,8 @@ def falcon_preview():
             "counts_by_category": result.metadata.get("counts_by_category", {}),
             "categories_found": result.metadata.get("categories_found", []),
             "exposure_risk": result.metadata.get("exposure_risk", "none"),
-            "execution_time_ms": result.metadata.get("execution_time_ms", 0)
+            "execution_time_ms": result.metadata.get("execution_time_ms", 0),
+            "documents_scanned": doc_count
         })
     except Exception as e:
         print(f"FALCON PREVIEW ERROR: {e}")

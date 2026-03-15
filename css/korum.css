@@ -2482,6 +2482,16 @@ body.activated .sphere-texture {
     font-weight: 700;
 }
 
+.ghost-stat-docs {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    background: rgba(0, 229, 255, 0.15);
+    color: #00e5ff;
+}
+
 .ghost-stat-time {
     color: rgba(255, 255, 255, 0.35);
     margin-left: auto;

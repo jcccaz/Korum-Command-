@@ -1829,45 +1829,56 @@ function renderChainResults(result) {
     analysisPane.innerHTML = "";
     interPane.innerHTML = '<div class="interrogation-empty-state">No interrogation or verification results yet.</div>';
 
-    // Store for export functionality (adapt V2 structure to match _extract_parts expectations)
+    // Store for export functionality — use backend synthesis when available
     const totalTime = (result.metrics?.deconstruct?.time || 0) + (result.metrics?.build?.time || 0) +
                       (result.metrics?.stress?.time || 0) + (result.metrics?.synthesize?.time || 0);
+    const backendSynthesis = result.synthesis || {};
+    const backendMeta = backendSynthesis.meta || {};
+    const backendStructured = backendSynthesis.structured_data || {};
+
     const synthesisData = {
         meta: {
-            title: (sessionState.originalQuery || 'V2 Reasoning Chain Analysis').substring(0, 120).split('\n')[0],
-            summary: result.final_artifact || '',
-            workflow: sessionState.missionContext?.workflow || 'RESEARCH',
-            models_used: ['anthropic', 'openai', 'google', 'openai'],
-            composite_truth_score: 85,
-            generated_at: new Date().toISOString()
+            title: backendMeta.title || (sessionState.originalQuery || 'V2 Reasoning Chain Analysis').substring(0, 120).split('\n')[0],
+            summary: backendMeta.summary || result.final_artifact || '',
+            workflow: backendMeta.workflow || sessionState.missionContext?.workflow || 'RESEARCH',
+            models_used: backendMeta.models_used || [],
+            composite_truth_score: backendMeta.composite_truth_score || 85,
+            generated_at: backendMeta.generated_at || new Date().toISOString()
         },
-        sections: {
+        sections: backendSynthesis.sections || {
             executive_summary: result.final_artifact || '',
             constraint_analysis: result.constraints || '',
             architecture: result.standard_solution || '',
             stress_test: result.failure_analysis || ''
         },
         structured_data: {
-            key_metrics: [
+            key_metrics: backendStructured.key_metrics || [
                 { metric: 'Pipeline Phases', value: result.exploit_poc ? '5' : '4', context: 'Sequential reasoning chain' },
                 { metric: 'Total Execution Time', value: `${totalTime.toFixed(1)}s`, context: 'Across all phases' }
             ],
-            risks: [],
-            actions: []
-        }
+            risks: backendStructured.risks || [],
+            actions: backendStructured.actions || []
+        },
+        // Pass through council_contributors from backend synthesis
+        council_contributors: backendSynthesis.council_contributors || [],
+        confidence_and_assumptions: backendSynthesis.confidence_and_assumptions || null
     };
-    // Extract RISK_VECTOR tags from stress test into structured risks
-    const riskMatches = (result.failure_analysis || '').match(/\[RISK_VECTOR\](.*?)\[\/RISK_VECTOR\]/g) || [];
-    riskMatches.forEach(r => {
-        const text = r.replace(/\[\/?\s*RISK_VECTOR\s*\]/g, '').trim();
-        synthesisData.structured_data.risks.push({ risk: text, severity: 'HIGH', mitigation: 'Requires assessment' });
-    });
-    // Extract DECISION_CANDIDATE tags into actions
-    const actionMatches = (result.failure_analysis || '').match(/\[DECISION_CANDIDATE\](.*?)\[\/DECISION_CANDIDATE\]/g) || [];
-    actionMatches.forEach(a => {
-        const text = a.replace(/\[\/?\s*DECISION_CANDIDATE\s*\]/g, '').trim();
-        synthesisData.structured_data.actions.push({ action: text, priority: 'HIGH' });
-    });
+    // Supplement risks from RISK_VECTOR tags if backend didn't provide structured risks
+    if (!backendStructured.risks || backendStructured.risks.length === 0) {
+        const riskMatches = (result.failure_analysis || '').match(/\[RISK_VECTOR\](.*?)\[\/RISK_VECTOR\]/g) || [];
+        riskMatches.forEach(r => {
+            const text = r.replace(/\[\/?\s*RISK_VECTOR\s*\]/g, '').trim();
+            synthesisData.structured_data.risks.push({ risk: text, severity: 'HIGH', mitigation: 'Requires assessment' });
+        });
+    }
+    // Supplement actions from DECISION_CANDIDATE tags if backend didn't provide them
+    if (!backendStructured.actions || backendStructured.actions.length === 0) {
+        const actionMatches = (result.failure_analysis || '').match(/\[DECISION_CANDIDATE\](.*?)\[\/DECISION_CANDIDATE\]/g) || [];
+        actionMatches.forEach(a => {
+            const text = a.replace(/\[\/?\s*DECISION_CANDIDATE\s*\]/g, '').trim();
+            synthesisData.structured_data.actions.push({ action: text, priority: 'HIGH' });
+        });
+    }
     if (result.exploit_poc) {
         synthesisData.sections.red_team_analysis = result.exploit_poc;
     }
@@ -3088,10 +3099,12 @@ function openGhostModal(originalText, redactedHtml, stats) {
         const cats = (stats.categories_found || []).map(c =>
             `<span class="ghost-cat-chip">${c} <strong>${stats.counts_by_category[c] || 0}</strong></span>`
         ).join('');
+        const docBadge = stats.documents_scanned ? `<span class="ghost-stat-docs">${stats.documents_scanned} DOC${stats.documents_scanned !== 1 ? 'S' : ''} SCANNED</span>` : '';
         statsEl.innerHTML = `
             <div class="ghost-stats-row">
                 <span class="ghost-stat-total">${stats.total_redactions} REDACTION${stats.total_redactions !== 1 ? 'S' : ''}</span>
                 <span class="ghost-stat-risk ${riskClass}">${riskLabel}</span>
+                ${docBadge}
                 <span class="ghost-stat-time">${stats.execution_time_ms}ms</span>
             </div>
             <div class="ghost-cats-row">${cats}</div>`;
@@ -3114,27 +3127,41 @@ window.ghostPreview = async function () {
     if (!input || !btn) return;
 
     const draft = input.value.trim();
-    if (!draft) {
-        showProcessingToast("Enter a query to preview Falcon redaction.");
+    if (!draft && !pendingFiles.length) {
+        showProcessingToast("Enter a query or attach documents to preview Falcon redaction.");
         return;
     }
 
     btn.classList.add('ghost-loading');
     const originalIcon = btn.innerHTML;
     btn.innerHTML = `<div class="spinner-sm"></div>`;
-    logTelemetry("FALCON GHOST PREVIEW — scanning...", "process");
+    const fileNote = pendingFiles.length ? ` + ${pendingFiles.length} doc(s)` : '';
+    logTelemetry(`FALCON GHOST PREVIEW — scanning${fileNote}...`, "process");
 
     try {
         const level = document.getElementById('falcon-level-select')?.value || 'STANDARD';
-        const response = await authFetch('/api/falcon/preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text: draft,
-                level: level,
-                custom_terms: window._falconCustomTerms || []
-            })
-        });
+        const payload = {
+            text: draft,
+            level: level,
+            custom_terms: window._falconCustomTerms || []
+        };
+
+        let response;
+        if (pendingFiles.length > 0) {
+            // Send files via FormData so backend can extract document text
+            const formData = new FormData();
+            formData.append('payload', JSON.stringify(payload));
+            for (const file of pendingFiles) {
+                formData.append('files', file);
+            }
+            response = await authFetch('/api/falcon/preview', { method: 'POST', body: formData });
+        } else {
+            response = await authFetch('/api/falcon/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        }
 
         const data = await response.json();
 
@@ -3142,7 +3169,8 @@ window.ghostPreview = async function () {
             const redactedHtml = highlightPlaceholders(
                 data.redacted_text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             );
-            logTelemetry(`GHOST PREVIEW: ${data.total_redactions} items redacted [${data.exposure_risk}]`, "success");
+            const docMsg = data.documents_scanned ? ` (incl. ${data.documents_scanned} document(s))` : '';
+            logTelemetry(`GHOST PREVIEW: ${data.total_redactions} items redacted [${data.exposure_risk}]${docMsg}`, "success");
             openGhostModal(draft, redactedHtml, data);
         } else {
             logTelemetry(`Ghost Preview error: ${data.error}`, "error");
