@@ -1955,8 +1955,6 @@ def reasoning_chain():
     if not query:
         return jsonify({"success": False, "error": "Query required"}), 400
 
-    print(f"⚡ V2 REASONING CHAIN: {query} [{workflow}]")
-
     # --- FALCON PROTOCOL: SECURE PREPROCESSING ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
@@ -1972,6 +1970,9 @@ def reasoning_chain():
         falcon_meta = falcon_res.metadata
         _falcon_placeholder_map = falcon_res.placeholder_map
         print(f"🦅 FALCON [{falcon_level}]: {falcon_meta['total_redactions']} entities redacted, risk={falcon_meta['exposure_risk']}")
+
+    # Log AFTER Falcon so raw PII never hits logs
+    print(f"⚡ V2 REASONING CHAIN [{workflow}]")
 
     # 1. Execute using the real engine
     # Use frontend-provided roles if available, otherwise default
