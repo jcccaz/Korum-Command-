@@ -1972,6 +1972,16 @@ def reasoning_chain():
         falcon_meta = falcon_res.metadata
         _falcon_placeholder_map = falcon_res.placeholder_map
         print(f"🦅 FALCON [{falcon_level}]: {falcon_meta['total_redactions']} entities redacted, risk={falcon_meta['exposure_risk']}")
+        # --- FALCON GATEKEEPER DEBUG ---
+        print("--- FALCON GATEKEEPER ---")
+        print(f"ORIGINAL INPUT: {data.get('query', '')[:80]}...")
+        print(f"SENT TO MODELS: {query[:80]}...")
+        if any(term in query for term in ["Sara.Jenkins", "Blue-Vein", "AetherFlow", "Green-Way", "Reykjavik"]):
+            print("!!! SECURITY ALERT: LEAK DETECTED IN REDACTED TEXT !!!")
+        else:
+            print("✅ REDACTION VERIFIED: No known PII in outbound text")
+        print(f"PLACEHOLDER MAP: {_falcon_placeholder_map}")
+        print("--------------------------")
 
     # 1. Execute using the real engine
     # Use frontend-provided roles if available, otherwise default
