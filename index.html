@@ -129,6 +129,15 @@
                                 </svg>
                             </button>
 
+                            <!-- GHOST PREVIEW (FALCON PRE-FLIGHT) -->
+                            <button id="ghostPreviewBtn" class="ghost-preview-btn" title="Falcon Ghost Preview" style="display:none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+
                             <!-- FILE INPUT & ATTACH -->
                             <input type="file" id="fileInput" multiple
                                 accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.docx,.xlsx" style="display:none;">
@@ -551,6 +560,31 @@
             <div class="enhance-footer">
                 <button class="enhance-action-btn reject" id="enhanceRejectBtn">DISCARD</button>
                 <button class="enhance-action-btn accept" id="enhanceAcceptBtn">DEPLOY ENHANCED</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FALCON GHOST PREVIEW MODAL -->
+    <div class="ghost-modal-overlay" id="ghostModal">
+        <div class="ghost-modal">
+            <div class="ghost-header">
+                <div class="ghost-title">FALCON GHOST PREVIEW</div>
+                <div class="ghost-subtitle">PRE-FLIGHT REDACTION CHECK &mdash; NO DATA SENT TO AI</div>
+            </div>
+            <div class="ghost-body">
+                <div class="ghost-section">
+                    <label class="ghost-label">ORIGINAL DRAFT</label>
+                    <div class="ghost-original" id="ghostOriginalText"></div>
+                </div>
+                <div class="ghost-section">
+                    <label class="ghost-label">OUTBOUND GHOST <span class="ghost-tag">REDACTED</span></label>
+                    <div class="ghost-redacted" id="ghostRedactedText"></div>
+                </div>
+                <div class="ghost-stats" id="ghostStats"></div>
+            </div>
+            <div class="ghost-footer">
+                <button class="ghost-action-btn dismiss" id="ghostDismissBtn">CLOSE</button>
+                <button class="ghost-action-btn execute" id="ghostExecuteBtn">EXECUTE PROTOCOL</button>
             </div>
         </div>
     </div>

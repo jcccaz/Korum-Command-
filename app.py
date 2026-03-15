@@ -477,6 +477,47 @@ def generate_preview():
         return jsonify(preview)
     return jsonify({"error": "Type not supported yet"}), 501
 
+# ── FALCON GHOST PREVIEW ─────────────────────────────────────────────
+@app.route('/api/falcon/preview', methods=['POST'])
+def falcon_preview():
+    """Pre-flight check: run Falcon redaction and return the ghost text without calling any LLM."""
+    data = request.json or {}
+    raw_text = data.get('text', '').strip()
+    if not raw_text:
+        return jsonify({"success": False, "error": "No text provided"}), 400
+
+    level = data.get('level', 'STANDARD')
+    custom_terms = data.get('custom_terms', [])
+
+    try:
+        _salt = hashlib.sha256(f"ghost_preview:{time.time_ns()}".encode()).hexdigest()[:12]
+        result = falcon_preprocess(
+            raw_text,
+            level=level,
+            custom_terms=custom_terms or None,
+            salt=_salt,
+            placeholder_cache={}
+        )
+
+        print("--- FALCON GHOST PREVIEW ---")
+        print(f"  ORIGINAL : {raw_text[:80]}{'...' if len(raw_text) > 80 else ''}")
+        print(f"  GHOST    : {result.redacted_text[:80]}{'...' if len(result.redacted_text) > 80 else ''}")
+        print(f"  KEYS     : {list(result.placeholder_map.keys())}")
+        print("----------------------------")
+
+        return jsonify({
+            "success": True,
+            "redacted_text": result.redacted_text,
+            "total_redactions": result.metadata.get("total_redactions", 0),
+            "counts_by_category": result.metadata.get("counts_by_category", {}),
+            "categories_found": result.metadata.get("categories_found", []),
+            "exposure_risk": result.metadata.get("exposure_risk", "none"),
+            "execution_time_ms": result.metadata.get("execution_time_ms", 0)
+        })
+    except Exception as e:
+        print(f"FALCON PREVIEW ERROR: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/generate_artifact', methods=['POST'])
 def generate_artifact():
     data = request.json

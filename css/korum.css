@@ -2302,6 +2302,270 @@ body.activated .sphere-texture {
     box-shadow: 0 0 16px rgba(0, 255, 157, 0.15);
 }
 
+/* ── FALCON GHOST PREVIEW ──────────────────────────────────────────── */
+
+.ghost-preview-btn {
+    background: none;
+    border: 1px solid rgba(255, 140, 50, 0.3);
+    border-radius: 6px;
+    color: rgba(255, 140, 50, 0.7);
+    cursor: pointer;
+    padding: 6px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ghost-preview-btn:hover {
+    background: rgba(255, 140, 50, 0.1);
+    color: #ff8c32;
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(255, 140, 50, 0.2);
+}
+
+.ghost-preview-btn.ghost-loading {
+    animation: magicPulse 1.5s infinite;
+    cursor: wait;
+}
+
+.ghost-modal-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.88);
+    backdrop-filter: blur(18px);
+    z-index: 12000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.ghost-modal-overlay.visible {
+    display: flex;
+}
+
+.ghost-modal {
+    background: rgba(12, 12, 12, 0.97);
+    border: 1px solid rgba(255, 140, 50, 0.25);
+    width: 100%;
+    max-width: 750px;
+    border-radius: 12px;
+    box-shadow: 0 0 60px rgba(255, 140, 50, 0.1);
+    overflow: hidden;
+    animation: modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.ghost-header {
+    background: linear-gradient(90deg, rgba(255, 140, 50, 0.08), transparent);
+    padding: 22px 28px;
+    border-bottom: 1px solid rgba(255, 140, 50, 0.15);
+}
+
+.ghost-title {
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 700;
+    color: #ff8c32;
+    letter-spacing: 2px;
+}
+
+.ghost-subtitle {
+    font-family: var(--font-body);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 1px;
+    margin-top: 4px;
+    text-transform: uppercase;
+}
+
+.ghost-body {
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.ghost-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ghost-label {
+    font-family: var(--font-head);
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ghost-tag {
+    font-size: 8px;
+    padding: 2px 6px;
+    background: rgba(255, 140, 50, 0.12);
+    border: 1px solid rgba(255, 140, 50, 0.25);
+    border-radius: 4px;
+    color: #ff8c32;
+    letter-spacing: 1px;
+}
+
+.ghost-original {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    font-style: italic;
+}
+
+.ghost-redacted {
+    background: rgba(255, 140, 50, 0.03);
+    border: 1px solid rgba(255, 140, 50, 0.2);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.ghost-placeholder {
+    color: #ff8c32;
+    background: rgba(255, 140, 50, 0.12);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.ghost-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+}
+
+.ghost-stats-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+.ghost-stat-total {
+    color: #ff8c32;
+    font-weight: 700;
+}
+
+.ghost-stat-time {
+    color: rgba(255, 255, 255, 0.35);
+    margin-left: auto;
+}
+
+.ghost-stat-risk {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.ghost-risk-none           { background: rgba(100,255,100,0.1); color: #66ff66; }
+.ghost-risk-low            { background: rgba(100,200,255,0.1); color: #66ccff; }
+.ghost-risk-medium         { background: rgba(255,200,50,0.1); color: #ffc832; }
+.ghost-risk-high           { background: rgba(255,68,68,0.15); color: #ff5555; }
+.ghost-risk-potential_miss { background: rgba(255,200,50,0.15); color: #ffc832; animation: riskPulse 2s infinite; }
+
+@keyframes riskPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.ghost-cats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ghost-cat-chip {
+    font-family: var(--font-head);
+    font-size: 9px;
+    padding: 3px 8px;
+    background: rgba(255, 140, 50, 0.08);
+    border: 1px solid rgba(255, 140, 50, 0.2);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.5px;
+}
+
+.ghost-cat-chip strong {
+    color: #ff8c32;
+    margin-left: 4px;
+}
+
+.ghost-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 18px 28px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.ghost-action-btn {
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    padding: 10px 24px;
+    border-radius: 6px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+}
+
+.ghost-action-btn.dismiss {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.ghost-action-btn.dismiss:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.ghost-action-btn.execute {
+    background: rgba(255, 140, 50, 0.1);
+    border-color: rgba(255, 140, 50, 0.35);
+    color: #ff8c32;
+}
+
+.ghost-action-btn.execute:hover {
+    background: rgba(255, 140, 50, 0.2);
+    border-color: rgba(255, 140, 50, 0.6);
+    box-shadow: 0 0 16px rgba(255, 140, 50, 0.15);
+}
+
 /* EXECUTIVE BRIEF PANEL */
 .exec-brief {
     background: rgba(0, 0, 0, 0.4);

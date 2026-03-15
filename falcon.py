@@ -108,9 +108,9 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
     "SWIFT":    re.compile(r'\b[A-Z]{6}[A-Z2-9][A-NP-Z0-9](?:[A-Z0-9]{3})?\b'),
     "ALNUM_TAG": re.compile(
         r'\b(?:'
-        r'(?:[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?)\s+(?:\d{2,6}|\d{1,3}-[A-Za-z0-9]{1,4})'
+        r'(?:[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?)\s+(?:\d{1,6}[A-Za-z]{1,3}|\d{2,6}|\d{1,3}-[A-Za-z0-9]{1,4})'
         r'|'
-        r'(?:\d{2,6}|\d{1,3}-[A-Za-z0-9]{1,4})\s+(?:[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?)'
+        r'(?:\d{1,6}[A-Za-z]{1,3}|\d{2,6}|\d{1,3}-[A-Za-z0-9]{1,4})\s+(?:[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?)'
         r')\b'
     ),
 }
@@ -578,7 +578,7 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
         "categories_found": list(counts.keys()),
         "custom_terms_loaded": len(custom_terms) if custom_terms else 0,
         "execution_time_ms": round(execution_time_ms, 2),
-        "exposure_risk": _assess_exposure_risk(len(filtered), high_risk_count),
+        "exposure_risk": _assess_exposure_risk(len(filtered), high_risk_count, len(text)),
     }
 
     if debug:
@@ -612,7 +612,8 @@ def falcon_rehydrate(text: str, placeholder_map: Dict[str, str]) -> str:
     return rehydrated
 
 
-def _assess_exposure_risk(total_redactions: int, high_risk_count: int) -> str:
+def _assess_exposure_risk(total_redactions: int, high_risk_count: int,
+                          text_length: int = 0) -> str:
     """
     Simple heuristic risk assessment based on what was found.
     NOTE: This is an approximate indicator, not a security guarantee.
@@ -625,6 +626,9 @@ def _assess_exposure_risk(total_redactions: int, high_risk_count: int) -> str:
         return "medium"
     elif total_redactions > 0:
         return "low"
+    # Long prompt but nothing redacted — potential miss
+    elif text_length >= 80:
+        return "potential_miss"
     return "none"
 
 

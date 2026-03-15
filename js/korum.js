@@ -1251,12 +1251,14 @@ function toggleMode(mode) {
         }
     }
 
-    // Falcon level picker + custom terms visibility
+    // Falcon level picker + custom terms + ghost preview visibility
     if (mode === 'falcon') {
         const levelPicker = document.getElementById('falcon-level-select');
         if (levelPicker) levelPicker.style.display = isActive ? 'inline-block' : 'none';
         const termsPanel = document.getElementById('falcon-custom-terms');
         if (termsPanel) termsPanel.style.display = isActive ? 'block' : 'none';
+        const ghostBtn = document.getElementById('ghostPreviewBtn');
+        if (ghostBtn) ghostBtn.style.display = isActive ? 'inline-flex' : 'none';
     }
 }
 
@@ -3064,6 +3066,113 @@ document.addEventListener('DOMContentLoaded', () => {
     // Click overlay to close
     document.getElementById('enhanceModal')?.addEventListener('click', (e) => {
         if (e.target.id === 'enhanceModal') closeEnhanceModal();
+    });
+});
+
+// ── FALCON GHOST PREVIEW ─────────────────────────────────────────────
+function openGhostModal(originalText, redactedHtml, stats) {
+    const modal = document.getElementById('ghostModal');
+    const origEl = document.getElementById('ghostOriginalText');
+    const redEl = document.getElementById('ghostRedactedText');
+    const statsEl = document.getElementById('ghostStats');
+    if (!modal || !origEl || !redEl) return;
+
+    origEl.textContent = originalText;
+    redEl.innerHTML = redactedHtml;
+
+    // Build stats bar
+    if (statsEl && stats) {
+        const risk = stats.exposure_risk || 'none';
+        const riskClass = `ghost-risk-${risk}`;
+        const riskLabel = risk === 'potential_miss' ? 'POTENTIAL MISS' : risk.toUpperCase() + ' RISK';
+        const cats = (stats.categories_found || []).map(c =>
+            `<span class="ghost-cat-chip">${c} <strong>${stats.counts_by_category[c] || 0}</strong></span>`
+        ).join('');
+        statsEl.innerHTML = `
+            <div class="ghost-stats-row">
+                <span class="ghost-stat-total">${stats.total_redactions} REDACTION${stats.total_redactions !== 1 ? 'S' : ''}</span>
+                <span class="ghost-stat-risk ${riskClass}">${riskLabel}</span>
+                <span class="ghost-stat-time">${stats.execution_time_ms}ms</span>
+            </div>
+            <div class="ghost-cats-row">${cats}</div>`;
+    }
+    modal.classList.add('visible');
+}
+
+function closeGhostModal() {
+    document.getElementById('ghostModal')?.classList.remove('visible');
+}
+
+function highlightPlaceholders(text) {
+    return text.replace(/\[([A-Z_]+_[A-F0-9]+)\]/g,
+        '<span class="ghost-placeholder">[$1]</span>');
+}
+
+window.ghostPreview = async function () {
+    const input = document.getElementById('queryInput');
+    const btn = document.getElementById('ghostPreviewBtn');
+    if (!input || !btn) return;
+
+    const draft = input.value.trim();
+    if (!draft) {
+        showProcessingToast("Enter a query to preview Falcon redaction.");
+        return;
+    }
+
+    btn.classList.add('ghost-loading');
+    const originalIcon = btn.innerHTML;
+    btn.innerHTML = `<div class="spinner-sm"></div>`;
+    logTelemetry("FALCON GHOST PREVIEW — scanning...", "process");
+
+    try {
+        const level = document.getElementById('falcon-level-select')?.value || 'STANDARD';
+        const response = await authFetch('/api/falcon/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: draft,
+                level: level,
+                custom_terms: window._falconCustomTerms || []
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const redactedHtml = highlightPlaceholders(
+                data.redacted_text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            );
+            logTelemetry(`GHOST PREVIEW: ${data.total_redactions} items redacted [${data.exposure_risk}]`, "success");
+            openGhostModal(draft, redactedHtml, data);
+        } else {
+            logTelemetry(`Ghost Preview error: ${data.error}`, "error");
+            showProcessingToast("Ghost Preview failed.");
+        }
+    } catch (e) {
+        console.error(e);
+        showProcessingToast("Network error during Ghost Preview.");
+    } finally {
+        btn.classList.remove('ghost-loading');
+        btn.innerHTML = originalIcon;
+    }
+};
+
+// Bind Ghost Preview Button + Modal Controls
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('ghostPreviewBtn')?.addEventListener('click', window.ghostPreview);
+
+    document.getElementById('ghostDismissBtn')?.addEventListener('click', closeGhostModal);
+
+    // Execute from ghost modal — proceed to council
+    document.getElementById('ghostExecuteBtn')?.addEventListener('click', () => {
+        closeGhostModal();
+        const query = document.getElementById('queryInput')?.value.trim();
+        if (query) triggerCouncil(query);
+    });
+
+    // Click overlay to close
+    document.getElementById('ghostModal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'ghostModal') closeGhostModal();
     });
 });
 
