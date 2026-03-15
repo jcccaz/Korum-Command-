@@ -106,13 +106,20 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
     "HOSTNAME": re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(?:internal|local|corp|intranet|lan|priv)\b', re.IGNORECASE),
     "PASSPORT": re.compile(r'\b[A-Z]{1,2}\d{6,8}\b'),
     "SWIFT":    re.compile(r'\b[A-Z]{6}[A-Z2-9][A-NP-Z0-9](?:[A-Z0-9]{3})?\b'),
+    "ALNUM_TAG": re.compile(
+        r'\b(?:'
+        r'(?:[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?)\s+(?:\d{2,6}|\d{1,3}-[A-Za-z0-9]{1,4})'
+        r'|'
+        r'(?:\d{2,6}|\d{1,3}-[A-Za-z0-9]{1,4})\s+(?:[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?)'
+        r')\b'
+    ),
 }
 
 # Which levels include which regex patterns
 LEVEL_PATTERNS = {
     FalconLevel.LIGHT:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM"},
-    FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "PASSPORT", "STREET_ADDR", "DATE", "DATE_WRITTEN"},
-    FalconLevel.BLACK:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "DATE", "DATE_WRITTEN", "STREET_ADDR", "HOSTNAME", "PASSPORT", "SWIFT"},
+    FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "PASSPORT", "STREET_ADDR", "DATE", "DATE_WRITTEN", "ALNUM_TAG"},
+    FalconLevel.BLACK:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "DATE", "DATE_WRITTEN", "STREET_ADDR", "HOSTNAME", "PASSPORT", "SWIFT", "ALNUM_TAG"},
 }
 
 
@@ -371,6 +378,41 @@ def _detect_locations(text: str) -> List[Tuple[int, int, str]]:
     return matches
 
 
+def _detect_proper_noun_phrases(text: str) -> List[Tuple[int, int, str]]:
+    """
+    Heuristic proper-noun detector for STANDARD/BLACK:
+    flags 1-4 capitalized tokens when NOT at sentence start.
+    Includes hyphenated forms (e.g., Blue-Vein).
+    """
+    pattern = re.compile(
+        r'\b([A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?(?:\s+[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?){0,3})\b'
+    )
+    matches = []
+    for m in pattern.finditer(text):
+        phrase = m.group()
+        tokens = phrase.split()
+        if not tokens:
+            continue
+
+        # Skip sentence-initial phrases.
+        i = m.start() - 1
+        while i >= 0 and text[i].isspace():
+            i -= 1
+        if i < 0 or text[i] in ".!?\n\r":
+            continue
+
+        # Skip obvious generic phrases.
+        if all(t in COMMON_WORDS for t in tokens):
+            continue
+        if len(tokens) == 1 and "-" not in tokens[0]:
+            continue
+        if len(tokens) == 2 and tokens[0] in COMMON_WORDS:
+            continue
+
+        matches.append((m.start(), m.end(), phrase))
+    return matches
+
+
 # ---------------------------------------------------------------------------
 # MAIN ENTRY POINT
 # ---------------------------------------------------------------------------
@@ -449,6 +491,11 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
             print(f"[FALCON PASS B] Location detections: {loc_hits}")
         for start, end, matched in loc_hits:
             detections.append((start, end, matched, "LOCATION"))
+        proper_hits = _detect_proper_noun_phrases(text)
+        if debug:
+            print(f"[FALCON PASS B] Proper noun detections: {proper_hits}")
+        for start, end, matched in proper_hits:
+            detections.append((start, end, matched, "PROPER_NOUN"))
 
     # -----------------------------------------------------------------------
     # PASS C: Custom dictionary (all levels)
@@ -475,7 +522,7 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     # Priority: ORG > CUSTOM > LOCATION > PERSON (ORG suffix match is more
     # specific than heuristic PERSON, so it wins ties of equal length)
     # -----------------------------------------------------------------------
-    _CAT_PRIORITY = {"ORG": 0, "CUSTOM": 1, "LOCATION": 2, "PERSON": 3}
+    _CAT_PRIORITY = {"ORG": 0, "CUSTOM": 1, "ALNUM_TAG": 2, "LOCATION": 3, "PROPER_NOUN": 4, "PERSON": 5}
     detections.sort(key=lambda d: (-len(d[2]), _CAT_PRIORITY.get(d[3], 5), d[0]))
     used_ranges: List[Tuple[int, int]] = []
     filtered: List[Tuple[int, int, str, str]] = []
@@ -804,6 +851,28 @@ def _run_self_tests() -> bool:
             "Custom term 'Project Aurora' was redacted")
     _assert("TITAN" not in result.redacted_text,
             "Custom term 'TITAN' was redacted")
+
+    # ------------------------------------------------------------------
+    # TEST 11: Falcon acid test prompt coverage
+    # ------------------------------------------------------------------
+    print("\n--- Test 11: Acid Prompt Coverage ---")
+    text = (
+        "Contact Agent 4402 regarding the Blue-Vein shipment arriving at "
+        "Sector 7-G tomorrow at 0900. Email confirmation to h.vance@aetherflow.net."
+    )
+    result = falcon_preprocess(text, level="BLACK")
+    _assert(len(result.placeholder_map) >= 4,
+            f"Acid prompt: placeholder map has {len(result.placeholder_map)} entries (expected >= 4)")
+    _assert("ALNUM_TAG" in result.metadata['categories_found'],
+            "Acid prompt: ALNUM_TAG detected")
+    _assert("EMAIL" in result.metadata['categories_found'],
+            "Acid prompt: EMAIL detected")
+    _assert(
+        ("PROPER_NOUN" in result.metadata['categories_found'])
+        or ("LOCATION" in result.metadata['categories_found'])
+        or ("CUSTOM" in result.metadata['categories_found']),
+        "Acid prompt: proper noun/location/project detected"
+    )
 
     # ------------------------------------------------------------------
     # SUMMARY

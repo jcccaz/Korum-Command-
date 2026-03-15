@@ -1466,13 +1466,29 @@ def ask_council():
     falcon_level = data.get('falcon_level', 'STANDARD')
     falcon_custom_terms = data.get('falcon_custom_terms', [])
     falcon_meta = None
+    _falcon_placeholder_map = {}
+    _falcon_salt = None
+    _falcon_cache = None
 
     if use_falcon:
+        import hashlib
+        import time
         if falcon_level not in ('LIGHT', 'STANDARD', 'BLACK'):
             falcon_level = 'STANDARD'
         print(f"[FALCON] Preprocessing at level: {falcon_level} | Custom terms: {len(falcon_custom_terms)}")
-        falcon_result = falcon_preprocess(query, level=falcon_level, custom_terms=falcon_custom_terms or None)
-        query = falcon_result.redacted_text
+        _falcon_salt = hashlib.sha256(
+            f"ask_council:{time.time_ns()}:{getattr(current_user, 'id', 'anon')}".encode()
+        ).hexdigest()[:12]
+        _falcon_cache = {}
+        falcon_result = falcon_preprocess(
+            query,
+            level=falcon_level,
+            custom_terms=falcon_custom_terms or None,
+            salt=_falcon_salt,
+            placeholder_cache=_falcon_cache
+        )
+        blind_text = falcon_result.redacted_text
+        query = blind_text
         falcon_meta = falcon_result.metadata
         # SECURITY: placeholder_map stays in this scope only — never serialized
         _falcon_placeholder_map = falcon_result.placeholder_map
@@ -1529,6 +1545,42 @@ def ask_council():
 
         # Build previous_context from thread history (overrides frontend version)
         previous_context = _thread_build_previous_context(thread_id)
+        if use_falcon and previous_context and _falcon_salt and _falcon_cache is not None:
+            redacted_context = []
+            for entry in previous_context:
+                safe_entry = dict(entry) if isinstance(entry, dict) else {}
+                for field in ("query", "summary", "divergence_summary"):
+                    val = safe_entry.get(field)
+                    if isinstance(val, str) and val.strip():
+                        ctx_res = falcon_preprocess(
+                            val,
+                            level=falcon_level,
+                            custom_terms=falcon_custom_terms or None,
+                            salt=_falcon_salt,
+                            placeholder_cache=_falcon_cache
+                        )
+                        safe_entry[field] = ctx_res.redacted_text
+                        _falcon_placeholder_map.update(ctx_res.placeholder_map)
+                contested = safe_entry.get("contested_topics")
+                if isinstance(contested, list):
+                    redacted_topics = []
+                    for item in contested:
+                        if isinstance(item, str) and item.strip():
+                            topic_res = falcon_preprocess(
+                                item,
+                                level=falcon_level,
+                                custom_terms=falcon_custom_terms or None,
+                                salt=_falcon_salt,
+                                placeholder_cache=_falcon_cache
+                            )
+                            redacted_topics.append(topic_res.redacted_text)
+                            _falcon_placeholder_map.update(topic_res.placeholder_map)
+                        else:
+                            redacted_topics.append(item)
+                    safe_entry["contested_topics"] = redacted_topics
+                redacted_context.append(safe_entry)
+            previous_context = redacted_context
+
         if previous_context:
             print(f"⚡ V2 ENGINE ENGAGED [{workflow}] FOLLOW-UP MODE ({len(previous_context)} prior session(s))")
         else:
@@ -1625,6 +1677,24 @@ def ask_council():
 
         v2_response['thread_id'] = thread_id
 
+        # --- REHYDRATE V2 RESULTS SERVER-SIDE ---
+        if use_falcon and _falcon_placeholder_map:
+            for provider, res in v2_response.get('results', {}).items():
+                if isinstance(res, dict) and res.get('success') and res.get('response'):
+                    res['response'] = falcon_rehydrate(res['response'], _falcon_placeholder_map)
+
+            syn = v2_response.get('synthesis', {})
+            if isinstance(syn, dict) and isinstance(syn.get('meta'), dict):
+                if syn['meta'].get('summary'):
+                    syn['meta']['summary'] = falcon_rehydrate(syn['meta']['summary'], _falcon_placeholder_map)
+
+            divergence = v2_response.get('divergence', {})
+            if isinstance(divergence, dict) and divergence.get('divergence_summary'):
+                divergence['divergence_summary'] = falcon_rehydrate(
+                    divergence['divergence_summary'],
+                    _falcon_placeholder_map
+                )
+
         # Attach Falcon metadata to response (NEVER includes placeholder_map)
         if falcon_meta:
             v2_response['falcon'] = {
@@ -1635,7 +1705,6 @@ def ask_council():
                 "categories": falcon_meta['categories_found'],
                 "counts": falcon_meta['counts_by_category'],
                 "exposure_risk": falcon_meta['exposure_risk'],
-                "placeholder_map": _falcon_placeholder_map  # Returned for local client re-hydration
             }
 
         return jsonify(v2_response)
