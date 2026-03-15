@@ -2528,6 +2528,60 @@ body.activated .sphere-texture {
     margin-left: 4px;
 }
 
+/* Quick-Protect row inside Ghost Preview */
+.ghost-protect-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(255, 140, 50, 0.04);
+    border: 1px dashed rgba(255, 140, 50, 0.25);
+    border-radius: 8px;
+}
+
+.ghost-protect-input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    padding: 7px 12px;
+    color: #fff;
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.ghost-protect-input:focus {
+    border-color: rgba(255, 140, 50, 0.5);
+}
+
+.ghost-protect-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+    font-style: italic;
+}
+
+.ghost-protect-add {
+    background: rgba(255, 140, 50, 0.12);
+    border: 1px solid rgba(255, 140, 50, 0.35);
+    border-radius: 5px;
+    padding: 7px 16px;
+    color: #ff8c32;
+    font-family: var(--font-head);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.ghost-protect-add:hover {
+    background: rgba(255, 140, 50, 0.22);
+    border-color: #ff8c32;
+}
+
 .ghost-footer {
     display: flex;
     justify-content: flex-end;

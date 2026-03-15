@@ -196,7 +196,7 @@
                                 <div class="deck-role" id="roleLabel-mistral">ANALYST</div>
                             </div>
                             <!-- LOCAL (Oracle) -->
-                            <div class="deck-card local" data-provider="local" tabindex="0" role="button">
+                            <div class="deck-card local silenced" data-provider="local" tabindex="0" role="button">
                                 <button class="deck-x" data-provider="local" title="Disable">&times;</button>
                                 <div class="deck-avatar">LOCAL</div>
                                 <div class="deck-role" id="roleLabel-local">ORACLE</div>
@@ -581,6 +581,12 @@
                     <div class="ghost-redacted" id="ghostRedactedText"></div>
                 </div>
                 <div class="ghost-stats" id="ghostStats"></div>
+                <!-- QUICK PROTECT: add missed terms without leaving the modal -->
+                <div class="ghost-protect-row">
+                    <input type="text" id="ghostProtectInput" class="ghost-protect-input"
+                        placeholder="Spotted a leak? Type term to protect..." autocomplete="off">
+                    <button id="ghostProtectBtn" class="ghost-protect-add">+ PROTECT &amp; RESCAN</button>
+                </div>
             </div>
             <div class="ghost-footer">
                 <button class="ghost-action-btn dismiss" id="ghostDismissBtn">CLOSE</button>

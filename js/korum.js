@@ -3170,6 +3170,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (query) triggerCouncil(query);
     });
 
+    // Quick Protect: add term and rescan
+    const ghostProtectBtn = document.getElementById('ghostProtectBtn');
+    const ghostProtectInput = document.getElementById('ghostProtectInput');
+
+    function ghostProtectAndRescan() {
+        const term = ghostProtectInput?.value.trim();
+        if (!term) return;
+        // Add to global custom terms (same list the Falcon panel uses)
+        if (typeof addFalconTerm === 'function') {
+            addFalconTerm(term);
+        } else if (!window._falconCustomTerms.includes(term)) {
+            window._falconCustomTerms.push(term);
+        }
+        ghostProtectInput.value = '';
+        logTelemetry(`GHOST EYE: Protected "${term}" — rescanning...`, "warning");
+        // Re-run the preview with updated terms
+        window.ghostPreview();
+    }
+
+    ghostProtectBtn?.addEventListener('click', ghostProtectAndRescan);
+    ghostProtectInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); ghostProtectAndRescan(); }
+    });
+
     // Click overlay to close
     document.getElementById('ghostModal')?.addEventListener('click', (e) => {
         if (e.target.id === 'ghostModal') closeGhostModal();
