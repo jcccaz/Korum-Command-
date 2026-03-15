@@ -111,7 +111,7 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
 # Which levels include which regex patterns
 LEVEL_PATTERNS = {
     FalconLevel.LIGHT:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM"},
-    FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "PASSPORT", "STREET_ADDR"},
+    FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "PASSPORT", "STREET_ADDR", "DATE", "DATE_WRITTEN"},
     FalconLevel.BLACK:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "DATE", "DATE_WRITTEN", "STREET_ADDR", "HOSTNAME", "PASSPORT", "SWIFT"},
 }
 
@@ -691,9 +691,11 @@ def _run_self_tests() -> bool:
             "STANDARD redacts >= LIGHT")
     _assert(r_standard.metadata['total_redactions'] <= r_black.metadata['total_redactions'],
             "BLACK redacts >= STANDARD")
-    # BLACK should catch the date, LIGHT should not
+    # STANDARD and BLACK should catch the date, LIGHT should not
     _assert("DATE" not in r_light.metadata['counts_by_category'],
             "LIGHT does not redact dates")
+    _assert("DATE" in r_standard.metadata['counts_by_category'],
+            "STANDARD redacts dates")
     _assert("DATE" in r_black.metadata['counts_by_category'],
             "BLACK redacts dates")
 

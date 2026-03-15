@@ -1477,6 +1477,9 @@ def ask_council():
         # SECURITY: placeholder_map stays in this scope only — never serialized
         _falcon_placeholder_map = falcon_result.placeholder_map
         print(f"[FALCON] Redacted {falcon_meta['total_redactions']} entities across {len(falcon_meta['categories_found'])} categories")
+        print(f"[FALCON] REDACTED QUERY: {query[:500]}")
+        if falcon_meta.get('counts_by_category'):
+            print(f"[FALCON] CATEGORIES: {falcon_meta['counts_by_category']}")
         if falcon_meta['high_risk_items_count'] > 0:
             print(f"[FALCON] HIGH-RISK items removed: {falcon_meta['high_risk_items_count']}")
 
@@ -1970,6 +1973,9 @@ def reasoning_chain():
         falcon_meta = falcon_res.metadata
         _falcon_placeholder_map = falcon_res.placeholder_map
         print(f"🦅 FALCON [{falcon_level}]: {falcon_meta['total_redactions']} entities redacted, risk={falcon_meta['exposure_risk']}")
+        print(f"🦅 FALCON REDACTED QUERY: {query[:500]}")
+        if falcon_meta.get('counts_by_category'):
+            print(f"🦅 FALCON CATEGORIES: {falcon_meta['counts_by_category']}")
 
     # Log AFTER Falcon so raw PII never hits logs
     print(f"⚡ V2 REASONING CHAIN [{workflow}]")
