@@ -2304,27 +2304,35 @@ body.activated .sphere-texture {
 
 /* ── FALCON GHOST PREVIEW ──────────────────────────────────────────── */
 
-.ghost-preview-btn {
-    background: none;
+.ghost-eye-btn {
+    background: rgba(255, 140, 50, 0.06);
     border: 1px solid rgba(255, 140, 50, 0.3);
     border-radius: 6px;
-    color: rgba(255, 140, 50, 0.7);
+    color: rgba(255, 140, 50, 0.8);
     cursor: pointer;
-    padding: 6px;
-    transition: all 0.2s;
+    padding: 8px 14px;
+    margin-top: 8px;
+    width: 100%;
+    transition: all 0.25s;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
 }
 
-.ghost-preview-btn:hover {
-    background: rgba(255, 140, 50, 0.1);
+.ghost-eye-btn:hover {
+    background: rgba(255, 140, 50, 0.12);
     color: #ff8c32;
-    transform: scale(1.1);
-    box-shadow: 0 0 10px rgba(255, 140, 50, 0.2);
+    border-color: rgba(255, 140, 50, 0.5);
+    box-shadow: 0 0 12px rgba(255, 140, 50, 0.15);
 }
 
-.ghost-preview-btn.ghost-loading {
+.ghost-eye-btn.ghost-loading {
     animation: magicPulse 1.5s infinite;
     cursor: wait;
 }
