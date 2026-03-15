@@ -159,10 +159,14 @@ COMMON_WORDS: Set[str] = {
 # Matches 1-5 capitalized words followed by a corporate suffix.
 # Uses word-boundary anchoring and limits to capitalized tokens only.
 ORG_SUFFIXES = re.compile(
-    r'\b((?:[A-Z][A-Za-z&]+\s+){0,4}(?:Inc|Corp|Corporation|LLC|Ltd|Co|Company|Group|Foundation|'
+    r'\b((?:[A-Z][A-Za-z&\-]+\s+){0,4}(?:Inc|Corp|Corporation|LLC|Ltd|Co|Company|Group|Foundation|'
     r'Association|Partners|Holdings|Enterprises|Technologies|Solutions|Services|'
     r'International|Global|Systems|Consulting|Capital|Ventures|Labs|Networks|'
-    r'Communications|Telecom|Industries|Healthcare|Financial|Bank|Insurance)\.?)\b'
+    r'Communications|Telecom|Industries|Healthcare|Financial|Bank|Insurance|'
+    r'Biotech|Biotechnologies|Biosciences|Biotics|Biologics|Pharma|Pharmaceuticals|'
+    r'Therapeutics|Genomics|Diagnostics|Medical|Sciences|Research|Analytics|'
+    r'Dynamics|Aerospace|Defense|Defence|Security|Energy|Logistics|Media|'
+    r'Digital|Software|Studio|Studios|Agency|Institute|University|Trust|Fund)\.?)\b'
 )
 
 # US state abbreviations for location detection
@@ -189,6 +193,25 @@ COUNTRIES = {
     "Colombia", "Chile", "Indonesia", "Philippines", "Thailand", "Vietnam",
     "Pakistan", "Iran", "Iraq", "Ukraine", "Finland", "New Zealand", "Portugal",
     "Czech Republic", "Romania", "Hungary",
+    # Nordic & Baltic
+    "Iceland", "Greenland", "Estonia", "Latvia", "Lithuania",
+    # Europe
+    "Greece", "Croatia", "Serbia", "Bulgaria", "Slovakia", "Slovenia", "Luxembourg",
+    "Malta", "Cyprus", "Montenegro", "Albania", "Kosovo", "Moldova", "Belarus",
+    "Georgia", "Armenia", "Azerbaijan", "Macedonia", "Bosnia",
+    # Middle East & Central Asia
+    "Qatar", "Kuwait", "Bahrain", "Oman", "Jordan", "Lebanon", "Syria", "Yemen",
+    "Afghanistan", "Uzbekistan", "Kazakhstan", "Turkmenistan", "Tajikistan", "Kyrgyzstan",
+    # Africa
+    "Kenya", "Ghana", "Ethiopia", "Tanzania", "Uganda", "Morocco", "Tunisia",
+    "Algeria", "Libya", "Sudan", "Cameroon", "Senegal", "Rwanda", "Mozambique",
+    # Americas
+    "Peru", "Ecuador", "Venezuela", "Bolivia", "Paraguay", "Uruguay",
+    "Panama", "Costa Rica", "Guatemala", "Honduras", "El Salvador", "Nicaragua",
+    "Cuba", "Jamaica", "Haiti", "Dominican Republic", "Trinidad and Tobago",
+    # Asia-Pacific
+    "Malaysia", "Myanmar", "Cambodia", "Laos", "Bangladesh", "Sri Lanka", "Nepal",
+    "Mongolia", "North Korea", "Fiji", "Papua New Guinea", "Brunei",
 }
 
 
@@ -276,10 +299,20 @@ def _detect_org_names(text: str) -> List[Tuple[int, int, str]]:
 
 
 def _detect_locations(text: str) -> List[Tuple[int, int, str]]:
-    """Detect locations: 'City, ST' patterns and known country names."""
+    """Detect locations: 'City, ST' patterns, 'City, Country' patterns, and known country names."""
     matches = []
+    # US-style: "Seattle, WA"
     for m in LOCATION_PATTERN.finditer(text):
         matches.append((m.start(), m.end(), m.group()))
+    # International: "Reykjavik, Iceland" / "São Paulo, Brazil"
+    for country in COUNTRIES:
+        pattern = re.compile(
+            r'\b([A-Z][a-zA-Zà-öø-ÿÀ-ÖØ-Ý]+(?:\s[A-Z][a-zA-Zà-öø-ÿÀ-ÖØ-Ý]+)*),\s*'
+            + re.escape(country) + r'\b'
+        )
+        for m in pattern.finditer(text):
+            matches.append((m.start(), m.end(), m.group()))
+    # Standalone country names
     for country in COUNTRIES:
         for m in re.finditer(re.escape(country), text):
             matches.append((m.start(), m.end(), m.group()))
