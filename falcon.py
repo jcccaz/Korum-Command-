@@ -385,11 +385,17 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     # PASS B: Heuristic NER (STANDARD and BLACK only)
     # -----------------------------------------------------------------------
     if falcon_level in (FalconLevel.STANDARD, FalconLevel.BLACK):
-        for start, end, matched in _detect_person_names(text):
+        person_hits = _detect_person_names(text)
+        print(f"[FALCON PASS B] Person detections: {person_hits}")
+        for start, end, matched in person_hits:
             detections.append((start, end, matched, "PERSON"))
-        for start, end, matched in _detect_org_names(text):
+        org_hits = _detect_org_names(text)
+        print(f"[FALCON PASS B] Org detections: {org_hits}")
+        for start, end, matched in org_hits:
             detections.append((start, end, matched, "ORG"))
-        for start, end, matched in _detect_locations(text):
+        loc_hits = _detect_locations(text)
+        print(f"[FALCON PASS B] Location detections: {loc_hits}")
+        for start, end, matched in loc_hits:
             detections.append((start, end, matched, "LOCATION"))
 
     # -----------------------------------------------------------------------
@@ -399,7 +405,10 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     all_custom_terms = _get_org_custom_terms()
     if custom_terms:
         all_custom_terms.extend(custom_terms)
-        
+
+    print(f"[FALCON PASS C] custom_terms param: {custom_terms}")
+    print(f"[FALCON PASS C] all_custom_terms ({len(all_custom_terms)}): {all_custom_terms}")
+
     if all_custom_terms:
         # Use set to unique and sort by length descending to match longest first
         unique_terms = sorted(list(set(all_custom_terms)), key=len, reverse=True)
@@ -407,7 +416,10 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
             if len(term) < 2:
                 continue
             escaped = re.escape(term)
-            for m in re.finditer(escaped, text, re.IGNORECASE):
+            found = list(re.finditer(escaped, text, re.IGNORECASE))
+            if found:
+                print(f"[FALCON PASS C] MATCH '{term}': {len(found)} hits")
+            for m in found:
                 detections.append((m.start(), m.end(), m.group(), "CUSTOM"))
 
     # -----------------------------------------------------------------------
@@ -429,6 +441,8 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
 
     # Sort by position descending for safe in-place replacement
     filtered.sort(key=lambda d: d[0], reverse=True)
+    print(f"[FALCON] Pre-dedup detections: {len(detections)} | Post-dedup: {len(filtered)}")
+    print(f"[FALCON] Final detections: {[(orig, cat) for _, _, orig, cat in filtered]}")
 
     # -----------------------------------------------------------------------
     # REPLACEMENT
