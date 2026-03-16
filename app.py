@@ -2324,6 +2324,47 @@ def interrogate():
               user_email=current_user.email if hasattr(current_user, 'email') else None,
               details=f"attacker={attacker_role} | defender={defender_role} | attacker_model={attacker_result.get('model', 'unknown')} | defender_model={defender_result.get('model', 'unknown')} | falcon={falcon_level if use_falcon else 'OFF'} | query={original_query[:200]}")
 
+    # ── SERVER-SIDE VERDICT ANALYSIS ──────────────────────────────────────
+    # Analyze attacker + defender texts to produce a reliable score delta.
+    # This replaces brittle client-side keyword matching.
+    def _interrogation_verdict(atk_text: str, def_text: str):
+        atk = atk_text.lower()
+        defn = def_text.lower()
+        concession_signals = [
+            'concede', 'concession', 'acknowledged', 'valid point', 'correctly identifies',
+            'fair criticism', 'legitimate concern', 'understated', 'overlooked', 'gap in',
+            'you are correct', 'i was wrong', 'error in', 'failed to account', 'missed',
+            'incomplete', 'inaccurate', 'i acknowledge', 'the attacker is right',
+            'this criticism is valid', 'cannot dispute', 'stands corrected'
+        ]
+        defense_signals = [
+            'no evidence', 'unfounded', 'speculative', 'my analysis stands', 'maintains',
+            'logic maintained', 'evidence supports', 'rebuttal', 'refuted', 'incorrect assumption',
+            'the challenge is based on', 'the original assessment holds', 'i stand by',
+            'the criticism is flawed', 'my original position', 'remains valid', 'not a valid'
+        ]
+        concessions = sum(1 for w in concession_signals if w in defn)
+        holds = sum(1 for w in defense_signals if w in defn or w in atk)
+        # Attacker also signals defender weakness
+        atk_success = sum(1 for w in ['critical flaw', 'fatal error', 'clearly wrong',
+                                       'demonstrably false', 'significant error', 'major gap'] if w in atk)
+
+        total_concede = concessions + atk_success
+        if total_concede >= 3:
+            return -18, 'CRITICAL CONCESSION'
+        elif total_concede == 2:
+            return -12, 'CONCESSION x2'
+        elif total_concede == 1:
+            return -6, 'CONCESSION'
+        elif holds >= 2:
+            return 8, 'STRONG DEFENSE'
+        elif holds == 1:
+            return 4, 'DEFENSE HELD'
+        else:
+            return -2, 'CHALLENGED — INCONCLUSIVE'
+
+    interrogation_delta, interrogation_verdict = _interrogation_verdict(attacker_text, defender_text)
+
     response_data = {
         "success": True,
         "attacker": {
@@ -2339,6 +2380,8 @@ def interrogate():
             "model": defender_result.get('model', 'unknown'),
         },
         "original_query": original_query,
+        "score_delta": interrogation_delta,
+        "verdict": interrogation_verdict,
         "falcon": {
             "enabled": use_falcon,
             "level": falcon_level,
@@ -2425,10 +2468,27 @@ def verify_claim():
                       user_id=current_user.id if hasattr(current_user, 'id') else None,
                       user_email=current_user.email if hasattr(current_user, 'email') else None,
                       details=f"model={result.get('model', 'unknown')} | falcon={falcon_level if use_falcon else 'OFF'} | claim={claim[:200]}")
+            # Extract structured verdict from the LLM response text
+            vtext_upper = verification_text.upper()
+            if 'INACCURATE' in vtext_upper and 'PARTIALLY' not in vtext_upper:
+                verify_verdict = 'INACCURATE'
+                verify_score_delta = -12
+            elif 'PARTIALLY ACCURATE' in vtext_upper or 'PARTIALLY' in vtext_upper:
+                verify_verdict = 'PARTIALLY_ACCURATE'
+                verify_score_delta = -4
+            elif any(w in vtext_upper for w in ('ACCURATE', 'CONFIRMED', 'VERIFIED', 'CORRECT', 'SUPPORTED')):
+                verify_verdict = 'ACCURATE'
+                verify_score_delta = 6
+            else:
+                verify_verdict = 'UNRESOLVED'
+                verify_score_delta = 0
+
             verify_response = {
                 "success": True,
                 "claim": claim,
                 "verification": verification_text,
+                "verdict": verify_verdict,
+                "score_delta": verify_score_delta,
                 "model": result.get('model', 'unknown'),
                 "provider": "perplexity",
                 "falcon": {
