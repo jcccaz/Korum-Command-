@@ -924,8 +924,287 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         }
     }
 
+    # ── WAR_ROOM: Time-critical crisis response — every phase on a clock ──
+    WAR_ROOM_PHASE_DIRECTIVES = {
+        0: {
+            "title": "SITUATION REPORT — Ground Truth",
+            "instruction": (
+                "You are the SITUATION ANALYST. The clock is running. Your sole job is to establish ground truth in 60 seconds. "
+                "Output ONLY:\n"
+                "  • WHAT happened — the specific event, breach, failure, or threat (no speculation)\n"
+                "  • WHO is affected — systems, people, assets, or parties directly impacted right now\n"
+                "  • WHEN it started — exact or estimated time of onset\n"
+                "  • WHAT IS UNKNOWN — explicitly list what you do not yet know\n"
+                "Do NOT offer analysis, causes, or recommendations. Do NOT speculate. "
+                "If a fact is unconfirmed, mark it [UNCONFIRMED]. Ground truth only."
+            )
+        },
+        1: {
+            "title": "THREAT ASSESSMENT — Blast Radius",
+            "instruction": (
+                "You are the THREAT ANALYST. The situation report is above. Time window: next 72 hours. "
+                "Your job is to map what gets worse if nothing is done right now. Output ONLY:\n"
+                "  1) Immediate blast radius — what breaks, leaks, or escalates in the next 6 hours\n"
+                "  2) Cascade risks — second-order failures triggered by the primary event\n"
+                "  3) Worst-case scenario — the single most damaging outcome if this is mishandled\n"
+                "  4) Time pressure — what decisions become irreversible after a specific threshold\n"
+                "Do NOT repeat the situation report. Do NOT offer solutions yet — that is the next phase. "
+                "Your value is in scoping the damage envelope precisely."
+            )
+        },
+        2: {
+            "title": "IMMEDIATE ACTION — Stop the Bleeding",
+            "instruction": (
+                "You are the CRISIS OPERATOR. Situation and threat assessment are above. "
+                "Your job is containment — not resolution, not root cause, not strategy. Containment. Output:\n"
+                "  1) STOP actions — what to shut down, isolate, or freeze RIGHT NOW (next 0-2 hours)\n"
+                "  2) PROTECT actions — what to guard, back up, or move before it becomes collateral damage\n"
+                "  3) NOTIFY — who must be informed immediately and what they need to know\n"
+                "  4) DO NOT DO — specific actions that would make this worse right now\n"
+                "Be directive. Use imperative verbs. Name specific systems, people, or resources. "
+                "Do NOT hedge. Do NOT explain why — that comes later. Just tell the operator what to do."
+            )
+        },
+        3: {
+            "title": "RESOURCE ALLOCATION — Deploy What You Have",
+            "instruction": (
+                "You are the RESOURCE COMMANDER. All prior phases are above. "
+                "Your job is to assign real resources to the containment plan. Output:\n"
+                "  1) Who owns each containment action — specific role or team, not 'someone'\n"
+                "  2) What tools, access, or budget are needed immediately\n"
+                "  3) Mutual aid — who else should be pulled in and what they bring\n"
+                "  4) Trade-offs — what you are deprioritizing to free up capacity for this crisis\n"
+                "Do NOT invent resources. If a resource is unavailable, flag the gap explicitly. "
+                "Do NOT re-explain the crisis — everyone above has read it."
+            )
+        },
+        4: {
+            "title": "ESCALATION PATH — When to Call It",
+            "instruction": (
+                "You are the ESCALATION OFFICER. All prior phases are above. "
+                "Your job is to define the tripwires — the specific conditions that change the response level. Output:\n"
+                "  1) GREEN → YELLOW trigger — what signal means containment is failing\n"
+                "  2) YELLOW → RED trigger — what signal means this escalates to executive / public / regulatory level\n"
+                "  3) De-escalation criteria — what confirmed state means you can stand down\n"
+                "  4) Post-incident obligations — reporting windows, notifications, or documentation required by law or policy\n"
+                "Be specific about the observable signal, not a vague threshold. "
+                "Do NOT summarize the prior phases. State the tripwires and stop."
+            )
+        }
+    }
+
+    # ── LEGAL: Exposure reduction — every phase is a layer of protection ──
+    LEGAL_PHASE_DIRECTIVES = {
+        0: {
+            "title": "INTAKE — Exposure Mapping",
+            "instruction": (
+                "You are the LEGAL INTAKE analyst. Your job is to map every potential exposure in the material presented. "
+                "Output a structured inventory:\n"
+                "  • PARTIES — identify every legal entity, individual, and jurisdiction involved\n"
+                "  • INSTRUMENTS — contracts, statutes, regulations, or obligations referenced or implied\n"
+                "  • TRIGGER EVENTS — the specific acts, omissions, or conditions that could create liability\n"
+                "  • UNKNOWNS — what facts, documents, or disclosures are missing that materially affect the analysis\n"
+                "Do NOT offer opinions, risk ratings, or recommendations. Do NOT cite cases yet. "
+                "Your output is a clean legal inventory — nothing more."
+            )
+        },
+        1: {
+            "title": "RISK ANALYSIS — Clause-Level Exposure",
+            "instruction": (
+                "You are the LEGAL RISK ANALYST. The exposure inventory is above. "
+                "Your job is to rate each identified exposure. For every item in the inventory output:\n"
+                "  1) Applicable law or regulation — cite the exact statute, code section, or regulation number\n"
+                "  2) Jurisdiction — state which jurisdiction's law controls and why\n"
+                "  3) Likelihood — HIGH / MEDIUM / LOW with the specific factual basis for that rating\n"
+                "  4) Severity — what is the maximum legal consequence (damages, injunction, criminal, regulatory sanction)\n"
+                "Do NOT repeat the inventory. Do NOT give general legal commentary. "
+                "Every risk must have a statute number or case citation attached — no naked assertions."
+            )
+        },
+        2: {
+            "title": "ADVERSARIAL REVIEW — Attack the Position",
+            "instruction": (
+                "You are the OPPOSING COUNSEL. The risk analysis above reflects our client's position. "
+                "Your job is to attack it from the adverse party's perspective. Output:\n"
+                "  1) The strongest argument against our position — cite the specific statute, clause, or precedent\n"
+                "  2) What evidence the opposing party would seek in discovery\n"
+                "  3) Which assumptions in our analysis are legally unsupported\n"
+                "  4) Jurisdictional or procedural advantages the opposing party holds\n"
+                "Do NOT defend our position. Do NOT soften your findings. "
+                "If our analysis has a fatal flaw, name it explicitly. That is your job."
+            )
+        },
+        3: {
+            "title": "MITIGATION — Specific Protective Actions",
+            "instruction": (
+                "You are the LEGAL STRATEGIST. All prior analysis is above. "
+                "Your job is to reduce exposure. Output a mitigation plan:\n"
+                "  1) Clause modifications — specific contract language changes with the exact proposed text\n"
+                "  2) Structural changes — entity structure, jurisdiction selection, or transaction sequencing that reduces risk\n"
+                "  3) Disclosure actions — what must be disclosed, to whom, and by when to avoid liability\n"
+                "  4) Documentation requirements — what records to create or preserve immediately\n"
+                "Do NOT repeat risk analysis. Do NOT give general legal advice. "
+                "Every recommendation must map directly to a specific risk identified in prior phases."
+            )
+        },
+        4: {
+            "title": "RECOMMENDED POSTURE — Final Legal Position",
+            "instruction": (
+                "You are the GENERAL COUNSEL delivering a final opinion. All prior analysis is above. "
+                "Output a single, decisive legal position:\n"
+                "  1) GO / NO-GO / CONDITIONAL — state the overall posture with the specific condition that changes it\n"
+                "  2) Must-fix before proceeding — the non-negotiable legal prerequisites\n"
+                "  3) Acceptable residual risk — what exposure remains after mitigation and why it is tolerable\n"
+                "  4) Monitoring obligations — ongoing legal requirements post-execution\n"
+                "Do NOT hedge with 'it depends' without specifying exactly what it depends on. "
+                "This is the final opinion. Be decisive."
+            )
+        }
+    }
+
+    # ── MEDICAL: Evidence-graded clinical analysis — no claim without a grade ──
+    MEDICAL_PHASE_DIRECTIVES = {
+        0: {
+            "title": "INTAKE — Clinical Fact Extraction",
+            "instruction": (
+                "You are the CLINICAL INTAKE analyst. Your job is to extract the medically relevant facts. Output:\n"
+                "  • PATIENT PROFILE — demographics, relevant history, comorbidities (if provided)\n"
+                "  • PRESENTATION — symptoms, onset, duration, severity as stated\n"
+                "  • EXISTING DATA — labs, imaging, prior diagnoses, current medications\n"
+                "  • MISSING DATA — what clinical information is absent that would materially change the analysis\n"
+                "Do NOT diagnose, recommend, or interpret. Do NOT fill in missing data with assumptions. "
+                "If a data point is absent, mark it explicitly as NOT PROVIDED. Clinical facts only."
+            )
+        },
+        1: {
+            "title": "DIFFERENTIAL — Evidence-Graded Analysis",
+            "instruction": (
+                "You are the DIFFERENTIAL DIAGNOSIS analyst. The clinical intake is above. "
+                "Your job is to build a ranked differential. For each candidate diagnosis output:\n"
+                "  1) Diagnosis name (ICD-10 code if applicable)\n"
+                "  2) Supporting findings — which specific facts from intake support this diagnosis\n"
+                "  3) Contradicting findings — which facts argue against it\n"
+                "  4) Evidence base — cite the specific guideline, study, or consensus (e.g., AHA 2023, NEJM PMID)\n"
+                "  5) Probability rank — HIGH / MEDIUM / LOW with reasoning\n"
+                "Do NOT recommend treatment yet. Do NOT present diagnoses without evidence citations. "
+                "Grade every claim: RCT > meta-analysis > cohort > case series > expert opinion."
+            )
+        },
+        2: {
+            "title": "CHALLENGE — Diagnostic Blind Spots",
+            "instruction": (
+                "You are the CLINICAL CHALLENGER. The differential above represents the working hypothesis. "
+                "Your job is to find what has been missed or assumed. Output:\n"
+                "  1) Missed diagnoses — rare, atypical, or dangerous conditions not in the differential that fit the data\n"
+                "  2) Anchoring risks — where is the analysis over-confident given the available data?\n"
+                "  3) Red flags — findings that require urgent escalation regardless of the leading diagnosis\n"
+                "  4) Cognitive biases — availability bias, premature closure, or base rate neglect present in the analysis\n"
+                "Do NOT agree with the leading diagnosis. Do NOT validate the differential. "
+                "Your value is in finding the miss. If you find nothing to challenge, look harder."
+            )
+        },
+        3: {
+            "title": "TREATMENT PLAN — Evidence-Based Interventions",
+            "instruction": (
+                "You are the TREATMENT ANALYST. All prior clinical analysis is above. "
+                "Your job is to map evidence-based interventions to the leading diagnosis. Output:\n"
+                "  1) First-line treatment — name the specific intervention, dosage range (if drug), and evidence grade\n"
+                "  2) Second-line options — conditions under which first-line fails and what replaces it\n"
+                "  3) Contraindications — specific conditions in this patient profile that rule out options\n"
+                "  4) Monitoring requirements — which parameters to track, at what interval, and what triggers a change\n"
+                "Cite the specific guideline or RCT for every recommendation. "
+                "Do NOT recommend off-label without flagging it explicitly as off-label."
+            )
+        },
+        4: {
+            "title": "SAFETY & ETHICS — Patient Protection Layer",
+            "instruction": (
+                "You are the PATIENT SAFETY and ETHICS analyst. All prior analysis is above. "
+                "Your job is the final protection layer before any clinical decision. Output:\n"
+                "  1) Safety flags — drug interactions, allergy risks, or monitoring gaps in the proposed plan\n"
+                "  2) Informed consent requirements — what the patient must be told and what they must decide\n"
+                "  3) Ethical considerations — autonomy conflicts, resource allocation, or vulnerable population flags\n"
+                "  4) Escalation criteria — specific clinical deterioration signals that require immediate escalation or specialist referral\n"
+                "Do NOT repeat the treatment plan. Focus exclusively on what could go wrong and what protects the patient. "
+                "Every safety flag must reference the specific risk mechanism, not a general warning."
+            )
+        }
+    }
+
+    # ── QUANTUM_SECURITY: Zero-trust cryptographic hardening — map everything to a standard ──
+    QUANTUM_SECURITY_PHASE_DIRECTIVES = {
+        0: {
+            "title": "CRYPTOGRAPHIC INVENTORY — Asset & Algorithm Mapping",
+            "instruction": (
+                "You are the CRYPTOGRAPHIC INVENTORY analyst. Your job is to map every cryptographic asset in scope. Output:\n"
+                "  • ALGORITHMS IN USE — every cipher, hash, key exchange, and signature scheme (name, key length, mode)\n"
+                "  • KEY INFRASTRUCTURE — PKI structure, CA hierarchy, key storage (HSM / software / cloud)\n"
+                "  • DATA IN TRANSIT — protocols in use (TLS version, cipher suites, certificate chains)\n"
+                "  • DATA AT REST — encryption standards, key management, and access control mechanisms\n"
+                "  • QUANTUM EXPOSURE — which algorithms are broken by Shor's / Grover's and at what qubit threshold\n"
+                "Do NOT recommend replacements yet. Do NOT assess compliance. "
+                "Inventory first — every item must include the specific algorithm name and key length."
+            )
+        },
+        1: {
+            "title": "VULNERABILITY ASSESSMENT — Cryptographic Attack Surface",
+            "instruction": (
+                "You are the CRYPTOGRAPHIC VULNERABILITY analyst. The inventory is above. "
+                "Your job is to score every asset against known and emerging attack vectors. For each item:\n"
+                "  1) Classical vulnerabilities — known weaknesses (BEAST, POODLE, ROBOT, padding oracle, etc.)\n"
+                "  2) Quantum vulnerabilities — harvest-now-decrypt-later exposure window, Shor/Grover impact\n"
+                "  3) Implementation risks — side-channel exposure, key management weaknesses, RNG quality\n"
+                "  4) CVSS score or equivalent severity rating with justification\n"
+                "Cite specific CVEs, NIST advisories, or IETF RFCs for every finding. "
+                "Do NOT give vague warnings — name the specific attack, the specific algorithm, and the specific condition required to exploit it."
+            )
+        },
+        2: {
+            "title": "ZERO TRUST AUDIT — Identity and Access Control Gaps",
+            "instruction": (
+                "You are the ZERO TRUST AUDITOR. All prior analysis is above. "
+                "Your job is to audit the access control posture against NIST SP 800-207. Output:\n"
+                "  1) Identity verification gaps — where is implicit trust being granted without continuous verification?\n"
+                "  2) Micro-segmentation failures — network paths that bypass least-privilege enforcement\n"
+                "  3) Privileged access risks — service accounts, admin credentials, or API keys without MFA or rotation\n"
+                "  4) NIST 800-207 pillar gaps — map each gap to the specific pillar (Identity, Device, Network, Application, Data)\n"
+                "Do NOT repeat vulnerability findings. Focus exclusively on trust model failures. "
+                "Every gap must map to a specific NIST 800-207 section or DOD Zero Trust Reference Architecture component."
+            )
+        },
+        3: {
+            "title": "COMPLIANCE MAPPING — Framework Alignment",
+            "instruction": (
+                "You are the COMPLIANCE MAPPING analyst. All prior analysis is above. "
+                "Your job is to map the security posture to applicable frameworks. Output:\n"
+                "  1) NIST SP 800-207 — map each control gap to the specific control family\n"
+                "  2) FedRAMP / CMMC — identify which control baseline applies and which controls are failing\n"
+                "  3) NIST PQC migration — map current algorithms to NIST IR 8413 migration priority tiers\n"
+                "  4) Reporting obligations — what breaches, vulnerabilities, or gaps trigger mandatory reporting under FISMA, CMMC, or sector-specific rules\n"
+                "Do NOT repeat vulnerability or zero trust findings. Map them to the framework — cite the specific control ID."
+            )
+        },
+        4: {
+            "title": "MITIGATION ARCHITECTURE — PQC Transition Roadmap",
+            "instruction": (
+                "You are the SECURITY ARCHITECT delivering the hardening roadmap. All prior analysis is above. "
+                "Output a prioritized mitigation architecture:\n"
+                "  1) Immediate actions (0-30 days) — disable weak ciphers, enforce TLS 1.3, rotate exposed keys\n"
+                "  2) Short-term (30-180 days) — deploy FIPS 140-3 validated modules, implement MFA on all privileged access\n"
+                "  3) PQC migration path — which NIST-selected algorithms (ML-KEM, ML-DSA, SLH-DSA) replace which current algorithms, in which order\n"
+                "  4) Residual risk — what quantum exposure remains after migration and the estimated timeline to exploitation\n"
+                "Name the specific algorithm, standard version, and implementation library for every recommendation. "
+                "Do NOT give generic 'upgrade your crypto' guidance — every action must be specific and sequenced."
+            )
+        }
+    }
+
     WORKFLOW_PHASE_OVERRIDES = {
         "FINANCE": FINANCE_PHASE_DIRECTIVES,
+        "WAR_ROOM": WAR_ROOM_PHASE_DIRECTIVES,
+        "LEGAL": LEGAL_PHASE_DIRECTIVES,
+        "MEDICAL": MEDICAL_PHASE_DIRECTIVES,
+        "QUANTUM_SECURITY": QUANTUM_SECURITY_PHASE_DIRECTIVES,
     }
 
     # Select workflow-specific directives if available, else generic
