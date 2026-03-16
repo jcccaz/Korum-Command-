@@ -108,7 +108,7 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
         r'|Pl|Place|Pkwy|Parkway|Cir|Circle|Hwy|Highway|Ter|Terrace|Loop|Run|Path|Trail)\.?\b',
         re.IGNORECASE
     ),
-    "HOSTNAME": re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(?:internal|local|corp|intranet|lan|priv)\b', re.IGNORECASE),
+    "HOSTNAME": re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(?:internal|local|corp|intranet|lan|priv|private)(?:/[A-Za-z0-9_.~:/?#\[\]@!$&\'()*+,;=\-]+)?\b', re.IGNORECASE),
     "PASSPORT": re.compile(r'\b[A-Z]{1,2}\d{6,8}\b'),
     "SWIFT":    re.compile(r'\b[A-Z]{6}[A-Z2-9][A-NP-Z0-9](?:[A-Z0-9]{3})?\b'),
     "ALNUM_TAG": re.compile(
@@ -152,7 +152,8 @@ LEVEL_PATTERNS = {
                            "CURRENCY_AMOUNT", "IBAN", "TITLED_NAME", "INITIAL_NAME"},
     FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "SSN_PARTIAL", "IP_ADDR", "ACCT_NUM",
                            "CC_NUM", "PASSPORT", "STREET_ADDR", "DATE", "DATE_WRITTEN",
-                           "ALNUM_TAG", "CURRENCY_AMOUNT", "IBAN", "TITLED_NAME", "INITIAL_NAME"},
+                           "ALNUM_TAG", "CURRENCY_AMOUNT", "IBAN", "SWIFT", "HOSTNAME",
+                           "TITLED_NAME", "INITIAL_NAME"},
     FalconLevel.BLACK:    {"EMAIL", "PHONE", "SSN", "SSN_PARTIAL", "IP_ADDR", "ACCT_NUM",
                            "CC_NUM", "DATE", "DATE_WRITTEN", "STREET_ADDR", "HOSTNAME",
                            "PASSPORT", "SWIFT", "ALNUM_TAG", "CURRENCY_AMOUNT", "IBAN",
@@ -902,7 +903,7 @@ def detect_residual_pii(redacted_text: str,
             "raw_category": entry["raw_category"],
             "char_offset": entry["char_offset"],
             "confidence": (
-                "high"   if entry["entity_type"] in {"SSN", "CC_NUM", "IBAN", "EMAIL"} else
+                "high"   if entry["entity_type"] in {"SSN", "CC_NUM", "IBAN", "EMAIL", "SWIFT"} else
                 "medium" if entry["entity_type"] in {"PHONE", "ACCT_NUM", "CURRENCY_AMOUNT"} else
                 "low"
             ),
