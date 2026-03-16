@@ -2062,14 +2062,18 @@ def ask_council():
     # V1 LEGACY PARALLEL EXECUTION (The Core 4)
     print(f"Drafting Legacy V1 Response for: {query}")
     futures = {}
-    
+
     user_id = current_user.id if hasattr(current_user, 'id') else None
+    def _run_with_ctx(fn, *args, **kwargs):
+        with app.app_context():
+            return fn(*args, **kwargs)
+
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # Standard Dispatch - The Core 4 ALWAYS run true to form
-        futures['openai'] = executor.submit(call_openai_gpt4, query, roles.get('openai', 'strategist'), user_id=user_id)
-        futures['anthropic'] = executor.submit(call_anthropic_claude, query, roles.get('anthropic', 'architect'), user_id=user_id)
-        futures['google'] = executor.submit(call_google_gemini, query, roles.get('google', 'critic'), user_id=user_id)
-        futures['perplexity'] = executor.submit(call_perplexity, query, roles.get('perplexity', 'intel'), user_id=user_id)
+        futures['openai'] = executor.submit(_run_with_ctx, call_openai_gpt4, query, roles.get('openai', 'strategist'), user_id=user_id)
+        futures['anthropic'] = executor.submit(_run_with_ctx, call_anthropic_claude, query, roles.get('anthropic', 'architect'), user_id=user_id)
+        futures['google'] = executor.submit(_run_with_ctx, call_google_gemini, query, roles.get('google', 'critic'), user_id=user_id)
+        futures['perplexity'] = executor.submit(_run_with_ctx, call_perplexity, query, roles.get('perplexity', 'intel'), user_id=user_id)
 
     # Collect Core Results
     results = {key: future.result() for key, future in futures.items()}
