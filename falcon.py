@@ -166,10 +166,10 @@ LEVEL_PATTERNS = {
 
 # Common English words to EXCLUDE from person-name detection
 # ── SOURCE: Loaded dynamically at import time from:
-#    1. NLTK English stopwords corpus (auto-updated with pip)
+#    1. Hardcoded English stopwords (no external dependencies)
 #    2. falcon_dictionary.json "general" section (Korum-OS specific terms)
 #    3. Active workflow domain section (legal/medical/finance/defense/etc.)
-# ── Never hardcode words here — add to falcon_dictionary.json instead.
+# ── Add domain terms to falcon_dictionary.json, not here.
 
 _DICTIONARY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "falcon_dictionary.json")
 _LOADED_DICTIONARY: Dict[str, List[str]] = {}
@@ -191,26 +191,35 @@ def _load_dictionary() -> Dict[str, List[str]]:
     return _LOADED_DICTIONARY
 
 
+_ENGLISH_STOPWORDS = {
+    "The", "This", "That", "These", "Those", "What", "When", "Where", "Which",
+    "Who", "How", "And", "But", "For", "Not", "You", "All", "Can", "Had",
+    "Her", "Was", "One", "Our", "Out", "Are", "Has", "His", "Its", "May",
+    "New", "Now", "Old", "See", "Way", "Day", "Did", "Get", "Let", "Say",
+    "She", "Too", "Use", "Will", "With", "Just", "Also", "Each", "Even",
+    "From", "Good", "Have", "Here", "High", "Into", "Keep", "Last",
+    "Long", "Make", "Many", "Most", "Much", "Must", "Name", "Next", "Only",
+    "Over", "Such", "Take", "Than", "Them", "Then", "Very", "Well", "Back",
+    "Been", "Both", "Come", "Could", "Down", "First", "Great", "Some", "Still",
+    "Should", "Would", "After", "Again", "Being", "Below", "Between", "Every",
+    "Under", "While", "About", "Above", "Before", "During", "Never", "Other",
+    "Right", "Small", "Three", "Through", "Today", "Without", "According",
+    "However", "Important", "Because", "Different", "Another", "Following",
+    "Please", "Note", "Meeting", "Hello", "Dear", "Regards", "Contact",
+    "January", "February", "March", "April", "June", "July", "August",
+    "September", "October", "November", "December",
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+}
+
 def _build_common_words(workflow: Optional[str] = None) -> Set[str]:
     """
     Build the COMMON_WORDS exclusion set for a given workflow domain.
     Sources (merged):
-      1. NLTK English stopwords — title-cased so they match capitalized tokens
+      1. Hardcoded English stopwords (title-cased, no dependencies)
       2. falcon_dictionary.json "general" section — always included
       3. falcon_dictionary.json domain section — loaded based on workflow
-    Falls back to an empty set if NLTK is not available.
     """
-    words: Set[str] = set()
-
-    # Source 1: NLTK stopwords
-    try:
-        from nltk.corpus import stopwords as _sw
-        for w in _sw.words('english'):
-            words.add(w)
-            words.add(w.capitalize())
-            words.add(w.upper())
-    except Exception:
-        pass  # NLTK not available — continue with dictionary only
+    words: Set[str] = set(_ENGLISH_STOPWORDS)
 
     # Source 2+3: falcon_dictionary.json
     dictionary = _load_dictionary()
@@ -282,67 +291,80 @@ LOCATION_PATTERN = re.compile(
     r'\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*),\s*(' + '|'.join(US_STATES) + r')\b'
 )
 
-# Country names — loaded from pycountry (ISO 3166, 249 countries) at import time.
-# Falls back to a compact hardcoded set if pycountry is not installed.
-def _load_countries() -> Set[str]:
-    """Load all country names from pycountry. Includes common_name variants."""
-    try:
-        import pycountry as _pc
-        result: Set[str] = set()
-        for c in _pc.countries:
-            result.add(c.name)
-            if hasattr(c, 'common_name') and c.common_name:
-                result.add(c.common_name)
-            if hasattr(c, 'official_name') and c.official_name:
-                result.add(c.official_name)
-        print(f"[FALCON] Loaded {len(result)} countries from pycountry")
-        return result
-    except ImportError:
-        # Compact fallback — most common countries only
-        return {
-            "United States", "United Kingdom", "Canada", "Australia", "Germany",
-            "France", "Japan", "China", "India", "Brazil", "Mexico", "Russia",
-            "South Korea", "Italy", "Spain", "Netherlands", "Switzerland",
-            "Sweden", "Norway", "Denmark", "Israel", "Saudi Arabia", "Singapore",
-            "Taiwan", "Ireland", "Belgium", "Austria", "Poland", "Turkey",
-            "Egypt", "South Africa", "Nigeria", "Argentina", "Colombia",
-            "Indonesia", "Philippines", "Thailand", "Vietnam", "Pakistan",
-            "Iran", "Ukraine", "Finland", "New Zealand", "Portugal",
-        }
+# Country names — curated set covering all countries likely to appear in contracts.
+# No external dependencies. Add to this set as needed.
+COUNTRIES: Set[str] = {
+    # North America
+    "United States", "Canada", "Mexico",
+    # Europe
+    "United Kingdom", "Germany", "France", "Italy", "Spain", "Netherlands",
+    "Switzerland", "Sweden", "Norway", "Denmark", "Finland", "Ireland",
+    "Belgium", "Austria", "Poland", "Portugal", "Greece", "Czech Republic",
+    "Romania", "Hungary", "Croatia", "Slovakia", "Slovenia", "Bulgaria",
+    "Lithuania", "Latvia", "Estonia", "Luxembourg", "Malta", "Cyprus",
+    "Iceland", "Serbia", "Bosnia", "Montenegro", "Albania", "Moldova",
+    "North Macedonia", "Ukraine", "Belarus",
+    # Asia & Pacific
+    "Japan", "China", "India", "South Korea", "Taiwan", "Singapore",
+    "Hong Kong", "Thailand", "Vietnam", "Indonesia", "Philippines",
+    "Malaysia", "Pakistan", "Bangladesh", "Sri Lanka", "Myanmar",
+    "Cambodia", "Laos", "Mongolia", "Nepal", "Australia", "New Zealand",
+    # Middle East & Africa
+    "Israel", "Saudi Arabia", "United Arab Emirates", "Qatar", "Kuwait",
+    "Bahrain", "Oman", "Jordan", "Lebanon", "Iraq", "Iran", "Turkey",
+    "Egypt", "South Africa", "Nigeria", "Kenya", "Ethiopia", "Ghana",
+    "Tanzania", "Morocco", "Tunisia", "Algeria", "Libya",
+    # Americas
+    "Brazil", "Argentina", "Colombia", "Chile", "Peru", "Venezuela",
+    "Ecuador", "Bolivia", "Paraguay", "Uruguay", "Costa Rica", "Panama",
+    "Guatemala", "Honduras", "El Salvador", "Nicaragua", "Cuba",
+    "Dominican Republic", "Puerto Rico", "Jamaica", "Trinidad",
+    # Russia & Central Asia
+    "Russia", "Kazakhstan", "Uzbekistan", "Georgia", "Armenia", "Azerbaijan",
+}
 
-COUNTRIES: Set[str] = _load_countries()
-
-
-# Major world cities — loaded from geonamescache at import time.
-# Includes all cities with population > 100,000 (5,600+ cities globally).
-# Falls back to a compact hardcoded set if geonamescache is not installed.
-def _load_major_cities(min_population: int = 100_000) -> Set[str]:
-    """Load city names from geonamescache filtered by minimum population."""
-    try:
-        import geonamescache as _gnc
-        gc = _gnc.GeonamesCache()
-        result = {
-            v['name']
-            for v in gc.get_cities().values()
-            if v.get('population', 0) >= min_population
-        }
-        print(f"[FALCON] Loaded {len(result)} cities from geonamescache (pop >= {min_population:,})")
-        return result
-    except ImportError:
-        # Compact fallback — major global cities only
-        return {
-            "New York", "Los Angeles", "Chicago", "Houston", "Phoenix",
-            "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose",
-            "San Francisco", "Seattle", "Denver", "Boston", "Atlanta", "Miami",
-            "Toronto", "Montreal", "Vancouver", "London", "Paris", "Berlin",
-            "Madrid", "Rome", "Amsterdam", "Brussels", "Vienna", "Zurich",
-            "Stockholm", "Oslo", "Copenhagen", "Dublin", "Tokyo", "Beijing",
-            "Shanghai", "Hong Kong", "Seoul", "Singapore", "Bangkok", "Jakarta",
-            "Mumbai", "Delhi", "Sydney", "Melbourne", "Dubai", "Moscow",
-            "Istanbul", "Cairo", "Lagos", "Nairobi", "Johannesburg",
-        }
-
-MAJOR_CITIES: Set[str] = _load_major_cities()
+# Major world cities — curated set of ~200 cities commonly found in contracts,
+# legal docs, and business correspondence. No external dependencies.
+MAJOR_CITIES: Set[str] = {
+    # US major cities
+    "New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia",
+    "San Antonio", "San Diego", "Dallas", "San Jose", "Austin", "Jacksonville",
+    "San Francisco", "Seattle", "Denver", "Boston", "Atlanta", "Miami",
+    "Minneapolis", "Tampa", "Orlando", "St. Louis", "Pittsburgh", "Cincinnati",
+    "Cleveland", "Nashville", "Charlotte", "Indianapolis", "Columbus",
+    "Milwaukee", "Kansas City", "Las Vegas", "Portland", "Sacramento",
+    "Salt Lake City", "Raleigh", "Richmond", "Hartford", "Buffalo",
+    "Honolulu", "Anchorage", "Detroit", "Baltimore", "Washington",
+    # Canada
+    "Toronto", "Montreal", "Vancouver", "Ottawa", "Calgary", "Edmonton",
+    # Europe
+    "London", "Paris", "Berlin", "Munich", "Frankfurt", "Hamburg",
+    "Madrid", "Barcelona", "Rome", "Milan", "Amsterdam", "Rotterdam",
+    "Brussels", "Vienna", "Zurich", "Geneva", "Basel", "Bern",
+    "Stockholm", "Oslo", "Copenhagen", "Helsinki", "Dublin", "Edinburgh",
+    "Lisbon", "Prague", "Warsaw", "Budapest", "Bucharest", "Athens",
+    "Belgrade", "Zagreb", "Bratislava", "Ljubljana", "Tallinn", "Riga",
+    "Vilnius", "Luxembourg", "Monaco", "Reykjavik", "Kyiv",
+    # Asia & Pacific
+    "Tokyo", "Osaka", "Beijing", "Shanghai", "Shenzhen", "Guangzhou",
+    "Hong Kong", "Seoul", "Busan", "Taipei", "Singapore", "Bangkok",
+    "Jakarta", "Kuala Lumpur", "Manila", "Hanoi", "Ho Chi Minh City",
+    "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata",
+    "Sydney", "Melbourne", "Brisbane", "Perth", "Auckland", "Wellington",
+    # Middle East & Africa
+    "Dubai", "Abu Dhabi", "Doha", "Riyadh", "Jeddah", "Kuwait City",
+    "Tel Aviv", "Jerusalem", "Amman", "Beirut", "Istanbul", "Ankara",
+    "Cairo", "Casablanca", "Lagos", "Nairobi", "Johannesburg", "Cape Town",
+    "Addis Ababa", "Accra", "Dar es Salaam",
+    # Americas
+    "Mexico City", "Guadalajara", "Monterrey", "Bogota", "Medellin",
+    "Lima", "Santiago", "Buenos Aires", "Sao Paulo", "Rio de Janeiro",
+    "Brasilia", "Panama City", "San Juan", "Havana", "Kingston",
+    # Russia & Central Asia
+    "Moscow", "St. Petersburg", "Almaty", "Tbilisi", "Baku", "Yerevan",
+    # Contract-specific locations
+    "Reston", "Arlington", "McLean", "Tysons", "Bethesda", "Langley",
+}
 
 
 # ---------------------------------------------------------------------------
