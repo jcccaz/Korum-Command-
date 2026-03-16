@@ -60,7 +60,7 @@ WORKFLOW_DNA = {
 }
 
 class CouncilContext:
-    def __init__(self, query, classification, workflow="RESEARCH", session_id=None, run_id=None, previous_context=None, user_id=None):
+    def __init__(self, query, classification, workflow="RESEARCH", session_id=None, run_id=None, previous_context=None, user_id=None, ghost_map=None, residual_report=None):
         self.query = query
         self.classification = classification
         self.workflow = workflow.upper() if workflow else "RESEARCH"
@@ -69,6 +69,9 @@ class CouncilContext:
         self.user_id = user_id
         self.history = []
         self.previous_context = previous_context or []
+        # Falcon Ghost Map + PII Diff — injected when analyzing redacted documents
+        self.ghost_map: dict = ghost_map or {}       # from build_ghost_map_summary()
+        self.residual_report: dict = residual_report or {}  # from detect_residual_pii()
 
     def add_entry(self, ai_name, persona, response, usage=None):
         self.history.append({
@@ -272,7 +275,7 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
-def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None, ledger_mission_id=None):
+def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None, ledger_mission_id=None, ghost_map=None, residual_report=None):
     # 1. Setup IDs
     import uuid
     import hashlib as _hl
@@ -296,7 +299,7 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
 
     # 2. Plan
     classification = classify_query_v2(query, active_personas, active_models=active_models, previous_context=previous_context, user_id=user_id)
-    context = CouncilContext(query, classification, workflow=workflow, session_id=session_id, run_id=run_id, previous_context=previous_context, user_id=user_id)
+    context = CouncilContext(query, classification, workflow=workflow, session_id=session_id, run_id=run_id, previous_context=previous_context, user_id=user_id, ghost_map=ghost_map, residual_report=residual_report)
 
     # --- LEDGER: mission_created (context established for council execution) ---
     _ledger_write("mission_created", {
@@ -620,6 +623,134 @@ def _empty_divergence(reason=""):
     }
 
 
+
+
+# ---------------------------------------------------------------------------
+# MIMIR STRUCTURED AUDIT PROMPT
+# ---------------------------------------------------------------------------
+# Injected into the council prompt when a Ghost Map + residual report is
+# present. Forces models to operate as forensic auditors instead of
+# generic commentators — they MUST report from the token inventory,
+# not hallucinate about a document they "don't have access to."
+# ---------------------------------------------------------------------------
+
+def _build_mimir_block(ghost_map: dict, residual_report: dict) -> str:
+    """
+    Build the MIMIR structured audit block to prepend to council prompts
+    when analyzing a Falcon-redacted document.
+
+    Args:
+        ghost_map: output of build_ghost_map_summary() — safe token inventory
+        residual_report: output of detect_residual_pii() — what Falcon missed
+
+    Returns:
+        A formatted string block for injection into the council prompt.
+    """
+    if not ghost_map:
+        return ""
+
+    token_inventory = ghost_map.get("token_inventory", [])
+    by_type = ghost_map.get("by_type", {})
+    total = ghost_map.get("total_redacted", 0)
+    high_risk = ghost_map.get("high_risk_types", [])
+    falcon_level = ghost_map.get("falcon_level", "STANDARD")
+
+    residual_count = residual_report.get("residual_count", 0)
+    residuals = residual_report.get("residuals", [])
+    audit_note = residual_report.get("audit_note", "")
+
+    # Build token inventory table (capped at 40 entries to stay within context)
+    inv_lines = []
+    for i, entry in enumerate(token_inventory[:40]):
+        inv_lines.append(
+            f"  {entry['token']:<20} | {entry['entity_type']:<14} | "
+            f"{entry.get('raw_category', entry['entity_type']):<16} | "
+            f"pass={entry.get('source_pass','?')}"
+        )
+    if len(token_inventory) > 40:
+        inv_lines.append(f"  ... and {len(token_inventory) - 40} more tokens (truncated for context)")
+
+    # Build type summary
+    type_lines = []
+    for etype, tokens in sorted(by_type.items()):
+        type_lines.append(f"  {etype:<16}: {len(tokens):>3} token(s) — {', '.join(tokens[:6])}{'...' if len(tokens) > 6 else ''}")
+
+    # Build residual section
+    if residual_count == 0:
+        residual_block = "  PII_DIFF_CLEAN: No residual PII detected after primary Falcon pass."
+    else:
+        res_lines = []
+        for r in residuals[:10]:
+            _conf = r["confidence"].upper()
+            _cat = r["category"]
+            _frag = r["text_fragment"][:60]
+            _off = r["char_offset"]
+            res_lines.append(f'  [{_conf}] {_cat}: "{_frag}" @ offset {_off}')
+        if len(residuals) > 10:
+            res_lines.append(f"  ... and {len(residuals) - 10} more residuals")
+        residual_block = "\n".join(res_lines)
+
+    block = f"""
+================================================================================
+MIMIR PROTOCOL — FALCON AUDIT CONTEXT
+You are operating as a FORENSIC PII AUDITOR, not a general commentator.
+The document you are analyzing has been pre-processed by the Falcon redaction
+engine at level: {falcon_level}.
+
+You MUST ground ALL of your analysis in the Ghost Map and PII Diff data below.
+DO NOT say "I would need access to the document" — the token inventory IS the
+document structure. Reason from what is here.
+
+── GHOST MAP: TOKEN INVENTORY ({total} entities redacted) ─────────────────────
+  TOKEN                | ENTITY_TYPE    | RAW_CATEGORY     | SOURCE_PASS
+  ─────────────────────┼────────────────┼──────────────────┼─────────────────
+{chr(10).join(inv_lines)}
+
+── ENTITY TYPE SUMMARY ────────────────────────────────────────────────────────
+{chr(10).join(type_lines) if type_lines else "  No entities detected."}
+
+── HIGH-RISK CATEGORIES ────────────────────────────────────────────────────────
+  {', '.join(high_risk) if high_risk else 'None identified.'}
+
+── PII DIFF — RESIDUAL DETECTION ({residual_count} items missed) ───────────────
+{residual_block}
+
+── AUDIT NOTE ──────────────────────────────────────────────────────────────────
+  {audit_note}
+
+── YOUR MANDATORY OUTPUT FORMAT ────────────────────────────────────────────────
+You MUST structure your response to include ALL of the following sections:
+
+1. GHOST MAP REPORT
+   List every token from the inventory above. For each, state:
+   - Token ID (e.g. [PERSON_01])
+   - Entity type and inferred role in the document (e.g. "natural_person_name, General Counsel")
+   - Clause or section where it appears (if inferrable from context)
+
+2. CLAUSE-BY-CLAUSE PII AUDIT
+   For each major document section visible in the redacted text:
+   - State whether residual (missed) PII is present: YES / NO
+   - If YES: cite the specific residual item and its category
+
+3. RE-IDENTIFICATION FEASIBILITY OPINION
+   Rate: LOW / MEDIUM / HIGH
+   Provide specific reasoning, e.g.:
+   "HIGH — attacker can link [ORG_01] + Project Sponsor role to identify [PERSON_01]
+   via public SEC filings. [PERSON_02] phone number fragment (SSN_PARTIAL) narrows
+   identity to 3 individuals matching other document context."
+
+4. RECOMMENDED REMEDIATION
+   Specific Falcon configuration changes or additional redaction passes needed.
+   Reference actual token IDs and categories from the Ghost Map.
+
+If the ghost map is empty or the document has no redactions, state:
+"GHOST MAP EMPTY — document may contain no PII, or Falcon was not applied.
+Recommend re-running at STANDARD level before council analysis."
+================================================================================
+"""
+    return block
+
+
 def build_council_prompt(context, ai_name, persona, position, total_steps):
     # Determine the task objective
     core_objective = context.query
@@ -720,6 +851,8 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         # Give Perplexity the phase-specific focus even in research mode
         phase = PHASE_DIRECTIVES.get(position, PHASE_DIRECTIVES.get(min(position, 4)))
         prompt += f"\nYOUR SPECIFIC FOCUS: {phase['title']}\n{phase['instruction']}"
+        if context.ghost_map or context.residual_report:
+            prompt += "\n" + _build_mimir_block(context.ghost_map, context.residual_report)
         prompt += "\nProvide comprehensive, well-sourced research and data. Focus on facts, metrics, and technical details."
         return prompt
 
@@ -734,6 +867,11 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         # Scale phases across available steps
         phase_index = int(position / total_steps * 5)
         phase = PHASE_DIRECTIVES.get(min(phase_index, 4))
+
+    # Inject MIMIR block if Falcon ghost map is present
+    mimir_block = ""
+    if context.ghost_map or context.residual_report:
+        mimir_block = _build_mimir_block(context.ghost_map, context.residual_report)
 
     # Standard Professional Template with DNA Overlay
     prompt = f"""
@@ -760,6 +898,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     Your ONLY job is to add what is MISSING — the unique contribution defined by your phase mission above.
     If your output overlaps with prior phases, you have FAILED your mission.
 
+    {mimir_block}
     ## INTERNAL STRUCTURING (FOR SYSTEM PARSING)
     You MUST use the following tags to mark high-value intelligence:
     - [DECISION_CANDIDATE] ...recommendation text... [/DECISION_CANDIDATE]
@@ -918,11 +1057,30 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
                 phase_title = PHASE_TITLES.get(idx, f"Phase {idx + 1}")
             else:
                 phase_title = PHASE_TITLES.get(min(int(idx / total_phases * 5), 4), f"Phase {idx + 1}")
+
+            # Extract a real contribution summary from the response text.
+            # Strip tags, markdown, and leading/trailing whitespace.
+            # Use the LLM's own first substantive sentence as the summary.
+            raw_resp = entry.get("response", "")
+            import re as _re
+            _clean = _re.sub(r'\[/?[A-Z_]+\]', '', raw_resp)          # strip [TAGS]
+            _clean = _re.sub(r'\*{1,2}([^*]+)\*{1,2}', r'\1', _clean) # strip **bold**
+            _clean = _re.sub(r'^#+\s+', '', _clean, flags=_re.MULTILINE) # strip ## headers
+            _clean = _clean.strip()
+            # Find first sentence that is meaningful (>40 chars)
+            _sentences = [s.strip() for s in _re.split(r'(?<=[.!?])\s+', _clean) if len(s.strip()) > 40]
+            if _sentences:
+                _summary = _sentences[0][:220]
+                if len(_sentences[0]) > 220:
+                    _summary += "..."
+            else:
+                _summary = _clean[:220].strip() or f"{phase_title} analysis completed."
+
             contributors.append({
                 "phase": phase_title,
                 "provider": entry["ai"],
                 "role": entry.get("persona", ""),
-                "contribution_summary": f"Phase {idx + 1} of {total_phases}",
+                "contribution_summary": _summary,
             })
         data["council_contributors"] = contributors
         print(f"[SYNTHESIS] Injected {len(contributors)} council_contributors: {[c['phase'] for c in contributors]}")
@@ -1125,4 +1283,5 @@ def generate_pptx_file(preview_data):
     prs.save(filepath)
 
     return filename # Return relative name for download
+
 
