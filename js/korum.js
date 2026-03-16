@@ -362,21 +362,223 @@ function removeFile(index) {
     renderFilePreview();
 }
 
-function addFiles(fileList) {
+async function addFiles(fileList) {
+    const VAULT_MAX_SIZE = 50 * 1024 * 1024; // 50MB for vault, 10MB for multipart
+
     for (const file of fileList) {
         const ext = '.' + file.name.split('.').pop().toLowerCase();
         if (!ALLOWED_EXTENSIONS.includes(ext)) {
             logTelemetry(`Unsupported file type: ${ext}`, "error");
             continue;
         }
-        if (file.size > MAX_FILE_SIZE) {
-            logTelemetry(`File too large: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB limit: 10MB)`, "error");
-            continue;
+
+        // Try vault path first (supports larger files)
+        let useVault = false;
+        try {
+            useVault = await VaultUploader.isAvailable();
+        } catch { /* fall back to multipart */ }
+
+        if (useVault) {
+            if (file.size > VAULT_MAX_SIZE) {
+                logTelemetry(`File too large: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB limit: 50MB)`, "error");
+                continue;
+            }
+            // Upload via vault — async, polls for completion
+            logTelemetry(`VAULT: Uploading ${file.name} directly to S3...`, "process");
+            VaultUploader.uploadFile(file, sessionState.activeThreadId).catch(err => {
+                logTelemetry(`VAULT: Upload failed for ${file.name}: ${err.message}`, "error");
+            });
+        } else {
+            // Fallback: multipart upload (legacy)
+            if (file.size > MAX_FILE_SIZE) {
+                logTelemetry(`File too large: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB limit: 10MB)`, "error");
+                continue;
+            }
+            pendingFiles.push(file);
         }
-        pendingFiles.push(file);
     }
     renderFilePreview();
 }
+
+// === S3 VAULT UPLOADER — "Authorization, Not Carriage" ===
+const VaultUploader = {
+    // Pending vault documents that have completed the pipeline
+    pendingVaultDocs: [],
+    // Documents currently being processed (uploading or in pipeline)
+    processingDocs: [],
+
+    /**
+     * Check if vault (S3 direct upload) is available.
+     * Falls back to multipart if not configured.
+     */
+    async isAvailable() {
+        try {
+            // Quick check — if authorize endpoint returns 503, vault isn't configured
+            const resp = await authFetch('/api/vault/authorize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: '_probe', content_type: 'text/plain' }),
+            });
+            // 503 = not configured, 400 = configured but bad input (expected)
+            return resp.status !== 503;
+        } catch {
+            return false;
+        }
+    },
+
+    /**
+     * Upload a file directly to S3 via presigned POST.
+     * Returns vault_doc_id on success.
+     */
+    async uploadFile(file, missionId) {
+        const docState = {
+            file: file,
+            status: 'authorizing',
+            vaultDocId: null,
+            error: null,
+        };
+        this.processingDocs.push(docState);
+        this._updateBadge();
+
+        try {
+            // Step 1: Get presigned POST authorization
+            const authResp = await authFetch('/api/vault/authorize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: file.name,
+                    content_type: file.type,
+                    size_bytes: file.size,
+                    mission_id: missionId || null,
+                }),
+            });
+
+            if (!authResp.ok) {
+                const err = await authResp.json();
+                throw new Error(err.error || 'Authorization failed');
+            }
+
+            const authData = await authResp.json();
+            docState.vaultDocId = authData.vault_doc_id;
+            docState.status = 'uploading';
+            this._updateBadge();
+            logTelemetry(`VAULT: Authorized upload ${file.name} → ${authData.vault_doc_id.substring(0, 8)}`, "process");
+
+            // Step 2: Upload directly to S3
+            const s3Form = new FormData();
+            for (const [key, val] of Object.entries(authData.presigned_fields)) {
+                s3Form.append(key, val);
+            }
+            s3Form.append('file', file);  // Must be last field
+
+            const s3Resp = await fetch(authData.presigned_url, {
+                method: 'POST',
+                body: s3Form,
+            });
+
+            if (!s3Resp.ok && s3Resp.status !== 204) {
+                throw new Error(`S3 upload failed: ${s3Resp.status}`);
+            }
+
+            logTelemetry(`VAULT: File uploaded to S3 — ${file.name}`, "success");
+
+            // Step 3: Confirm upload and trigger pipeline
+            docState.status = 'processing';
+            this._updateBadge();
+
+            const completeResp = await authFetch('/api/vault/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ vault_doc_id: authData.vault_doc_id }),
+            });
+
+            if (!completeResp.ok) {
+                throw new Error('Pipeline dispatch failed');
+            }
+
+            // Step 4: Poll for pipeline completion
+            await this._pollStatus(docState);
+
+            return docState.vaultDocId;
+
+        } catch (err) {
+            docState.status = 'failed';
+            docState.error = err.message;
+            logTelemetry(`VAULT ERROR: ${file.name} — ${err.message}`, "error");
+            this._updateBadge();
+            throw err;
+        }
+    },
+
+    /**
+     * Poll vault status until pipeline completes or fails.
+     */
+    async _pollStatus(docState) {
+        const maxPolls = 60;  // 2 minutes at 2s intervals
+        for (let i = 0; i < maxPolls; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+
+            const resp = await authFetch(`/api/vault/status/${docState.vaultDocId}`);
+            if (!resp.ok) continue;
+
+            const data = await resp.json();
+            docState.status = data.status;
+            this._updateBadge();
+
+            if (data.status === 'ready' || data.status === 'falcon_processed') {
+                // Move from processing to pending
+                this.processingDocs = this.processingDocs.filter(d => d !== docState);
+                this.pendingVaultDocs.push(docState);
+                logTelemetry(`VAULT: ${docState.file.name} ready for council`, "success");
+                return;
+            }
+
+            if (data.status === 'failed') {
+                throw new Error(data.error_detail || 'Pipeline processing failed');
+            }
+        }
+        throw new Error('Pipeline timeout — document processing took too long');
+    },
+
+    /**
+     * Get vault_document_ids for council submission.
+     */
+    getReadyDocIds() {
+        return this.pendingVaultDocs
+            .filter(d => d.status === 'ready' || d.status === 'falcon_processed')
+            .map(d => d.vaultDocId);
+    },
+
+    /**
+     * Clear all pending vault docs after council submission.
+     */
+    clear() {
+        this.pendingVaultDocs = [];
+        this.processingDocs = [];
+        this._updateBadge();
+    },
+
+    /**
+     * Update the ghost-stat-docs badge to show vault processing state.
+     */
+    _updateBadge() {
+        const badge = document.querySelector('.ghost-stat-docs');
+        if (!badge) return;
+
+        const processing = this.processingDocs.length;
+        const ready = this.pendingVaultDocs.length;
+
+        if (processing > 0) {
+            badge.classList.add('scanning');
+            badge.title = `Processing ${processing} document(s)...`;
+        } else if (ready > 0) {
+            badge.classList.remove('scanning');
+            badge.title = `${ready} document(s) ready`;
+        } else {
+            badge.classList.remove('scanning');
+        }
+    },
+};
 
 // === REPORT LIBRARY ===
 async function saveReport() {
@@ -3622,20 +3824,32 @@ async function executeCouncil(query, roleName) {
         logTelemetry(`THREAD MODE: Continuing thread ${sessionState.activeThreadId.substring(0, 8)}`, "process");
     }
 
-    // Use FormData when files are attached, JSON otherwise
+    // Attach vault document IDs if any are ready
+    const vaultDocIds = VaultUploader.getReadyDocIds();
+    if (vaultDocIds.length > 0) {
+        payload.vault_document_ids = vaultDocIds;
+        logTelemetry(`${vaultDocIds.length} vault document(s) attached`, "process");
+    }
+
+    // Use FormData when files are attached (legacy multipart), JSON otherwise
     let response;
-    if (pendingFiles.length > 0) {
+    if (pendingFiles.length > 0 && vaultDocIds.length === 0) {
         const formData = new FormData();
         formData.append('payload', JSON.stringify(payload));
         for (const file of pendingFiles) {
             formData.append('files', file);
         }
-        logTelemetry(`${pendingFiles.length} file(s) attached to query`, "process");
+        logTelemetry(`${pendingFiles.length} file(s) attached to query (multipart)`, "process");
         response = await authFetch('/api/ask', { method: 'POST', body: formData });
         pendingFiles = [];
         renderFilePreview();
     } else {
         response = await authFetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (vaultDocIds.length > 0) {
+            VaultUploader.clear();
+            pendingFiles = [];
+            renderFilePreview();
+        }
     }
     if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
     const data = await response.json();

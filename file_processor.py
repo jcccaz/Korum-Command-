@@ -17,11 +17,22 @@ def process_uploaded_file(file_storage):
     Returns dict with type, filename, base64/mime_type (images), or extracted_text (documents).
     """
     filename = file_storage.filename or "unknown"
-    ext = os.path.splitext(filename)[1].lower()
     content = file_storage.read()
 
     if len(content) > MAX_FILE_SIZE:
         raise ValueError(f"File {filename} exceeds 10MB limit")
+
+    return process_from_bytes(content, filename)
+
+
+def process_from_bytes(content, filename):
+    """
+    Process raw file bytes with a filename.
+    Used by both the multipart upload path and the S3 Vault pipeline.
+
+    Returns dict with type, filename, base64/mime_type (images), or extracted_text (documents).
+    """
+    ext = os.path.splitext(filename)[1].lower()
 
     if ext in ALLOWED_IMAGE_TYPES:
         return _process_image(content, filename, ext)

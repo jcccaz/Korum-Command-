@@ -152,6 +152,37 @@ class MissionVault(db.Model):
     )
 
 
+class VaultDocument(db.Model):
+    """Tracks documents uploaded via the S3 Vault pipeline.
+    File bytes never touch Flask — only metadata and extracted text stored here."""
+    __tablename__ = "vault_documents"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    mission_id = db.Column(db.String(36), nullable=True, index=True)
+    user_id = db.Column(db.Integer, nullable=True)
+    s3_key = db.Column(db.String(500), nullable=False)
+    filename_hash = db.Column(db.String(64), nullable=False)  # SHA-256, never store raw filename
+    content_type = db.Column(db.String(100), nullable=False)
+    size_bytes = db.Column(db.Integer, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='authorized', index=True)
+    # Statuses: authorized → uploaded → scanning → extracted → falcon_processed → ready | failed
+    extracted_text = db.Column(db.Text, nullable=True)  # Cleared after council use (Goldfish)
+    error_detail = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "mission_id": self.mission_id,
+            "status": self.status,
+            "content_type": self.content_type,
+            "size_bytes": self.size_bytes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "error_detail": self.error_detail,
+        }
+
+
 class UsageLog(db.Model):
     __tablename__ = "usage_logs"
 

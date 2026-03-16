@@ -536,6 +536,131 @@ def generate_preview():
         return jsonify(preview)
     return jsonify({"error": "Type not supported yet"}), 501
 
+# ── S3 VAULT — "Authorization, Not Carriage" ────────────────────────
+@app.route('/api/vault/authorize', methods=['POST'])
+@auth_required
+@limiter.limit("30 per minute")
+def vault_authorize():
+    """Authorize a direct-to-S3 upload. Returns presigned POST fields.
+    File bytes never touch this server."""
+    from vault import initialize_vault_upload, vault_available
+
+    if not vault_available():
+        return jsonify({"error": "Vault not configured — S3 credentials missing"}), 503
+
+    data = request.json or {}
+    filename = data.get('filename', '')
+    content_type = data.get('content_type', '')
+    size_bytes = data.get('size_bytes')
+    mission_id = data.get('mission_id')
+
+    if not filename or not content_type:
+        return jsonify({"error": "filename and content_type required"}), 400
+
+    try:
+        result = initialize_vault_upload(
+            user_id=current_user.id,
+            mission_id=mission_id,
+            filename=filename,
+            content_type=content_type,
+            size_bytes=size_bytes,
+        )
+
+        # Write ledger event
+        try:
+            import hashlib as _hl
+            import uuid as _uuid
+            from ledger import LedgerService
+            LedgerService.write_event(
+                event_type='document_upload_authorized',
+                mission_id=mission_id or 'unscoped',
+                decision_id=result['vault_doc_id'],
+                payload={
+                    'operator_id': current_user.id,
+                    'filename_hash': _hl.sha256(filename.encode()).hexdigest(),
+                    'content_type': content_type,
+                    'size_bytes': size_bytes,
+                    'vault_key': result['s3_key'],
+                },
+                operator_id=current_user.id,
+            )
+        except Exception as e:
+            logger.warning(f"[VAULT] Ledger write failed: {e}")
+
+        return jsonify({
+            "success": True,
+            "vault_doc_id": result['vault_doc_id'],
+            "presigned_url": result['presigned_url'],
+            "presigned_fields": result['presigned_fields'],
+        })
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"[VAULT] Authorization failed: {e}", exc_info=True)
+        return jsonify({"error": "Vault authorization failed"}), 500
+
+
+@app.route('/api/vault/complete', methods=['POST'])
+@auth_required
+@limiter.limit("30 per minute")
+def vault_complete():
+    """Confirm upload landed in S3 and trigger async processing pipeline."""
+    from vault import confirm_upload
+    from pipeline import process_vault_document
+
+    data = request.json or {}
+    vault_doc_id = data.get('vault_doc_id')
+    if not vault_doc_id:
+        return jsonify({"error": "vault_doc_id required"}), 400
+
+    try:
+        vault_doc = confirm_upload(vault_doc_id)
+
+        # Verify ownership
+        if vault_doc.user_id != current_user.id and not current_user.is_admin():
+            return jsonify({"error": "Access denied"}), 403
+
+        # Dispatch async pipeline
+        process_vault_document.delay(vault_doc_id)
+        print(f"[VAULT] Pipeline dispatched for {vault_doc_id[:8]}")
+
+        return jsonify({
+            "success": True,
+            "vault_doc_id": vault_doc_id,
+            "status": vault_doc.status,
+        })
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"[VAULT] Complete failed: {e}", exc_info=True)
+        return jsonify({"error": "Upload confirmation failed"}), 500
+
+
+@app.route('/api/vault/status/<vault_doc_id>', methods=['GET'])
+@auth_required
+def vault_status(vault_doc_id):
+    """Poll pipeline progress for a vault document."""
+    from vault import get_vault_document
+
+    vault_doc = get_vault_document(vault_doc_id)
+    if not vault_doc:
+        return jsonify({"error": "Document not found"}), 404
+
+    # Verify ownership
+    if vault_doc.user_id != current_user.id and not current_user.is_admin():
+        return jsonify({"error": "Access denied"}), 403
+
+    return jsonify({
+        "success": True,
+        "vault_doc_id": vault_doc_id,
+        "status": vault_doc.status,
+        "error_detail": vault_doc.error_detail,
+        "has_text": bool(vault_doc.extracted_text),
+    })
+
+
 # ── FALCON GHOST PREVIEW ─────────────────────────────────────────────
 @app.route('/api/falcon/preview', methods=['POST'])
 def falcon_preview():
@@ -1570,9 +1695,10 @@ def ask_council():
         return jsonify({"error": "Query is required"}), 400
     roles = data.get('council_roles', {})
 
-    # Process uploaded files
+    # Process uploaded files (multipart path — legacy/fallback)
     images = []       # List of {base64, mime_type, filename} for vision APIs
     doc_texts = []    # Extracted text from documents
+    _vault_doc_ids_used = []  # Track vault docs for Goldfish purge
 
     for f in uploaded_files:
         try:
@@ -1584,6 +1710,25 @@ def ask_council():
         except Exception as e:
             print(f"⚠️ File processing error ({type(e).__name__}): {e}")
             continue
+
+    # Process vault documents (S3 path — enterprise)
+    vault_document_ids = data.get('vault_document_ids', [])
+    if vault_document_ids:
+        from vault import get_vault_document
+        for vdoc_id in vault_document_ids:
+            vdoc = get_vault_document(vdoc_id)
+            if not vdoc:
+                print(f"⚠️ Vault doc not found: {vdoc_id}")
+                continue
+            if vdoc.status not in ('falcon_processed', 'ready'):
+                print(f"⚠️ Vault doc not ready: {vdoc_id} (status={vdoc.status})")
+                continue
+            if vdoc.user_id != current_user.id and not current_user.is_admin():
+                print(f"⚠️ Vault doc access denied: {vdoc_id}")
+                continue
+            if vdoc.extracted_text:
+                doc_texts.append(f"[Vault Document: {vdoc_id[:8]}]\n{vdoc.extracted_text}")
+                _vault_doc_ids_used.append(vdoc_id)
 
     # Append extracted document text to query context
     if doc_texts:
@@ -1988,6 +2133,20 @@ def ask_council():
             for step in response_data['reasoning_chain']:
                 if step.get('response'):
                     step['response'] = falcon_rehydrate(step['response'], _falcon_placeholder_map)
+
+    # ── GOLDFISH PURGE: Clear vault document text after council consumption ──
+    if _vault_doc_ids_used:
+        try:
+            from models import VaultDocument as _VD
+            for _vdid in _vault_doc_ids_used:
+                _vd = _VD.query.get(_vdid)
+                if _vd:
+                    _vd.extracted_text = None
+                    _vd.status = 'ready'
+            db.session.commit()
+            print(f"[GOLDFISH] Purged extracted text from {len(_vault_doc_ids_used)} vault document(s)")
+        except Exception as e:
+            logger.warning(f"[GOLDFISH] Purge failed: {e}")
 
     return jsonify(response_data)
 
