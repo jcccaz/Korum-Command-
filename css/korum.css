@@ -122,6 +122,8 @@ body {
     align-items: center;
     margin-bottom: 20px;
     z-index: 10;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 /* .logo styles removed per redesign */
@@ -5092,7 +5094,9 @@ body.activated .sphere-texture {
     display: flex;
     align-items: center;
     gap: 10px;
+    margin-left: auto;
     margin-right: 12px;
+    flex-shrink: 0;
 }
 
 .auth-user-email {
