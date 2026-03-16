@@ -3901,7 +3901,7 @@ async function executeCouncil(query, roleName) {
         council_mode: true,
         council_roles: roleConfig,
         active_models: ["openai", "anthropic", "google", "perplexity", "mistral", "local"].filter(p => AIHealth.isAvailable(p) && !document.querySelector(`.deck-card.${p}`)?.classList.contains('silenced')),
-        use_v2: true,
+        use_v2: useV2,
         is_red_team: isRedTeam,
         use_serp: useSerpAPI,
         use_falcon: activeModes.falcon,

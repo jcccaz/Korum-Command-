@@ -1061,7 +1061,7 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
             # Extract a real contribution summary from the response text.
             # Strip tags, markdown, and leading/trailing whitespace.
             # Use the LLM's own first substantive sentence as the summary.
-            raw_resp = entry.get("response", "")
+            raw_resp = entry.get("response") or ""
             import re as _re
             _clean = _re.sub(r'\[/?[A-Z_]+\]', '', raw_resp)          # strip [TAGS]
             _clean = _re.sub(r'\*{1,2}([^*]+)\*{1,2}', r'\1', _clean) # strip **bold**
