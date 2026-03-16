@@ -124,28 +124,7 @@ body {
     z-index: 10;
 }
 
-/* LOGO: SHINY GLASS EFFECT */
-.logo {
-    font-family: var(--font-head);
-    font-weight: 800;
-    font-size: 26px;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    background: linear-gradient(120deg, #888 0%, #fff 25%, #888 50%, #fff 75%, #888 100%);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    /* Fix lint */
-    -webkit-text-fill-color: transparent;
-    animation: shine 8s linear infinite;
-    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.2));
-}
-
-@keyframes shine {
-    to {
-        background-position: 200% center;
-    }
-}
+/* .logo styles removed per redesign */
 
 
 /* Mobile nav toggle - hidden on desktop */
@@ -6151,6 +6130,51 @@ body.report-library-open .results-container {
     letter-spacing: 1.5px;
     text-transform: uppercase;
     color: var(--text-tertiary);
+}
+
+.brand-hero-container {
+    position: relative;
+    width: 220px;
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.brand-hero-logo {
+    width: 220px;
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(255, 176, 32, 0.2));
+    z-index: 2;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.brand-hero-container:hover .brand-hero-logo {
+    transform: translateY(-2px);
+    filter: drop-shadow(0 0 20px rgba(255, 176, 32, 0.4));
+}
+
+/* Eye Pulse target - positioned over the amber eye relative to container */
+.hero-eye-pulse {
+    position: absolute;
+    top: 24%;
+    left: 49.5%;
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(circle, rgba(255, 176, 32, 0.8) 0%, rgba(255, 176, 32, 0) 70%);
+    border-radius: 50%;
+    z-index: 3;
+    pointer-events: none;
+    opacity: 0.6;
+    animation: eyeBreathe 4s infinite ease-in-out;
+}
+
+@keyframes eyeBreathe {
+    0%, 100% { transform: scale(1); opacity: 0.4; }
+    50% { transform: scale(1.8); opacity: 1; }
 }
 
 .modal-close {
