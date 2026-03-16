@@ -155,7 +155,7 @@ def retry_with_backoff(retries=3, backoff_in_seconds=1):
 # --- PROVIDER HELPERS ---
 
 @retry_with_backoff()
-def call_openai_gpt4(prompt, role_key, model="gpt-4o", images=None, run_id=None, session_id=None, workflow=None, user_id=None, timeout=60):
+def call_openai_gpt4(prompt, role_key, model="gpt-4o", images=None, run_id=None, session_id=None, workflow=None, user_id=None, timeout=60, system_message=None):
     role = expand_role(role_key)
     api_key = os.getenv("OPENAI_API_KEY")
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -171,10 +171,13 @@ def call_openai_gpt4(prompt, role_key, model="gpt-4o", images=None, run_id=None,
     else:
         content = prompt
 
+    # Use provided system message or build default from role
+    sys_msg = system_message if system_message else f"You are {role}. Provide expert, concise, high-impact analysis."
+
     data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": f"You are {role}. Provide expert, concise, high-impact analysis."},
+            {"role": "system", "content": sys_msg},
             {"role": "user", "content": content}
         ],
         "max_tokens": 6000,
@@ -212,7 +215,7 @@ def call_openai_gpt4(prompt, role_key, model="gpt-4o", images=None, run_id=None,
         raise e
 
 @retry_with_backoff()
-def call_anthropic_claude(prompt, role_key, model="claude-sonnet-4-20250514", images=None, run_id=None, session_id=None, workflow=None, user_id=None):
+def call_anthropic_claude(prompt, role_key, model="claude-sonnet-4-20250514", images=None, run_id=None, session_id=None, workflow=None, user_id=None, system_message=None):
     role = expand_role(role_key)
     api_key = os.getenv("ANTHROPIC_API_KEY")
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"}
@@ -228,9 +231,12 @@ def call_anthropic_claude(prompt, role_key, model="claude-sonnet-4-20250514", im
     else:
         content = prompt
 
+    # Use provided system message or build default from role
+    sys_msg = system_message if system_message else f"You are {role}. Provide expert, concise, high-impact analysis."
+
     data = {
         "model": model,
-        "system": f"You are {role}. Provide expert, concise, high-impact analysis.",
+        "system": sys_msg,
         "messages": [{"role": "user", "content": content}],
         "max_tokens": 6000,
         "temperature": 0.3
@@ -265,7 +271,7 @@ def call_anthropic_claude(prompt, role_key, model="claude-sonnet-4-20250514", im
         raise e
 
 @retry_with_backoff()
-def call_google_gemini(prompt, role_key, model="gemini-2.0-flash", images=None, run_id=None, session_id=None, workflow=None, user_id=None):
+def call_google_gemini(prompt, role_key, model="gemini-2.0-flash", images=None, run_id=None, session_id=None, workflow=None, user_id=None, system_message=None):
     role = expand_role(role_key)
     api_key = os.getenv("GOOGLE_API_KEY")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
@@ -276,8 +282,11 @@ def call_google_gemini(prompt, role_key, model="gemini-2.0-flash", images=None, 
         for img in images:
             parts.append({"inline_data": {"mime_type": img['mime_type'], "data": img['base64']}})
 
+    # Use provided system message or build default from role
+    sys_msg = system_message if system_message else f"You are {role}. Provide expert, concise, high-impact analysis."
+
     data = {
-        "systemInstruction": {"parts": [{"text": f"You are {role}. Provide expert, concise, high-impact analysis."}]},
+        "systemInstruction": {"parts": [{"text": sys_msg}]},
         "contents": [{"parts": parts}],
         "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.3}
     }
@@ -313,15 +322,18 @@ def call_google_gemini(prompt, role_key, model="gemini-2.0-flash", images=None, 
         raise e
 
 @retry_with_backoff(retries=2, backoff_in_seconds=2)
-def call_perplexity(prompt, role_key, model=None, run_id=None, session_id=None, workflow=None, user_id=None):
+def call_perplexity(prompt, role_key, model=None, run_id=None, session_id=None, workflow=None, user_id=None, system_message=None):
     role = expand_role(role_key)
     # Respect env var if model not explicitly passed
     if model is None:
         model = os.getenv("PERPLEXITY_MODEL", "sonar-pro")
-    
+
     api_key = os.getenv("PERPLEXITY_API_KEY")
     if not api_key:
         return {"success": False, "response": "Perplexity API key is not configured."}
+
+    # Use provided system message or build default from role
+    sys_msg = system_message if system_message else f"You are {role}. Provide accurate, sourced information. Cite sources."
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -331,7 +343,7 @@ def call_perplexity(prompt, role_key, model=None, run_id=None, session_id=None, 
     data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": f"You are {role}. Provide accurate, sourced information. Cite sources."},
+            {"role": "system", "content": sys_msg},
             {"role": "user", "content": prompt}
         ],
         "max_tokens": 6000,
@@ -370,7 +382,7 @@ def call_perplexity(prompt, role_key, model=None, run_id=None, session_id=None, 
             log_usage_telemetry(model, "perplexity", role_key, 0, 0, latency, False, run_id, session_id, workflow, user_id=user_id)
         raise e
 
-def call_local_llm(prompt, role_key, model="local-model", run_id=None, session_id=None, workflow=None, user_id=None):
+def call_local_llm(prompt, role_key, model="local-model", run_id=None, session_id=None, workflow=None, user_id=None, system_message=None):
     """
     Calls a local LLM running via LM Studio.
     """
@@ -378,13 +390,16 @@ def call_local_llm(prompt, role_key, model="local-model", run_id=None, session_i
     base_url = os.getenv("LOCAL_LLM_URL", "http://localhost:1234")
     url = f"{base_url.rstrip('/')}/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
-    
+
+    # Use provided system message or build default from role
+    sys_msg = system_message if system_message else f"You are {role}. Provide clear, short answers."
+
     start_time = time.time()
     try:
         data = {
             "model": model,
             "messages": [
-                {"role": "system", "content": f"You are {role}. Provide clear, short answers."},
+                {"role": "system", "content": sys_msg},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7
@@ -407,7 +422,7 @@ def call_local_llm(prompt, role_key, model="local-model", run_id=None, session_i
         return {"success": False, "response": f"Local Exception: {str(e)}"}
 
 @retry_with_backoff()
-def call_mistral_api(prompt, role_key, model=None, images=None, run_id=None, session_id=None, workflow=None, user_id=None, timeout=60):
+def call_mistral_api(prompt, role_key, model=None, images=None, run_id=None, session_id=None, workflow=None, user_id=None, timeout=60, system_message=None):
     role = expand_role(role_key)
     if model is None:
         model = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
@@ -419,11 +434,14 @@ def call_mistral_api(prompt, role_key, model=None, images=None, run_id=None, ses
     else:
         content = prompt
 
+    # Use provided system message or build default from role
+    sys_msg = system_message if system_message else f"You are {role}. Provide expert analysis."
+
     api_key = os.getenv("MISTRAL_API_KEY")
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     data = {
         "model": model,
-        "messages": [{"role": "system", "content": f"You are {role}. Provide expert analysis."}, {"role": "user", "content": content}],
+        "messages": [{"role": "system", "content": sys_msg}, {"role": "user", "content": content}],
         "temperature": 0.3
     }
     
