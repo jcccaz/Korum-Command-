@@ -203,6 +203,7 @@ def not_found(e):
 
 @app.errorhandler(500)
 def internal_error(e):
+    logger.error(f"[500] {request.method} {request.path} — {e}", exc_info=True)
     if request.path.startswith('/api/'):
         return jsonify({"error": "Internal server error"}), 500
     return e
