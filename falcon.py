@@ -108,7 +108,7 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
         r'|Pl|Place|Pkwy|Parkway|Cir|Circle|Hwy|Highway|Ter|Terrace|Loop|Run|Path|Trail)\.?\b',
         re.IGNORECASE
     ),
-    "HOSTNAME": re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(?:internal|local|corp|intranet|lan|priv|private)(?:/[A-Za-z0-9_.~:/?#\[\]@!$&\'()*+,;=\-]+)?\b', re.IGNORECASE),
+    "HOSTNAME": re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(?:internal|local|corp|intranet|lan|priv)\b', re.IGNORECASE),
     "PASSPORT": re.compile(r'\b[A-Z]{1,2}\d{6,8}\b'),
     "SWIFT":    re.compile(r'\b[A-Z]{6}[A-Z2-9][A-NP-Z0-9](?:[A-Z0-9]{3})?\b'),
     "ALNUM_TAG": re.compile(
@@ -152,8 +152,7 @@ LEVEL_PATTERNS = {
                            "CURRENCY_AMOUNT", "IBAN", "TITLED_NAME", "INITIAL_NAME"},
     FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "SSN_PARTIAL", "IP_ADDR", "ACCT_NUM",
                            "CC_NUM", "PASSPORT", "STREET_ADDR", "DATE", "DATE_WRITTEN",
-                           "ALNUM_TAG", "CURRENCY_AMOUNT", "IBAN", "SWIFT", "HOSTNAME",
-                           "TITLED_NAME", "INITIAL_NAME"},
+                           "ALNUM_TAG", "CURRENCY_AMOUNT", "IBAN", "TITLED_NAME", "INITIAL_NAME"},
     FalconLevel.BLACK:    {"EMAIL", "PHONE", "SSN", "SSN_PARTIAL", "IP_ADDR", "ACCT_NUM",
                            "CC_NUM", "DATE", "DATE_WRITTEN", "STREET_ADDR", "HOSTNAME",
                            "PASSPORT", "SWIFT", "ALNUM_TAG", "CURRENCY_AMOUNT", "IBAN",
@@ -166,74 +165,91 @@ LEVEL_PATTERNS = {
 # ---------------------------------------------------------------------------
 
 # Common English words to EXCLUDE from person-name detection
-# NOTE: Expand this set as false positives are discovered in production.
-COMMON_WORDS: Set[str] = {
-    "The", "This", "That", "These", "Those", "What", "When", "Where", "Which",
-    "Who", "How", "And", "But", "For", "Not", "You", "All", "Can", "Had",
-    "Her", "Was", "One", "Our", "Out", "Are", "Has", "His", "Its", "May",
-    "New", "Now", "Old", "See", "Way", "Day", "Did", "Get", "Let", "Say",
-    "She", "Too", "Use", "Will", "With", "Just", "Also", "Each", "Even",
-    "From", "Good", "Have", "Here", "High", "Into", "Keep", "Last",
-    "Long", "Make", "Many", "Most", "Much", "Must", "Name", "Next", "Only",
-    "Over", "Such", "Take", "Than", "Them", "Then", "Very", "Well", "Back",
-    "Been", "Both", "Come", "Could", "Down", "First", "Great", "Some", "Still",
-    "Should", "Would", "After", "Again", "Being", "Below", "Between", "Every",
-    "Under", "While", "About", "Above", "Before", "During", "Never", "Other",
-    "Right", "Small", "Three", "Through", "Today", "Without", "According",
-    "However", "Important", "Because", "Different", "Another", "Following",
-    # Common tech/business/KORUM terms that appear capitalized
-    "Council", "Research", "Analysis", "Report", "System", "Protocol",
-    "Security", "Intelligence", "Strategy", "Operations", "Mission",
-    "Falcon", "Vault", "Mode", "Standard", "Light", "Black", "Phase", "Level",
-    "Intake", "Strategic", "Counterintelligence", "Defense", "Standards",
-    "Truth", "Score", "Verification", "Interrogation", "Synthesis",
-    "Executive", "Summary", "Brief", "Document", "Section", "Table",
-    "Red", "Team", "Live", "Data", "Query", "Prompt", "Thread",
-    "Quantum", "Compliance", "Framework", "Architecture", "Infrastructure",
-    # Month / day names
-    "January", "February", "March", "April", "June", "July", "August",
-    "September", "October", "November", "December",
-    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-    # BLACK mode structural preservation: keep generic nouns readable
-    "Risk", "Threat", "Impact", "Plan", "Action", "Review", "Audit",
-    "Policy", "Network", "Server", "Client", "Database", "Service",
-    "Endpoint", "Firewall", "Router", "Switch", "Gateway", "Proxy",
-    "Cloud", "Hybrid", "Platform", "Application", "Software", "Hardware",
-    "Project", "Program", "Portfolio", "Budget", "Cost", "Revenue",
-    "Customer", "Vendor", "Partner", "Supplier", "Contract", "Agreement",
-    "Incident", "Response", "Recovery", "Backup", "Failover", "Migration",
-    "Encryption", "Authentication", "Authorization", "Certificate", "Token",
-    "Federal", "Government", "Military", "Commercial", "Enterprise",
-    "North", "South", "East", "West", "Central", "Regional", "National",
-    "Department", "Division", "Branch", "Unit", "Office", "Center",
-    "Director", "Manager", "Officer", "Administrator", "Analyst", "Engineer",
-    "President", "Chief", "Senior", "Junior", "Lead", "Head", "Vice",
-    "Contact", "Please", "Note", "Meeting", "Hello", "Dear", "Regards",
-    # Legal / contract terms (capitalized in headings, NOT proper nouns)
-    "Liability", "Limitation", "Indemnification", "Indemnify", "Counsel",
-    "Contractor", "Subcontractor", "Escrow", "Provide", "Identify",
-    "Tax", "Taxes", "Termination", "Arbitration", "Jurisdiction",
-    "Governing", "Warranty", "Warranties", "Damages", "Negligence",
-    "Confidential", "Proprietary", "Disclosure", "Obligations",
-    "Representations", "Covenants", "Amendment", "Waiver", "Severability",
-    "Assignment", "Notices", "Force", "Majeure", "Exhibit", "Schedule",
-    "Appendix", "Annex", "Whereas", "Hereby", "Herein", "Thereof",
-    "Pursuant", "Notwithstanding", "Hereunder", "Hereinafter",
-    "Witnesseth", "Recitals", "Preamble", "Definitions", "Remedies",
-    "Breach", "Default", "Cure", "Survival", "Consideration",
-    "Performance", "Delivery", "Acceptance", "Inspection", "Payment",
-    "Invoice", "Insurance", "Bonding", "Lien", "Liens", "Title",
-    "Ownership", "License", "Licensee", "Licensor", "Royalty",
-    "Royalties", "Milestone", "Milestones", "Deliverable", "Deliverables",
-    "Scope", "Services", "Compensation", "Intellectual", "Property",
-    "Dispute", "Resolution", "Mediation", "Venue", "Statute",
-    "Regulation", "Compliance", "Applicable", "Material", "Adverse",
-    "Affiliate", "Affiliates", "Subsidiary", "Subsidiaries",
-    "Shareholder", "Stakeholder", "Fiduciary", "Trustee", "Beneficiary",
-    "Signatory", "Signatories", "Execution", "Effective", "Provision",
-    "Provisions", "Clause", "Article", "Paragraph", "Subsection",
-    "Bank", "Account", "Scan", "Ghosted", "Act",
-}
+# ── SOURCE: Loaded dynamically at import time from:
+#    1. NLTK English stopwords corpus (auto-updated with pip)
+#    2. falcon_dictionary.json "general" section (Korum-OS specific terms)
+#    3. Active workflow domain section (legal/medical/finance/defense/etc.)
+# ── Never hardcode words here — add to falcon_dictionary.json instead.
+
+_DICTIONARY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "falcon_dictionary.json")
+_LOADED_DICTIONARY: Dict[str, List[str]] = {}
+
+def _load_dictionary() -> Dict[str, List[str]]:
+    """Load falcon_dictionary.json. Cached after first load."""
+    global _LOADED_DICTIONARY
+    if _LOADED_DICTIONARY:
+        return _LOADED_DICTIONARY
+    if os.path.exists(_DICTIONARY_PATH):
+        try:
+            with open(_DICTIONARY_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            _LOADED_DICTIONARY = {k: v for k, v in data.items() if k != '_meta'}
+            print(f"[FALCON] Loaded dictionary: {sum(len(v) for v in _LOADED_DICTIONARY.values())} domain stopwords")
+        except Exception as e:
+            print(f"[FALCON] Dictionary load error: {e}")
+            _LOADED_DICTIONARY = {}
+    return _LOADED_DICTIONARY
+
+
+def _build_common_words(workflow: Optional[str] = None) -> Set[str]:
+    """
+    Build the COMMON_WORDS exclusion set for a given workflow domain.
+    Sources (merged):
+      1. NLTK English stopwords — title-cased so they match capitalized tokens
+      2. falcon_dictionary.json "general" section — always included
+      3. falcon_dictionary.json domain section — loaded based on workflow
+    Falls back to an empty set if NLTK is not available.
+    """
+    words: Set[str] = set()
+
+    # Source 1: NLTK stopwords
+    try:
+        from nltk.corpus import stopwords as _sw
+        for w in _sw.words('english'):
+            words.add(w)
+            words.add(w.capitalize())
+            words.add(w.upper())
+    except Exception:
+        pass  # NLTK not available — continue with dictionary only
+
+    # Source 2+3: falcon_dictionary.json
+    dictionary = _load_dictionary()
+    for section in ('general',):
+        words.update(dictionary.get(section, []))
+
+    # Workflow-to-domain mapping
+    WORKFLOW_DOMAIN_MAP = {
+        'LEGAL':            'legal',
+        'MEDICAL':          'medical',
+        'FINANCE':          'finance',
+        'WAR_ROOM':         'defense',
+        'DEFENSE':          'defense',
+        'QUANTUM_SECURITY': 'defense',
+        'RESEARCH':         'research',
+        'SCIENCE':          'research',
+        'STARTUP':          'business',
+        'CREATIVE':         'business',
+        'MARKETING':        'business',
+        'INTEL':            'defense',
+        'CYBER':            'defense',
+    }
+    if workflow:
+        domain = WORKFLOW_DOMAIN_MAP.get(workflow.upper())
+        if domain and domain in dictionary:
+            words.update(dictionary[domain])
+            print(f"[FALCON] Loaded domain stopwords: {domain} ({len(dictionary[domain])} words)")
+
+    return words
+
+
+# Module-level COMMON_WORDS — loaded once at import with no workflow context.
+# Pass workflow= to falcon_preprocess to get domain-aware filtering.
+def _init_common_words() -> Set[str]:
+    """Initialize module-level common words set at import time."""
+    return _build_common_words(workflow=None)
+
+COMMON_WORDS: Set[str] = _init_common_words()
+
 
 # Organization suffix patterns
 # Matches 1-5 capitalized words followed by a corporate suffix.
@@ -266,70 +282,67 @@ LOCATION_PATTERN = re.compile(
     r'\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*),\s*(' + '|'.join(US_STATES) + r')\b'
 )
 
-# Known country names (top ~50 by global relevance)
-COUNTRIES = {
-    "United States", "United Kingdom", "Canada", "Australia", "Germany", "France",
-    "Japan", "China", "India", "Brazil", "Mexico", "Russia", "South Korea",
-    "Italy", "Spain", "Netherlands", "Switzerland", "Sweden", "Norway", "Denmark",
-    "Israel", "Saudi Arabia", "Singapore", "Taiwan", "Ireland", "Belgium",
-    "Austria", "Poland", "Turkey", "Egypt", "South Africa", "Nigeria", "Argentina",
-    "Colombia", "Chile", "Indonesia", "Philippines", "Thailand", "Vietnam",
-    "Pakistan", "Iran", "Iraq", "Ukraine", "Finland", "New Zealand", "Portugal",
-    "Czech Republic", "Romania", "Hungary",
-    # Nordic & Baltic
-    "Iceland", "Greenland", "Estonia", "Latvia", "Lithuania",
-    # Europe
-    "Greece", "Croatia", "Serbia", "Bulgaria", "Slovakia", "Slovenia", "Luxembourg",
-    "Malta", "Cyprus", "Montenegro", "Albania", "Kosovo", "Moldova", "Belarus",
-    "Georgia", "Armenia", "Azerbaijan", "Macedonia", "Bosnia",
-    # Middle East & Central Asia
-    "Qatar", "Kuwait", "Bahrain", "Oman", "Jordan", "Lebanon", "Syria", "Yemen",
-    "Afghanistan", "Uzbekistan", "Kazakhstan", "Turkmenistan", "Tajikistan", "Kyrgyzstan",
-    # Africa
-    "Kenya", "Ghana", "Ethiopia", "Tanzania", "Uganda", "Morocco", "Tunisia",
-    "Algeria", "Libya", "Sudan", "Cameroon", "Senegal", "Rwanda", "Mozambique",
-    # Americas
-    "Peru", "Ecuador", "Venezuela", "Bolivia", "Paraguay", "Uruguay",
-    "Panama", "Costa Rica", "Guatemala", "Honduras", "El Salvador", "Nicaragua",
-    "Cuba", "Jamaica", "Haiti", "Dominican Republic", "Trinidad and Tobago",
-    # Asia-Pacific
-    "Malaysia", "Myanmar", "Cambodia", "Laos", "Bangladesh", "Sri Lanka", "Nepal",
-    "Mongolia", "North Korea", "Fiji", "Papua New Guinea", "Brunei",
-}
+# Country names — loaded from pycountry (ISO 3166, 249 countries) at import time.
+# Falls back to a compact hardcoded set if pycountry is not installed.
+def _load_countries() -> Set[str]:
+    """Load all country names from pycountry. Includes common_name variants."""
+    try:
+        import pycountry as _pc
+        result: Set[str] = set()
+        for c in _pc.countries:
+            result.add(c.name)
+            if hasattr(c, 'common_name') and c.common_name:
+                result.add(c.common_name)
+            if hasattr(c, 'official_name') and c.official_name:
+                result.add(c.official_name)
+        print(f"[FALCON] Loaded {len(result)} countries from pycountry")
+        return result
+    except ImportError:
+        # Compact fallback — most common countries only
+        return {
+            "United States", "United Kingdom", "Canada", "Australia", "Germany",
+            "France", "Japan", "China", "India", "Brazil", "Mexico", "Russia",
+            "South Korea", "Italy", "Spain", "Netherlands", "Switzerland",
+            "Sweden", "Norway", "Denmark", "Israel", "Saudi Arabia", "Singapore",
+            "Taiwan", "Ireland", "Belgium", "Austria", "Poland", "Turkey",
+            "Egypt", "South Africa", "Nigeria", "Argentina", "Colombia",
+            "Indonesia", "Philippines", "Thailand", "Vietnam", "Pakistan",
+            "Iran", "Ukraine", "Finland", "New Zealand", "Portugal",
+        }
 
-# Major world cities — detected standalone without requiring "City, Country" format.
-# These are globally recognizable and likely PII-significant in context.
-MAJOR_CITIES: Set[str] = {
-    # Americas
-    "New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia",
-    "San Antonio", "San Diego", "Dallas", "San Jose", "Austin", "Jacksonville",
-    "San Francisco", "Seattle", "Denver", "Boston", "Nashville", "Baltimore",
-    "Portland", "Las Vegas", "Milwaukee", "Albuquerque", "Tucson", "Fresno",
-    "Sacramento", "Atlanta", "Miami", "Minneapolis", "Cleveland", "Pittsburgh",
-    "Detroit", "Charlotte", "Orlando", "Tampa", "St. Louis", "Cincinnati",
-    "Toronto", "Montreal", "Vancouver", "Calgary", "Ottawa", "Edmonton",
-    "Mexico City", "Guadalajara", "Monterrey", "Buenos Aires", "Santiago",
-    "Bogota", "Lima", "Caracas", "Quito", "Montevideo",
-    # Europe
-    "London", "Paris", "Berlin", "Madrid", "Rome", "Amsterdam", "Brussels",
-    "Vienna", "Zurich", "Geneva", "Stockholm", "Oslo", "Copenhagen", "Helsinki",
-    "Dublin", "Edinburgh", "Manchester", "Birmingham", "Hamburg", "Munich",
-    "Frankfurt", "Milan", "Barcelona", "Lisbon", "Prague", "Warsaw", "Budapest",
-    "Bucharest", "Athens", "Istanbul", "Kyiv", "Moscow", "Minsk",
-    "Reykjavik", "Tallinn", "Riga", "Vilnius", "Ljubljana", "Zagreb",
-    "Belgrade", "Sarajevo", "Bratislava", "Luxembourg",
-    # Middle East & Africa
-    "Dubai", "Abu Dhabi", "Riyadh", "Jeddah", "Doha", "Muscat", "Kuwait City",
-    "Manama", "Amman", "Beirut", "Tel Aviv", "Jerusalem", "Cairo", "Casablanca",
-    "Nairobi", "Lagos", "Johannesburg", "Cape Town", "Addis Ababa", "Accra",
-    "Tunis", "Algiers", "Tripoli", "Khartoum", "Kampala", "Dar es Salaam",
-    # Asia-Pacific
-    "Tokyo", "Beijing", "Shanghai", "Shenzhen", "Guangzhou", "Hong Kong",
-    "Seoul", "Taipei", "Singapore", "Bangkok", "Jakarta", "Kuala Lumpur",
-    "Manila", "Hanoi", "Mumbai", "Delhi", "Bangalore", "Chennai", "Hyderabad",
-    "Kolkata", "Karachi", "Lahore", "Islamabad", "Dhaka", "Colombo",
-    "Sydney", "Melbourne", "Brisbane", "Perth", "Auckland", "Wellington",
-}
+COUNTRIES: Set[str] = _load_countries()
+
+
+# Major world cities — loaded from geonamescache at import time.
+# Includes all cities with population > 100,000 (5,600+ cities globally).
+# Falls back to a compact hardcoded set if geonamescache is not installed.
+def _load_major_cities(min_population: int = 100_000) -> Set[str]:
+    """Load city names from geonamescache filtered by minimum population."""
+    try:
+        import geonamescache as _gnc
+        gc = _gnc.GeonamesCache()
+        result = {
+            v['name']
+            for v in gc.get_cities().values()
+            if v.get('population', 0) >= min_population
+        }
+        print(f"[FALCON] Loaded {len(result)} cities from geonamescache (pop >= {min_population:,})")
+        return result
+    except ImportError:
+        # Compact fallback — major global cities only
+        return {
+            "New York", "Los Angeles", "Chicago", "Houston", "Phoenix",
+            "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose",
+            "San Francisco", "Seattle", "Denver", "Boston", "Atlanta", "Miami",
+            "Toronto", "Montreal", "Vancouver", "London", "Paris", "Berlin",
+            "Madrid", "Rome", "Amsterdam", "Brussels", "Vienna", "Zurich",
+            "Stockholm", "Oslo", "Copenhagen", "Dublin", "Tokyo", "Beijing",
+            "Shanghai", "Hong Kong", "Seoul", "Singapore", "Bangkok", "Jakarta",
+            "Mumbai", "Delhi", "Sydney", "Melbourne", "Dubai", "Moscow",
+            "Istanbul", "Cairo", "Lagos", "Nairobi", "Johannesburg",
+        }
+
+MAJOR_CITIES: Set[str] = _load_major_cities()
 
 
 # ---------------------------------------------------------------------------
@@ -586,6 +599,7 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
                       salt: Optional[str] = None,
                       placeholder_cache: Optional[Dict[str, str]] = None,
                       mission_vault: Optional['VaultManager'] = None,
+                      workflow: Optional[str] = None,
                       debug: bool = False) -> FalconResult:
     """
     Run the full Falcon redaction pipeline on input text.
@@ -610,6 +624,18 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
         falcon_level = FalconLevel[level.upper()]
     except KeyError:
         falcon_level = FalconLevel.STANDARD
+
+    # Build workflow-aware COMMON_WORDS for this specific call
+    # This ensures domain stopwords (legal, medical, etc.) are active
+    if workflow:
+        import sys as _sys
+        _module = _sys.modules[__name__]
+        _active_common_words = _build_common_words(workflow=workflow)
+        # Temporarily shadow the module-level COMMON_WORDS for this call
+        _orig_common_words = _module.COMMON_WORDS
+        _module.COMMON_WORDS = _active_common_words
+    else:
+        _orig_common_words = None
 
     # Per-request salt: deterministic within this call, different across calls
     if salt is None:
@@ -768,6 +794,11 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     if debug:
         print(f"[FALCON DEBUG] Level: {level} | Redacted: {len(filtered)} | Risk: {metadata['exposure_risk']} | Latency: {metadata['execution_time_ms']}ms")
 
+    # Restore original module-level COMMON_WORDS if we swapped it for workflow
+    if workflow and _orig_common_words is not None:
+        import sys as _sys
+        _sys.modules[__name__].COMMON_WORDS = _orig_common_words
+
     return FalconResult(redacted, placeholder_map, metadata, ghost_map=ghost_map)
 
 
@@ -903,7 +934,7 @@ def detect_residual_pii(redacted_text: str,
             "raw_category": entry["raw_category"],
             "char_offset": entry["char_offset"],
             "confidence": (
-                "high"   if entry["entity_type"] in {"SSN", "CC_NUM", "IBAN", "EMAIL", "SWIFT"} else
+                "high"   if entry["entity_type"] in {"SSN", "CC_NUM", "IBAN", "EMAIL"} else
                 "medium" if entry["entity_type"] in {"PHONE", "ACCT_NUM", "CURRENCY_AMOUNT"} else
                 "low"
             ),
