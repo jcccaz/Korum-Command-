@@ -9,8 +9,13 @@ Requires: Redis (broker), S3 access, Flask app context for DB.
 """
 
 import os
+import sys
 import time
 import hashlib
+
+# Ensure app directory is in Python path (Railway deploys to /app/ which
+# collides with the module name 'app' — this resolves the ambiguity)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from celery import Celery
 
