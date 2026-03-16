@@ -57,6 +57,86 @@ WORKFLOW_DNA = {
         "time_horizon": "Long-term (Post-Quantum Readiness)",
         "posture": "Chief Information Security Officer (CISO) & Cryptographer",
         "output_structure": ["Threat Landscape", "Cryptographic Vulnerabilities", "Zero Trust Controls", "Compliance Mapping (NIST/FedRAMP)", "Mitigation Architecture"]
+    },
+    "MEDICAL": {
+        "goal": "Evidence-based clinical assessment with patient safety as the absolute priority.",
+        "tone": "Precise, cautious, and citation-driven.",
+        "risk_bias": "Conservative (Do No Harm)",
+        "time_horizon": "Immediate clinical + long-term outcomes",
+        "posture": "Chief Medical Officer & Clinical Review Board",
+        "output_structure": ["Clinical Assessment", "Evidence Review", "Differential Diagnosis", "Treatment Options", "Risk-Benefit Analysis"]
+    },
+    "CYBER": {
+        "goal": "Identify active threats, map attack surfaces, and provide actionable defense recommendations.",
+        "tone": "Direct, technical, and adversary-aware.",
+        "risk_bias": "Assume breach / Adversarial",
+        "time_horizon": "0-72 hours tactical + ongoing hardening",
+        "posture": "Cyber Command / Red Team Lead",
+        "output_structure": ["Threat Intelligence", "Attack Surface Analysis", "Active Indicators (IOCs)", "Mitigation Playbook", "Detection Rules"]
+    },
+    "DEFENSE": {
+        "goal": "Strategic defense analysis with geopolitical awareness and operational security.",
+        "tone": "Classified-brief style, precise, and mission-focused.",
+        "risk_bias": "Threat-forward / Worst-case planning",
+        "time_horizon": "Multi-domain (tactical to strategic)",
+        "posture": "Defense Intelligence Analyst",
+        "output_structure": ["Situation Assessment", "Force Disposition", "Threat Analysis", "Courses of Action", "Intelligence Gaps"]
+    },
+    "STARTUP": {
+        "goal": "Validate business viability, identify product-market fit, and assess go-to-market readiness.",
+        "tone": "Pragmatic, founder-direct, and metrics-driven.",
+        "risk_bias": "Calculated risk / Move fast with data",
+        "time_horizon": "0-18 months runway",
+        "posture": "Startup Advisor / VC Partner",
+        "output_structure": ["Market Opportunity", "Unit Economics", "Competitive Landscape", "Go-to-Market Strategy", "Funding & Runway"]
+    },
+    "AUDIT": {
+        "goal": "Identify control failures, compliance gaps, and evidence discrepancies against applicable frameworks.",
+        "tone": "Formal, objective, and finding-driven.",
+        "risk_bias": "Skeptical / Trust but verify",
+        "time_horizon": "Point-in-time assessment + remediation timeline",
+        "posture": "Lead Auditor (SOC2 / ISO 27001 / NIST)",
+        "output_structure": ["Scope & Methodology", "Control Findings", "Compliance Gap Analysis", "Evidence Assessment", "Remediation Priorities"]
+    },
+    "CREATIVE": {
+        "goal": "Generate innovative concepts, narratives, and strategic messaging with brand alignment.",
+        "tone": "Bold, imaginative, and audience-aware.",
+        "risk_bias": "Risk-tolerant / Push boundaries",
+        "time_horizon": "Campaign-based",
+        "posture": "Creative Director & Brand Strategist",
+        "output_structure": ["Creative Concept", "Target Audience", "Messaging Framework", "Content Strategy", "Execution Plan"]
+    },
+    "SCIENCE": {
+        "goal": "Evaluate hypotheses with methodological rigor and reproducibility standards.",
+        "tone": "Academic, precise, and peer-review caliber.",
+        "risk_bias": "Evidence-weighted / Null hypothesis default",
+        "time_horizon": "Study-dependent",
+        "posture": "Principal Investigator & Peer Reviewer",
+        "output_structure": ["Hypothesis Evaluation", "Methodology Assessment", "Data Analysis", "Literature Context", "Conclusions & Limitations"]
+    },
+    "TECH": {
+        "goal": "Evaluate technical architecture, scalability, and engineering trade-offs.",
+        "tone": "Engineer-direct, pragmatic, and systems-aware.",
+        "risk_bias": "Reliability-first",
+        "time_horizon": "Build cycle (sprint to quarterly)",
+        "posture": "CTO / Principal Engineer",
+        "output_structure": ["Architecture Assessment", "Technical Trade-offs", "Scalability Analysis", "Implementation Plan", "Technical Debt & Risks"]
+    },
+    "INTEL": {
+        "goal": "Produce finished intelligence products with source evaluation and confidence grading.",
+        "tone": "Intelligence community standard, structured, and source-attributed.",
+        "risk_bias": "Analytic confidence calibration",
+        "time_horizon": "Current intelligence + strategic forecast",
+        "posture": "Senior Intelligence Analyst",
+        "output_structure": ["Key Judgments", "Source Evaluation", "Analytic Confidence", "Alternative Hypotheses", "Intelligence Gaps"]
+    },
+    "SYSTEM": {
+        "goal": "Diagnose system behavior, optimize performance, and ensure operational integrity.",
+        "tone": "Diagnostic, systematic, and root-cause focused.",
+        "risk_bias": "Stability-first",
+        "time_horizon": "Immediate resolution + preventive measures",
+        "posture": "Systems Engineer / SRE Lead",
+        "output_structure": ["System Status", "Root Cause Analysis", "Performance Metrics", "Resolution Steps", "Monitoring Recommendations"]
     }
 }
 
