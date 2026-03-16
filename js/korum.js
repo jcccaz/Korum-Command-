@@ -1890,7 +1890,8 @@ function setupActionBindings() {
             const chartType = chartOption.dataset.chart;
             const agentCard = chartOption.closest('.agent-card');
             if (!agentCard) return;
-            const rawContent = decodeURIComponent(agentCard.dataset.rawContent || '');
+            const rawContent = decodeURIComponent(agentCard.dataset.rawContent || '')
+                || agentCard.querySelector('.agent-response')?.innerText || '';
             generateCardChart(rawContent, chartType, agentCard);
             // Close dropdown
             chartOption.closest('.chart-dropdown')?.classList.remove('show');
@@ -2449,9 +2450,16 @@ function buildAnalysisActionBar() {
         <button class="aab-btn aab-defend" data-action="defend">
             <span class="aab-icon">&#x1F6E1;</span> DEFEND
         </button>
-        <button class="aab-btn aab-visualize" data-action="visualize">
+        <div class="aab-btn aab-visualize chart-dropdown-trigger" data-action="visualize">
             <span class="aab-icon">&#x1F4CA;</span> VISUALIZE
-        </button>
+            <div class="chart-dropdown">
+                <div class="chart-option" data-chart="pie">🥧 Pie Chart</div>
+                <div class="chart-option" data-chart="bar">📊 Bar Chart</div>
+                <div class="chart-option" data-chart="line">📈 Line Chart</div>
+                <div class="chart-option" data-chart="flowchart">🔀 Flowchart</div>
+                <div class="chart-option" data-chart="auto">🎯 Auto-detect</div>
+            </div>
+        </div>
         <button class="aab-btn aab-document" data-action="document">
             <span class="aab-icon">&#x1F4C4;</span> DOCUMENT
         </button>
@@ -2482,6 +2490,8 @@ function handleActionBarClick(e) {
             openInterrogation(providerName);
             break;
         case 'visualize':
+            // Dropdown handles chart type selection; direct click falls through here only
+            // if no dropdown option was picked (shouldn't happen with new dropdown UI)
             window.visualizeSelection(response);
             break;
         case 'document':

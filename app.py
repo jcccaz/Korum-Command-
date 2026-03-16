@@ -867,12 +867,20 @@ def generate_chart():
     if not raw_data:
         return jsonify({"success": False, "error": "No data provided"}), 400
 
+    CHART_PREAMBLE = (
+        "You are a Mermaid.js chart generator. Output ONLY valid Mermaid code inside a ```mermaid``` code block. "
+        "RULES: 1) No explanation or text outside the code block. "
+        "2) Keep labels SHORT (max 20 chars) — abbreviate or truncate long names. "
+        "3) Never use special characters in labels that break Mermaid syntax (no quotes, colons, or brackets inside node text). "
+        "4) If data contains '[value not provided]' or 'NOT PROVIDED' or 'Unknown', EXCLUDE those entries from the chart entirely. "
+        "5) Use only simple numeric values — strip currency symbols before plotting. "
+    )
     CHART_PROMPTS = {
-        "pie": "Convert this data into a Mermaid pie chart. Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation, no markdown outside the code block.",
-        "bar": "Convert this data into a Mermaid xychart-beta bar chart. Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation.",
-        "line": "Convert this data into a Mermaid xychart-beta line chart. Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation.",
-        "flowchart": "Convert this data into a Mermaid flowchart diagram showing relationships and process flow. Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation.",
-        "auto": "Analyze this data and create the most appropriate Mermaid visualization (pie chart for proportions, xychart-beta for trends, flowchart for processes). Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation.",
+        "pie": CHART_PREAMBLE + "Create a Mermaid pie chart showing the proportional breakdown of the numeric values in this data.",
+        "bar": CHART_PREAMBLE + "Create a Mermaid xychart-beta bar chart from the numeric values in this data.",
+        "line": CHART_PREAMBLE + "Create a Mermaid xychart-beta line chart from the numeric values in this data.",
+        "flowchart": CHART_PREAMBLE + "Create a Mermaid flowchart diagram showing the relationships and process flow in this data.",
+        "auto": CHART_PREAMBLE + "Analyze this data and create the most appropriate Mermaid visualization (pie for proportions, xychart-beta bar for comparisons, xychart-beta line for trends, flowchart for processes).",
     }
 
     prompt = CHART_PROMPTS.get(chart_type, CHART_PROMPTS["auto"])
