@@ -432,6 +432,27 @@ async function addFiles(fileList) {
 }
 
 // === S3 VAULT UPLOADER — "Authorization, Not Carriage" ===
+/**
+ * Infer MIME type from file extension when browser reports empty type.
+ * Handles common document types that lose their MIME on some OS/browser combos.
+ */
+function _inferMimeType(filename) {
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    const map = {
+        'pdf':  'application/pdf',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'doc':  'application/msword',
+        'txt':  'text/plain',
+        'md':   'text/plain',
+        'csv':  'text/csv',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'xls':  'application/vnd.ms-excel',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'json': 'application/json',
+    };
+    return map[ext] || 'application/octet-stream';
+}
+
 const VaultUploader = {
     // Pending vault documents that have completed the pipeline
     pendingVaultDocs: [],
@@ -448,7 +469,7 @@ const VaultUploader = {
             const resp = await authFetch('/api/vault/authorize', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename: '_probe', content_type: 'text/plain' }),
+                body: JSON.stringify({ filename: '_probe.txt', content_type: 'text/plain', size_bytes: 1 }),
             });
             // 503 = not configured, 400 = configured but bad input (expected)
             return resp.status !== 503;
@@ -478,7 +499,8 @@ const VaultUploader = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     filename: file.name,
-                    content_type: file.type,
+                    // Fallback MIME for files that report empty type (e.g. some .docx on Windows)
+                    content_type: file.type || _inferMimeType(file.name),
                     size_bytes: file.size,
                     mission_id: missionId || null,
                 }),
@@ -1479,34 +1501,15 @@ function toggleMode(mode) {
     btn.classList.toggle('mode-active-serp', mode === 'serp' && isActive);
     btn.classList.toggle('mode-active-falcon', mode === 'falcon' && isActive);
 
-    // V2 toggle: update label to show SEQUENTIAL (V2) vs PARALLEL (V1)
-    if (mode === 'v2') {
-        const labelEl = btn.querySelector('.mode-label') || btn;
-        if (isActive) {
-            labelEl.setAttribute('data-pipeline', 'sequential');
-            btn.title = 'SEQUENTIAL — Phased pipeline (V2). Click to switch to PARALLEL.';
-        } else {
-            labelEl.setAttribute('data-pipeline', 'parallel');
-            btn.title = 'PARALLEL — All models simultaneously (V1). Click to switch to SEQUENTIAL.';
-        }
-        // Update the visible text label inside the button if it exists
-        const textSpan = btn.querySelector('.mode-v2-label');
-        if (textSpan) {
-            textSpan.textContent = isActive ? 'SEQUENTIAL' : 'PARALLEL';
-        }
-    }
-
     if (isActive) {
         btn.classList.add('active');
-        const modeLabel = mode === 'v2' ? 'SEQUENTIAL (V2)' : mode.toUpperCase();
-        logTelemetry(`${modeLabel} MODE ACTIVATED`, "warning");
+        logTelemetry(`${mode.toUpperCase()} MODE ACTIVATED`, "warning");
         if (mode === 'falcon') {
             document.querySelector('.falcon-brand-container')?.classList.add('falcon-active');
         }
     } else {
-        const modeLabel = mode === 'v2' ? 'PARALLEL (V1)' : mode.toUpperCase();
         btn.classList.remove('active');
-        logTelemetry(`${modeLabel} MODE STANDBY`, "system");
+        logTelemetry(`${mode.toUpperCase()} MODE STANDBY`, "system");
         if (mode === 'falcon') {
             document.querySelector('.falcon-brand-container')?.classList.remove('falcon-active');
         }
@@ -1761,16 +1764,6 @@ function setupActionBindings() {
     document.querySelectorAll('[data-mode-toggle]').forEach(btn => {
         btn.addEventListener('click', () => toggleMode(btn.dataset.modeToggle));
     });
-
-    // Set initial V2 button label based on default activeModes.v2 = true (SEQUENTIAL)
-    const v2Btn = document.getElementById('btn-mode-v2');
-    if (v2Btn) {
-        const textSpan = v2Btn.querySelector('.mode-v2-label');
-        if (textSpan) textSpan.textContent = activeModes.v2 ? 'SEQUENTIAL' : 'PARALLEL';
-        v2Btn.title = activeModes.v2
-            ? 'SEQUENTIAL — Phased pipeline (V2). Click to switch to PARALLEL.'
-            : 'PARALLEL — All models simultaneously (V1). Click to switch to SEQUENTIAL.';
-    }
 
     document.querySelectorAll('[data-comms-mode]').forEach(btn => {
         btn.addEventListener('click', () => toggleCommsMode(btn.dataset.commsMode));
@@ -3901,7 +3894,7 @@ async function executeCouncil(query, roleName) {
         council_mode: true,
         council_roles: roleConfig,
         active_models: ["openai", "anthropic", "google", "perplexity", "mistral", "local"].filter(p => AIHealth.isAvailable(p) && !document.querySelector(`.deck-card.${p}`)?.classList.contains('silenced')),
-        use_v2: useV2,
+        use_v2: true,
         is_red_team: isRedTeam,
         use_serp: useSerpAPI,
         use_falcon: activeModes.falcon,
