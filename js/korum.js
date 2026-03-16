@@ -3169,6 +3169,13 @@ window.ghostPreview = async function () {
             });
         }
 
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error(`Ghost Preview HTTP ${response.status}:`, errText);
+            logTelemetry(`Ghost Preview error: HTTP ${response.status}`, "error");
+            showProcessingToast(`Ghost Preview failed (${response.status}).`);
+            return;
+        }
         const data = await response.json();
 
         if (data.success) {
@@ -3183,7 +3190,7 @@ window.ghostPreview = async function () {
             showProcessingToast("Ghost Preview failed.");
         }
     } catch (e) {
-        console.error(e);
+        console.error('Ghost Preview error:', e);
         showProcessingToast("Network error during Ghost Preview.");
     } finally {
         btn.classList.remove('ghost-loading');
