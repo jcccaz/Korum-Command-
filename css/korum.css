@@ -118,7 +118,7 @@ body {
 /* TOP BAR */
 .top-bar {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     margin-bottom: 20px;
     z-index: 10;
@@ -141,7 +141,7 @@ body {
     gap: 8px;
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: center;
 }
 
 .nav-links a {
