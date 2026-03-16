@@ -224,12 +224,13 @@ def call_anthropic_claude(prompt, role_key, model="claude-sonnet-4-20250514", im
                 "type": "image",
                 "source": {"type": "base64", "media_type": img['mime_type'], "data": img['base64']}
             })
-        content.append({"type": "text", "text": f"Role: {role}\n\n{prompt}"})
+        content.append({"type": "text", "text": prompt})
     else:
-        content = f"Role: {role}\n\n{prompt}"
+        content = prompt
 
     data = {
         "model": model,
+        "system": f"You are {role}. Provide expert, concise, high-impact analysis.",
         "messages": [{"role": "user", "content": content}],
         "max_tokens": 6000,
         "temperature": 0.3
@@ -270,12 +271,13 @@ def call_google_gemini(prompt, role_key, model="gemini-2.0-flash", images=None, 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
 
-    parts = [{"text": f"Role: {role}\n\n{prompt}"}]
+    parts = [{"text": prompt}]
     if images:
         for img in images:
             parts.append({"inline_data": {"mime_type": img['mime_type'], "data": img['base64']}})
 
     data = {
+        "systemInstruction": {"parts": [{"text": f"You are {role}. Provide expert, concise, high-impact analysis."}]},
         "contents": [{"parts": parts}],
         "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.3}
     }
