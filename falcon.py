@@ -89,6 +89,11 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
     "EMAIL":    re.compile(r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b'),
     "PHONE":    re.compile(r'(?<!\d)(?:\+?1[\-.\s]?)?(?:\(?\d{3}\)?[\-.\s]?)?\d{3}[\-.\s]?\d{4}(?!\d)'),
     "SSN":      re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
+    # Partial SSN: masked forms like XXX-44-9021 or ***-44-9021
+    "SSN_PARTIAL": re.compile(
+        r'\b(?:[Xx*]{3}|\d{3})[\-\s](?:[Xx*]{2}|\d{2})[\-\s]\d{4}\b'
+        r'|\b\d{3}[\-\s](?:[Xx*]{2}|\d{2})[\-\s](?:[Xx*]{4}|\d{4})\b'
+    ),
     "IP_ADDR":  re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b'),
     "ACCT_NUM": re.compile(r'\b(?:account|acct|a/c|customer\s*#|case\s*#|ticket\s*#|contract\s*#|id\s*#|officer|office|facility|site|bldg|building|room|suite|unit|badge|agent|operative|asset)[\s#:\-]*\d{3,}\b', re.IGNORECASE),
     "CC_NUM":   re.compile(r'\b(?:\d{4}[\-\s]?){3}\d{4}\b'),
@@ -113,13 +118,45 @@ REGEX_PATTERNS: Dict[str, re.Pattern] = {
         r'(?:\d{1,6}[A-Za-z]{1,3}|\d{2,6}|\d{1,3}-[A-Za-z0-9]{1,4})\s+(?:[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?)'
         r')\b'
     ),
+    # Dollar / currency amounts: $1,200.00 / USD 4,500 / €2.5M / £300K
+    "CURRENCY_AMOUNT": re.compile(
+        r'(?:'
+        r'[$€£¥₹₩₽]\s*\d{1,3}(?:[,.]\d{3})*(?:\.\d{1,2})?(?:\s*[MmBbKk])?'
+        r'|\b(?:USD|EUR|GBP|JPY|CAD|AUD|CHF|CNY|INR)\s+\d{1,3}(?:[,.]\d{3})*(?:\.\d{1,2})?(?:\s*[MmBbKk])?'
+        r'|\d{1,3}(?:[,.]\d{3})*(?:\.\d{1,2})?\s*(?:dollars?|euros?|pounds?|yen)'
+        r')\b',
+        re.IGNORECASE
+    ),
+    # IBAN: up to 34 alphanumeric chars starting with 2-letter country code
+    "IBAN": re.compile(
+        r'\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}(?:[A-Z0-9]?){0,16}\b'
+    ),
+    # Titled / prefixed full names: Dr. Klaus von Braun, J. Vance, Mr. Smith
+    # Catches: Title + Name, Initial.Lastname, multi-part names with particles
+    "TITLED_NAME": re.compile(
+        r'\b(?:Dr|Mr|Mrs|Ms|Prof|Gen|Col|Capt|Lt|Sgt|Cpl|Adm|Gov|Sen|Rep|Amb|Atty|Rev|Fr|Sr|Br|Mx)\.?\s+'
+        r'[A-Z][a-z]{1,20}'
+        r'(?:\s+(?:van|von|de|del|della|di|da|le|la|du|des|den|af|av|of|bin|binti|al|el|ibn)?)?'
+        r'(?:\s+[A-Z][a-z]{1,20}){0,3}\b',
+        re.IGNORECASE
+    ),
+    # Bare initial + lastname: J. Vance  /  R.J. Thornton  /  J.K. Simmons
+    "INITIAL_NAME": re.compile(
+        r'\b[A-Z]\.(?:[A-Z]\.)?\s+[A-Z][a-z]{2,20}\b'
+    ),
 }
 
 # Which levels include which regex patterns
 LEVEL_PATTERNS = {
-    FalconLevel.LIGHT:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM"},
-    FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "PASSPORT", "STREET_ADDR", "DATE", "DATE_WRITTEN", "ALNUM_TAG"},
-    FalconLevel.BLACK:    {"EMAIL", "PHONE", "SSN", "IP_ADDR", "ACCT_NUM", "CC_NUM", "DATE", "DATE_WRITTEN", "STREET_ADDR", "HOSTNAME", "PASSPORT", "SWIFT", "ALNUM_TAG"},
+    FalconLevel.LIGHT:    {"EMAIL", "PHONE", "SSN", "SSN_PARTIAL", "IP_ADDR", "ACCT_NUM",
+                           "CURRENCY_AMOUNT", "IBAN", "TITLED_NAME", "INITIAL_NAME"},
+    FalconLevel.STANDARD: {"EMAIL", "PHONE", "SSN", "SSN_PARTIAL", "IP_ADDR", "ACCT_NUM",
+                           "CC_NUM", "PASSPORT", "STREET_ADDR", "DATE", "DATE_WRITTEN",
+                           "ALNUM_TAG", "CURRENCY_AMOUNT", "IBAN", "TITLED_NAME", "INITIAL_NAME"},
+    FalconLevel.BLACK:    {"EMAIL", "PHONE", "SSN", "SSN_PARTIAL", "IP_ADDR", "ACCT_NUM",
+                           "CC_NUM", "DATE", "DATE_WRITTEN", "STREET_ADDR", "HOSTNAME",
+                           "PASSPORT", "SWIFT", "ALNUM_TAG", "CURRENCY_AMOUNT", "IBAN",
+                           "TITLED_NAME", "INITIAL_NAME"},
 }
 
 
@@ -278,13 +315,16 @@ class FalconResult:
     """Immutable result of a Falcon preprocessing pass."""
 
     def __init__(self, redacted_text: str, placeholder_map: Dict[str, str],
-                 metadata: Dict):
+                 metadata: Dict, ghost_map: Optional[List[Dict]] = None):
         self.redacted_text = redacted_text
         self.placeholder_map = placeholder_map  # {placeholder: original} — NEVER SERIALIZE
         self.metadata = metadata
+        # Ghost Map: safe-to-serialize token inventory (no original values)
+        # [{token, entity_type, sequence, source_pass, char_offset}]
+        self.ghost_map: List[Dict] = ghost_map or []
 
     def __repr__(self):
-        return f"<FalconResult level={self.metadata.get('level')} redactions={self.metadata.get('total_redactions')}>"
+        return f"<FalconResult level={self.metadata.get('level')} redactions={self.metadata.get('total_redactions')} ghost_entries={len(self.ghost_map)}>"
 
 
 # ---------------------------------------------------------------------------
@@ -645,15 +685,39 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     # -----------------------------------------------------------------------
     placeholder_map: Dict[str, str] = {}
     counts: Dict[str, int] = {}
+    ghost_map: List[Dict] = []     # Ghost Map — safe token inventory
     redacted = text
 
+    # Category normalizer: TITLED_NAME and INITIAL_NAME resolve as PERSON
+    # so the vault assigns PERSON_01 style tokens instead of TITLED_NAME_01
+    _VAULT_CATEGORY_MAP = {
+        "TITLED_NAME": "PERSON",
+        "INITIAL_NAME": "PERSON",
+        "SSN_PARTIAL": "SSN",
+    }
+
     for start, end, original, category in filtered:
+        vault_category = _VAULT_CATEGORY_MAP.get(category, category)
         if mission_vault is not None:
-            placeholder = mission_vault.get_or_create(category, original)
+            placeholder = mission_vault.get_or_create(vault_category, original)
         else:
-            placeholder = _stable_placeholder(category, original, salt, placeholder_cache)
+            placeholder = _stable_placeholder(vault_category, original, salt, placeholder_cache)
         placeholder_map[placeholder] = original
         counts[category] = counts.get(category, 0) + 1
+        ghost_map.append({
+            "token": placeholder,
+            "entity_type": vault_category,
+            "raw_category": category,          # preserves TITLED_NAME / INITIAL_NAME etc.
+            "source_pass": (
+                "regex" if category in REGEX_PATTERNS else
+                "ner_person" if category == "PERSON" else
+                "ner_org" if category == "ORG" else
+                "ner_location" if category == "LOCATION" else
+                "custom" if category == "CUSTOM" else "ner_proper"
+            ),
+            "char_offset": start,
+            "char_length": end - start,
+        })
         redacted = redacted[:start] + placeholder + redacted[end:]
 
     # -----------------------------------------------------------------------
@@ -679,7 +743,7 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     if debug:
         print(f"[FALCON DEBUG] Level: {level} | Redacted: {len(filtered)} | Risk: {metadata['exposure_risk']} | Latency: {metadata['execution_time_ms']}ms")
 
-    return FalconResult(redacted, placeholder_map, metadata)
+    return FalconResult(redacted, placeholder_map, metadata, ghost_map=ghost_map)
 
 
 def falcon_rehydrate(text: str, placeholder_map: Dict[str, str]) -> str:
@@ -730,6 +794,125 @@ def _assess_exposure_risk(total_redactions: int, high_risk_count: int,
 # ---------------------------------------------------------------------------
 # DEBUG MODE: Safe diagnostic output (never exposes raw text or map values)
 # ---------------------------------------------------------------------------
+
+
+
+# ---------------------------------------------------------------------------
+# GHOST MAP UTILITIES
+# ---------------------------------------------------------------------------
+
+def build_ghost_map_summary(result: FalconResult) -> Dict:
+    """
+    Build a structured, safe-to-serialize Ghost Map summary from a FalconResult.
+    Groups tokens by entity_type with counts — suitable for MIMIR prompt injection
+    and the Decision Ledger pii_scan event.
+
+    Returns a dict with:
+      - token_inventory: [{token, entity_type, source_pass, char_offset}]
+      - by_type: {entity_type: [token, ...]}
+      - total_redacted: int
+      - high_risk_types: [entity_types with SSN/CC/ACCT]
+    """
+    by_type: Dict[str, List[str]] = {}
+    for entry in result.ghost_map:
+        etype = entry["entity_type"]
+        by_type.setdefault(etype, []).append(entry["token"])
+
+    high_risk = {e for e in by_type if e in {"SSN", "CC_NUM", "ACCT_NUM"}}
+
+    return {
+        "token_inventory": result.ghost_map,
+        "by_type": by_type,
+        "total_redacted": len(result.ghost_map),
+        "high_risk_types": sorted(high_risk),
+        "redaction_mode": result.metadata.get("redaction_mode", "hash"),
+        "falcon_level": result.metadata.get("level", "STANDARD"),
+    }
+
+
+def detect_residual_pii(redacted_text: str,
+                        original_result: FalconResult,
+                        debug: bool = False) -> Dict:
+    """
+    PII Diff Event — runs a secondary LIGHT Falcon pass on already-redacted text
+    to surface any PII that the primary pass missed.
+
+    Use this AFTER falcon_preprocess to generate the pii_diff ledger event.
+
+    Returns a structured residual report:
+    {
+      "residual_count": int,
+      "residuals": [{text_fragment, category, char_offset, confidence}],
+      "missed_categories": [str],
+      "pii_diff_clean": bool,     # True if zero residuals found
+      "audit_note": str           # Human-readable summary for MIMIR
+    }
+
+    Security: residual text fragments are included here for audit purposes.
+    This dict should be stored in the ledger under pii_diff and NEVER
+    returned to the client directly.
+    """
+    import time
+
+    # Run a LIGHT pass on the already-redacted text.
+    # LIGHT catches: EMAIL, PHONE, SSN, SSN_PARTIAL, IP_ADDR, ACCT_NUM,
+    #                CURRENCY_AMOUNT, IBAN, TITLED_NAME, INITIAL_NAME
+    # These are the most egregious misses — structured identifiers that
+    # regex should always catch regardless of level.
+    secondary = falcon_preprocess(
+        redacted_text,
+        level="LIGHT",
+        debug=debug,
+    )
+
+    residuals = []
+    for entry in secondary.ghost_map:
+        # Skip hits that are just placeholder tokens re-detected
+        # (e.g. [PERSON_01] caught by PASSPORT pattern — false alarm)
+        frag = redacted_text[entry["char_offset"]: entry["char_offset"] + entry["char_length"]]
+        if frag.startswith("[") and frag.endswith("]"):
+            continue
+        residuals.append({
+            "text_fragment": frag,
+            "category": entry["entity_type"],
+            "raw_category": entry["raw_category"],
+            "char_offset": entry["char_offset"],
+            "confidence": (
+                "high"   if entry["entity_type"] in {"SSN", "CC_NUM", "IBAN", "EMAIL"} else
+                "medium" if entry["entity_type"] in {"PHONE", "ACCT_NUM", "CURRENCY_AMOUNT"} else
+                "low"
+            ),
+        })
+
+    missed_cats = sorted({r["category"] for r in residuals})
+    clean = len(residuals) == 0
+
+    if clean:
+        audit_note = (
+            f"PII_DIFF_CLEAN: Secondary pass found no residual PII in "
+            f"{len(redacted_text)} chars of redacted text. "
+            f"Primary pass captured {original_result.metadata.get('total_redactions', 0)} entities."
+        )
+    else:
+        audit_note = (
+            f"PII_DIFF_ALERT: {len(residuals)} residual item(s) detected after primary Falcon pass. "
+            f"Missed categories: {', '.join(missed_cats)}. "
+            f"Primary pass captured {original_result.metadata.get('total_redactions', 0)} entities. "
+            f"Re-run at STANDARD or BLACK level, or add missed terms to falcon_config.json."
+        )
+
+    if debug:
+        print(f"[RESIDUAL] {audit_note}")
+
+    return {
+        "residual_count": len(residuals),
+        "residuals": residuals,
+        "missed_categories": missed_cats,
+        "pii_diff_clean": clean,
+        "audit_note": audit_note,
+        "primary_redaction_count": original_result.metadata.get("total_redactions", 0),
+        "primary_level": original_result.metadata.get("level", "STANDARD"),
+    }
 
 def falcon_debug_report(result: FalconResult) -> str:
     """
@@ -1019,3 +1202,4 @@ def _run_self_tests() -> bool:
 
 if __name__ == "__main__":
     _run_self_tests()
+
