@@ -369,7 +369,7 @@ function renderFilePreview() {
         const isImage = f.type.startsWith('image/');
         const isPdf = f.name.toLowerCase().endsWith('.pdf');
         const icon = isImage ? '&#128444;' : (isPdf ? '&#128196;' : '&#128202;');
-        const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+        const sizeDisplay = f.size < 102400 ? (f.size / 1024).toFixed(0) + 'KB' : (f.size / 1024 / 1024).toFixed(1) + 'MB';
         const isReady = d.status === 'ready' || d.status === 'falcon_processed';
         const isFailed = d.status === 'failed';
         const statusLabel = isFailed ? 'FAILED' : (isReady ? 'READY' : d.status.toUpperCase());
@@ -379,7 +379,7 @@ function renderFilePreview() {
             <span class="file-icon">${icon}</span>
             <span class="file-name" title="${f.name}">${f.name}</span>
             <span style="color:${statusColor};font-size:0.7em;font-weight:600">${statusLabel}</span>
-            <span style="color:#555">${sizeMB}MB</span>
+            <span style="color:#555">${sizeDisplay}</span>
         </div>`;
     });
 
@@ -2050,6 +2050,13 @@ async function executeReasoningChain(query) {
         falcon_custom_terms: window._falconCustomTerms || []
     };
 
+    // Attach vault document IDs if any are ready
+    const vaultDocIds = VaultUploader.getReadyDocIds();
+    if (vaultDocIds.length > 0) {
+        payload.vault_document_ids = vaultDocIds;
+        logTelemetry(`VAULT: ${vaultDocIds.length} vault document(s) attached to V2 chain`, "process");
+    }
+
     const response = await authFetch('/api/v2/reasoning_chain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2063,6 +2070,12 @@ async function executeReasoningChain(query) {
         renderChainResults(data.pipeline_result);
         if (data.execution_metrics) {
             renderExecutionDashboard(data.execution_metrics);
+        }
+        // Clear vault docs after successful V2 chain
+        if (vaultDocIds.length > 0) {
+            VaultUploader.clear();
+            pendingFiles = [];
+            renderFilePreview();
         }
     } else {
         throw new Error(data.error || "Pipeline Failed");

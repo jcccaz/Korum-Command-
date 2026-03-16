@@ -2391,6 +2391,30 @@ def reasoning_chain():
     if not query:
         return jsonify({"success": False, "error": "Query required"}), 400
 
+    # --- VAULT DOCUMENTS: Attach extracted text from S3 pipeline ---
+    vault_document_ids = data.get('vault_document_ids', [])
+    _vault_doc_ids_used = []
+    if vault_document_ids:
+        from vault import get_vault_document
+        doc_texts = []
+        for vdoc_id in vault_document_ids:
+            vdoc = get_vault_document(vdoc_id)
+            if not vdoc:
+                print(f"⚠️ V2 Vault doc not found: {vdoc_id}")
+                continue
+            if vdoc.status not in ('falcon_processed', 'ready'):
+                print(f"⚠️ V2 Vault doc not ready: {vdoc_id} (status={vdoc.status})")
+                continue
+            if vdoc.user_id != current_user.id and not current_user.is_admin():
+                print(f"⚠️ V2 Vault doc access denied: {vdoc_id}")
+                continue
+            if vdoc.extracted_text:
+                doc_texts.append(f"[Vault Document: {vdoc_id[:8]}]\n{vdoc.extracted_text}")
+                _vault_doc_ids_used.append(vdoc_id)
+        if doc_texts:
+            query = query + "\n\n--- ATTACHED DOCUMENTS ---\n" + "\n\n".join(doc_texts)
+            print(f"📎 V2: {len(doc_texts)} vault document(s) attached ({sum(len(t) for t in doc_texts)} chars)")
+
     # --- FALCON PROTOCOL: SECURE PREPROCESSING ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
@@ -2483,6 +2507,17 @@ def reasoning_chain():
                 "counts": falcon_meta['counts_by_category'],
                 "exposure_risk": falcon_meta['exposure_risk'],
             }
+
+        # --- GOLDFISH: Purge extracted text after council consumption ---
+        if _vault_doc_ids_used:
+            from vault import get_vault_document as _gvd
+            for _vid in _vault_doc_ids_used:
+                _vd = _gvd(_vid)
+                if _vd:
+                    _vd.extracted_text = None
+                    _vd.status = 'consumed'
+            db.session.commit()
+            print(f"🐟 GOLDFISH: Purged extracted text from {len(_vault_doc_ids_used)} vault doc(s)")
 
         return jsonify(response_data)
 
