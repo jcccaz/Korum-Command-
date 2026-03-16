@@ -131,6 +131,27 @@ class DecisionLedger(db.Model):
         }
 
 
+class MissionVault(db.Model):
+    """Per-mission pseudonym vault for Falcon deterministic pseudonymization (Phase 2).
+    Maps (mission_id, category, entity_hash) -> sequential pseudonym (e.g. PERSON_01).
+    Stores entity hashes only — raw PII is NEVER persisted."""
+    __tablename__ = "mission_vault"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mission_id = db.Column(db.String(36), nullable=False, index=True)
+    category = db.Column(db.String(30), nullable=False)
+    entity_hash = db.Column(db.String(64), nullable=False)
+    pseudonym = db.Column(db.String(30), nullable=False)
+    sequence_num = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('mission_id', 'category', 'entity_hash', name='uq_vault_entity'),
+        db.UniqueConstraint('mission_id', 'category', 'sequence_num', name='uq_vault_sequence'),
+        db.Index('ix_vault_mission_category', 'mission_id', 'category'),
+    )
+
+
 class UsageLog(db.Model):
     __tablename__ = "usage_logs"
 

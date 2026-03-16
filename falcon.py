@@ -288,7 +288,84 @@ class FalconResult:
 
 
 # ---------------------------------------------------------------------------
-# PLACEHOLDER GENERATION
+# MISSION VAULT — Deterministic Pseudonymization (Phase 2)
+# ---------------------------------------------------------------------------
+
+class VaultManager:
+    """DB-backed + in-memory cached vault for mission-scoped deterministic pseudonyms.
+    Same entity across multiple requests in the same mission always gets the same
+    pseudonym (e.g. PERSON_01). Raw PII is NEVER stored — only SHA-256 hashes."""
+
+    def __init__(self, mission_id: str):
+        self.mission_id = mission_id
+        self._by_text = {}      # (category, normalized_upper) -> pseudonym
+        self._by_hash = {}      # (category, entity_hash) -> pseudonym
+        self._counters = {}     # category -> max_sequence_num
+        self._dirty = []        # new entries to persist
+        self._load_from_db()
+
+    def _load_from_db(self):
+        from models import MissionVault
+        from db import db
+        entries = MissionVault.query.filter_by(mission_id=self.mission_id).all()
+        for e in entries:
+            self._by_hash[(e.category, e.entity_hash)] = e.pseudonym
+            current_max = self._counters.get(e.category, 0)
+            self._counters[e.category] = max(current_max, e.sequence_num)
+
+    def get_or_create(self, category: str, original: str) -> str:
+        """Return a deterministic pseudonym like [PERSON_01] for the given entity."""
+        normalized = " ".join(original.split()).upper()
+        key_text = (category, normalized)
+
+        # L2: in-memory cache hit (same request, same entity)
+        if key_text in self._by_text:
+            return self._by_text[key_text]
+
+        # L1: DB hash lookup (cross-request consistency)
+        entity_hash = hashlib.sha256(normalized.encode()).hexdigest()
+        key_hash = (category, entity_hash)
+        if key_hash in self._by_hash:
+            pseudonym = self._by_hash[key_hash]
+            self._by_text[key_text] = pseudonym
+            return pseudonym
+
+        # New entity: assign next sequence number
+        seq = self._counters.get(category, 0) + 1
+        self._counters[category] = seq
+        pseudonym = f"[{category}_{seq:02d}]"
+
+        self._by_text[key_text] = pseudonym
+        self._by_hash[key_hash] = pseudonym
+        self._dirty.append((category, entity_hash, pseudonym, seq))
+        return pseudonym
+
+    def flush(self):
+        """Persist new vault entries to DB. Call after council execution."""
+        if not self._dirty:
+            return
+        from models import MissionVault
+        from db import db
+        for category, entity_hash, pseudonym, seq in self._dirty:
+            entry = MissionVault(
+                mission_id=self.mission_id,
+                category=category,
+                entity_hash=entity_hash,
+                pseudonym=pseudonym,
+                sequence_num=seq,
+            )
+            db.session.add(entry)
+        try:
+            db.session.commit()
+            print(f"[VAULT] Persisted {len(self._dirty)} new pseudonyms for mission {self.mission_id[:8]}")
+        except Exception as e:
+            db.session.rollback()
+            print(f"[VAULT] Flush error: {e}")
+        self._dirty.clear()
+
+
+# ---------------------------------------------------------------------------
+# PLACEHOLDER GENERATION (Legacy hash-based — used for Ghost Preview / V1)
 # ---------------------------------------------------------------------------
 
 def _stable_placeholder(category: str, original: str, salt: str,
@@ -324,22 +401,33 @@ def _detect_person_names(text: str) -> List[Tuple[int, int, str]]:
     Heuristic person name detection.
     Finds sequences of 2-4 capitalized words that are NOT in the common
     words exclusion list. Requires a preceding lowercase letter, period,
-    or sentence boundary to reduce false positives on section headers.
+    underscore, or sentence boundary to reduce false positives on section headers.
 
     NOTE: This is a heuristic. False positives will occur. Expand
     COMMON_WORDS as needed to reduce noise in your domain.
     """
-    # Look for 2-4 capitalized words preceded by lowercase/punct
-    pattern = re.compile(r'(?<=[a-z.?!,;:]\s)([A-Z][a-z]{1,20}(?:\s[A-Z][a-z]{1,20}){1,3})')
+    name_pat = r'[A-Z][a-z]{1,20}(?:\s[A-Z][a-z]{1,20}){1,3}'
+    patterns = [
+        # Standard: preceded by lowercase/punct + space
+        re.compile(r'(?<=[a-z.?!,;:_]\s)(' + name_pat + r')'),
+        # Signature-line: preceded by underscore(s) directly (no space)
+        re.compile(r'(?<=_)(' + name_pat + r')'),
+    ]
     matches = []
-    for m in pattern.finditer(text):
-        words = m.group().split()
-        # Skip if ALL words are in common exclusion set
-        if all(w in COMMON_WORDS for w in words):
-            continue
-        # Require at least one non-common word
-        if any(w not in COMMON_WORDS for w in words):
-            matches.append((m.start(), m.end(), m.group()))
+    seen_spans = set()
+    for pattern in patterns:
+        for m in pattern.finditer(text):
+            span = (m.start(), m.end())
+            if span in seen_spans:
+                continue
+            seen_spans.add(span)
+            words = m.group().split()
+            # Skip if ALL words are in common exclusion set
+            if all(w in COMMON_WORDS for w in words):
+                continue
+            # Require at least one non-common word
+            if any(w not in COMMON_WORDS for w in words):
+                matches.append((m.start(), m.end(), m.group()))
     return matches
 
 
@@ -387,18 +475,20 @@ def _detect_proper_noun_phrases(text: str) -> List[Tuple[int, int, str]]:
     Catches standalone proper nouns like "Reykjavik", "Vance", "Thorne"
     as well as multi-word forms like "Blue-Vein", "North Ridge".
     """
+    # Custom boundary: treat underscores as separators (unlike \b which counts _ as word char)
     pattern = re.compile(
-        r'\b([A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?(?:\s+[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?){0,3})\b'
+        r'(?:^|(?<=[^A-Za-z0-9]))([A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?(?:\s+[A-Z][a-z]{2,}(?:-[A-Z][a-z]{2,})?){0,3})(?=[^A-Za-z]|$)'
     )
     matches = []
     for m in pattern.finditer(text):
-        phrase = m.group()
+        phrase = m.group(1)
+        start, end = m.start(1), m.end(1)
         tokens = phrase.split()
         if not tokens:
             continue
 
         # Skip sentence-initial phrases — these are likely regular words.
-        i = m.start() - 1
+        i = start - 1
         while i >= 0 and text[i].isspace():
             i -= 1
         if i < 0 or text[i] in ".!?\n\r":
@@ -418,7 +508,7 @@ def _detect_proper_noun_phrases(text: str) -> List[Tuple[int, int, str]]:
         if len(tokens) == 2 and tokens[0] in COMMON_WORDS:
             continue
 
-        matches.append((m.start(), m.end(), phrase))
+        matches.append((start, end, phrase))
     return matches
 
 
@@ -430,6 +520,7 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
                       custom_terms: Optional[List[str]] = None,
                       salt: Optional[str] = None,
                       placeholder_cache: Optional[Dict[str, str]] = None,
+                      mission_vault: Optional['VaultManager'] = None,
                       debug: bool = False) -> FalconResult:
     """
     Run the full Falcon redaction pipeline on input text.
@@ -557,7 +648,10 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     redacted = text
 
     for start, end, original, category in filtered:
-        placeholder = _stable_placeholder(category, original, salt, placeholder_cache)
+        if mission_vault is not None:
+            placeholder = mission_vault.get_or_create(category, original)
+        else:
+            placeholder = _stable_placeholder(category, original, salt, placeholder_cache)
         placeholder_map[placeholder] = original
         counts[category] = counts.get(category, 0) + 1
         redacted = redacted[:start] + placeholder + redacted[end:]
@@ -572,6 +666,7 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     
     metadata = {
         "level": falcon_level.value,
+        "redaction_mode": "deterministic" if mission_vault is not None else "hash",
         "total_redactions": len(filtered),
         "counts_by_category": counts,
         "high_risk_items_count": high_risk_count,

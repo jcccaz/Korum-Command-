@@ -1596,6 +1596,24 @@ def ask_council():
     _workflow = data.get('workflow', 'RESEARCH')
     _operator_id = current_user.id if hasattr(current_user, 'id') else None
 
+    # --- EARLY THREAD RESOLUTION (needed before Falcon for vault scoping) ---
+    use_v2 = data.get('use_v2', False)
+    _thread_id_early = None
+    _user_id = current_user.id if hasattr(current_user, 'id') else None
+    if use_v2:
+        _thread_id_early = data.get('thread_id', None)
+        if _thread_id_early:
+            _thread_check = Thread.query.filter_by(thread_id=_thread_id_early).first()
+            if not _thread_check:
+                _thread_id_early = None
+        if not _thread_id_early:
+            _title = query[:100].strip() + ("..." if len(query) > 100 else "")
+            _thread_obj = Thread(title=_title, user_id=_user_id)
+            db.session.add(_thread_obj)
+            db.session.commit()
+            _thread_id_early = _thread_obj.thread_id
+            print(f"[THREAD] Auto-created: {_thread_id_early[:8]} — {_title[:50]}")
+
     # --- FALCON PROTOCOL: SECURE PREPROCESSING / REDACTION ---
     use_falcon = data.get('use_falcon', False)
     falcon_level = data.get('falcon_level', 'STANDARD')
@@ -1604,30 +1622,44 @@ def ask_council():
     _falcon_placeholder_map = {}
     _falcon_salt = None
     _falcon_cache = None
+    _falcon_vault = None
 
     if use_falcon:
         import hashlib
         import time
+        from falcon import VaultManager
         if falcon_level not in ('LIGHT', 'STANDARD', 'BLACK'):
             falcon_level = 'STANDARD'
         print(f"[FALCON] Preprocessing at level: {falcon_level} | Custom terms: {len(falcon_custom_terms)}")
-        _falcon_salt = hashlib.sha256(
-            f"ask_council:{time.time_ns()}:{getattr(current_user, 'id', 'anon')}".encode()
-        ).hexdigest()[:12]
-        _falcon_cache = {}
-        falcon_result = falcon_preprocess(
-            query,
-            level=falcon_level,
-            custom_terms=falcon_custom_terms or None,
-            salt=_falcon_salt,
-            placeholder_cache=_falcon_cache
-        )
+
+        # Phase 2: Use deterministic vault when V2 + thread available
+        if use_v2 and _thread_id_early:
+            _falcon_vault = VaultManager(_thread_id_early)
+            print(f"[FALCON] Vault mode: deterministic pseudonyms for mission {_thread_id_early[:8]}")
+            falcon_result = falcon_preprocess(
+                query,
+                level=falcon_level,
+                custom_terms=falcon_custom_terms or None,
+                mission_vault=_falcon_vault
+            )
+        else:
+            _falcon_salt = hashlib.sha256(
+                f"ask_council:{time.time_ns()}:{getattr(current_user, 'id', 'anon')}".encode()
+            ).hexdigest()[:12]
+            _falcon_cache = {}
+            falcon_result = falcon_preprocess(
+                query,
+                level=falcon_level,
+                custom_terms=falcon_custom_terms or None,
+                salt=_falcon_salt,
+                placeholder_cache=_falcon_cache
+            )
         blind_text = falcon_result.redacted_text
         query = blind_text
         falcon_meta = falcon_result.metadata
         # SECURITY: placeholder_map stays in this scope only — never serialized
         _falcon_placeholder_map = falcon_result.placeholder_map
-        print(f"[FALCON] Redacted {falcon_meta['total_redactions']} entities across {len(falcon_meta['categories_found'])} categories")
+        print(f"[FALCON] Mode: {falcon_meta.get('redaction_mode', 'hash')} | Redacted {falcon_meta['total_redactions']} entities across {len(falcon_meta['categories_found'])} categories")
         print(f"[FALCON] REDACTED QUERY: {query[:500]}")
         if falcon_meta.get('counts_by_category'):
             print(f"[FALCON] CATEGORIES: {falcon_meta['counts_by_category']}")
@@ -1660,7 +1692,7 @@ def ask_council():
         _ledger_early_events.append({
             "event_type": "falcon_redaction",
             "payload": {
-                "redaction_mode": "current",
+                "redaction_mode": falcon_meta.get("redaction_mode", "hash"),
                 "entities_detected": {
                     "person": counts.get("PERSON", 0) + counts.get("PROPER_NOUN", 0),
                     "location": counts.get("LOCATION", 0),
@@ -1695,45 +1727,30 @@ def ask_council():
 
     if use_v2:
         workflow = data.get('workflow', 'RESEARCH')
-        thread_id = data.get('thread_id', None)
-        user_id = current_user.id if hasattr(current_user, 'id') else None
-
-        # Thread management: load or create
-        if thread_id:
-            thread = Thread.query.filter_by(thread_id=thread_id).first()
-            if not thread:
-                thread_id = None  # fallback to auto-create
-
-        if not thread_id:
-            # Auto-create thread from first query
-            title = query[:100].strip()
-            if len(query) > 100:
-                title += "..."
-            thread = Thread(title=title, user_id=user_id)
-            db.session.add(thread)
-            db.session.commit()
-            thread_id = thread.thread_id
-            print(f"[THREAD] Auto-created: {thread_id[:8]} — {title[:50]}")
+        thread_id = _thread_id_early  # Resolved earlier (before Falcon)
+        user_id = _user_id
 
         # Save user message to thread
         _thread_save_message(thread_id, 'user', query)
 
         # Build previous_context from thread history (overrides frontend version)
         previous_context = _thread_build_previous_context(thread_id)
-        if use_falcon and previous_context and _falcon_salt and _falcon_cache is not None:
+        if use_falcon and previous_context and (_falcon_vault or (_falcon_salt and _falcon_cache is not None)):
+            # Build common kwargs for falcon_preprocess (vault or hash mode)
+            _ctx_falcon_kwargs = {"level": falcon_level, "custom_terms": falcon_custom_terms or None}
+            if _falcon_vault:
+                _ctx_falcon_kwargs["mission_vault"] = _falcon_vault
+            else:
+                _ctx_falcon_kwargs["salt"] = _falcon_salt
+                _ctx_falcon_kwargs["placeholder_cache"] = _falcon_cache
+
             redacted_context = []
             for entry in previous_context:
                 safe_entry = dict(entry) if isinstance(entry, dict) else {}
                 for field in ("query", "summary", "divergence_summary"):
                     val = safe_entry.get(field)
                     if isinstance(val, str) and val.strip():
-                        ctx_res = falcon_preprocess(
-                            val,
-                            level=falcon_level,
-                            custom_terms=falcon_custom_terms or None,
-                            salt=_falcon_salt,
-                            placeholder_cache=_falcon_cache
-                        )
+                        ctx_res = falcon_preprocess(val, **_ctx_falcon_kwargs)
                         safe_entry[field] = ctx_res.redacted_text
                         _falcon_placeholder_map.update(ctx_res.placeholder_map)
                 contested = safe_entry.get("contested_topics")
@@ -1741,13 +1758,7 @@ def ask_council():
                     redacted_topics = []
                     for item in contested:
                         if isinstance(item, str) and item.strip():
-                            topic_res = falcon_preprocess(
-                                item,
-                                level=falcon_level,
-                                custom_terms=falcon_custom_terms or None,
-                                salt=_falcon_salt,
-                                placeholder_cache=_falcon_cache
-                            )
+                            topic_res = falcon_preprocess(item, **_ctx_falcon_kwargs)
                             redacted_topics.append(topic_res.redacted_text)
                             _falcon_placeholder_map.update(topic_res.placeholder_map)
                         else:
@@ -1794,6 +1805,10 @@ def ask_council():
             ledger_mission_id=_ledger_mission_id,
         )
         
+        # Flush vault pseudonyms to DB after council execution
+        if _falcon_vault:
+            _falcon_vault.flush()
+
         # Merge metrics into response
         metrics = v2_response.get('metrics', {})
         
