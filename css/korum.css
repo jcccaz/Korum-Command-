@@ -6134,18 +6134,18 @@ body.report-library-open .results-container {
 
 .brand-hero-container {
     position: relative;
-    width: 220px;
-    margin-bottom: 15px;
+    width: 80px;
+    height: 80px;
+    margin-bottom: 0px;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .brand-hero-logo {
-    width: 220px;
-    height: auto;
+    width: 80px;
+    height: 80px;
     object-fit: contain;
     filter: drop-shadow(0 0 10px rgba(255, 176, 32, 0.2));
     z-index: 2;
@@ -6161,9 +6161,9 @@ body.report-library-open .results-container {
 .hero-eye-pulse {
     position: absolute;
     top: 24%;
-    left: 49.5%;
-    width: 12px;
-    height: 12px;
+    left: 48%;
+    width: 6px;
+    height: 6px;
     background: radial-gradient(circle, rgba(255, 176, 32, 0.8) 0%, rgba(255, 176, 32, 0) 70%);
     border-radius: 50%;
     z-index: 3;
