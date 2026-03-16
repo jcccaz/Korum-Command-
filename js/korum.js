@@ -2083,7 +2083,7 @@ async function executeReasoningChain(query) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-    });
+    }, 300000);  // 5 min — V2 sequential pipeline needs more than default 120s
 
     if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
     const data = await response.json();
