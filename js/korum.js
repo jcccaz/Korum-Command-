@@ -3924,11 +3924,11 @@ async function executeCouncil(query, roleName) {
             formData.append('files', file);
         }
         logTelemetry(`${pendingFiles.length} file(s) attached to query (multipart)`, "process");
-        response = await authFetch('/api/ask', { method: 'POST', body: formData });
+        response = await authFetch('/api/ask', { method: 'POST', body: formData }, 300000);
         pendingFiles = [];
         renderFilePreview();
     } else {
-        response = await authFetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        response = await authFetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }, 300000);
         if (vaultDocIds.length > 0) {
             VaultUploader.clear();
             pendingFiles = [];
