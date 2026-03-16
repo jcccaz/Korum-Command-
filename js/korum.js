@@ -3495,8 +3495,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Execute from ghost modal — proceed to council
     document.getElementById('ghostExecuteBtn')?.addEventListener('click', () => {
         closeGhostModal();
-        const query = document.getElementById('queryInput')?.value.trim();
-        if (query) triggerCouncil(query);
+        // Route through the main Execute Protocol button so mission intake gate applies
+        document.querySelector('.trigger-scan')?.click();
     });
 
     // Quick Protect: add term and rescan
