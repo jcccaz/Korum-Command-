@@ -2422,6 +2422,10 @@ def reasoning_chain():
     falcon_meta = None
     _falcon_placeholder_map = {}
 
+    # Ghost Map + Residual Report — populated when Falcon runs
+    _ghost_map_summary = {}
+    _residual_report = {}
+
     if use_falcon:
         if falcon_level not in ('LIGHT', 'STANDARD', 'BLACK'):
             falcon_level = 'STANDARD'
@@ -2433,6 +2437,12 @@ def reasoning_chain():
         print(f"🦅 FALCON REDACTED QUERY: {query[:500]}")
         if falcon_meta.get('counts_by_category'):
             print(f"🦅 FALCON CATEGORIES: {falcon_meta['counts_by_category']}")
+
+        # Build Ghost Map + PII Diff for MIMIR council injection
+        from falcon import build_ghost_map_summary, detect_residual_pii
+        _ghost_map_summary = build_ghost_map_summary(falcon_res)
+        _residual_report = detect_residual_pii(query, falcon_res)
+        print(f"🔍 PII DIFF: {_residual_report.get('residual_count', 0)} residual(s) — {'CLEAN' if _residual_report.get('pii_diff_clean') else 'ALERT'}")
 
     # Log AFTER Falcon so raw PII never hits logs
     print(f"⚡ V2 REASONING CHAIN [{workflow}]")
@@ -2450,7 +2460,7 @@ def reasoning_chain():
 
     try:
         user_id = current_user.id if hasattr(current_user, 'id') else None
-        results = execute_council_v2(query, personas, workflow=workflow, active_models=active_models, user_id=user_id)
+        results = execute_council_v2(query, personas, workflow=workflow, active_models=active_models, user_id=user_id, ghost_map=_ghost_map_summary, residual_report=_residual_report)
         
         # 2. Add Red Team separately if requested (to maintain logic in app.py for now)
         if hacker_mode:
