@@ -5985,6 +5985,56 @@ body.activated .sphere-texture {
     border-color: #FFF;
 }
 
+/* Highlight toolbar chart dropdown */
+.ht-chart-trigger {
+    position: relative;
+}
+.ht-chart-dropdown {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 4px;
+    margin-bottom: 6px;
+    min-width: 100px;
+    z-index: 2001;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
+}
+.ht-chart-dropdown.show {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ht-chart-opt {
+    padding: 5px 10px;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: var(--font-head);
+    color: #FFF;
+    cursor: pointer;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+.ht-chart-opt:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* XLS export button accent */
+.ht-btn.export-xls {
+    color: #4ADE80;
+    border-color: rgba(74, 222, 128, 0.3);
+}
+.ht-btn.export-xls:hover {
+    background: rgba(74, 222, 128, 0.15);
+    border-color: #4ADE80;
+}
+
 @keyframes toolbarPop {
     from { transform: scale(0.8) translateY(10px); opacity: 0; }
     to { transform: scale(1) translateY(0); opacity: 1; }

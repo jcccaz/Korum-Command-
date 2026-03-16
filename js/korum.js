@@ -4888,14 +4888,39 @@ function showHighlightToolbar(rect, text, provider) {
         toolbar.innerHTML = `
             <button class="ht-btn interrogate" title="Interrogate Selection">🔎 INTERROGATE</button>
             <button class="ht-btn verify" title="Verify Selection">⚖️ VERIFY</button>
-            <button class="ht-btn visualize" title="Visualize Selection">📊 VIZ</button>
+            <div class="ht-btn ht-chart-trigger" title="Chart Selection">📊 VIZ
+                <div class="ht-chart-dropdown">
+                    <div class="ht-chart-opt" data-chart="pie">🥧 Pie</div>
+                    <div class="ht-chart-opt" data-chart="bar">📊 Bar</div>
+                    <div class="ht-chart-opt" data-chart="line">📈 Line</div>
+                    <div class="ht-chart-opt" data-chart="flowchart">🔀 Flow</div>
+                    <div class="ht-chart-opt" data-chart="auto">🎯 Auto</div>
+                </div>
+            </div>
+            <button class="ht-btn export-xls" title="Export Selection as XLS">📥 XLS</button>
             <button class="ht-btn document" title="Document Selection">📄 DOC</button>
         `;
         document.body.appendChild(toolbar);
-        
+
         toolbar.querySelector('.interrogate').onclick = (e) => { e.stopPropagation(); runHighlightAction('interrogate'); };
         toolbar.querySelector('.verify').onclick = (e) => { e.stopPropagation(); runHighlightAction('verify'); };
-        toolbar.querySelector('.visualize').onclick = (e) => { e.stopPropagation(); runHighlightAction('visualize'); };
+        toolbar.querySelector('.ht-chart-trigger').onclick = (e) => {
+            e.stopPropagation();
+            const dropdown = toolbar.querySelector('.ht-chart-dropdown');
+            dropdown?.classList.toggle('show');
+        };
+        toolbar.querySelectorAll('.ht-chart-opt').forEach(opt => {
+            opt.onclick = (e) => {
+                e.stopPropagation();
+                const chartType = opt.dataset.chart;
+                const text = activeActionContext.text;
+                if (text) generateCardChart(text, chartType);
+                toolbar.querySelector('.ht-chart-dropdown')?.classList.remove('show');
+                window.getSelection().removeAllRanges();
+                hideHighlightToolbar();
+            };
+        });
+        toolbar.querySelector('.export-xls').onclick = (e) => { e.stopPropagation(); runHighlightAction('export-xls'); };
         toolbar.querySelector('.document').onclick = (e) => { e.stopPropagation(); runHighlightAction('document'); };
     }
     
@@ -4929,6 +4954,68 @@ function hideHighlightToolbar() {
 }
 
 /**
+ * Export highlighted text as XLS (CSV that Excel opens natively).
+ * Parses tables, bullet lists, and key-value lines into rows/columns.
+ */
+function exportSelectionAsXLS(text) {
+    if (!text) return;
+
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const rows = [];
+
+    for (const line of lines) {
+        // Table row: pipes or tabs
+        if (line.includes('|')) {
+            const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+            // Skip separator rows (----)
+            if (cells.every(c => /^[-:]+$/.test(c))) continue;
+            rows.push(cells);
+        }
+        // Key-value: "Label: Value" or "Label — Value"
+        else if (/^(.+?):\s+(.+)$/.test(line)) {
+            const m = line.match(/^(.+?):\s+(.+)$/);
+            rows.push([m[1].trim(), m[2].trim()]);
+        }
+        // Bullet: "• Item" or "- Item"
+        else if (/^[•\-\*]\s+/.test(line)) {
+            rows.push([line.replace(/^[•\-\*]\s+/, '')]);
+        }
+        // Numbered: "1. Item" or "1) Item"
+        else if (/^\d+[.)]\s+/.test(line)) {
+            const m = line.match(/^\d+[.)]\s+(.+)$/);
+            rows.push([m ? m[1] : line]);
+        }
+        // Plain line
+        else {
+            rows.push([line]);
+        }
+    }
+
+    if (rows.length === 0) {
+        showProcessingToast("No tabular data found in selection.");
+        return;
+    }
+
+    // Build CSV content
+    const csv = rows.map(row =>
+        row.map(cell => `"${String(cell).replace(/"/g, '""')}"`)
+            .join(',')
+    ).join('\r\n');
+
+    // Download as .csv (Excel-compatible)
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `korum_export_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    logTelemetry(`XLS EXPORT: ${rows.length} rows`, "success");
+    showProcessingToast(`Exported ${rows.length} rows to CSV.`);
+}
+
+/**
  * Run actions from the highlight toolbar.
  */
 function runHighlightAction(action) {
@@ -4943,8 +5030,11 @@ function runHighlightAction(action) {
             executeVerify(text, getProviderName(provider));
             break;
         case 'visualize':
-            const query = `VISUALIZE SELECTION: "${text}". Create a Mermaid JS chart.`;
-            triggerCouncil(query);
+            // Now handled by chart dropdown directly — fallback to auto
+            generateCardChart(text, 'auto');
+            break;
+        case 'export-xls':
+            exportSelectionAsXLS(text);
             break;
         case 'document':
             saveReport();
