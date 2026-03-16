@@ -58,85 +58,61 @@ WORKFLOW_DNA = {
         "posture": "Chief Information Security Officer (CISO) & Cryptographer",
         "output_structure": ["Threat Landscape", "Cryptographic Vulnerabilities", "Zero Trust Controls", "Compliance Mapping (NIST/FedRAMP)", "Mitigation Architecture"]
     },
-    "MEDICAL": {
-        "goal": "Evidence-based clinical assessment with patient safety as the absolute priority.",
-        "tone": "Precise, cautious, and citation-driven.",
-        "risk_bias": "Conservative (Do No Harm)",
-        "time_horizon": "Immediate clinical + long-term outcomes",
-        "posture": "Chief Medical Officer & Clinical Review Board",
-        "output_structure": ["Clinical Assessment", "Evidence Review", "Differential Diagnosis", "Treatment Options", "Risk-Benefit Analysis"]
+    "DEFENSE_COUNCIL": {
+        "goal": "Assess operational threats, force posture, and strategic military risk with DOD-grade rigor.",
+        "tone": "Authoritative, direct, and operationally precise.",
+        "risk_bias": "Force protection / Mission assurance",
+        "time_horizon": "Operational (72 hours to 18 months)",
+        "posture": "Joint Operations Commander",
+        "output_structure": ["Threat Assessment", "Force Posture", "ISR Gaps", "COA Options", "Risk to Mission"]
     },
-    "CYBER": {
-        "goal": "Identify active threats, map attack surfaces, and provide actionable defense recommendations.",
-        "tone": "Direct, technical, and adversary-aware.",
-        "risk_bias": "Assume breach / Adversarial",
-        "time_horizon": "0-72 hours tactical + ongoing hardening",
-        "posture": "Cyber Command / Red Team Lead",
-        "output_structure": ["Threat Intelligence", "Attack Surface Analysis", "Active Indicators (IOCs)", "Mitigation Playbook", "Detection Rules"]
+    "CYBER_COMMAND": {
+        "goal": "Identify, contain, and neutralize cyber threats with precise technical attribution and remediation.",
+        "tone": "Technical, assertive, and zero-tolerance on ambiguity.",
+        "risk_bias": "Threat neutralization",
+        "time_horizon": "Immediate to 90 days",
+        "posture": "Cyber Operations Commander",
+        "output_structure": ["Threat Actor Profile", "Attack Vector", "Indicators of Compromise", "Containment Actions", "Remediation Roadmap"]
     },
-    "DEFENSE": {
-        "goal": "Strategic defense analysis with geopolitical awareness and operational security.",
-        "tone": "Classified-brief style, precise, and mission-focused.",
-        "risk_bias": "Threat-forward / Worst-case planning",
-        "time_horizon": "Multi-domain (tactical to strategic)",
-        "posture": "Defense Intelligence Analyst",
-        "output_structure": ["Situation Assessment", "Force Disposition", "Threat Analysis", "Courses of Action", "Intelligence Gaps"]
-    },
-    "STARTUP": {
-        "goal": "Validate business viability, identify product-market fit, and assess go-to-market readiness.",
-        "tone": "Pragmatic, founder-direct, and metrics-driven.",
-        "risk_bias": "Calculated risk / Move fast with data",
-        "time_horizon": "0-18 months runway",
-        "posture": "Startup Advisor / VC Partner",
-        "output_structure": ["Market Opportunity", "Unit Economics", "Competitive Landscape", "Go-to-Market Strategy", "Funding & Runway"]
-    },
-    "AUDIT": {
-        "goal": "Identify control failures, compliance gaps, and evidence discrepancies against applicable frameworks.",
-        "tone": "Formal, objective, and finding-driven.",
-        "risk_bias": "Skeptical / Trust but verify",
-        "time_horizon": "Point-in-time assessment + remediation timeline",
-        "posture": "Lead Auditor (SOC2 / ISO 27001 / NIST)",
-        "output_structure": ["Scope & Methodology", "Control Findings", "Compliance Gap Analysis", "Evidence Assessment", "Remediation Priorities"]
-    },
-    "CREATIVE": {
-        "goal": "Generate innovative concepts, narratives, and strategic messaging with brand alignment.",
-        "tone": "Bold, imaginative, and audience-aware.",
-        "risk_bias": "Risk-tolerant / Push boundaries",
-        "time_horizon": "Campaign-based",
-        "posture": "Creative Director & Brand Strategist",
-        "output_structure": ["Creative Concept", "Target Audience", "Messaging Framework", "Content Strategy", "Execution Plan"]
-    },
-    "SCIENCE": {
-        "goal": "Evaluate hypotheses with methodological rigor and reproducibility standards.",
-        "tone": "Academic, precise, and peer-review caliber.",
-        "risk_bias": "Evidence-weighted / Null hypothesis default",
-        "time_horizon": "Study-dependent",
-        "posture": "Principal Investigator & Peer Reviewer",
-        "output_structure": ["Hypothesis Evaluation", "Methodology Assessment", "Data Analysis", "Literature Context", "Conclusions & Limitations"]
-    },
-    "TECH": {
-        "goal": "Evaluate technical architecture, scalability, and engineering trade-offs.",
-        "tone": "Engineer-direct, pragmatic, and systems-aware.",
-        "risk_bias": "Reliability-first",
-        "time_horizon": "Build cycle (sprint to quarterly)",
-        "posture": "CTO / Principal Engineer",
-        "output_structure": ["Architecture Assessment", "Technical Trade-offs", "Scalability Analysis", "Implementation Plan", "Technical Debt & Risks"]
-    },
-    "INTEL": {
-        "goal": "Produce finished intelligence products with source evaluation and confidence grading.",
-        "tone": "Intelligence community standard, structured, and source-attributed.",
-        "risk_bias": "Analytic confidence calibration",
-        "time_horizon": "Current intelligence + strategic forecast",
+    "INTEL_BRIEF": {
+        "goal": "Produce a structured intelligence assessment from raw signals, OSINT, and HUMINT with sourced confidence ratings.",
+        "tone": "Precise, dispassionate, and source-attributed.",
+        "risk_bias": "Accuracy over speed",
+        "time_horizon": "Current to 30-day forecast",
         "posture": "Senior Intelligence Analyst",
-        "output_structure": ["Key Judgments", "Source Evaluation", "Analytic Confidence", "Alternative Hypotheses", "Intelligence Gaps"]
+        "output_structure": ["Key Judgments", "Source Assessment", "Threat Actors", "Indicators & Warnings", "Confidence Matrix"]
     },
-    "SYSTEM": {
-        "goal": "Diagnose system behavior, optimize performance, and ensure operational integrity.",
-        "tone": "Diagnostic, systematic, and root-cause focused.",
-        "risk_bias": "Stability-first",
-        "time_horizon": "Immediate resolution + preventive measures",
-        "posture": "Systems Engineer / SRE Lead",
-        "output_structure": ["System Status", "Root Cause Analysis", "Performance Metrics", "Resolution Steps", "Monitoring Recommendations"]
+    "SCIENCE_PANEL": {
+        "goal": "Evaluate scientific claims, experimental evidence, and research methodology with peer-review rigor.",
+        "tone": "Precise, evidence-graded, and intellectually honest about uncertainty.",
+        "risk_bias": "Methodological rigor",
+        "time_horizon": "Long-term (research horizon)",
+        "posture": "Peer Review Panel",
+        "output_structure": ["Hypothesis", "Evidence Quality", "Methodology Assessment", "Reproducibility", "Research Gaps"]
+    },
+    "STARTUP_LAUNCH": {
+        "goal": "Evaluate venture viability, market fit, and go-to-market execution with investor-grade scrutiny.",
+        "tone": "Direct, commercially pragmatic, and metrics-driven.",
+        "risk_bias": "Capital efficiency / PMF validation",
+        "time_horizon": "0-18 months to traction",
+        "posture": "Venture Partner & Operator",
+        "output_structure": ["Market Opportunity", "Product-Market Fit", "Go-to-Market", "Unit Economics", "Funding Readiness"]
+    },
+    "CODE_AUDIT": {
+        "goal": "Identify security vulnerabilities, architectural weaknesses, and performance bottlenecks in code and systems.",
+        "tone": "Technical, precise, and findings-first.",
+        "risk_bias": "Security and reliability",
+        "time_horizon": "Immediate remediation",
+        "posture": "Principal Security Engineer",
+        "output_structure": ["Critical Findings", "Architecture Risks", "Vulnerability Map", "Remediation Priority", "Test Coverage Gaps"]
+    },
+    "CREATIVE_COUNCIL": {
+        "goal": "Develop original creative concepts, brand narratives, and content strategies with commercial impact.",
+        "tone": "Bold, concrete, and execution-ready.",
+        "risk_bias": "Audience resonance",
+        "time_horizon": "Campaign to evergreen",
+        "posture": "Executive Creative Director",
+        "output_structure": ["Core Insight", "Creative Concept", "Execution Format", "Channel Strategy", "Success Metrics"]
     }
 }
 
@@ -1279,12 +1255,442 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         }
     }
 
+    # ── DEFENSE_COUNCIL: DOD-grade operational threat assessment ──
+    DEFENSE_COUNCIL_PHASE_DIRECTIVES = {
+        0: {
+            "title": "THREAT ASSESSMENT — Operational Picture",
+            "instruction": (
+                "You are the INTELLIGENCE OFFICER establishing the operational picture. Output:\n"
+                "  • THREAT ACTORS — who, what capability, what intent, what confirmed activity\n"
+                "  • AREA OF OPERATIONS — geographic, domain (air/land/sea/cyber/space), and time boundaries\n"
+                "  • FRIENDLY FORCE STATUS — assets available, readiness state, known limitations\n"
+                "  • CRITICAL UNKNOWNS — ISR gaps that would materially change the assessment\n"
+                "Label every unconfirmed item [UNCONFIRMED]. Do NOT assess COAs yet — establish the picture first."
+            )
+        },
+        1: {
+            "title": "FORCE POSTURE — Capability & Gap Analysis",
+            "instruction": (
+                "You are the FORCE POSTURE analyst. The operational picture is above. Output:\n"
+                "  1) Friendly capabilities matched to mission requirements — what we have vs. what we need\n"
+                "  2) ISR coverage gaps — where are we blind and what does that expose\n"
+                "  3) Logistics constraints — supply lines, sustainment limits, refuel/rearm windows\n"
+                "  4) Force protection vulnerabilities — specific exposures the threat actor can exploit\n"
+                "Do NOT recommend COAs yet. Do NOT repeat the threat assessment. "
+                "Your job is to map our own capability against the threat — be specific about gaps."
+            )
+        },
+        2: {
+            "title": "ADVERSARIAL WARGAME — Red Team the Plan",
+            "instruction": (
+                "You are the RED CELL commander. You are playing the adversary. Output:\n"
+                "  1) The most dangerous COA the adversary can execute given their capability and our gaps\n"
+                "  2) The most likely COA based on their doctrine, history, and current posture\n"
+                "  3) Specific deception or feint operations they would use to mask intent\n"
+                "  4) Our most exploitable vulnerability from their perspective\n"
+                "Do NOT think like a friendly force. Do NOT soften adversary capability. "
+                "Your value is in showing what the adversary sees and how they would exploit it."
+            )
+        },
+        3: {
+            "title": "COA DEVELOPMENT — Courses of Action",
+            "instruction": (
+                "You are the OPERATIONS PLANNER. All prior analysis is above. Develop 2-3 COAs. For each:\n"
+                "  1) COA name and concept of operation in one sentence\n"
+                "  2) Required forces and assets\n"
+                "  3) Key decision points and branch criteria\n"
+                "  4) Risk to mission and risk to force ratings (HIGH/MEDIUM/LOW with reasoning)\n"
+                "Do NOT recommend a single COA yet — that is the next phase. "
+                "Each COA must directly address the adversary's most dangerous COA from the red cell phase."
+            )
+        },
+        4: {
+            "title": "COMMANDER'S ESTIMATE — Decision & Risk Acceptance",
+            "instruction": (
+                "You are the COMMANDER delivering the final estimate. All prior analysis is above. Output:\n"
+                "  1) Recommended COA with explicit rationale tied to the threat and force posture analysis\n"
+                "  2) Accepted risks — what you are knowingly accepting and why\n"
+                "  3) Decision criteria — what changes in the situation would cause you to switch COAs\n"
+                "  4) Commander's critical information requirements — the 3 pieces of intelligence that would most change this decision\n"
+                "Be decisive. A commander's estimate requires a recommendation. Do NOT present all COAs as equal."
+            )
+        }
+    }
+
+    # ── CYBER_COMMAND: Technical threat neutralization — TTPs, IOCs, attribution ──
+    CYBER_COMMAND_PHASE_DIRECTIVES = {
+        0: {
+            "title": "TRIAGE — Threat Actor & Attack Vector Identification",
+            "instruction": (
+                "You are the INCIDENT TRIAGE analyst. Your job is to establish technical ground truth. Output:\n"
+                "  • ATTACK VECTOR — initial access method (phishing, exploit, supply chain, insider, etc.) with CVE if applicable\n"
+                "  • THREAT ACTOR PROFILE — nation-state / criminal / hacktivist / insider, known TTPs, MITRE ATT&CK group ID if attributable\n"
+                "  • AFFECTED SYSTEMS — specific hosts, services, data stores, or network segments confirmed compromised\n"
+                "  • TIMELINE — first observed activity, dwell time estimate, current phase of kill chain\n"
+                "Mark every unconfirmed item [UNCONFIRMED]. Do NOT recommend containment yet."
+            )
+        },
+        1: {
+            "title": "INDICATORS OF COMPROMISE — Technical Evidence Map",
+            "instruction": (
+                "You are the THREAT INTELLIGENCE analyst. The triage is above. Output a structured IOC inventory:\n"
+                "  1) Network IOCs — C2 IPs, domains, beacon intervals, unusual outbound traffic patterns\n"
+                "  2) Host IOCs — malicious files (hash + path), registry keys, scheduled tasks, persistence mechanisms\n"
+                "  3) Identity IOCs — compromised accounts, privilege escalation paths, lateral movement artifacts\n"
+                "  4) MITRE ATT&CK mapping — technique IDs (T####) for every observed behavior\n"
+                "Do NOT recommend containment yet. Every IOC must include the specific observable and its source log/tool."
+            )
+        },
+        2: {
+            "title": "ADVERSARIAL INTENT — Objective & Blast Radius",
+            "instruction": (
+                "You are the ADVERSARIAL ANALYST. Triage and IOCs are above. Output:\n"
+                "  1) Likely adversary objective — data exfil, ransomware, sabotage, persistence, espionage\n"
+                "  2) Data at risk — specific data sets, crown jewels, or systems the adversary is likely targeting\n"
+                "  3) Blast radius if uncontained — what additional systems are reachable from current foothold\n"
+                "  4) Dwell time risk — what capability the adversary has built during their access window\n"
+                "Do NOT validate the prior analysis — challenge assumptions about scope and intent. "
+                "If the adversary objective is unclear, state competing hypotheses with confidence ratings."
+            )
+        },
+        3: {
+            "title": "CONTAINMENT & ERADICATION — Technical Response Plan",
+            "instruction": (
+                "You are the INCIDENT COMMANDER. All prior analysis is above. Output a sequenced response:\n"
+                "  1) Immediate containment — specific firewall rules, account disables, network isolations (name the system/account)\n"
+                "  2) Eradication steps — malware removal, persistence cleanup, credential rotation sequence\n"
+                "  3) Recovery sequence — the order in which systems are brought back online and why\n"
+                "  4) Verification steps — how you confirm eradication is complete before declaring clean\n"
+                "Name every tool, command, or procedure. Do NOT give generic 'isolate the system' guidance — specify exactly which system, how, and in what order."
+            )
+        },
+        4: {
+            "title": "HARDENING & LESSONS LEARNED — Close the Gap",
+            "instruction": (
+                "You are the SECURITY ARCHITECT delivering post-incident hardening. All prior analysis is above. Output:\n"
+                "  1) Root cause — the specific control failure that allowed initial access\n"
+                "  2) Hardening actions — specific configuration changes, patches, or architecture changes with priority (P1/P2/P3)\n"
+                "  3) Detection gaps — which MITRE ATT&CK techniques were not detected and what detection rule closes each gap\n"
+                "  4) Reporting obligations — regulatory notifications required (CISA, SEC, HIPAA, etc.) with deadlines\n"
+                "Every hardening action must reference the specific vulnerability or gap it closes. No generic security recommendations."
+            )
+        }
+    }
+
+    # ── INTEL_BRIEF: Structured intelligence assessment with sourced confidence ratings ──
+    INTEL_BRIEF_PHASE_DIRECTIVES = {
+        0: {
+            "title": "COLLECTION — Source & Signal Inventory",
+            "instruction": (
+                "You are the COLLECTION MANAGER. Your job is to inventory the intelligence available. Output:\n"
+                "  • SIGINT — signals intelligence available, collection gaps, classification level\n"
+                "  • OSINT — open source reporting, social media signals, financial data, satellite imagery\n"
+                "  • HUMINT — human source reporting, reliability rating per source (A-F / 1-6 scale)\n"
+                "  • COLLECTION GAPS — what intelligence is missing and why it matters\n"
+                "Do NOT analyze yet. Do NOT draw conclusions. Inventory the sources and flag gaps explicitly. "
+                "Every source must carry a reliability rating."
+            )
+        },
+        1: {
+            "title": "KEY JUDGMENTS — What the Intelligence Says",
+            "instruction": (
+                "You are the ALL-SOURCE ANALYST. The collection inventory is above. Produce key judgments. For each:\n"
+                "  1) The judgment statement — what the intelligence indicates, stated as a direct assessment\n"
+                "  2) Supporting evidence — specific source citations backing the judgment\n"
+                "  3) Confidence level — HIGH / MODERATE / LOW with explicit reasoning\n"
+                "  4) Key assumption — the single assumption that, if wrong, would most change the judgment\n"
+                "Use estimative language correctly: 'almost certainly' (>95%), 'likely' (55-80%), 'possibly' (25-50%). "
+                "Do NOT present judgments as facts. Do NOT omit confidence levels."
+            )
+        },
+        2: {
+            "title": "ALTERNATIVE ANALYSIS — Challenge the Assessment",
+            "instruction": (
+                "You are the ALTERNATIVE ANALYSIS cell. The key judgments are above. Your job is to challenge them. Output:\n"
+                "  1) Alternative hypothesis — a competing explanation that fits the same evidence\n"
+                "  2) Deception indicators — what if the observed activity is a deliberate deception operation?\n"
+                "  3) Mirror imaging risks — where is the analysis projecting our own logic onto the adversary?\n"
+                "  4) Linchpin assumptions — which single assumption, if removed, collapses the leading assessment?\n"
+                "Do NOT validate the key judgments. Your value is in finding the analytical failure mode."
+            )
+        },
+        3: {
+            "title": "INDICATORS & WARNINGS — What to Watch",
+            "instruction": (
+                "You are the I&W ANALYST. All prior analysis is above. Output:\n"
+                "  1) Attack indicators — specific observable events that signal imminent adversary action\n"
+                "  2) Warning thresholds — the specific combination of indicators that triggers escalation\n"
+                "  3) Collection priorities — the 3 intelligence gaps most critical to fill before the next decision point\n"
+                "  4) Timeline estimate — when adversary action is assessed as most likely based on current indicators\n"
+                "Every indicator must be observable and specific. Do NOT list generic warning signs — name the specific signal and the collection source that would detect it."
+            )
+        },
+        4: {
+            "title": "CONFIDENCE MATRIX — Final Assessment Package",
+            "instruction": (
+                "You are the SENIOR ANALYST delivering the final assessment. All prior analysis is above. Output:\n"
+                "  1) Bottom-line assessment — one paragraph, direct statement of what the intelligence shows\n"
+                "  2) Confidence matrix — table of each key judgment with confidence level and primary uncertainty\n"
+                "  3) Decision-relevant summary — what the policymaker or commander needs to act on right now\n"
+                "  4) Intelligence gaps that remain — what we still don't know and the risk that creates\n"
+                "Write for a decision-maker, not an analyst. No jargon without definition. No hedge without a specific reason."
+            )
+        }
+    }
+
+    # ── SCIENCE_PANEL: Peer-review rigor — evidence grade on every claim ──
+    SCIENCE_PANEL_PHASE_DIRECTIVES = {
+        0: {
+            "title": "HYPOTHESIS — Research Question & Scope",
+            "instruction": (
+                "You are the RESEARCH SCOPING analyst. Your job is to frame the scientific question precisely. Output:\n"
+                "  • HYPOTHESIS — the specific, falsifiable claim being evaluated\n"
+                "  • VARIABLES — independent, dependent, and confounding variables identified\n"
+                "  • PRIOR ART — the most relevant existing research (cite author, year, journal)\n"
+                "  • SCOPE LIMITS — what this analysis cannot address given available evidence\n"
+                "Do NOT evaluate evidence yet. Do NOT draw conclusions. Frame the question rigorously first."
+            )
+        },
+        1: {
+            "title": "EVIDENCE REVIEW — Quality-Graded Literature",
+            "instruction": (
+                "You are the EVIDENCE REVIEWER. The research scope is above. Output a graded evidence inventory:\n"
+                "  1) Tier 1 evidence — RCTs, systematic reviews, meta-analyses (cite PMID, DOI, or arXiv ID)\n"
+                "  2) Tier 2 evidence — cohort studies, well-designed observational studies\n"
+                "  3) Tier 3 evidence — case studies, expert opinion, theoretical models\n"
+                "  4) Contradictory evidence — studies that challenge the leading hypothesis\n"
+                "Do NOT draw conclusions yet. Every citation must include author, year, and journal. "
+                "Do NOT present Tier 3 evidence as equivalent to Tier 1."
+            )
+        },
+        2: {
+            "title": "METHODOLOGY CHALLENGE — Stress-Test the Evidence",
+            "instruction": (
+                "You are the PEER REVIEWER. The evidence inventory is above. Your job is to find methodological weaknesses. Output:\n"
+                "  1) Sample size and statistical power issues — are the studies adequately powered?\n"
+                "  2) Confounding and bias — selection bias, publication bias, confounding variables not controlled\n"
+                "  3) Reproducibility concerns — have key findings been independently replicated?\n"
+                "  4) Generalizability limits — what populations, conditions, or contexts does the evidence NOT cover?\n"
+                "Do NOT validate the evidence. Do NOT agree with the leading interpretation. Your job is to find what the evidence cannot support."
+            )
+        },
+        3: {
+            "title": "SYNTHESIS — What the Evidence Actually Supports",
+            "instruction": (
+                "You are the SYNTHESIS analyst. All prior analysis is above. Output:\n"
+                "  1) What is well-supported — findings with strong, replicated evidence (cite the specific studies)\n"
+                "  2) What is plausible but not proven — promising findings that lack sufficient replication\n"
+                "  3) What is not supported — claims that exceed the evidence\n"
+                "  4) Effect size and practical significance — not just statistical significance, but real-world magnitude\n"
+                "Do NOT overstate certainty. Every claim must be graded against the evidence tier from prior phases."
+            )
+        },
+        4: {
+            "title": "RESEARCH GAPS — What Needs to Be Done",
+            "instruction": (
+                "You are the RESEARCH AGENDA analyst. All prior analysis is above. Output:\n"
+                "  1) Critical knowledge gaps — the specific unanswered questions that most limit the field\n"
+                "  2) Recommended study designs — what type of study would best fill each gap (RCT, cohort, meta-analysis)\n"
+                "  3) Methodological standards needed — what controls, sample sizes, or measurement standards are required\n"
+                "  4) Confidence summary — rate the overall state of evidence: STRONG / MODERATE / EMERGING / INSUFFICIENT\n"
+                "Do NOT repeat prior analysis. Focus exclusively on what the field needs next and why."
+            )
+        }
+    }
+
+    # ── STARTUP_LAUNCH: Investor-grade venture assessment — PMF, unit economics, go-to-market ──
+    STARTUP_LAUNCH_PHASE_DIRECTIVES = {
+        0: {
+            "title": "MARKET OPPORTUNITY — Problem & TAM Validation",
+            "instruction": (
+                "You are the MARKET ANALYST. Your job is to establish whether the opportunity is real. Output:\n"
+                "  • PROBLEM STATEMENT — who has this problem, how often, how painful (quantify if possible)\n"
+                "  • TAM / SAM / SOM — total addressable, serviceable, and obtainable market with methodology\n"
+                "  • MARKET TIMING — why now? what has changed that makes this the right moment?\n"
+                "  • COMPETITIVE LANDSCAPE — who else is solving this and how does this venture differentiate\n"
+                "Do NOT evaluate the product or team yet. Mark any unvalidated market assumptions explicitly."
+            )
+        },
+        1: {
+            "title": "PRODUCT-MARKET FIT — Evidence of Traction",
+            "instruction": (
+                "You are the PMF ANALYST. The market opportunity is above. Output:\n"
+                "  1) Traction evidence — specific metrics: DAU/MAU, revenue, retention, NPS, waitlist size\n"
+                "  2) Customer validation — qualitative signals: interviews, LOIs, pilot results, churn reasons\n"
+                "  3) PMF signal strength — STRONG / MODERATE / WEAK / UNPROVEN with specific reasoning\n"
+                "  4) Retention analysis — are users coming back? what is the cohort retention curve?\n"
+                "Do NOT accept vague traction claims. If a metric is not provided, mark it NOT PROVIDED. "
+                "Every PMF claim must be backed by a specific data point."
+            )
+        },
+        2: {
+            "title": "RISK STRESS TEST — Kill the Business",
+            "instruction": (
+                "You are the VENTURE CRITIC. The market and PMF analysis are above. Your job is to find fatal flaws. Output:\n"
+                "  1) The single most likely reason this venture fails — be specific\n"
+                "  2) Competitive moat assessment — is the differentiation defensible or easily copied?\n"
+                "  3) Regulatory or legal risk — what regulatory change or legal challenge could kill this\n"
+                "  4) Founder-market fit risk — does the team have the specific skills this market requires?\n"
+                "Do NOT validate the prior analysis. Your value is in the kill shot. If you find nothing fatal, you are not looking hard enough."
+            )
+        },
+        3: {
+            "title": "UNIT ECONOMICS — Does the Business Model Work?",
+            "instruction": (
+                "You are the UNIT ECONOMICS analyst. All prior analysis is above. Output:\n"
+                "  1) CAC — customer acquisition cost by channel, with payback period\n"
+                "  2) LTV — lifetime value with retention assumptions made explicit\n"
+                "  3) LTV:CAC ratio — current and projected at scale (target >3x)\n"
+                "  4) Contribution margin — revenue minus variable costs per unit\n"
+                "  5) Burn multiple — net burn divided by net new ARR (target <1.5x)\n"
+                "If metrics are not provided, flag them as NOT PROVIDED and state the assumption used. "
+                "Do NOT model without stating assumptions explicitly."
+            )
+        },
+        4: {
+            "title": "FUNDING READINESS — Investor Verdict",
+            "instruction": (
+                "You are the VENTURE PARTNER delivering an investment decision. All prior analysis is above. Output:\n"
+                "  1) INVEST / PASS / CONDITIONAL — clear verdict with the specific condition that changes it\n"
+                "  2) Valuation range rationale — comparable rounds, revenue multiple, or traction-based justification\n"
+                "  3) Use of funds — what the raise should be spent on to maximize PMF and growth\n"
+                "  4) Key milestones before next round — the 3 metrics that de-risk the Series A\n"
+                "Be decisive. A venture partner gives a verdict. Do NOT hedge without naming the specific condition that resolves the uncertainty."
+            )
+        }
+    }
+
+    # ── CODE_AUDIT: Security and architecture findings — specific, actionable, prioritized ──
+    CODE_AUDIT_PHASE_DIRECTIVES = {
+        0: {
+            "title": "TRIAGE — Critical Findings First",
+            "instruction": (
+                "You are the SECURITY TRIAGE analyst. Your job is to surface the highest-severity issues immediately. Output:\n"
+                "  • CRITICAL (P0) — RCE, auth bypass, SQLi, hardcoded secrets, or data exposure (cite file/line if available)\n"
+                "  • HIGH (P1) — privilege escalation, SSRF, insecure deserialization, broken access control\n"
+                "  • MEDIUM (P2) — XSS, CSRF, information disclosure, dependency vulnerabilities with CVE\n"
+                "  • SCOPE LIMITS — what was NOT reviewed and why\n"
+                "Map every finding to OWASP Top 10 or CWE ID. Do NOT describe vulnerabilities in general terms — name the specific code pattern, endpoint, or dependency."
+            )
+        },
+        1: {
+            "title": "ARCHITECTURE REVIEW — Structural Risks",
+            "instruction": (
+                "You are the ARCHITECTURE REVIEWER. The security triage is above. Output:\n"
+                "  1) Single points of failure — components whose failure takes down the system\n"
+                "  2) Trust boundary violations — where untrusted data crosses into trusted execution contexts\n"
+                "  3) Scalability bottlenecks — specific components that will fail under load with estimated thresholds\n"
+                "  4) Dependency risk — unmaintained packages, known CVEs in the dependency tree, license risks\n"
+                "Do NOT repeat security findings. Focus on structural and design-level risks."
+            )
+        },
+        2: {
+            "title": "ADVERSARIAL REVIEW — How an Attacker Sees This",
+            "instruction": (
+                "You are the RED TEAM operator. Architecture and security findings are above. Output:\n"
+                "  1) Attack chain — the most viable end-to-end exploit path from external access to data breach\n"
+                "  2) Privilege escalation path — how an attacker moves from low to high privilege\n"
+                "  3) Persistence mechanisms — how an attacker maintains access after initial compromise\n"
+                "  4) Detection evasion — what current logging or monitoring would miss this attack\n"
+                "Think like an attacker. Do NOT add defensive commentary. Name the specific technique and the specific code or config that enables it."
+            )
+        },
+        3: {
+            "title": "REMEDIATION PLAN — Prioritized Fix List",
+            "instruction": (
+                "You are the REMEDIATION LEAD. All prior analysis is above. Output a prioritized fix list:\n"
+                "  1) P0 fixes — specific code changes required, with the exact file/function/pattern to change\n"
+                "  2) P1 fixes — architectural changes with estimated effort (hours/days)\n"
+                "  3) Dependency updates — specific packages to update, target versions, and breaking change risks\n"
+                "  4) Security controls to add — input validation, rate limiting, CSP headers, SAST/DAST tooling\n"
+                "Do NOT give generic 'sanitize your inputs' advice — name the specific function and the specific fix."
+            )
+        },
+        4: {
+            "title": "TEST COVERAGE & VERIFICATION — How to Confirm It's Fixed",
+            "instruction": (
+                "You are the QA LEAD. All prior analysis and remediation plan are above. Output:\n"
+                "  1) Test cases required — specific test scenarios that verify each P0 and P1 fix\n"
+                "  2) Coverage gaps — which attack surfaces have no automated test coverage\n"
+                "  3) Regression risks — which fixes could break existing functionality and what to test\n"
+                "  4) Security tooling recommendations — SAST, DAST, SCA tools appropriate for this stack\n"
+                "Do NOT repeat the vulnerability list. Focus on how to verify the fixes are complete and won't regress."
+            )
+        }
+    }
+
+    # ── CREATIVE_COUNCIL: Concept-first, execution-ready creative output ──
+    CREATIVE_COUNCIL_PHASE_DIRECTIVES = {
+        0: {
+            "title": "INSIGHT — The Truth That Makes the Work Relevant",
+            "instruction": (
+                "You are the STRATEGIC PLANNER. Your job is to find the human insight that makes this creative work matter. Output:\n"
+                "  • AUDIENCE TRUTH — what the target audience actually believes, fears, or wants (not what the brand wants to say)\n"
+                "  • CULTURAL CONTEXT — what is happening in culture right now that makes this message timely\n"
+                "  • COMPETITIVE SPACE — how is everyone else talking about this and what is the open position\n"
+                "  • SINGLE INSIGHT — the one true thing this creative work must be built on\n"
+                "Do NOT generate concepts yet. Do NOT write copy. Find the insight first — without it the work is decoration."
+            )
+        },
+        1: {
+            "title": "CONCEPT DEVELOPMENT — The Big Idea",
+            "instruction": (
+                "You are the CREATIVE DIRECTOR. The strategic insight is above. Generate 2-3 distinct creative concepts. For each:\n"
+                "  1) Concept name — a short, memorable title for the idea\n"
+                "  2) Core idea — one sentence that captures what the work does and why it works\n"
+                "  3) Lead execution — describe the hero piece (the ad, the campaign film, the activation) specifically\n"
+                "  4) Why it wins — what insight does it activate and why will the audience respond\n"
+                "Do NOT present safe, predictable ideas. Do NOT present all concepts as equal — rank them."
+            )
+        },
+        2: {
+            "title": "CREATIVE CRITIQUE — Kill the Weak Ideas",
+            "instruction": (
+                "You are the CREATIVE CRITIC. The concepts above are being presented for approval. Your job is to challenge them. Output:\n"
+                "  1) Which concept is weakest and why — be specific about what doesn't work\n"
+                "  2) What clichés, tropes, or category conventions each concept relies on\n"
+                "  3) How the audience could misread or ignore each concept\n"
+                "  4) What the lead concept is missing that would make it undeniable\n"
+                "Do NOT validate all three concepts. Do NOT soften your critique. Weak creative costs real money."
+            )
+        },
+        3: {
+            "title": "CHANNEL STRATEGY — Where and How to Run It",
+            "instruction": (
+                "You are the CHANNEL STRATEGIST. The lead creative concept is above. Output:\n"
+                "  1) Primary channel — where this idea lives best and why (TV, OOH, digital, social, experiential)\n"
+                "  2) Adaptation plan — how the core idea translates to each secondary channel (15s cut, social post, banner)\n"
+                "  3) Sequencing — the order in which channels are activated and the logic behind it\n"
+                "  4) Platform-specific executions — what changes for Instagram vs. TikTok vs. YouTube (format, length, tone)\n"
+                "Do NOT recommend channels without explaining the audience behavior that makes each channel right for this idea."
+            )
+        },
+        4: {
+            "title": "SUCCESS METRICS — How We Know It Worked",
+            "instruction": (
+                "You are the EFFECTIVENESS ANALYST. All prior creative and channel work is above. Output:\n"
+                "  1) Primary KPI — the single metric that proves this creative worked (not impressions)\n"
+                "  2) Leading indicators — early signals (CTR, engagement rate, search lift) that predict the primary KPI\n"
+                "  3) Brand vs. performance balance — what share of budget and measurement goes to each\n"
+                "  4) Test design — what A/B tests or holdout groups are needed to isolate the creative effect\n"
+                "Do NOT accept vanity metrics. If the client wants to measure reach, explain why reach without conversion is insufficient."
+            )
+        }
+    }
+
     WORKFLOW_PHASE_OVERRIDES = {
         "FINANCE": FINANCE_PHASE_DIRECTIVES,
         "WAR_ROOM": WAR_ROOM_PHASE_DIRECTIVES,
         "LEGAL": LEGAL_PHASE_DIRECTIVES,
         "MEDICAL": MEDICAL_PHASE_DIRECTIVES,
         "QUANTUM_SECURITY": QUANTUM_SECURITY_PHASE_DIRECTIVES,
+        "DEFENSE_COUNCIL": DEFENSE_COUNCIL_PHASE_DIRECTIVES,
+        "CYBER_COMMAND": CYBER_COMMAND_PHASE_DIRECTIVES,
+        "INTEL_BRIEF": INTEL_BRIEF_PHASE_DIRECTIVES,
+        "SCIENCE_PANEL": SCIENCE_PANEL_PHASE_DIRECTIVES,
+        "STARTUP_LAUNCH": STARTUP_LAUNCH_PHASE_DIRECTIVES,
+        "CODE_AUDIT": CODE_AUDIT_PHASE_DIRECTIVES,
+        "CREATIVE_COUNCIL": CREATIVE_COUNCIL_PHASE_DIRECTIVES,
     }
 
     # Select workflow-specific directives if available, else generic
