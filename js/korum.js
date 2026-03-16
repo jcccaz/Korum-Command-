@@ -3117,21 +3117,29 @@ window.executeVerify = async function (claimText, providerName) {
         sentinelChat.appendMessage(`Source verification complete for: "${claim.slice(0, 50)}..."`, 'sentinel');
         logTelemetry("🔎 Verification complete", "success");
 
-        // === TRUTH SCORE FEEDBACK ===
-        const vText = (result.verification || '').toUpperCase();
+        // === TRUTH SCORE FEEDBACK — use structured verdict from backend ===
         const sourceProvider = resolveProviderKey(providerName);
         if (sourceProvider) {
-            let delta = 0;
-            let verdict = '';
-            if (vText.includes('INACCURATE') && !vText.includes('PARTIALLY')) {
-                delta = -10; verdict = 'CLAIM INACCURATE';
-            } else if (vText.includes('PARTIALLY ACCURATE') || vText.includes('PARTIALLY')) {
-                delta = -3; verdict = 'PARTIALLY ACCURATE';
-            } else if (vText.includes('ACCURATE') || vText.includes('CONFIRMED') || vText.includes('VERIFIED')) {
-                delta = 5; verdict = 'CLAIM VERIFIED';
-            }
+            const delta = result.score_delta || 0;
+            const verdict = result.verdict || 'UNRESOLVED';
             if (delta !== 0) {
                 updateTruthScore(sourceProvider, delta, verdict);
+            }
+        }
+
+        // Show verdict badge on verify card
+        if (result.verdict && result.verdict !== 'UNRESOLVED') {
+            const verdictColor = result.verdict === 'ACCURATE' ? '#00FF9D'
+                               : result.verdict === 'PARTIALLY_ACCURATE' ? '#FFB020'
+                               : '#FF4444';
+            const verdictLabel = result.verdict.replace('_', ' ');
+            const headerRight = verifyCard.querySelector('.ph-right');
+            if (headerRight) {
+                const badge = document.createElement('div');
+                badge.className = 'metric-pill';
+                badge.style.cssText = `color:${verdictColor}; font-weight:700; letter-spacing:0.1em;`;
+                badge.textContent = verdictLabel;
+                headerRight.insertAdjacentElement('afterbegin', badge);
             }
         }
 
@@ -3260,33 +3268,34 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
         sentinelChat.appendMessage(`Cross-examination complete. ${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'sentinel');
         logTelemetry(`Interrogation complete: ${attackerRole} vs ${defenderRole}`, "process");
 
-        // === TRUTH SCORE FEEDBACK ===
+        // === TRUTH SCORE FEEDBACK — use structured verdict + delta from backend ===
         const targetProvider = sessionState.targetCard || resolveProviderKey(targetName);
         if (targetProvider) {
-            const defText = (result.defender.response || '').toLowerCase();
-            const atkText = (result.attacker.response || '').toLowerCase();
-            const concessionWords = ['concede', 'concession', 'acknowledged', 'valid point', 'correctly identifies',
-                                     'fair criticism', 'legitimate concern', 'understated', 'overlooked', 'gap in'];
-            const strongDefense = ['no evidence', 'unfounded', 'speculative', 'maintains', 'stands firm',
-                                   'logic maintained', 'evidence supports', 'rebuttal'];
-
-            const concessions = concessionWords.filter(w => defText.includes(w)).length;
-            const holds = strongDefense.filter(w => defText.includes(w) || atkText.includes(w)).length;
-
-            let delta = 0;
-            let verdict = '';
-            if (concessions >= 3) {
-                delta = -15; verdict = `${concessions} CONCESSIONS`;
-            } else if (concessions >= 2) {
-                delta = -10; verdict = `${concessions} CONCESSIONS`;
-            } else if (concessions >= 1) {
-                delta = -5; verdict = `${concessions} CONCESSION`;
-            } else if (holds >= 2) {
-                delta = 3; verdict = 'DEFENSE HELD';
-            } else {
-                delta = -2; verdict = 'CHALLENGED';
-            }
+            const delta = result.score_delta || -2;
+            const verdict = result.verdict || 'CHALLENGED';
             updateTruthScore(targetProvider, delta, verdict);
+
+            // Show verdict banner inside the faceoff card
+            const verdictColor = delta > 4 ? '#00FF9D' : delta > 0 ? '#A0FFC0' : delta > -8 ? '#FFB020' : '#FF4444';
+            const verdictIcon = delta > 0 ? '🛡️ DEFENSE HELD' : '⚔️ CONCESSION DETECTED';
+            const verdictBanner = document.createElement('div');
+            verdictBanner.style.cssText = `
+                margin: 8px 16px 0;
+                padding: 8px 14px;
+                border: 1px solid ${verdictColor};
+                background: ${verdictColor}12;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 0.65rem;
+                letter-spacing: 0.12em;
+            `;
+            const sign = delta > 0 ? '+' : '';
+            verdictBanner.innerHTML = `
+                <span style="color:${verdictColor}">${verdictIcon}</span>
+                <span style="color:${verdictColor}; font-weight:700">${verdict} · SCORE ${sign}${delta}</span>
+            `;
+            faceoffCard.appendChild(verdictBanner);
         }
 
     } catch (err) {
