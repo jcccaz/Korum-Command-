@@ -206,6 +206,7 @@ _ENGLISH_STOPWORDS = {
     "Right", "Small", "Three", "Through", "Today", "Without", "According",
     "However", "Important", "Because", "Different", "Another", "Following",
     "Please", "Note", "Meeting", "Hello", "Dear", "Regards", "Contact",
+    "Project", "Operation", "Mission", "Phase", "Program", "Initiative", "Plan", "Task",
     "January", "February", "March", "April", "June", "July", "August",
     "September", "October", "November", "December",
     "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
