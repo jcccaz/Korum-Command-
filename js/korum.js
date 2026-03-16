@@ -1050,28 +1050,13 @@ const ResearchDock = {
             .replace(/\n/gim, '<br>');
     },
 
-    // Generate chart from snippet
+    // Generate chart from snippet — uses lightweight /api/chart endpoint
     generateChart(id, chartType = 'auto') {
         const snippet = this.snippets.find(s => s.id === id);
         if (!snippet) return;
-
-        logTelemetry(`Generating ${chartType} chart...`, "process");
-        showProcessingToast("Generating visualization...");
-
-        // Build query for chart generation
-        let query;
-        if (chartType === 'pie') {
-            query = `Convert this data into a Mermaid pie chart. Output ONLY the mermaid code block. DATA: "${snippet.content}"`;
-        } else if (chartType === 'line') {
-            query = `Create a line chart visualization for this data. If using mermaid, use xychart-beta. DATA: "${snippet.content}"`;
-        } else if (chartType === 'mermaid') {
-            query = `Convert this into a Mermaid flowchart or diagram. Output ONLY the mermaid code block. DATA: "${snippet.content}"`;
-        } else {
-            // Auto-detect best chart type
-            query = `Analyze this data and create the most appropriate visualization (pie chart for proportions, flowchart for processes, or table for comparisons). Use Mermaid syntax. DATA: "${snippet.content}"`;
-        }
-
-        triggerCouncil(query);
+        // Map 'mermaid' to 'flowchart' for the API
+        const apiType = chartType === 'mermaid' ? 'flowchart' : chartType;
+        generateCardChart(snippet.content, apiType);
     },
 
     // Clear all snippets
@@ -1897,6 +1882,31 @@ function setupActionBindings() {
     // 8. DYNAMIC RESULTS DELEGATION
     document.querySelector('.results-content')?.addEventListener('click', (e) => {
         const target = e.target;
+
+        // Chart dropdown option click
+        const chartOption = target.closest('.chart-option');
+        if (chartOption) {
+            e.stopPropagation();
+            const chartType = chartOption.dataset.chart;
+            const agentCard = chartOption.closest('.agent-card');
+            if (!agentCard) return;
+            const rawContent = decodeURIComponent(agentCard.dataset.rawContent || '');
+            generateCardChart(rawContent, chartType, agentCard);
+            // Close dropdown
+            chartOption.closest('.chart-dropdown')?.classList.remove('show');
+            return;
+        }
+
+        // Toggle chart dropdown on trigger click
+        const dropdownTrigger = target.closest('.chart-dropdown-trigger');
+        if (dropdownTrigger) {
+            e.stopPropagation();
+            // Close any other open dropdowns
+            document.querySelectorAll('.chart-dropdown.show').forEach(d => d.classList.remove('show'));
+            dropdownTrigger.querySelector('.chart-dropdown')?.classList.toggle('show');
+            return;
+        }
+
         const cardAction = target.closest('[data-card-action]');
         if (cardAction) {
             e.stopPropagation();
@@ -1907,7 +1917,6 @@ function setupActionBindings() {
 
             if (action === 'interrogate') openInterrogation(data.name);
             if (action === 'save') saveReport();
-            if (action === 'visualize') window.visualizeSelection(decodeURIComponent(data.rawContent));
             if (action === 'copy') copyTextToClipboard(decodeURIComponent(data.rawContent), 'Phase intelligence copied');
             return;
         }
@@ -2287,7 +2296,15 @@ function renderChainResults(result) {
                     <div class="metric-pill">$${cost.toFixed(4)}</div>
                     <div class="metric-pill time">${time}s</div>
                     <div class="tool-action" data-card-action="save" title="Save">💾</div>
-                    <div class="tool-action" data-card-action="visualize" title="Chart">📊</div>
+                    <div class="tool-action chart-dropdown-trigger" title="Chart">📊
+                        <div class="chart-dropdown">
+                            <div class="chart-option" data-chart="pie">🥧 Pie Chart</div>
+                            <div class="chart-option" data-chart="bar">📊 Bar Chart</div>
+                            <div class="chart-option" data-chart="line">📈 Line Chart</div>
+                            <div class="chart-option" data-chart="flowchart">🔀 Flowchart</div>
+                            <div class="chart-option" data-chart="auto">🎯 Auto-detect</div>
+                        </div>
+                    </div>
                     <div class="tool-action" data-card-action="copy" title="Copy">📋</div>
                 </div>
             </div>
@@ -3544,11 +3561,83 @@ window.visualizeSelection = function (fallbackText) {
     logTelemetry("VISUALIZING SELECTION...", "process");
     showProcessingToast("Generating visualization...");
 
-    // Build the query for table/chart generation
-    const query = `Convert this data into a formatted table or chart. If it's tabular data, create a clean markdown table. If it's numerical, suggest a chart type. DATA: "${textToProcess}"`;
-    // Trigger the council to process it
-    triggerCouncil(query);
+    // Use lightweight chart endpoint instead of full council
+    generateCardChart(textToProcess, 'auto');
 };
+
+// Lightweight chart generation — single Gemini Flash call, returns Mermaid
+async function generateCardChart(data, chartType = 'auto', cardEl = null) {
+    logTelemetry(`GENERATING ${chartType.toUpperCase()} CHART...`, "process");
+    showProcessingToast("Generating chart...");
+
+    // Show loading state on card if provided
+    if (cardEl) {
+        const trigger = cardEl.querySelector('.chart-dropdown-trigger');
+        if (trigger) trigger.classList.add('chart-loading');
+    }
+
+    try {
+        const response = await authFetch('/api/chart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data, chart_type: chartType })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || `HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (!result.success || !result.mermaid_code) {
+            throw new Error('No chart data returned');
+        }
+
+        // Render chart in a modal
+        const chartId = 'chart-' + Date.now();
+        const modalHtml = `
+            <div class="chart-modal-overlay" id="${chartId}-overlay">
+                <div class="chart-modal">
+                    <div class="chart-modal-header">
+                        <span>📊 ${chartType.toUpperCase()} VISUALIZATION</span>
+                        <button class="chart-modal-close" onclick="document.getElementById('${chartId}-overlay').remove()">✕</button>
+                    </div>
+                    <div class="chart-modal-body">
+                        <div class="mermaid-container"><div class="mermaid">${result.mermaid_code}</div></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Render the Mermaid diagram
+        if (window.mermaid) {
+            try {
+                mermaid.init(undefined, document.querySelectorAll(`#${chartId}-overlay .mermaid`));
+            } catch (e) {
+                console.error("Mermaid render error:", e);
+            }
+        }
+
+        logTelemetry(`CHART GENERATED: ${chartType}`, "success");
+        showProcessingToast("Chart rendered.");
+
+    } catch (e) {
+        console.error('Chart generation error:', e);
+        logTelemetry(`CHART ERROR: ${e.message}`, "error");
+        showProcessingToast(`Chart failed: ${e.message}`);
+    } finally {
+        if (cardEl) {
+            const trigger = cardEl.querySelector('.chart-dropdown-trigger');
+            if (trigger) trigger.classList.remove('chart-loading');
+        }
+    }
+}
+
+// Close chart dropdowns when clicking elsewhere
+document.addEventListener('click', () => {
+    document.querySelectorAll('.chart-dropdown.show').forEach(d => d.classList.remove('show'));
+});
 
 // Consolidated System Status Handler
 function updateSystemStatus(status) {

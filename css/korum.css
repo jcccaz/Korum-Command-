@@ -1410,6 +1410,92 @@ body.activated .sphere-container {
     transform: scale(1.1);
 }
 
+/* Chart dropdown */
+.chart-dropdown-trigger {
+    position: relative;
+}
+.chart-dropdown-trigger.chart-loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+.chart-dropdown {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 6px;
+    background: #1a1a2e;
+    border: 1px solid rgba(0, 255, 157, 0.3);
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 140px;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+.chart-dropdown.show {
+    display: block;
+}
+.chart-option {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #ccc;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.chart-option:hover {
+    background: rgba(0, 255, 157, 0.15);
+    color: #fff;
+}
+
+/* Chart modal */
+.chart-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.chart-modal {
+    background: #0d0d1a;
+    border: 1px solid rgba(0, 255, 157, 0.25);
+    border-radius: 10px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 80vh;
+    overflow: auto;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
+}
+.chart-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 13px;
+    font-weight: 600;
+    color: #00FF9D;
+    letter-spacing: 1px;
+}
+.chart-modal-close {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 14px;
+}
+.chart-modal-close:hover {
+    background: rgba(255, 50, 50, 0.3);
+    border-color: #f55;
+}
+.chart-modal-body {
+    padding: 20px;
+}
+
 .badge-stack {
     display: flex;
     gap: 6px;

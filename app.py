@@ -854,6 +854,55 @@ COLLECTED SNIPPETS:
     
     return jsonify({"error": "Summarization engine unavailable"}), 501
 
+
+@app.route('/api/chart', methods=['POST'])
+@auth_required
+@limiter.limit("30 per minute")
+def generate_chart():
+    """Lightweight single-model chart generation. Returns Mermaid code only."""
+    data = request.json or {}
+    raw_data = data.get('data', '').strip()
+    chart_type = data.get('chart_type', 'auto')
+
+    if not raw_data:
+        return jsonify({"success": False, "error": "No data provided"}), 400
+
+    CHART_PROMPTS = {
+        "pie": "Convert this data into a Mermaid pie chart. Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation, no markdown outside the code block.",
+        "bar": "Convert this data into a Mermaid xychart-beta bar chart. Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation.",
+        "line": "Convert this data into a Mermaid xychart-beta line chart. Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation.",
+        "flowchart": "Convert this data into a Mermaid flowchart diagram showing relationships and process flow. Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation.",
+        "auto": "Analyze this data and create the most appropriate Mermaid visualization (pie chart for proportions, xychart-beta for trends, flowchart for processes). Output ONLY the raw mermaid code block (```mermaid ... ```). No explanation.",
+    }
+
+    prompt = CHART_PROMPTS.get(chart_type, CHART_PROMPTS["auto"])
+    prompt += f'\n\nDATA:\n{raw_data}'
+
+    if not google_client:
+        return jsonify({"success": False, "error": "Chart engine unavailable"}), 501
+
+    try:
+        response = google_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+        mermaid_code = response.text.strip()
+        # Extract just the mermaid code if wrapped in ```mermaid ... ```
+        import re as _re
+        m = _re.search(r'```mermaid\s*([\s\S]*?)```', mermaid_code)
+        if m:
+            mermaid_code = m.group(1).strip()
+
+        return jsonify({
+            "success": True,
+            "mermaid_code": mermaid_code,
+            "chart_type": chart_type,
+        })
+    except Exception as e:
+        print(f"[CHART] Generation error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # --- Thread Management (Persistent Conversation Memory) ---
 
 @app.route('/api/threads', methods=['POST'])
