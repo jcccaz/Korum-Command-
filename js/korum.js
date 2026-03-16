@@ -335,7 +335,12 @@ function renderFilePreview() {
     const bar = document.getElementById('filePreviewBar');
     const attachBtn = document.getElementById('attachBtn');
     if (!bar) return;
-    if (!pendingFiles.length) {
+
+    // Combine multipart files + vault docs for unified preview
+    const vaultAll = [...VaultUploader.processingDocs, ...VaultUploader.pendingVaultDocs];
+    const totalFiles = pendingFiles.length + vaultAll.length;
+
+    if (!totalFiles) {
         bar.classList.remove('has-files');
         bar.innerHTML = '';
         if (attachBtn) attachBtn.classList.remove('has-files');
@@ -343,7 +348,9 @@ function renderFilePreview() {
     }
     bar.classList.add('has-files');
     if (attachBtn) attachBtn.classList.add('has-files');
-    bar.innerHTML = pendingFiles.map((f, i) => {
+
+    // Multipart files (legacy)
+    const multipartChips = pendingFiles.map((f, i) => {
         const isImage = f.type.startsWith('image/');
         const isPdf = f.name.toLowerCase().endsWith('.pdf');
         const icon = isImage ? '&#128444;' : (isPdf ? '&#128196;' : '&#128202;');
@@ -354,7 +361,29 @@ function renderFilePreview() {
             <span style="color:#555">${sizeMB}MB</span>
             <button class="file-remove" onclick="removeFile(${i})" title="Remove">&times;</button>
         </div>`;
-    }).join('');
+    });
+
+    // Vault docs (S3 pipeline)
+    const vaultChips = vaultAll.map(d => {
+        const f = d.file;
+        const isImage = f.type.startsWith('image/');
+        const isPdf = f.name.toLowerCase().endsWith('.pdf');
+        const icon = isImage ? '&#128444;' : (isPdf ? '&#128196;' : '&#128202;');
+        const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+        const isReady = d.status === 'ready' || d.status === 'falcon_processed';
+        const isFailed = d.status === 'failed';
+        const statusLabel = isFailed ? 'FAILED' : (isReady ? 'READY' : d.status.toUpperCase());
+        const statusColor = isFailed ? '#ff4444' : (isReady ? '#00cc66' : '#f0a030');
+        const pulseClass = (!isReady && !isFailed) ? ' vault-pulse' : '';
+        return `<div class="file-chip${pulseClass}" title="Vault: ${d.status}">
+            <span class="file-icon">${icon}</span>
+            <span class="file-name" title="${f.name}">${f.name}</span>
+            <span style="color:${statusColor};font-size:0.7em;font-weight:600">${statusLabel}</span>
+            <span style="color:#555">${sizeMB}MB</span>
+        </div>`;
+    });
+
+    bar.innerHTML = [...multipartChips, ...vaultChips].join('');
 }
 
 function removeFile(index) {
@@ -387,6 +416,8 @@ async function addFiles(fileList) {
             logTelemetry(`VAULT: Uploading ${file.name} directly to S3...`, "process");
             VaultUploader.uploadFile(file, sessionState.activeThreadId).catch(err => {
                 logTelemetry(`VAULT: Upload failed for ${file.name}: ${err.message}`, "error");
+                showProcessingToast(`Document upload failed: ${file.name} — ${err.message}`);
+                renderFilePreview();
             });
         } else {
             // Fallback: multipart upload (legacy)
@@ -563,20 +594,29 @@ const VaultUploader = {
      */
     _updateBadge() {
         const badge = document.querySelector('.ghost-stat-docs');
-        if (!badge) return;
+        if (badge) {
+            const processing = this.processingDocs.length;
+            const ready = this.pendingVaultDocs.length;
 
-        const processing = this.processingDocs.length;
-        const ready = this.pendingVaultDocs.length;
-
-        if (processing > 0) {
-            badge.classList.add('scanning');
-            badge.title = `Processing ${processing} document(s)...`;
-        } else if (ready > 0) {
-            badge.classList.remove('scanning');
-            badge.title = `${ready} document(s) ready`;
-        } else {
-            badge.classList.remove('scanning');
+            if (processing > 0) {
+                badge.classList.add('scanning');
+                badge.title = `Processing ${processing} document(s)...`;
+            } else if (ready > 0) {
+                badge.classList.remove('scanning');
+                badge.title = `${ready} document(s) ready`;
+            } else {
+                badge.classList.remove('scanning');
+            }
         }
+        // Keep file preview bar in sync with vault status
+        renderFilePreview();
+    },
+
+    /**
+     * Check if any vault docs are still being processed (not yet ready).
+     */
+    hasProcessingDocs() {
+        return this.processingDocs.length > 0;
     },
 };
 
@@ -1895,6 +1935,13 @@ function rotateRoles() {
 // function updateSystemStatus removed (consolidated below)
 
 async function triggerCouncil(query) {
+    // --- VAULT: Block if documents are still processing ---
+    if (VaultUploader.hasProcessingDocs()) {
+        showProcessingToast("Documents still processing in vault. Please wait for READY status before executing.");
+        logTelemetry("VAULT: Council blocked — documents still processing", "warning");
+        return;
+    }
+
     // --- EXECUTE PROTOCOL BUTTON FEEDBACK ---
     const execBtn = document.querySelector('.trigger-scan');
     if (execBtn) {
@@ -2065,17 +2112,19 @@ function renderChainResults(result) {
         council_contributors: backendSynthesis.council_contributors || [],
         confidence_and_assumptions: backendSynthesis.confidence_and_assumptions || null
     };
-    // Supplement risks from RISK_VECTOR tags if backend didn't provide structured risks
+    // Extract RISK_VECTOR and DECISION_CANDIDATE tags from pipeline phases
+    const riskMatches = (result.failure_analysis || '').match(/\[RISK_VECTOR\](.*?)\[\/RISK_VECTOR\]/g) || [];
+    const actionMatches = (result.failure_analysis || '').match(/\[DECISION_CANDIDATE\](.*?)\[\/DECISION_CANDIDATE\]/g) || [];
+
+    // Supplement risks if backend didn't provide structured risks
     if (!backendStructured.risks || backendStructured.risks.length === 0) {
-        const riskMatches = (result.failure_analysis || '').match(/\[RISK_VECTOR\](.*?)\[\/RISK_VECTOR\]/g) || [];
         riskMatches.forEach(r => {
             const text = r.replace(/\[\/?\s*RISK_VECTOR\s*\]/g, '').trim();
             synthesisData.structured_data.risks.push({ risk: text, severity: 'HIGH', mitigation: 'Requires assessment' });
         });
     }
-    // Supplement actions from DECISION_CANDIDATE tags if backend didn't provide them
+    // Supplement actions if backend didn't provide them
     if (!backendStructured.actions || backendStructured.actions.length === 0) {
-        const actionMatches = (result.failure_analysis || '').match(/\[DECISION_CANDIDATE\](.*?)\[\/DECISION_CANDIDATE\]/g) || [];
         actionMatches.forEach(a => {
             const text = a.replace(/\[\/?\s*DECISION_CANDIDATE\s*\]/g, '').trim();
             synthesisData.structured_data.actions.push({ action: text, priority: 'HIGH' });

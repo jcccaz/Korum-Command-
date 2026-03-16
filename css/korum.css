@@ -2513,6 +2513,17 @@ body.activated .sphere-texture {
     }
 }
 
+/* Vault file chip pulse — processing indicator */
+.file-chip.vault-pulse {
+    animation: vaultChipPulse 1.8s ease-in-out infinite;
+    border: 1px solid rgba(240, 160, 48, 0.4);
+}
+
+@keyframes vaultChipPulse {
+    0%, 100% { opacity: 1; box-shadow: none; }
+    50% { opacity: 0.7; box-shadow: 0 0 6px rgba(240, 160, 48, 0.3); }
+}
+
 .ghost-stat-time {
     color: rgba(255, 255, 255, 0.35);
     margin-left: auto;
