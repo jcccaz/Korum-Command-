@@ -691,6 +691,23 @@ def falcon_preview():
         except (ValueError, Exception) as e:
             print(f"⚠️ Ghost Preview file error: {e}")
             continue
+
+    # Also pull in Vault documents (uploaded via S3 pipeline)
+    vault_document_ids = data.get('vault_document_ids', [])
+    if vault_document_ids:
+        from vault import get_vault_document
+        for vdoc_id in vault_document_ids:
+            try:
+                vdoc = get_vault_document(vdoc_id)
+                if not vdoc:
+                    continue
+                if vdoc.extracted_text:
+                    doc_texts.append(f"[Vault Document: {vdoc_id[:8]}]\n{vdoc.extracted_text}")
+                    print(f"👁️ Ghost Preview: attached vault doc {vdoc_id[:8]} ({len(vdoc.extracted_text)} chars)")
+            except Exception as e:
+                print(f"⚠️ Ghost Preview vault doc error: {e}")
+                continue
+
     if doc_texts:
         doc_context = "\n\n--- ATTACHED DOCUMENTS ---\n" + "\n\n".join(doc_texts)
         raw_text = (raw_text + doc_context) if raw_text else doc_context.strip()

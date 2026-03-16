@@ -3432,10 +3432,12 @@ window.ghostPreview = async function () {
 
     try {
         const level = document.getElementById('falcon-level-select')?.value || 'STANDARD';
+        const vaultDocIds = VaultUploader.getReadyDocIds();
         const payload = {
             text: draft,
             level: level,
-            custom_terms: window._falconCustomTerms || []
+            custom_terms: window._falconCustomTerms || [],
+            vault_document_ids: vaultDocIds
         };
 
         let response;
