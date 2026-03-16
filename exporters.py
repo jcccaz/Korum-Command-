@@ -292,7 +292,7 @@ class WordExporter:
         date_str = meta.get("generated_at", datetime.now().isoformat())
         try:
             date_obj = datetime.fromisoformat(date_str)
-            date_display = date_obj.strftime("%B %d, %Y · %H:%M UTC")
+            date_display = date_obj.strftime("%Y-%m-%d %H:%M UTC")
         except Exception:
             date_display = date_str
 
@@ -882,14 +882,20 @@ class WordExporter:
         attest_cell = attest_table.rows[0].cells[0]
         WordExporter._shade_cell(attest_cell, "F0F8FF")
         ap = attest_cell.paragraphs[0]
-        ap.paragraph_format.space_before = Pt(6)
-        ap.paragraph_format.space_after = Pt(6)
-        attest_run = ap.add_run(
+        ap.paragraph_format.space_before = Pt(4)
+        ap.paragraph_format.space_after = Pt(4)
+        # Build attestation text in two runs so date never truncates on a single line
+        run1 = ap.add_run(
             f"COMPLIANCE ATTESTATION: Generated via {node_desc}. "
-            f"Integrity Anchor: FN-DSA. Composite Score: {truth_display}/100. "
-            f"Audit Date: {date_display}"
+            f"Integrity Anchor: FN-DSA. Composite Score: {truth_display}/100."
         )
-        attest_run.font.size = Pt(7.5)
+        run1.font.size = Pt(8)
+        run1.font.color.rgb = RGBColor(0x00, 0x80, 0xBF)
+        run1.font.name = "Calibri"
+        run1.font.bold = True
+        ap.add_run("\n")
+        attest_run = ap.add_run(f"Audit Date: {date_display}")
+        attest_run.font.size = Pt(8)
         attest_run.font.color.rgb = RGBColor(0x00, 0x80, 0xBF)
         attest_run.font.name = "Calibri"
         attest_run.font.bold = True
@@ -1202,7 +1208,7 @@ class PDFExporter:
         date_str = meta.get("generated_at", datetime.now().isoformat())
         try:
             date_obj = datetime.fromisoformat(date_str)
-            date_display = date_obj.strftime("%B %d, %Y · %H:%M UTC")
+            date_display = date_obj.strftime("%Y-%m-%d %H:%M UTC")
         except:
             date_display = date_str
 
