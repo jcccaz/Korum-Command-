@@ -6134,8 +6134,8 @@ body.report-library-open .results-container {
 
 .brand-hero-container {
     position: relative;
-    width: 80px;
-    height: 80px;
+    width: 130px;
+    height: 130px;
     margin-bottom: 0px;
     display: flex;
     align-items: center;
@@ -6144,8 +6144,8 @@ body.report-library-open .results-container {
 }
 
 .brand-hero-logo {
-    width: 80px;
-    height: 80px;
+    width: 130px;
+    height: 130px;
     object-fit: contain;
     filter: drop-shadow(0 0 10px rgba(255, 176, 32, 0.2));
     z-index: 2;
@@ -6162,8 +6162,8 @@ body.report-library-open .results-container {
     position: absolute;
     top: 24%;
     left: 48%;
-    width: 6px;
-    height: 6px;
+    width: 10px;
+    height: 10px;
     background: radial-gradient(circle, rgba(255, 176, 32, 0.8) 0%, rgba(255, 176, 32, 0) 70%);
     border-radius: 50%;
     z-index: 3;
