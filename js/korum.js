@@ -1479,15 +1479,34 @@ function toggleMode(mode) {
     btn.classList.toggle('mode-active-serp', mode === 'serp' && isActive);
     btn.classList.toggle('mode-active-falcon', mode === 'falcon' && isActive);
 
+    // V2 toggle: update label to show SEQUENTIAL (V2) vs PARALLEL (V1)
+    if (mode === 'v2') {
+        const labelEl = btn.querySelector('.mode-label') || btn;
+        if (isActive) {
+            labelEl.setAttribute('data-pipeline', 'sequential');
+            btn.title = 'SEQUENTIAL — Phased pipeline (V2). Click to switch to PARALLEL.';
+        } else {
+            labelEl.setAttribute('data-pipeline', 'parallel');
+            btn.title = 'PARALLEL — All models simultaneously (V1). Click to switch to SEQUENTIAL.';
+        }
+        // Update the visible text label inside the button if it exists
+        const textSpan = btn.querySelector('.mode-v2-label');
+        if (textSpan) {
+            textSpan.textContent = isActive ? 'SEQUENTIAL' : 'PARALLEL';
+        }
+    }
+
     if (isActive) {
         btn.classList.add('active');
-        logTelemetry(`${mode.toUpperCase()} MODE ACTIVATED`, "warning");
+        const modeLabel = mode === 'v2' ? 'SEQUENTIAL (V2)' : mode.toUpperCase();
+        logTelemetry(`${modeLabel} MODE ACTIVATED`, "warning");
         if (mode === 'falcon') {
             document.querySelector('.falcon-brand-container')?.classList.add('falcon-active');
         }
     } else {
+        const modeLabel = mode === 'v2' ? 'PARALLEL (V1)' : mode.toUpperCase();
         btn.classList.remove('active');
-        logTelemetry(`${mode.toUpperCase()} MODE STANDBY`, "system");
+        logTelemetry(`${modeLabel} MODE STANDBY`, "system");
         if (mode === 'falcon') {
             document.querySelector('.falcon-brand-container')?.classList.remove('falcon-active');
         }
@@ -1742,6 +1761,16 @@ function setupActionBindings() {
     document.querySelectorAll('[data-mode-toggle]').forEach(btn => {
         btn.addEventListener('click', () => toggleMode(btn.dataset.modeToggle));
     });
+
+    // Set initial V2 button label based on default activeModes.v2 = true (SEQUENTIAL)
+    const v2Btn = document.getElementById('btn-mode-v2');
+    if (v2Btn) {
+        const textSpan = v2Btn.querySelector('.mode-v2-label');
+        if (textSpan) textSpan.textContent = activeModes.v2 ? 'SEQUENTIAL' : 'PARALLEL';
+        v2Btn.title = activeModes.v2
+            ? 'SEQUENTIAL — Phased pipeline (V2). Click to switch to PARALLEL.'
+            : 'PARALLEL — All models simultaneously (V1). Click to switch to SEQUENTIAL.';
+    }
 
     document.querySelectorAll('[data-comms-mode]').forEach(btn => {
         btn.addEventListener('click', () => toggleCommsMode(btn.dataset.commsMode));
