@@ -2352,7 +2352,7 @@ function renderChainResults(result) {
     setTimeout(() => {
         if (window.mermaid) {
             try {
-                mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                mermaid.run({ querySelector: '.mermaid', suppressErrors: true });
             } catch (e) {
                 console.error("Mermaid Render Error:", e);
             }
@@ -3623,7 +3623,7 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
         // Render the Mermaid diagram
         if (window.mermaid) {
             try {
-                mermaid.init(undefined, document.querySelectorAll(`#${chartId}-overlay .mermaid`));
+                mermaid.run({ querySelector: `#${chartId}-overlay .mermaid`, suppressErrors: true });
             } catch (e) {
                 console.error("Mermaid render error:", e);
             }
@@ -4691,7 +4691,7 @@ function renderResults(data, roleName) {
     setTimeout(() => {
         if (window.mermaid) {
             try {
-                mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                mermaid.run({ querySelector: '.mermaid', suppressErrors: true });
             } catch (e) {
                 console.error("Mermaid Render Error:", e);
             }
@@ -4712,7 +4712,7 @@ function renderResults(data, roleName) {
 
     // RENDER CHARTS
     setTimeout(() => {
-        if (window.mermaid) mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+        if (window.mermaid) mermaid.run({ querySelector: '.mermaid', suppressErrors: true });
     }, 500);
 }
 
@@ -5409,7 +5409,7 @@ function openCardModal(cardData) {
     modal.classList.add('visible');
 
     if (window.mermaid) {
-        setTimeout(() => mermaid.init(undefined, document.querySelectorAll('.card-modal .mermaid')), 100);
+        setTimeout(() => mermaid.run({ querySelector: '.card-modal .mermaid', suppressErrors: true }), 100);
     }
     logTelemetry(`Expanded Card: ${cardData.name}`, "system");
 }
