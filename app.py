@@ -1580,8 +1580,8 @@ def ask_council():
                 images.append(result)
             elif result['type'] == 'document':
                 doc_texts.append(f"[Document: {result['filename']}]\n{result['extracted_text']}")
-        except ValueError as e:
-            print(f"⚠️ File processing error: {e}")
+        except Exception as e:
+            print(f"⚠️ File processing error ({type(e).__name__}): {e}")
             continue
 
     # Append extracted document text to query context
