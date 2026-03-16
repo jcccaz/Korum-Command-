@@ -555,7 +555,9 @@ def vault_authorize():
     mission_id = data.get('mission_id')
 
     if not filename or not content_type:
-        return jsonify({"error": "filename and content_type required"}), 400
+        # Log what was sent to help debug client-side MIME inference failures
+        logger.warning(f"[VAULT] authorize rejected — filename={repr(filename)} content_type={repr(content_type)}")
+        return jsonify({"error": f"filename and content_type required (got filename={repr(filename)}, content_type={repr(content_type)})"}), 400
 
     try:
         result = initialize_vault_upload(
@@ -2416,8 +2418,16 @@ def reasoning_chain():
                 doc_texts.append(f"[Vault Document: {vdoc_id[:8]}]\n{vdoc.extracted_text}")
                 _vault_doc_ids_used.append(vdoc_id)
         if doc_texts:
-            query = query + "\n\n--- ATTACHED DOCUMENTS ---\n" + "\n\n".join(doc_texts)
-            print(f"📎 V2: {len(doc_texts)} vault document(s) attached ({sum(len(t) for t in doc_texts)} chars)")
+            # Guard: cap total attached document text to 12,000 chars to prevent
+            # chain timeouts on large documents. The council gets the most relevant
+            # context without blowing the per-model token budget.
+            MAX_DOC_CHARS = 12000
+            combined = "\n\n".join(doc_texts)
+            if len(combined) > MAX_DOC_CHARS:
+                combined = combined[:MAX_DOC_CHARS] + f"\n\n[DOCUMENT TRUNCATED — {len(combined) - MAX_DOC_CHARS} chars omitted to prevent timeout. Run with a shorter document or use chunking.]"
+                print(f"📎 V2: document text truncated to {MAX_DOC_CHARS} chars (was {sum(len(t) for t in doc_texts)})")
+            query = query + "\n\n--- ATTACHED DOCUMENTS ---\n" + combined
+            print(f"📎 V2: {len(doc_texts)} vault document(s) attached ({sum(len(t) for t in doc_texts)} chars total, {len(combined)} sent)")
 
     # --- FALCON PROTOCOL: SECURE PREPROCESSING ---
     use_falcon = data.get('use_falcon', False)
