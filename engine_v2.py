@@ -4,6 +4,7 @@
 # -------------------------------------------------------------------
 
 import os
+import re
 import json
 from datetime import datetime
 
@@ -275,6 +276,19 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
+# Falcon-token sanitizer — strips hallucinated redaction placeholders when Falcon is OFF.
+# Matches patterns like [CURRENCY_AMOUNT_A1B2C3], [ORG_5D0176], [PERSON_622F9F], etc.
+# Does NOT touch legitimate system tags ([METRIC_ANCHOR], [RISK_VECTOR], etc.).
+_FAKE_FALCON_RE = re.compile(
+    r'\[(?:CURRENCY_AMOUNT|ORG|PERSON|PROPER_NOUN|LOCATION|EMAIL|PHONE|SSN|DOB|'
+    r'CREDIT_CARD|IP_ADDRESS|ALNUM_TAG|MEDICAL|LEGAL_ID)_[A-Fa-f0-9]{4,}\]'
+)
+
+def _strip_phantom_tokens(text):
+    """Replace hallucinated Falcon-style tokens with '[value not provided]'."""
+    return _FAKE_FALCON_RE.sub('[value not provided]', text)
+
+
 def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None, ledger_mission_id=None, ghost_map=None, residual_report=None):
     # 1. Setup IDs
     import uuid
@@ -416,6 +430,10 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
                      models_used.append(provider)
             else:
                  response_text = str(response_obj)
+
+            # Strip hallucinated Falcon-style tokens when Falcon is NOT active
+            if not ghost_map:
+                response_text = _strip_phantom_tokens(response_text)
 
             context.add_entry(provider, role, response_text, usage=usage)
             
@@ -833,6 +851,86 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         }
     }
 
+    # ── Workflow-specific phase overrides ──────────────────────────────
+    # Each workflow can replace the generic intel directives with
+    # domain-appropriate missions so every phase does real work.
+    FINANCE_PHASE_DIRECTIVES = {
+        0: {
+            "title": "INTAKE — Financial Extraction",
+            "instruction": (
+                "You are the FINANCIAL EXTRACTION analyst. Your sole job is to locate and extract EVERY financial figure "
+                "from the source material. Build a structured breakdown with these categories:\n"
+                "  • INCOME / REVENUE — all revenue streams, projections, and pricing\n"
+                "  • CAPEX — capital expenditures, procurement costs, one-time purchases\n"
+                "  • OPEX — recurring operational costs, subscriptions, salaries, utilities\n"
+                "Apply any stated discounts, adjustments, or tax rates to produce adjusted totals. "
+                "If a figure is referenced but no number is given, mark it as 'NOT PROVIDED' — do NOT invent numbers. "
+                "Present your output as clean, structured tables or lists. No narrative filler — just the numbers and their labels."
+            )
+        },
+        1: {
+            "title": "ANALYSIS — Financial Modeling",
+            "instruction": (
+                "You are the FINANCIAL MODELER. The extracted figures from Phase 1 are provided below. "
+                "Your job is to MODEL what those numbers mean — do NOT repeat the raw extraction. Focus on:\n"
+                "  1) Unit economics — cost per unit, margin per unit, contribution margin\n"
+                "  2) Burn rate and runway — how long can operations sustain at current spend?\n"
+                "  3) Break-even analysis — at what volume or price point does revenue cover costs?\n"
+                "  4) Sensitivity ranges — what happens if key inputs shift ±10%, ±25%, ±50%?\n"
+                "Use the actual extracted numbers. Where figures are missing, state your assumptions clearly "
+                "and flag them as estimates. Present calculations, not opinions."
+            )
+        },
+        2: {
+            "title": "STRESS TEST — Assumption Challenge",
+            "instruction": (
+                "You are the FINANCIAL STRESS TESTER. The extraction and model are provided below. "
+                "Your SOLE job is to BREAK the financial assumptions. Probe for:\n"
+                "  1) Cost underestimation — what if procurement, energy, or compliance costs are 2x?\n"
+                "  2) Revenue overestimation — what if revenue hits only 50% of projections?\n"
+                "  3) Hidden liabilities — off-balance-sheet obligations, contingent liabilities, warranty exposure\n"
+                "  4) Currency and rate exposure — FX risk, interest rate sensitivity, inflation impact\n"
+                "  5) Concentration risk — single-vendor dependence, single-customer revenue, geographic concentration\n"
+                "DO NOT validate the prior analysis. Your value is in finding what can go WRONG. "
+                "If you find nothing to challenge, you are not looking hard enough."
+            )
+        },
+        3: {
+            "title": "COMPLIANCE & FRAMEWORKS — Regulatory Mapping",
+            "instruction": (
+                "You are the REGULATORY and COMPLIANCE analyst. All prior financial analysis is provided below. "
+                "Your job is to map the financial structure to applicable standards and flag gaps. Focus on:\n"
+                "  1) Accounting standards — which GAAP (ASC), IFRS, or local standards apply to these transactions?\n"
+                "  2) Tax obligations — corporate tax, VAT/GST, withholding, transfer pricing if cross-border\n"
+                "  3) Reporting requirements — what disclosures, filings, or audits are required?\n"
+                "  4) Penalty exposure — what are the consequences of non-compliance with identified frameworks?\n"
+                "  5) Industry-specific regulation — sector-specific rules (financial services, energy, tech export controls)\n"
+                "DO NOT repeat prior financial analysis. Focus EXCLUSIVELY on what rules apply and where the gaps are."
+            )
+        },
+        4: {
+            "title": "VERDICT — ROI & Recommendation",
+            "instruction": (
+                "You are the FINAL VERDICT analyst. All extraction, modeling, stress testing, and compliance analysis is provided below. "
+                "Your job is to deliver the bottom line. Focus on:\n"
+                "  1) ROI range — best case, expected case, worst case return on investment\n"
+                "  2) Go / No-Go / Conditional — clear recommendation with the conditions that must be met\n"
+                "  3) Key metrics to monitor — the 3-5 numbers that determine success or failure\n"
+                "  4) Residual risks — what risks remain even after mitigation?\n"
+                "  5) Timeline to value — when does this investment start paying back?\n"
+                "Be decisive. State your recommendation clearly and back it with the numbers from prior phases. "
+                "Do NOT hedge with vague language — if the data supports a conclusion, state it."
+            )
+        }
+    }
+
+    WORKFLOW_PHASE_OVERRIDES = {
+        "FINANCE": FINANCE_PHASE_DIRECTIVES,
+    }
+
+    # Select workflow-specific directives if available, else generic
+    active_phase_directives = WORKFLOW_PHASE_OVERRIDES.get(context.workflow, PHASE_DIRECTIVES)
+
     if ai_name.lower() == 'perplexity':
         # Perplexity works best with direct research questions, not persona roleplay
         prompt = f"""
@@ -849,24 +947,25 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
             prompt += f"Summary of previous findings: {last_entry['response'][:1000]}...\n"
 
         # Give Perplexity the phase-specific focus even in research mode
-        phase = PHASE_DIRECTIVES.get(position, PHASE_DIRECTIVES.get(min(position, 4)))
+        phase = active_phase_directives.get(position, active_phase_directives.get(min(position, 4)))
         prompt += f"\nYOUR SPECIFIC FOCUS: {phase['title']}\n{phase['instruction']}"
         if context.ghost_map or context.residual_report:
             prompt += "\n" + _build_mimir_block(context.ghost_map, context.residual_report)
         prompt += "\nProvide comprehensive, well-sourced research and data. Focus on facts, metrics, and technical details."
+        prompt += "\nNEVER invent bracket-notation placeholders like [CURRENCY_AMOUNT_XXXX] or [ENTITY_TYPE_HASH]. Use real values from the source material. If unknown, say so."
         return prompt
 
     # --- Determine which phase directive applies ---
     # Map position to phase (if more than 5 steps, later steps get the closest directive)
     if position == total_steps - 1 and total_steps >= 3:
         # Final step is ALWAYS the integrator (phase 4) regardless of count
-        phase = PHASE_DIRECTIVES[4]
+        phase = active_phase_directives[4]
     elif total_steps <= 5:
-        phase = PHASE_DIRECTIVES.get(position, PHASE_DIRECTIVES[min(position, 4)])
+        phase = active_phase_directives.get(position, active_phase_directives[min(position, 4)])
     else:
         # Scale phases across available steps
         phase_index = int(position / total_steps * 5)
-        phase = PHASE_DIRECTIVES.get(min(phase_index, 4))
+        phase = active_phase_directives.get(min(phase_index, 4))
 
     # Inject MIMIR block if Falcon ghost map is present
     mimir_block = ""
@@ -888,6 +987,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     TONE: {dna['tone']}
     RISK BIAS: {dna['risk_bias']}
     TIME HORIZON: {dna['time_horizon']}
+    REPORT SECTIONS: {', '.join(dna['output_structure'])}
     --------------------
 
     ## YOUR PHASE MISSION
@@ -907,6 +1007,12 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     - [TRUTH_BOMB] ...critically verified fact... [/TRUTH_BOMB]
 
     Do not let these tags disrupt your narrative flow; they are for the backend extractor.
+
+    ## STRICT OUTPUT RULE
+    ONLY use the four system tags listed above ([DECISION_CANDIDATE], [RISK_VECTOR], [METRIC_ANCHOR], [TRUTH_BOMB]).
+    NEVER invent bracket-notation placeholders such as [CURRENCY_AMOUNT_XXXX], [ENTITY_TYPE_HASH], or any
+    similar token. Always use real values, names, and figures from the source material. If a value is unknown,
+    say "unknown" or "not provided" — do NOT fabricate redaction-style placeholder tokens.
     """
 
     # Inject prior session context for follow-up queries
