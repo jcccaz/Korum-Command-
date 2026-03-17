@@ -324,20 +324,6 @@ function updateTruthScore(provider, delta, reason) {
 
     const sign = delta > 0 ? '+' : '';
     logTelemetry(`TRUTH RECALIBRATED: ${provider.toUpperCase()} ${sign}${delta} → ${newScore}/100 (${reason})`, delta > 0 ? "success" : "error");
-
-    // Propagate to stage header metric
-    syncStageTruthMetric();
-}
-
-function syncStageTruthMetric() {
-    if (!lastCouncilData?.results) return;
-    const scores = Object.values(lastCouncilData.results)
-        .filter(r => r?.truth_meter)
-        .map(r => r.truth_meter);
-    if (scores.length) {
-        const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-        setTextById('stageMetricTruth', `${avg} / 100`);
-    }
 }
 
 // === FILE UPLOAD STATE ===
@@ -2297,13 +2283,13 @@ function renderChainResults(result) {
             <div class="ph-right">
                 <div class="metric-pill">${tbMatches.length} FACTS</div>
                 <div class="metric-pill" style="border-color:#FF4444; color:#FF4444;">${allRisks.length} RISKS</div>
-                <div class="metric-pill" style="border-color:#00E5FF; color:#00E5FF;">${allActions.length} ACTIONS</div>
+                <div class="metric-pill" style="border-color:#F5A800; color:#F5A800;">${allActions.length} ACTIONS</div>
                 <div class="metric-pill time">${totalTime.toFixed(1)}s</div>
             </div>
         </div>
         <div class="agent-response" style="font-size:0.62rem; line-height:1.7;">
             ${allRisks.length ? `<div style="margin-bottom:12px;"><strong style="color:#FF4444;">RISK VECTORS IDENTIFIED</strong><br>${allRisks.map(r => `<span style="color:#CCC;">• ${r}</span>`).join('<br>')}</div>` : ''}
-            ${allActions.length ? `<div style="margin-bottom:12px;"><strong style="color:#00E5FF;">RECOMMENDED ACTIONS</strong><br>${allActions.map(a => `<span style="color:#CCC;">• ${a}</span>`).join('<br>')}</div>` : ''}
+            ${allActions.length ? `<div style="margin-bottom:12px;"><strong style="color:#F5A800;">RECOMMENDED ACTIONS</strong><br>${allActions.map(a => `<span style="color:#CCC;">• ${a}</span>`).join('<br>')}</div>` : ''}
             ${tbMatches.length ? `<div><strong style="color:#4CAF7D;">VERIFIED FACTS (${tbMatches.length})</strong><br>${tbMatches.slice(0, 8).map(t => `<span style="color:#999;">• ${t.replace(/\[\/?\s*TRUTH_BOMB\s*\]/g, '').trim()}</span>`).join('<br>')}${tbMatches.length > 8 ? `<br><span style="color:#555;">...and ${tbMatches.length - 8} more</span>` : ''}</div>` : ''}
         </div>
     `;
@@ -2486,9 +2472,7 @@ let sessionState = {
     selectedCardResponse: null,
     selectedText: "",
     highlightToolbarVisible: false,
-    archivePanelOpen: false,
-    interrogations: [], // Audit of adversarial face-offs
-    verifications: []   // Audit of source evidence checks
+    archivePanelOpen: false
 };
 
 // --- CARD SELECTION & ANALYSIS ACTION BAR ---
@@ -2631,7 +2615,7 @@ function updateThreadBadge() {
     if (!badge) {
         badge = document.createElement('div');
         badge.id = 'threadBadge';
-        badge.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:4px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);border-radius:6px;font-size:11px;color:#00E5FF;letter-spacing:0.5px;';
+        badge.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:4px;background:rgba(245,168,0,0.08);border:1px solid rgba(245,168,0,0.25);border-radius:6px;font-size:11px;color:#F5A800;letter-spacing:0.5px;';
 
         const icon = document.createElement('span');
         icon.textContent = '\u25C8';  // diamond
@@ -2646,7 +2630,7 @@ function updateThreadBadge() {
         const threadsBtn = document.createElement('button');
         threadsBtn.textContent = 'THREADS';
         threadsBtn.title = 'View analysis threads';
-        threadsBtn.style.cssText = 'background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:#00E5FF;padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;letter-spacing:0.5px;font-family:inherit;';
+        threadsBtn.style.cssText = 'background:rgba(245,168,0,0.12);border:1px solid rgba(245,168,0,0.3);color:#F5A800;padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;letter-spacing:0.5px;font-family:inherit;';
         threadsBtn.addEventListener('click', () => toggleThreadPanel());
         badge.appendChild(threadsBtn);
 
@@ -2690,7 +2674,7 @@ async function toggleThreadPanel() {
     panel.id = 'threadPanel';
     panel.style.cssText = `
         position:fixed;top:0;right:0;width:320px;height:100vh;
-        background:#0D1117;border-left:1px solid rgba(0,229,255,0.2);
+        background:#0D1117;border-left:1px solid rgba(245,168,0,0.2);
         z-index:9999;display:flex;flex-direction:column;
         box-shadow:-4px 0 20px rgba(0,0,0,0.5);
         animation:slideIn 0.2s ease-out;
@@ -2698,9 +2682,9 @@ async function toggleThreadPanel() {
 
     // Header
     const header = document.createElement('div');
-    header.style.cssText = 'padding:16px 20px;border-bottom:1px solid rgba(0,229,255,0.15);display:flex;align-items:center;justify-content:space-between;';
+    header.style.cssText = 'padding:16px 20px;border-bottom:1px solid rgba(245,168,0,0.15);display:flex;align-items:center;justify-content:space-between;';
     header.innerHTML = `
-        <span style="color:#00E5FF;font-size:13px;letter-spacing:1px;font-weight:600;">ANALYSIS THREADS</span>
+        <span style="color:#F5A800;font-size:13px;letter-spacing:1px;font-weight:600;">ANALYSIS THREADS</span>
         <button id="closeThreadPanel" style="background:none;border:none;color:#8b949e;cursor:pointer;font-size:18px;padding:0 4px;">\u2715</button>
     `;
     panel.appendChild(header);
@@ -2742,8 +2726,8 @@ function renderThreadList(threads) {
         const item = document.createElement('div');
         item.style.cssText = `
             padding:10px 12px;margin-bottom:4px;border-radius:6px;cursor:pointer;
-            background:${isActive ? 'rgba(0,229,255,0.1)' : 'rgba(255,255,255,0.03)'};
-            border:1px solid ${isActive ? 'rgba(0,229,255,0.3)' : 'rgba(255,255,255,0.06)'};
+            background:${isActive ? 'rgba(245,168,0,0.1)' : 'rgba(255,255,255,0.03)'};
+            border:1px solid ${isActive ? 'rgba(245,168,0,0.3)' : 'rgba(255,255,255,0.06)'};
             transition:background 0.15s;
         `;
         item.addEventListener('mouseenter', () => { if (!isActive) item.style.background = 'rgba(255,255,255,0.06)'; });
@@ -3166,9 +3150,9 @@ window.executeVerify = async function (claimText, providerName) {
     const verifyCard = document.createElement('div');
     verifyCard.className = 'agent-card verify-card no-interrogate';
     verifyCard.dataset.name = 'SOURCE VERIFICATION';
-    verifyCard.style.cssText = 'border: 1px solid #00BFFF; background: rgba(0,191,255,0.03); margin-top: 16px;';
+    verifyCard.style.cssText = 'border: 1px solid #F5A800; background: rgba(245,168,0,0.03); margin-top: 16px;';
     verifyCard.innerHTML = `
-        <div class="precision-header" style="border-bottom: 1px solid #00BFFF;">
+        <div class="precision-header" style="border-bottom: 1px solid #F5A800;">
             <div class="ph-left">
                 <div class="ph-model-name" style="color:#C8C8CC">🔎 SOURCE VERIFICATION</div>
                 <div class="ph-role-label" style="color:#66D9FF">PERPLEXITY · FACT CHECK</div>
@@ -3209,7 +3193,7 @@ window.executeVerify = async function (claimText, providerName) {
 
         const verifiedHtml = formatText(result.verification);
         verifyCard.innerHTML = `
-            <div class="precision-header" style="border-bottom: 1px solid #00BFFF;">
+            <div class="precision-header" style="border-bottom: 1px solid #F5A800;">
                 <div class="ph-left">
                     <div class="ph-model-name" style="color:#C8C8CC">🔎 SOURCE VERIFICATION</div>
                     <div class="ph-role-label" style="color:#66D9FF">PERPLEXITY · ${result.model || 'sonar'}</div>
@@ -3219,7 +3203,7 @@ window.executeVerify = async function (claimText, providerName) {
                     <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.agent-card').querySelector('.agent-response').innerText, 'Verification copied')" title="Copy">📋</div>
                 </div>
             </div>
-            <div style="padding: 12px 16px; border-bottom: 1px solid rgba(0,191,255,0.15);">
+            <div style="padding: 12px 16px; border-bottom: 1px solid rgba(245,168,0,0.15);">
                 <div style="color:#66D9FF; font-size: 0.6rem; letter-spacing: 0.1em; margin-bottom: 4px;">CLAIM UNDER REVIEW</div>
                 <div style="color:#AAA; font-size: 0.75rem; font-style: italic;">"${claim.length > 200 ? claim.substring(0, 200) + '...' : claim}"</div>
             </div>
@@ -3242,10 +3226,6 @@ window.executeVerify = async function (claimText, providerName) {
         setTextById('evalRevisionCopy', 'Verification changed the active answer state.');
         setEvaluationStepState('evalRevisionStep', 'live');
         addCommsActivity('Verification complete', `Perplexity reviewed the selected claim and returned ${result.verdict || 'a verdict'}.`, result.verdict === 'INACCURATE' ? 'alert' : 'ready');
-
-        // Advance phase bar: Evaluation complete → Results processing
-        setMissionStep(4, 'complete');
-        setMissionStep(5, 'processing');
 
         // === TRUTH SCORE FEEDBACK — use structured verdict from backend ===
         const sourceProvider = resolveProviderKey(providerName);
@@ -3271,50 +3251,8 @@ window.executeVerify = async function (claimText, providerName) {
                 badge.textContent = verdictLabel;
                 headerRight.insertAdjacentElement('afterbegin', badge);
             }
-
-            // Also mark the original agent card with a verdict badge
-            if (sourceProvider) {
-                const sourceCard = document.querySelector(`.agent-card[data-provider="${sourceProvider}"]`);
-                if (sourceCard) {
-                    const existing = sourceCard.querySelector('.verify-verdict-badge');
-                    if (existing) existing.remove();
-                    const srcBadge = document.createElement('div');
-                    srcBadge.className = 'verify-verdict-badge';
-                    srcBadge.style.cssText = `
-                        position: absolute; top: 6px; right: 60px;
-                        padding: 2px 8px; font-size: 0.55rem; letter-spacing: 0.1em;
-                        border: 1px solid ${verdictColor}; color: ${verdictColor};
-                        background: ${verdictColor}12; border-radius: 3px;
-                    `;
-                    srcBadge.textContent = verdictLabel;
-                    sourceCard.style.position = 'relative';
-                    sourceCard.appendChild(srcBadge);
-                }
-            }
         }
 
-        // Offer chart generation for data-heavy verification results
-        if (isDataHeavy(result.verification)) {
-            const chartOffer = document.createElement('div');
-            chartOffer.style.cssText = 'padding: 6px 16px; border-top: 1px solid rgba(0,191,255,0.1);';
-            const vizBtn = document.createElement('button');
-            vizBtn.className = 'aab-btn aab-visualize';
-            vizBtn.style.cssText = 'font-size:0.6rem; padding:4px 10px; cursor:pointer;';
-            vizBtn.textContent = '📊 VISUALIZE DATA';
-            vizBtn.addEventListener('click', () => generateCardChart(result.verification, 'auto'));
-            chartOffer.appendChild(vizBtn);
-            verifyCard.appendChild(chartOffer);
-        }
-
-        // --- PUSH TO AUDIT TRAIL for Report Generation ---
-        sessionState.verifications.push({
-            timestamp: new Date().toISOString(),
-            claim: claim,
-            provider: providerName,
-            verification: result.verification,
-            verdict: result.verdict || 'UNRESOLVED',
-            score_delta: result.score_delta
-        });
     } catch (e) {
         console.error('Verify error:', e);
         logTelemetry(`Verification network error: ${e.message}`, "error");
@@ -3454,21 +3392,12 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
         setEvaluationStepState('evalRevisionStep', 'live');
         addCommsActivity('Interrogation complete', `${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'alert');
 
-        // Advance phase bar: Evaluation complete → Results processing
-        setMissionStep(4, 'complete');
-        setMissionStep(5, 'processing');
-
         // === TRUTH SCORE FEEDBACK — use structured verdict + delta from backend ===
         const targetProvider = sessionState.targetCard || resolveProviderKey(targetName);
         if (targetProvider) {
             const delta = result.score_delta || -2;
             const verdict = result.verdict || 'CHALLENGED';
             updateTruthScore(targetProvider, delta, verdict);
-
-            // Escalate risk metric on critical concession
-            if (verdict === 'CRITICAL CONCESSION' || delta <= -12) {
-                setTextById('stageMetricRisk', 'Escalated');
-            }
 
             // Show verdict banner inside the faceoff card
             const verdictColor = delta > 4 ? '#4CAF7D' : delta > 0 ? '#8FD9B0' : delta > -8 ? '#FFB020' : '#FF4444';
@@ -3493,33 +3422,6 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
             faceoffCard.appendChild(verdictBanner);
         }
 
-        // Offer chart generation for data-heavy interrogation results
-        const combinedText = (result.attacker?.response || '') + '\n' + (result.defender?.response || '');
-        if (isDataHeavy(combinedText)) {
-            const chartOffer = document.createElement('div');
-            chartOffer.style.cssText = 'padding: 6px 16px; border-top: 1px solid rgba(255,68,68,0.1);';
-            const vizBtn = document.createElement('button');
-            vizBtn.className = 'aab-btn aab-visualize';
-            vizBtn.style.cssText = 'font-size:0.6rem; padding:4px 10px; cursor:pointer;';
-            vizBtn.textContent = '📊 VISUALIZE DATA';
-            vizBtn.addEventListener('click', () => generateCardChart(combinedText, 'auto'));
-            chartOffer.appendChild(vizBtn);
-            faceoffCard.appendChild(chartOffer);
-        }
-
-        // --- PUSH TO AUDIT TRAIL for Report Generation ---
-        sessionState.interrogations.push({
-            timestamp: new Date().toISOString(),
-            attacker: attackerRole,
-            defender: defenderRole,
-            target: targetName,
-            attacker_model: result.attacker?.model,
-            defender_model: result.defender?.model,
-            attacker_response: result.attacker?.response,
-            defender_response: result.defender?.response,
-            verdict: result.verdict || 'CONTESTED',
-            score_delta: result.score_delta
-        });
     } catch (err) {
         logTelemetry(`Interrogation network error: ${err.message}`, "error");
         faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Connection issue — unable to complete cross-examination. Please retry.</span>`;
@@ -3806,15 +3708,6 @@ window.visualizeSelection = function (fallbackText) {
     generateCardChart(textToProcess, 'auto');
 };
 
-// Detect data-heavy content that would benefit from visualization
-function isDataHeavy(text) {
-    if (!text || text.length < 50) return false;
-    const numbers = text.match(/\d+\.?\d*/g) || [];
-    const words = text.split(/\s+/).length;
-    const hasTable = /^\|.*\|$/m.test(text) && /\|[-:]+\|/.test(text);
-    return hasTable || (numbers.length > 5 && numbers.length / words > 0.25);
-}
-
 // Lightweight chart generation — single Gemini Flash call, returns Mermaid
 async function generateCardChart(data, chartType = 'auto', cardEl = null) {
     logTelemetry(`GENERATING ${chartType.toUpperCase()} CHART...`, "process");
@@ -3871,11 +3764,6 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
 
         logTelemetry(`CHART GENERATED: ${chartType}`, "success");
         showProcessingToast("Chart rendered.");
-
-        // Auto-dock chart to Research Dock
-        if (typeof ResearchDock !== 'undefined' && ResearchDock.add) {
-            ResearchDock.add(result.mermaid_code, `chart-${chartType}`);
-        }
 
     } catch (e) {
         console.error('Chart generation error:', e);
@@ -4410,7 +4298,7 @@ function incrementInterrogationBadge() {
 function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
     const card = document.createElement('div');
     card.className = 'consensus-card exec-summary-card';
-    card.style.cssText = 'border-color: rgba(0,229,255,0.3); margin-bottom: 16px;';
+    card.style.cssText = 'border-color: rgba(245,168,0,0.3); margin-bottom: 16px;';
 
     // Determine data sources
     const synthesis = data.synthesis || {};
@@ -4454,7 +4342,7 @@ function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
             </div>
             <div style="text-align:center;">
                 <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">AGENTS</div>
-                <div style="color:#00E5FF; font-size:1.2rem; font-weight:bold;">${agentCount}</div>
+                <div style="color:#F5A800; font-size:1.2rem; font-weight:bold;">${agentCount}</div>
             </div>
             <div style="text-align:center;">
                 <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">LATENCY</div>
@@ -4506,7 +4394,7 @@ function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
     }
 
     card.innerHTML = `
-        <div class="consensus-title" style="color:#00E5FF;">
+        <div class="consensus-title" style="color:#F5A800;">
             <span style="font-size:14px;">&#x1F4CB;</span> EXECUTIVE SUMMARY · ${workflow.toUpperCase()}
             <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.consensus-card').querySelector('.consensus-body').innerText, 'Executive summary copied')" title="Copy" style="display:inline-block;margin-left:10px;cursor:pointer;">&#x1F4CB;</div>
         </div>
@@ -4609,7 +4497,7 @@ function renderResults(data, roleName) {
         let citationsHtml = '';
         if (citations.length > 0) {
             citationsHtml = `
-                <div class="citations-footer" style="border-top:1px solid rgba(255,255,255,0.06); padding:8px 16px; background:rgba(0,229,255,0.02);">
+                <div class="citations-footer" style="border-top:1px solid rgba(255,255,255,0.06); padding:8px 16px; background:rgba(245,168,0,0.02);">
                     <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em; margin-bottom:4px;">SOURCES (${citations.length})</div>
                     ${citations.map((url, i) => {
                         const domain = (() => { try { return new URL(url).hostname.replace('www.',''); } catch(e) { return url; } })();
@@ -4641,7 +4529,7 @@ function renderResults(data, roleName) {
                 <div class="ph-right">
                     <div class="metric-pill">$${cost.toFixed(4)}</div>
                     <div class="metric-pill time">${time}s</div>
-                    ${citations.length > 0 ? `<div class="metric-pill" style="color:#00DCFF; border-color:rgba(0,229,255,0.3);">${citations.length} sources</div>` : ''}
+                    ${citations.length > 0 ? `<div class="metric-pill" style="color:#00DCFF; border-color:rgba(245,168,0,0.3);">${citations.length} sources</div>` : ''}
                     <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); saveReport()" title="Save">💾</div>
                     <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); copyTextToClipboard(decodeURIComponent('${encodeURIComponent(rawResponse)}'), '${getProviderName(provider)} output copied')" title="Copy">📋</div>
                 </div>
@@ -5467,7 +5355,6 @@ const sentinelChat = {
             nextMove: 'Answering follow-up'
         });
         addCommsActivity('Follow-up queued', query.length > 96 ? `${query.slice(0, 96)}...` : query, 'live');
-        setMissionStep(6, 'processing');
         input.value = '';
         input.disabled = true;
 
@@ -5499,11 +5386,7 @@ const sentinelChat = {
                     affected: 'Current mission thread',
                     nextMove: 'Interrogate or verify'
                 });
-                setEvaluationStepState('evalRevisionStep', 'complete');
-                setTextById('evalRevisionTitle', 'Follow-Up Applied');
-                setTextById('evalRevisionCopy', 'Synthesis updated with follow-up context.');
-                setMissionStep(5, 'complete');
-                setMissionStep(6, 'active');
+                setEvaluationStepState('evalRevisionStep', 'live');
                 addCommsActivity('Follow-up answered', data.response.slice(0, 120) + (data.response.length > 120 ? '...' : ''), 'ready');
             } else {
                 this.appendMessage("Connection Lost. Re-establishing...", 'sentinel error');
@@ -6311,14 +6194,11 @@ async function handleDocExport(format) {
 
     try {
         const intelligenceObj = { ...lastCouncilData.synthesis };
-        // Inject audit and divergence data into intelligence object for exporters
-        intelligenceObj.interrogations = sessionState.interrogations || [];
-        intelligenceObj.verifications = sessionState.verifications || [];
-
+        // Inject divergence data into intelligence object for exporters
         if (lastCouncilData.divergence) {
             intelligenceObj.divergence_analysis = lastCouncilData.divergence;
         }
-        logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis} | Audit: ${intelligenceObj.interrogations.length} int, ${intelligenceObj.verifications.length} ver`, "process");
+        logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis}`, "process");
         const payload = {
             intelligence_object: intelligenceObj,
             card_results: lastCouncilData.results || {},
