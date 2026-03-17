@@ -1451,7 +1451,8 @@ const PROTOCOL_CONFIGS = {
     "Defense Council": { openai: "defense_ops", anthropic: "cyber_ops", google: "intel_analyst", perplexity: "scout", mistral: "hacker" },
     "Cyber Command": { openai: "cyber_ops", anthropic: "counterintel", google: "sigint", perplexity: "intel_analyst", mistral: "hacker" },
     "Quantum Security": { openai: "zero_trust", anthropic: "cryptographer", google: "compliance", perplexity: "ai_architect", mistral: "hacker" },
-    "Intel Brief": { openai: "intel_analyst", anthropic: "counterintel", google: "defense_ops", perplexity: "scout", mistral: "sigint" }
+    "Intel Brief": { openai: "intel_analyst", anthropic: "counterintel", google: "defense_ops", perplexity: "scout", mistral: "sigint" },
+    "EOM_STATEMENT": { openai: "cfo", anthropic: "auditor", google: "analyst", perplexity: "scout", mistral: "tax" }
 };
 
 // Available Roles for Manual Cycling

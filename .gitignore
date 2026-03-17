@@ -39,3 +39,6 @@ outputs/
 # Temporary files
 *.tmp
 .cache/
+
+# Internal trade secret records — keep out of version control
+docs/internal/

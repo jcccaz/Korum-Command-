@@ -150,12 +150,20 @@ WORKFLOW_DNA = {
     "INTEL_BRIEF": { "alias": "INTEL" },
     "SCIENCE_PANEL": { "alias": "SCIENCE" },
     "SOCIAL_POST": {
-        "goal": "Draft high-impact, platform-specific social media content that drives engagement and positions the author as a thought leader.",
-        "tone": "Authentic, insightful, and platform-optimized.",
-        "risk_bias": "Engagement-focused",
+        "goal": "Draft high-impact technical narratives that positions the author as a builder-authority and stops the scroll.",
+        "tone": "Authentic, technical but accessible, and zero-fluff.",
+        "risk_bias": "Trust-focused (Build in public)",
         "time_horizon": "Immediate impact",
-        "posture": "Social Media Strategist & Brand Voice",
-        "output_structure": ["Target Platform", "Core Hook", "Main Draft", "Engagement Tactics", "Success Metrics"]
+        "posture": "Founder-Builder & Storyteller",
+        "output_structure": ["Target Audience", "Core Hook", "Main Draft", "Alternate Versions", "Engagement Logic"]
+    },
+    "EOM_STATEMENT": {
+        "goal": "Generate a professional, structured End-of-Month (EOM) financial report with zero fluff.",
+        "tone": "Formal, precise, and accounting-standard aligned.",
+        "risk_bias": "Conservative (Downside-aware)",
+        "time_horizon": "Monthly / Trailing 12-month",
+        "posture": "Chief Financial Officer (CFO)",
+        "output_structure": ["P&L Statement", "Balance Sheet Snapshot", "Cash Flow & Burn Rate", "Runway & Forecast", "Financial Priorities"]
     }
 }
 
@@ -334,70 +342,100 @@ SYSTEM_PHASE_DIRECTIVES = {
     4: { "title": "PREVENTION", "instruction": "Prevent recurrence: SIEM updates, arch changes, and runbook audits." }
 }
 
-SOCIAL_POST_PHASE_DIRECTIVES = {
+EOM_STATEMENT_PHASE_DIRECTIVES = {
     0: {
-        "title": "AUDIENCE & ANGLE — Who Cares and Why Now",
+        "title": "INTAKE — Financial Extraction",
         "instruction": (
-            "You are the AUDIENCE STRATEGIST. Your job is to lock in the target reader and the angle. Output:\n"
-            "  1) TARGET READER — specific persona (founder, CISO, developer, etc.) and where they scroll\n"
-            "  2) CORE HOOK — the single insight, tension, or contrarian take that stops the scroll\n"
-            "  3) PROOF POINTS — 2-3 concrete facts, metrics, or experiences that back up the hook\n"
-            "  4) PLATFORM FIT — LinkedIn, X/Twitter, or other — and the format conventions for that platform\n"
-            "Do NOT write the post yet. Identify who we are talking to and what will make them stop scrolling."
+            "You are the FORENSIC ACCOUNTANT. Your job is to extract every piece of raw financial data from the query. "
+            "Build structured tables for Revenue, COGS, and OPEX. Identify every specific transaction or summary figure. "
+            "Do NOT analyze yet. Just build the absolute ground-truth data table."
         )
     },
     1: {
-        "title": "VOICE & POSITIONING — Sound Like a Builder",
+        "title": "ANALYSIS — P&L & Balance Sheet Modeling",
         "instruction": (
-            "You are the BRAND VOICE analyst. The audience and hook are above. Output:\n"
-            "  1) VOICE PROFILE — the tone, register, and personality for this post (founder-direct, technical, provocative, reflective)\n"
-            "  2) POSITIONING — how the author should come across (builder sharing lessons, not a marketer selling)\n"
-            "  3) WHAT TO AVOID — clichés, corporate buzzwords, or tones that would make this feel like an ad\n"
-            "  4) REFERENCE POSTS — describe 2-3 example post styles that match this voice (don't copy, emulate the energy)\n"
-            "Do NOT write the post yet. Define how it should sound so the drafting phase nails the voice."
+            "You are the FINANCIAL ANALYST. Using the intake data, build a structured Profit & Loss statement. "
+            "Include Gross Margin, EBITDA, and Net Income calculations. "
+            "If balance sheet data (Assets/Liabilities) is present, build a snapshot. State all formulas used."
         )
     },
     2: {
-        "title": "DRAFTING — Write 3 Post Versions",
+        "title": "CASH FLOW — Burn & Runway Audit",
         "instruction": (
-            "You are the CONTENT WRITER. The audience, hook, and voice are above. "
-            "Your job is to WRITE three distinct, ready-to-publish versions of the post.\n\n"
-            "For EACH version output:\n"
-            "  **VERSION [1/2/3]: [Short label — e.g. 'The Bold Take', 'The Story', 'The Data Drop']**\n"
-            "  - The complete post text, formatted for the target platform\n"
-            "  - A one-line note on why this version works differently from the others\n\n"
-            "RULES:\n"
-            "  - Write as the person/brand, NOT as an AI assistant\n"
-            "  - No placeholders — commit to specific language, names, and numbers\n"
-            "  - LinkedIn: 150-250 words, strong opening line, line breaks for readability\n"
-            "  - X/Twitter: 280 chars max per tweet, or a short thread (3-5 tweets)\n"
-            "  - Each version must have a DIFFERENT hook and structure, not just word swaps\n"
-            "  - Sound like a human who has built something, not a copywriter or AI\n"
-            "  - End with engagement driver (question, CTA, or provocative closer) — no generic 'What do you think?'"
+            "You are the CFO. Calculate the monthly burn rate (Gross and Net). "
+            "Based on cash-on-hand, determine the exact runway in months. "
+            "Identify the 'Zero Cash Date' and flag any immediate liquidity risks."
         )
     },
     3: {
-        "title": "CRITIQUE & POLISH — Pick the Best, Sharpen It",
+        "title": "VARIANCE & STRATEGIC INSIGHT",
         "instruction": (
-            "You are the EDITOR. The three draft versions are above. Output:\n"
-            "  1) RANKING — rank all 3 versions by likely engagement and authenticity, with specific reasoning\n"
-            "  2) WINNER — identify the strongest version and explain why in 2 sentences\n"
-            "  3) POLISH — rewrite the winning version with any final tightening (cut filler, strengthen the hook, sharpen the CTA)\n"
-            "  4) HASHTAGS & TIMING — 3-5 relevant hashtags and best posting window for the target platform\n"
-            "Do NOT write new versions. Rank, pick, and polish."
+            "You are the STRATEGIC ADVISOR. Identify anomalies (spikes in OPEX, drops in margin). "
+            "What happened this month that was unexpected? Provide 3 specific strategic levers to improve the next month's outcome."
         )
     },
     4: {
-        "title": "FINAL DELIVERY — All Versions Ready to Post",
+        "title": "VERDICT — Executive Financial Statement",
         "instruction": (
-            "You are the DELIVERY LEAD. All prior phases are above. "
-            "Output the final package:\n"
-            "  1) **RECOMMENDED POST** — the polished winning version from Phase 4, ready to copy-paste\n"
-            "  2) **ALTERNATE VERSION A** — the second-ranked version, lightly polished\n"
-            "  3) **ALTERNATE VERSION B** — the third-ranked version, lightly polished\n"
-            "  4) **POST METADATA** — target platform, recommended hashtags, posting time, and expected engagement type\n\n"
-            "Each post must be COMPLETE and READY TO PUBLISH — no placeholders, no meta-commentary, no 'In this post we...'. "
-            "The user should be able to copy any version and post it immediately."
+            "You are the CHIEF FINANCIAL OFFICER. Output the final, ready-to-present EOM report. "
+            "Structure as: 1) Executive Summary (Financial Health Score), 2) Standard P&L Table, 3) Burn & Runway Metrics, 4) Top 3 Actions for next month. "
+            "STRICT RULE: Be cold, analytical, and precise. No marketing language."
+        )
+    }
+}
+
+SOCIAL_POST_PHASE_DIRECTIVES = {
+    0: {
+        "title": "NARRATIVE HOOK — The Builder's Tension",
+        "instruction": (
+            "You are the NARRATIVE STRATEGIST. Your job is to find the 'tension' or 'contrarian insight' in the query. Output:\n"
+            "  1) THE TENSION — the specific problem, irony, or hard truth that makes this post matter to builders/founders\n"
+            "  2) THE ANGLE — a specific, non-obvious take (e.g. 'Why our biggest security feature is actually a design choice')\n"
+            "  3) TARGET READER — be specific: Senior Devs, CISOs, Bootstrapped Founders, etc.\n"
+            "Do NOT write the post. Find the hook that stops a builder from scrolling."
+        )
+    },
+    1: {
+        "title": "VOICE CALIBRATION — Zero Fluff Audit",
+        "instruction": (
+            "You are the VOICE ANALYST. Strip away all 'AI-voice' or 'marketer-voice'. Output:\n"
+            "  1) FORBIDDEN PHRASES — list 5 generic buzzwords to avoid (e.g. 'game-changer', 'delve', 'unleash')\n"
+            "  2) VOICE PROFILE — set the tone as 'Technical & Bare-metal' or 'Humble Founder' or 'Opinionated Expert'\n"
+            "  3) AUTHENTICITY ANCHOR — one personal or technical detail from the query that proves this is written by a human\n"
+            "Do NOT write the post. Set the constraints for a zero-fluff draft."
+        )
+    },
+    2: {
+        "title": "DRAFTING — The Builder's Narrative",
+        "instruction": (
+            "You are the CONTENT WRITER. Write three distinct, ready-to-publish versions of the post based on the hook and voice above.\n\n"
+            "For EACH version output:\n"
+            "  **VERSION [1/2/3]: [Tagline — e.g. 'The Raw Truth', 'The Technical Deep-Dive', 'The Contrarian Take']**\n"
+            "  - The complete post text, formatted for the target platform (LinkedIn/X)\n"
+            "  - Rule: Start with a 1-sentence hook. Use line breaks. No emojis unless essential.\n\n"
+            "RULES:\n"
+            "  - Sound like you've actually built something. Reference real trade-offs and failures.\n"
+            "  - No generic overviews. Get specific immediately."
+        )
+    },
+    3: {
+        "title": "EDITOR — Cutting the Fat",
+        "instruction": (
+            "You are the LEAD EDITOR. Rank the versions and sharpen the winner.\n"
+            "  1) RANKING — 1/2/3 with a 1-sentence reason (focus on authenticity)\n"
+            "  2) SHARPENED WINNER — take the top post and cut 20% of the words. Make every line hit harder.\n"
+            "  3) CTA — a natural, non-pushy ending that invites discussion, not clicks."
+        )
+    },
+    4: {
+        "title": "FINAL DELIVERY — Ready to Ship",
+        "instruction": (
+            "You are the DELIVERY LEAD. Output the final package for immediate posting:\n"
+            "  1) **RECOMMENDED POST** — the sharpened winning version, ready to copy-paste\n"
+            "  2) **ALTERNATE VERSION A** — the second-best version\n"
+            "  3) **ALTERNATE VERSION B** — the third-best version\n"
+            "  4) **POST METADATA** — target audience, best time to post, and recommended hook index.\n\n"
+            "STRICT RULE: No meta-commentary. No 'Here are your posts'. Just the content. The 'RECOMMENDED POST' section must start with the actual first line of the post."
         )
     }
 }
@@ -426,6 +464,7 @@ WORKFLOW_PHASE_OVERRIDES = {
     "INTEL_BRIEF": INTEL_PHASE_DIRECTIVES,
     "SCIENCE_PANEL": SCIENCE_PHASE_DIRECTIVES,
     "SOCIAL_POST": SOCIAL_POST_PHASE_DIRECTIVES,
+    "EOM_STATEMENT": EOM_STATEMENT_PHASE_DIRECTIVES,
 }
 
 class CouncilContext:
