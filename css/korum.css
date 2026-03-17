@@ -7041,3 +7041,149 @@ body.report-library-open .results-container {
         flex: 1 1 45%;
     }
 }
+
+/* =========================================
+   RESPONSIVE BREAKPOINTS — LAPTOP & SMALL DESKTOP
+   Fixes layout compression on screens < 1400px
+   ========================================= */
+
+/* Large laptops: 1200px–1399px — shrink panels slightly */
+@media (max-width: 1399px) {
+    .dashboard-grid {
+        grid-template-columns: minmax(320px, 380px) minmax(0, 1fr) minmax(300px, 360px);
+        gap: 10px;
+    }
+    .panel {
+        padding: 18px;
+    }
+    .left-panel h1 {
+        font-size: 22px !important;
+    }
+}
+
+/* Standard laptops: 1024px–1199px — compress panels more aggressively */
+@media (max-width: 1199px) {
+    .dashboard-grid {
+        grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(240px, 300px);
+        gap: 8px;
+    }
+    .panel {
+        padding: 14px;
+    }
+    .left-panel h1 {
+        font-size: 20px !important;
+    }
+    .left-panel h1 + p,
+    .left-panel .subtitle {
+        font-size: 10px !important;
+    }
+    .glass-textarea {
+        height: 60px !important;
+    }
+    .agent-grid {
+        gap: 5px !important;
+    }
+    .sphere-container {
+        width: 160px;
+        height: 160px;
+    }
+}
+
+/* Small laptops / 13" screens: 900px–1023px — stack or squeeze hard */
+@media (max-width: 1023px) {
+    body {
+        overflow-y: auto !important;
+        height: auto !important;
+        min-height: 100vh !important;
+    }
+    .screen-container {
+        height: auto !important;
+        min-height: 100vh !important;
+        overflow-y: auto !important;
+    }
+    .dashboard-grid {
+        grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(200px, 260px);
+        gap: 6px;
+    }
+    .panel {
+        padding: 12px;
+    }
+    .left-panel h1 {
+        font-size: 18px !important;
+        margin-bottom: 4px !important;
+    }
+    .left-panel h1 + p,
+    .left-panel .subtitle {
+        font-size: 9px !important;
+        margin-bottom: 4px !important;
+    }
+    .glass-textarea {
+        height: 52px !important;
+    }
+    .deck-card {
+        padding: 6px 8px !important;
+    }
+    .deck-role {
+        font-size: 11px !important;
+    }
+    .agent-grid {
+        gap: 4px !important;
+    }
+    .sphere-container {
+        width: 130px;
+        height: 130px;
+    }
+    /* Right panel: shrink cost/telemetry text */
+    .cost-matrix,
+    .execution-telemetry {
+        font-size: 10px !important;
+    }
+}
+
+/* Very small / squished — below 900px go single column (all pointer types, not just touch) */
+@media (max-width: 900px) {
+    body {
+        overflow-y: auto !important;
+        height: auto !important;
+        min-height: 100vh !important;
+        align-items: flex-start !important;
+    }
+    .screen-container {
+        width: 100% !important;
+        height: auto !important;
+        padding: 10px !important;
+        border-radius: 0 !important;
+        overflow-y: auto !important;
+    }
+    .dashboard-grid {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto auto auto !important;
+        gap: 16px !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    .center-panel {
+        min-height: 340px !important;
+        order: 0 !important;
+    }
+    .left-panel {
+        order: 1 !important;
+    }
+    .right-panel,
+    .global-comms {
+        order: 2 !important;
+    }
+    .sphere-container {
+        width: 160px !important;
+        height: 160px !important;
+    }
+    .results-container {
+        left: 0 !important;
+        right: 0 !important;
+        height: 55vh !important;
+        border-radius: 12px 12px 0 0 !important;
+    }
+    .results-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
