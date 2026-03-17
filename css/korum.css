@@ -204,7 +204,7 @@ body {
     justify-content: space-between;
     margin-bottom: 20px;
     z-index: 100;
-    gap: 20px;
+    gap: 12px; /* Reduced from 20px */
     padding: 0 4px;
     height: 60px;
 }
@@ -263,6 +263,7 @@ body {
 }
 
 .auth-user-email {
+    display: inline-block; /* Required for max-width to work on span */
     max-width: 140px;
     white-space: nowrap;
     overflow: hidden;
@@ -270,6 +271,7 @@ body {
     font-size: 11px;
     color: var(--text-tertiary);
     font-family: var(--font-mono);
+    vertical-align: middle;
 }
 
 .nav-links a {
@@ -5370,11 +5372,24 @@ body.activated .sphere-texture {
 /* Mid-range and Large Monitor Nav Calibration */
 @media (max-width: 1800px) {
     .nav-links a {
-        padding: 5px 10px !important;
+        padding: 5px 8px !important;
         font-size: 10px !important;
     }
     .auth-user-email {
-        max-width: 100px;
+        max-width: 80px !important;
+    }
+}
+
+@media (max-width: 1366px) {
+    .top-bar {
+        gap: 8px;
+    }
+    .nav-links a {
+        padding: 4px 6px !important;
+        letter-spacing: 0.05em;
+    }
+    .auth-user-email {
+        max-width: 60px !important;
     }
 }
 
