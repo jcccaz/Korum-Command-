@@ -651,7 +651,8 @@ async function saveReport() {
     try {
         const payload = {
             ...lastCouncilData,
-            query: sessionState.originalQuery || lastQueryText || ""
+            query: sessionState.originalQuery || lastQueryText || "",
+            docked_snippets: (typeof ResearchDock !== 'undefined') ? ResearchDock.snippets : []
         };
         const resp = await authFetch('/api/reports/save', {
             method: 'POST',
@@ -3743,7 +3744,13 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
                 <div class="chart-modal">
                     <div class="chart-modal-header">
                         <span>📊 ${chartType.toUpperCase()} VISUALIZATION</span>
-                        <button class="chart-modal-close" onclick="document.getElementById('${chartId}-overlay').remove()">✕</button>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <button class="modal-action-btn" style="padding:4px 10px; font-size:10px; background:rgba(0,255,157,0.1); border-color:rgba(0,255,157,0.3); color:#00FF9D;" 
+                                onclick="ResearchDock.add(\`${result.mermaid_code.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`, 'visualization'); this.innerHTML='📌 DOCKED'; this.disabled=true;">
+                                📌 DOCK CHART
+                            </button>
+                            <button class="chart-modal-close" onclick="document.getElementById('${chartId}-overlay').remove()">✕</button>
+                        </div>
                     </div>
                     <div class="chart-modal-body">
                         <div class="mermaid-container"><div class="mermaid">${result.mermaid_code}</div></div>
@@ -6205,7 +6212,13 @@ async function handleDocExport(format) {
         if (lastCouncilData.divergence) {
             intelligenceObj.divergence_analysis = lastCouncilData.divergence;
         }
-        logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis}`, "process");
+
+        // Inject research dock snippets
+        if (typeof ResearchDock !== 'undefined' && ResearchDock.snippets && ResearchDock.snippets.length > 0) {
+            intelligenceObj.docked_snippets = ResearchDock.snippets;
+        }
+        
+        logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis} | Snippets: ${intelligenceObj.docked_snippets?.length || 0}`, "process");
         const payload = {
             intelligence_object: intelligenceObj,
             card_results: lastCouncilData.results || {},

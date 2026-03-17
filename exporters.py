@@ -982,6 +982,44 @@ class WordExporter:
         run.font.name = "Calibri"
         run.font.letter_spacing = Pt(0.5)
 
+        # ═══════════════════════════════════════════════════════════════
+        # RESEARCH ARTIFACTS
+        # ═══════════════════════════════════════════════════════════════
+        snippets = intelligence_object.get("docked_snippets") or []
+        if snippets:
+            doc.add_page_break()
+            WordExporter._add_branded_heading(doc, "Research Artifacts & Evidence")
+            doc.add_paragraph("The following evidence snippets and artifacts were collected during the research phase and docked as relevant supporting materials.")
+            
+            for idx, s in enumerate(snippets):
+                table = doc.add_table(rows=1, cols=2)
+                table.autofit = True
+                hdr = table.rows[0].cells
+                hdr[0].text = f"ARTIFACT #{idx+1} — {s.get('label', 'Snippet').upper()}"
+                hdr[1].text = s.get('type', 'text').upper()
+                WordExporter._style_header_row(table.rows[0], bg_hex="161B22", text_color=RGBColor(0x00, 0xFF, 0x9D))
+                
+                row = table.add_row().cells
+                row[0].text = "SOURCE"
+                row[1].text = s.get('source', 'Selection')
+                
+                content = _as_text(s.get("content", ""))
+                # If content is large, add as separate paragraph
+                if len(content) > 100:
+                    p = doc.add_paragraph()
+                    p.paragraph_format.space_before = Pt(8)
+                    run = p.add_run(content)
+                    run.font.size = Pt(9)
+                    run.font.name = "Consolas" if s.get('type') == 'code' or s.get('type') == 'mermaid' else "Calibri"
+                else:
+                    row = table.add_row().cells
+                    row[0].text = "CONTENT"
+                    row[1].text = content
+                
+                doc.add_paragraph() # Spacer
+            
+            WordExporter._add_section_divider(doc)
+
         filename = f"korum_report_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
         doc.save(filepath)
@@ -2065,6 +2103,32 @@ class ResearchPaperWordExporter:
                     p.add_run(f"  [{priority.upper()}]")
                 if timeline:
                     p.add_run(f" — {timeline}")
+
+        # --- RESEARCH ARTIFACTS ---
+        snippets = intelligence_object.get("docked_snippets") or []
+        if snippets:
+            wdoc.add_heading(f"{section_counter}. Research Artifacts & Evidence", level=1)
+            section_counter += 1
+            wdoc.add_paragraph("The following evidence snippets and artifacts were collected during the research phase and docked as relevant supporting materials.")
+            
+            for s in snippets:
+                label = s.get('label', 'Snippet')
+                source = s.get('source', 'Selection')
+                content = _clean_tags(_as_text(s.get("content", "")))
+                
+                p = wdoc.add_paragraph()
+                run = p.add_run(f"[{label.upper()}] from {source}")
+                run.bold = True
+                run.font.size = Pt(10)
+                
+                # Use smaller font for content
+                p_content = wdoc.add_paragraph()
+                p_content.paragraph_format.left_indent = Inches(0.3)
+                run_content = p_content.add_run(content)
+                run_content.font.size = Pt(9.5)
+                if s.get('type') in ('code', 'mermaid'):
+                    run_content.font.name = "Consolas"
+                wdoc.add_paragraph() # spacing
 
         # --- FOOTER ---
         footer = wdoc.sections[0].footer
