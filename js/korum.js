@@ -925,6 +925,12 @@ const ResearchDock = {
         this.render();
         this.save();
         logTelemetry(`Docked: ${typeInfo.label} (${content.length} chars)`, "success");
+        updateResultsDockState({
+            pill: this.snippets.length > 0 ? 'Artifacts Ready' : 'Standby',
+            text: this.snippets.length > 0 ? `${this.snippets.length} docked artifact${this.snippets.length === 1 ? '' : 's'} ready for review or export.` : 'Results, exports, and revision outputs land here.',
+            ready: this.snippets.length > 0
+        });
+        addCommsActivity('Artifact dock updated', `${typeInfo.label} added to the results layer.`, 'ready');
 
         return snippet;
     },
@@ -1065,6 +1071,11 @@ const ResearchDock = {
         this.render();
         this.save();
         logTelemetry("Research Dock cleared", "system");
+        updateResultsDockState({
+            pill: 'Standby',
+            text: 'Results, exports, and revision outputs land here.',
+            ready: false
+        });
     },
 
     // Export all snippets
@@ -1145,6 +1156,11 @@ const ResearchDock = {
 
         if (this.snippets.length === 0) {
             snippetList.innerHTML = `<div class="dock-empty">Select text and click 📌 DOCK to collect research</div>`;
+            updateResultsDockState({
+                pill: 'Standby',
+                text: 'Results, exports, and revision outputs land here.',
+                ready: false
+            });
             return;
         }
 
@@ -1182,6 +1198,11 @@ const ResearchDock = {
         // Update counter
         const counter = container.querySelector('.dock-count');
         if (counter) counter.textContent = this.snippets.length;
+        updateResultsDockState({
+            pill: 'Artifacts Ready',
+            text: `${this.snippets.length} docked artifact${this.snippets.length === 1 ? '' : 's'} available in the results layer.`,
+            ready: true
+        });
     },
 
     // HTML escape helper
@@ -1729,6 +1750,7 @@ function setupActionBindings() {
         // Clear stored data
         lastCouncilData = null;
         lastQueryText = '';
+        initializeMissionSurface();
         logTelemetry("Session Reset — Ready for new query", "system");
     });
 
@@ -2177,6 +2199,17 @@ function renderChainResults(result) {
             synthesisData.structured_data.actions.push({ action: text, priority: 'HIGH' });
         });
     }
+    const structuredMetrics = synthesisData.structured_data?.key_metrics || [];
+    const stageRunway = findStructuredMetric(structuredMetrics, ['runway', 'timeline', 'months', 'days']) || 'Ready';
+    const stageBurn = findStructuredMetric(structuredMetrics, ['burn', 'cost', 'capex', 'opex', 'spend']) || 'Tracked';
+    const stageRisk = findStructuredMetric(structuredMetrics, ['risk', 'exposure', 'severity']) || (synthesisData.structured_data?.risks?.[0]?.severity || 'Watching');
+    const compositeTruth = (() => {
+        let score = synthesisData.meta?.composite_truth_score;
+        if (score === undefined || score === null) return '85';
+        score = parseFloat(score);
+        if (Number.isNaN(score)) return '85';
+        return String(score <= 1 ? Math.round(score * 100) : Math.round(score));
+    })();
     if (result.exploit_poc) {
         synthesisData.sections.red_team_analysis = result.exploit_poc;
     }
@@ -2335,8 +2368,32 @@ function renderChainResults(result) {
 
     councilPane.appendChild(grid);
     document.querySelector(".results-container").classList.add("visible");
+    updateResultsDockState({
+        pill: 'Results Ready',
+        text: 'Council, analysis, and interrogation outputs are ready in the artifact dock.',
+        ready: true
+    });
     switchDockTab('council');
     document.getElementById('recallAnalysisBtn').style.display = 'none';
+    updateStageFromAnswer({
+        title: synthesisData.meta?.title || sessionState.originalQuery || 'Mission synthesis ready',
+        workflow: synthesisData.meta?.workflow || sessionState.missionContext?.workflow || 'RESEARCH',
+        truthScore: compositeTruth,
+        runway: stageRunway,
+        burn: stageBurn,
+        risk: stageRisk,
+        activeModels: (synthesisData.meta?.models_used || []).length || 4,
+        councilCopy: 'Sequential council pass completed and ready for interrogation or verification.',
+        roleCopy: `${grid.children.length} result card${grid.children.length === 1 ? '' : 's'} assembled across the mission phases.`
+    });
+    updateRevisionSummary({
+        latestFollowup: sessionState.originalQuery || 'Mission directive received.',
+        revisionState: 'Baseline synthesis established.',
+        impact: `Truth ${compositeTruth} / 100`,
+        affected: 'Council, analysis, execution',
+        nextMove: 'Interrogate or verify'
+    });
+    addCommsActivity('Synthesis ready', (synthesisData.meta?.summary || 'Sequential council output is ready for review.').slice(0, 120), 'ready');
 
     // Populate sessionState.lastResponses so follow-ups and interrogations have context
     if (result.constraints) sessionState.lastResponses['anthropic'] = result.constraints;
@@ -3118,6 +3175,20 @@ window.executeVerify = async function (claimText, providerName) {
 
         sentinelChat.appendMessage(`Source verification complete for: "${claim.slice(0, 50)}..."`, 'sentinel');
         logTelemetry("🔎 Verification complete", "success");
+        updateRevisionSummary({
+            latestFollowup: claim.length > 96 ? `${claim.slice(0, 96)}...` : claim,
+            revisionState: 'Verification completed. Evidence updated the response.',
+            impact: result.score_delta ? `Truth delta ${result.score_delta > 0 ? '+' : ''}${result.score_delta}` : 'Evidence reviewed',
+            affected: providerName || 'Selected claim',
+            nextMove: 'Review revision or interrogate'
+        });
+        setTextById('evalVerifyTitle', 'Verification Complete');
+        setTextById('evalVerifyCopy', 'Evidence pass finished and fed back into the mission state.');
+        setEvaluationStepState('evalVerifyStep', 'complete');
+        setTextById('evalRevisionTitle', 'Synthesis Revision');
+        setTextById('evalRevisionCopy', 'Verification changed the active answer state.');
+        setEvaluationStepState('evalRevisionStep', 'live');
+        addCommsActivity('Verification complete', `Perplexity reviewed the selected claim and returned ${result.verdict || 'a verdict'}.`, result.verdict === 'INACCURATE' ? 'alert' : 'ready');
 
         // === TRUTH SCORE FEEDBACK — use structured verdict from backend ===
         const sourceProvider = resolveProviderKey(providerName);
@@ -3269,6 +3340,20 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
 
         sentinelChat.appendMessage(`Cross-examination complete. ${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'sentinel');
         logTelemetry(`Interrogation complete: ${attackerRole} vs ${defenderRole}`, "process");
+        updateRevisionSummary({
+            latestFollowup: `${attackerRole.replace(/_/g, ' ')} vs ${defenderRole.replace(/_/g, ' ')}`,
+            revisionState: 'Interrogation completed. Response remains contestable.',
+            impact: result.score_delta ? `Truth delta ${result.score_delta > 0 ? '+' : ''}${result.score_delta}` : 'Cross-exam finished',
+            affected: targetName || defenderRole,
+            nextMove: 'Review concession or verify'
+        });
+        setTextById('evalVerifyTitle', 'Interrogation Complete');
+        setTextById('evalVerifyCopy', 'Adversarial review has challenged the current answer.');
+        setEvaluationStepState('evalVerifyStep', 'complete');
+        setTextById('evalRevisionTitle', 'Synthesis Revision');
+        setTextById('evalRevisionCopy', 'Cross-examination updated the mission posture.');
+        setEvaluationStepState('evalRevisionStep', 'live');
+        addCommsActivity('Interrogation complete', `${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'alert');
 
         // === TRUTH SCORE FEEDBACK — use structured verdict + delta from backend ===
         const targetProvider = sessionState.targetCard || resolveProviderKey(targetName);
@@ -3961,6 +4046,27 @@ async function executeCouncil(query, roleName) {
         showLoadingState(taskType);
     }
 
+    updateStageState({
+        subtitle: `${(sessionState.originalQuery || query).split('\n')[0].slice(0, 80)}${roleName ? ` · ${roleName}` : ''}`,
+        primaryState: 'Generation Live',
+        secondaryState: activeModes.falcon ? 'Falcon Aware' : 'Council Active',
+        councilCopy: 'Directive accepted and routed to the active council.',
+        roleCopy: 'Generating the next answer across the selected roster.',
+        verifyTitle: 'Verification Window',
+        verifyCopy: 'Waiting for the answer before evidence review begins.',
+        verifyState: 'live',
+        revisionTitle: 'Synthesis Revision',
+        revisionCopy: 'Revision state will update once an answer lands.'
+    });
+    updateRevisionSummary({
+        latestFollowup: query.length > 96 ? `${query.slice(0, 96)}...` : query,
+        revisionState: 'Answer generation in progress.',
+        impact: 'Pending synthesis',
+        affected: 'Current mission thread',
+        nextMove: 'Wait for answer'
+    });
+    addCommsActivity('Council generation started', query.length > 120 ? `${query.slice(0, 120)}...` : query, 'live');
+
     triggerNetworkAnimation(); // FIRE LIGHTNING
 
     // Set all AIs to "responding" state
@@ -4259,6 +4365,8 @@ function renderResults(data, roleName) {
     const totalTime = data.results ? Object.values(data.results).reduce((acc, r) => acc + (r.time || 0), 0) : 0;
     const avgConfidence = data.results ? (Object.values(data.results).reduce((acc, r) => acc + (r.truth_meter || 85), 0) / Object.keys(data.results).length) : 85;
     const violations = data.results ? Object.values(data.results).reduce((acc, r) => acc + (r.violations?.length || 0), 0) : 0;
+    const totalCost = data.results ? Object.values(data.results).reduce((acc, r) => acc + (r.cost || 0), 0) : 0;
+    const stageRisk = violations > 0 ? `${violations} flag${violations === 1 ? '' : 's'}` : 'Managed';
 
     const latEl = document.getElementById('stat-latency');
     const confEl = document.getElementById('stat-confidence');
@@ -4678,6 +4786,18 @@ function renderResults(data, roleName) {
         analysisGrid.appendChild(divCard);
     }
 
+    const synthesisMeta = data.synthesis?.meta || {};
+    const structuredMetrics = data.synthesis?.structured_data?.key_metrics || [];
+    const stageRunway = findStructuredMetric(structuredMetrics, ['runway', 'timeline', 'months', 'days']) || `${Object.keys(data.results || {}).length || 0} models`;
+    const stageBurn = findStructuredMetric(structuredMetrics, ['burn', 'cost', 'spend']) || `$${totalCost.toFixed(4)}`;
+    const stageTruth = (() => {
+        let score = synthesisMeta.composite_truth_score;
+        if (score === undefined || score === null) score = avgConfidence;
+        score = parseFloat(score);
+        if (Number.isNaN(score)) score = avgConfidence;
+        return String(score <= 1 ? Math.round(score * 100) : Math.round(score));
+    })();
+
     // Clear panes and populate
     councilPane.innerHTML = "";
     analysisPane.innerHTML = "";
@@ -4694,8 +4814,32 @@ function renderResults(data, roleName) {
     analysisPane.appendChild(analysisGrid);
 
     document.querySelector(".results-container").classList.add("visible");
+    updateResultsDockState({
+        pill: 'Results Ready',
+        text: 'Council outputs are live in the artifact dock and ready for review.',
+        ready: true
+    });
     switchDockTab('council');
     document.getElementById('recallAnalysisBtn').style.display = 'none'; // Hide recall button when showing fresh results
+    updateStageFromAnswer({
+        title: synthesisMeta.title || sessionState.originalQuery || `${roleName} response ready`,
+        workflow: synthesisMeta.workflow || sessionState.missionContext?.workflow || roleName,
+        truthScore: stageTruth,
+        runway: stageRunway,
+        burn: stageBurn,
+        risk: stageRisk,
+        activeModels: Object.keys(data.results || {}).length,
+        councilCopy: 'Council response complete and ready for follow-up.',
+        roleCopy: `${Object.keys(data.results || {}).length} active model response${Object.keys(data.results || {}).length === 1 ? '' : 's'} assembled.`
+    });
+    updateRevisionSummary({
+        latestFollowup: sessionState.originalQuery || 'Mission directive received.',
+        revisionState: 'Baseline response established.',
+        impact: `Truth ${stageTruth} / 100`,
+        affected: 'Council response',
+        nextMove: 'Interrogate or verify'
+    });
+    addCommsActivity('Council response ready', (synthesisMeta.summary || data.consensus || 'Mission answer available.').slice(0, 120), 'ready');
     logTelemetry("Consensus Reached. Displaying Output.", "system");
 
     // RENDER CHARTS
@@ -5136,6 +5280,14 @@ const sentinelChat = {
         // User Message
         this.appendMessage(query, 'user');
         this.history.push({ role: 'user', content: query });
+        updateRevisionSummary({
+            latestFollowup: query,
+            revisionState: 'Follow-up in progress.',
+            impact: 'Awaiting revision result',
+            affected: 'Pending evaluation',
+            nextMove: 'Answering follow-up'
+        });
+        addCommsActivity('Follow-up queued', query.length > 96 ? `${query.slice(0, 96)}...` : query, 'live');
         input.value = '';
         input.disabled = true;
 
@@ -5161,12 +5313,22 @@ const sentinelChat = {
             if (data.success) {
                 this.appendMessage(data.response, 'sentinel');
                 this.history.push({ role: 'assistant', content: data.response });
+                updateRevisionSummary({
+                    revisionState: 'Follow-up answered. Synthesis remains live.',
+                    impact: 'Context expanded',
+                    affected: 'Current mission thread',
+                    nextMove: 'Interrogate or verify'
+                });
+                setEvaluationStepState('evalRevisionStep', 'live');
+                addCommsActivity('Follow-up answered', data.response.slice(0, 120) + (data.response.length > 120 ? '...' : ''), 'ready');
             } else {
                 this.appendMessage("Connection Lost. Re-establishing...", 'sentinel error');
+                addCommsActivity('Follow-up failed', 'Global Comms could not reach the mission thread.', 'alert');
             }
         } catch (e) {
             this.appendMessage("Error: Neural Link Unstable.", 'sentinel error');
             console.error(e);
+            addCommsActivity('Follow-up failed', 'Neural link unstable during follow-up.', 'alert');
         } finally {
             input.disabled = false;
             input.focus();
@@ -5178,6 +5340,7 @@ const sentinelChat = {
         const wrapper = document.querySelector('.sentinel-wrapper');
         if (wrapper) wrapper.innerHTML = '';
         this.refreshEmptyState();
+        resetCommsActivity();
         logTelemetry("Global Comms cleared", "system");
     },
 
@@ -5205,6 +5368,194 @@ const sentinelChat = {
         return id;
     }
 };
+
+function setTextById(id, value) {
+    const el = document.getElementById(id);
+    if (el && value !== undefined && value !== null && value !== "") {
+        el.textContent = value;
+    }
+}
+
+function setEvaluationStepState(stepId, state) {
+    const el = document.getElementById(stepId);
+    if (!el) return;
+    el.classList.remove('is-complete', 'is-live');
+    if (state === 'complete') el.classList.add('is-complete');
+    if (state === 'live') el.classList.add('is-live');
+}
+
+function addCommsActivity(title, detail, kind = 'ready') {
+    const list = document.getElementById('commsActivityList');
+    if (!list) return;
+
+    const first = list.firstElementChild;
+    if (first && first.textContent.includes('Mission channel standing by')) {
+        first.remove();
+    }
+
+    const item = document.createElement('div');
+    item.className = 'activity-item';
+    item.innerHTML = `
+        <span class="activity-dot ${kind === 'live' ? 'is-live' : kind === 'alert' ? 'is-alert' : 'is-ready'}"></span>
+        <div>
+            <strong>${title}</strong>
+            <span>${detail}</span>
+        </div>
+    `;
+    list.prepend(item);
+
+    while (list.children.length > 6) {
+        list.removeChild(list.lastElementChild);
+    }
+}
+
+function resetCommsActivity() {
+    const list = document.getElementById('commsActivityList');
+    if (!list) return;
+    list.innerHTML = `
+        <div class="activity-item">
+            <span class="activity-dot is-ready"></span>
+            <div>
+                <strong>Mission channel standing by</strong>
+                <span>Waiting for the next directive, follow-up, or verification event.</span>
+            </div>
+        </div>
+    `;
+}
+
+function updateRevisionSummary({
+    latestFollowup,
+    revisionState,
+    impact,
+    affected,
+    nextMove
+} = {}) {
+    setTextById('threadLatestFollowup', latestFollowup);
+    setTextById('threadRevisionState', revisionState);
+    setTextById('revisionImpactValue', impact);
+    setTextById('revisionAffectedValue', affected);
+    setTextById('revisionNextMoveValue', nextMove);
+}
+
+function updateResultsDockState({ pill = 'Standby', text, ready = false } = {}) {
+    const dock = document.getElementById('resultsDock');
+    const pillEl = document.getElementById('resultsStatusPill');
+    const textEl = document.getElementById('resultsStatusText');
+
+    if (pillEl) {
+        pillEl.textContent = pill;
+        pillEl.classList.toggle('is-ready', ready);
+    }
+    if (textEl && text) {
+        textEl.textContent = text;
+    }
+    if (dock) {
+        dock.classList.toggle('has-results', ready);
+    }
+}
+
+function findStructuredMetric(metrics, patterns) {
+    if (!Array.isArray(metrics)) return null;
+    const entry = metrics.find((metric) => patterns.some((pattern) => new RegExp(pattern, 'i').test(metric.metric || '')));
+    return entry?.value || null;
+}
+
+function updateStageState({
+    subtitle,
+    primaryState,
+    secondaryState,
+    runway,
+    burn,
+    risk,
+    truth,
+    councilCopy,
+    roleCopy,
+    verifyTitle,
+    verifyCopy,
+    verifyState,
+    revisionTitle,
+    revisionCopy,
+    revisionState
+} = {}) {
+    setTextById('stageSubtitle', subtitle);
+    setTextById('stagePrimaryState', primaryState);
+    setTextById('stageSecondaryState', secondaryState);
+    setTextById('stageMetricRunway', runway);
+    setTextById('stageMetricBurn', burn);
+    setTextById('stageMetricRisk', risk);
+    setTextById('stageMetricTruth', truth);
+    setTextById('evalCouncilCopy', councilCopy);
+    setTextById('evalRoleCopy', roleCopy);
+    setTextById('evalVerifyTitle', verifyTitle);
+    setTextById('evalVerifyCopy', verifyCopy);
+    setTextById('evalRevisionTitle', revisionTitle);
+    setTextById('evalRevisionCopy', revisionCopy);
+
+    if (verifyState) setEvaluationStepState('evalVerifyStep', verifyState);
+    if (revisionState) setEvaluationStepState('evalRevisionStep', revisionState);
+}
+
+function updateStageFromAnswer({
+    title,
+    workflow,
+    truthScore,
+    runway,
+    burn,
+    risk,
+    activeModels,
+    councilCopy,
+    roleCopy
+} = {}) {
+    updateStageState({
+        subtitle: `${title || 'Mission synthesis ready'}${workflow ? ` · ${workflow}` : ''}`,
+        primaryState: 'Synthesis Ready',
+        secondaryState: activeModes.falcon ? 'Falcon Aware' : `${activeModels || 0} Models Active`,
+        runway: runway || 'Locked',
+        burn: burn || 'Tracked',
+        risk: risk || 'Watching',
+        truth: truthScore ? `${truthScore} / 100` : undefined,
+        councilCopy: councilCopy || 'Council response complete and ready for review.',
+        roleCopy: roleCopy || 'Active roster completed the current pass.',
+        verifyTitle: 'Verification Window',
+        verifyCopy: 'Answer is ready for source checks and interrogation.',
+        verifyState: 'live',
+        revisionTitle: 'Synthesis Revision',
+        revisionCopy: 'Follow-up can still update the total response.',
+        revisionState: null
+    });
+}
+
+function initializeMissionSurface() {
+    resetCommsActivity();
+    updateStageState({
+        subtitle: 'Project Neptune · Finance Desk',
+        primaryState: 'Generation Live',
+        secondaryState: activeModes.falcon ? 'Falcon Aware' : 'Mission Idle',
+        runway: '3.1 mo',
+        burn: '$11.58M',
+        risk: 'Critical',
+        truth: '79 / 100',
+        councilCopy: 'Directive routed to the finance council.',
+        roleCopy: 'CFO, Auditor, Scout, Tax, Hedge Fund aligned.',
+        verifyTitle: 'Verification Window',
+        verifyCopy: 'Ready for source checks and interrogation.',
+        verifyState: 'live',
+        revisionTitle: 'Synthesis Revision',
+        revisionCopy: 'Follow-up can still update the total response.'
+    });
+    updateRevisionSummary({
+        latestFollowup: 'Verify vendor cost math and confirm the bankruptcy trigger.',
+        revisionState: 'Synthesis stays live until evidence locks.',
+        impact: 'Confidence 79 → 73',
+        affected: 'Risk, burn, execution',
+        nextMove: 'Interrogate or verify'
+    });
+    updateResultsDockState({
+        pill: 'Standby',
+        text: 'Results, exports, and revision outputs land here.',
+        ready: false
+    });
+}
 
 // Main initialization - consolidates all onload logic
 window.onload = async function () {
@@ -5241,6 +5592,7 @@ window.onload = async function () {
     await ResearchDock.init();
     // Initialize Visualization
     initViz();
+    initializeMissionSurface();
 
     logTelemetry("System Boot Sequence Complete", "system");
 };

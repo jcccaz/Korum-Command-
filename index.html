@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KORUM-OS | Decision Intelligence</title>
-    <link rel="stylesheet" href="css/korum.css?v=20260316b">
-    <link rel="stylesheet" href="css/korum_sentinel.css?v=20260316b">
+    <link rel="stylesheet" href="css/korum.css?v=20260316c">
+    <link rel="stylesheet" href="css/korum_sentinel.css?v=20260316c">
     <link rel="stylesheet" href="css/client_preview.css">
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
@@ -298,30 +298,30 @@
                     <div class="stage-command-copy">
                         <span class="stage-kicker">Generation</span>
                         <h2>Live Intelligence Stage</h2>
-                        <p class="stage-subtitle">Project Neptune · Finance Desk</p>
+                        <p class="stage-subtitle" id="stageSubtitle">Project Neptune · Finance Desk</p>
                     </div>
                     <div class="stage-command-state">
-                        <span class="stage-state-chip active">Generation Live</span>
-                        <span class="stage-state-chip">Falcon Aware</span>
+                        <span class="stage-state-chip active" id="stagePrimaryState">Generation Live</span>
+                        <span class="stage-state-chip" id="stageSecondaryState">Falcon Aware</span>
                     </div>
                 </div>
 
                 <div class="stage-metric-strip">
                     <article class="stage-metric-card metric-runway">
                         <span class="stage-metric-label">Runway</span>
-                        <strong>3.1 mo</strong>
+                        <strong id="stageMetricRunway">3.1 mo</strong>
                     </article>
                     <article class="stage-metric-card metric-burn">
                         <span class="stage-metric-label">Burn Rate</span>
-                        <strong>$11.58M</strong>
+                        <strong id="stageMetricBurn">$11.58M</strong>
                     </article>
                     <article class="stage-metric-card metric-risk">
                         <span class="stage-metric-label">Risk Vector</span>
-                        <strong>Critical</strong>
+                        <strong id="stageMetricRisk">Critical</strong>
                     </article>
                     <article class="stage-metric-card metric-truth">
                         <span class="stage-metric-label">Truth Score</span>
-                        <strong>79 / 100</strong>
+                        <strong id="stageMetricTruth">79 / 100</strong>
                     </article>
                 </div>
 
@@ -386,29 +386,29 @@
                         <div class="evaluation-step is-complete">
                             <span class="evaluation-dot"></span>
                             <div>
-                                <strong>Council Active</strong>
-                                <span>Directive routed to the finance council.</span>
+                                <strong id="evalCouncilTitle">Council Active</strong>
+                                <span id="evalCouncilCopy">Directive routed to the finance council.</span>
                             </div>
                         </div>
                         <div class="evaluation-step is-complete">
                             <span class="evaluation-dot"></span>
                             <div>
-                                <strong>Role Alignment</strong>
-                                <span>CFO, Auditor, Scout, Tax, Hedge Fund aligned.</span>
+                                <strong id="evalRoleTitle">Role Alignment</strong>
+                                <span id="evalRoleCopy">CFO, Auditor, Scout, Tax, Hedge Fund aligned.</span>
                             </div>
                         </div>
-                        <div class="evaluation-step is-live">
+                        <div class="evaluation-step is-live" id="evalVerifyStep">
                             <span class="evaluation-dot"></span>
                             <div>
-                                <strong>Verification Window</strong>
-                                <span>Ready for source checks and interrogation.</span>
+                                <strong id="evalVerifyTitle">Verification Window</strong>
+                                <span id="evalVerifyCopy">Ready for source checks and interrogation.</span>
                             </div>
                         </div>
-                        <div class="evaluation-step">
+                        <div class="evaluation-step" id="evalRevisionStep">
                             <span class="evaluation-dot"></span>
                             <div>
-                                <strong>Synthesis Revision</strong>
-                                <span>Follow-up can still update the total response.</span>
+                                <strong id="evalRevisionTitle">Synthesis Revision</strong>
+                                <span id="evalRevisionCopy">Follow-up can still update the total response.</span>
                             </div>
                         </div>
                     </div>
@@ -433,26 +433,42 @@
                     <div class="comms-thread-summary">
                         <div class="thread-summary-block">
                             <span class="thread-summary-label">Latest Follow Up</span>
-                            <strong>Verify vendor cost math and confirm the bankruptcy trigger.</strong>
+                            <strong id="threadLatestFollowup">Verify vendor cost math and confirm the bankruptcy trigger.</strong>
                         </div>
                         <div class="thread-summary-block">
                             <span class="thread-summary-label">Revision State</span>
-                            <strong>Synthesis stays live until evidence locks.</strong>
+                            <strong id="threadRevisionState">Synthesis stays live until evidence locks.</strong>
                         </div>
                     </div>
 
                     <div class="revision-impact-strip">
                         <div class="revision-impact-item">
                             <span class="impact-label">Impact</span>
-                            <strong>Confidence 79 → 73</strong>
+                            <strong id="revisionImpactValue">Confidence 79 → 73</strong>
                         </div>
                         <div class="revision-impact-item">
                             <span class="impact-label">Affected</span>
-                            <strong>Risk, burn, execution</strong>
+                            <strong id="revisionAffectedValue">Risk, burn, execution</strong>
                         </div>
                         <div class="revision-impact-item">
                             <span class="impact-label">Next Move</span>
-                            <strong>Interrogate or verify</strong>
+                            <strong id="revisionNextMoveValue">Interrogate or verify</strong>
+                        </div>
+                    </div>
+
+                    <div class="comms-activity-feed">
+                        <div class="comms-activity-header">
+                            <span class="activity-kicker">Live Revision Feed</span>
+                            <span class="activity-copy">Follow-up, verify, and interrogation events update the mission here.</span>
+                        </div>
+                        <div class="activity-list" id="commsActivityList">
+                            <div class="activity-item">
+                                <span class="activity-dot is-ready"></span>
+                                <div>
+                                    <strong>Mission channel standing by</strong>
+                                    <span>Waiting for the next directive, follow-up, or verification event.</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -555,7 +571,13 @@
         <!-- RESULTS PANEL -->
         <div class="results-container" id="resultsDock">
             <div class="results-header" onclick="const rc = this.parentElement; if (rc.classList.contains('visible') || rc.classList.contains('active')) { rc.classList.remove('visible', 'active'); } else { rc.classList.add('active'); }">
-                <h3>ARTIFACT DOCK</h3>
+                <div class="results-header-copy">
+                    <h3>ARTIFACT DOCK</h3>
+                    <div class="results-header-meta">
+                        <span class="results-status-pill" id="resultsStatusPill">Standby</span>
+                        <span class="results-status-text" id="resultsStatusText">Results, exports, and revision outputs land here.</span>
+                    </div>
+                </div>
                 <span class="close-results" onclick="event.stopPropagation(); this.closest('.results-container').classList.remove('visible', 'active')">✕</span>
             </div>
             <!-- DOCK TAB BAR -->
@@ -980,8 +1002,8 @@
     <!-- SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script>mermaid.initialize({ startOnLoad: false, theme: 'dark' });</script>
-    <script src="js/korum.js?v=20260317"></script>
-    <script src="js/korum_editor.js?v=20260317"></script>
+    <script src="js/korum.js?v=20260316c"></script>
+    <script src="js/korum_editor.js?v=20260316c"></script>
 </body>
 
 </html>
