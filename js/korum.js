@@ -298,7 +298,7 @@ function updateTruthScore(provider, delta, reason) {
         const fillEl = card.querySelector('.truth-fill');
         if (scoreEl) {
             scoreEl.textContent = `TRUTH SCORE: ${newScore}/100`;
-            scoreEl.style.color = newScore > 80 ? '#00FF9D' : newScore > 50 ? '#FFB020' : '#FF4444';
+            scoreEl.style.color = newScore > 80 ? '#4CAF7D' : newScore > 50 ? '#FFB020' : '#FF4444';
             // Flash animation
             scoreEl.style.transition = 'none';
             scoreEl.style.transform = 'scale(1.3)';
@@ -815,7 +815,7 @@ function updateProviderPills(data) {
     // Clear and re-render dynamic pills
     strip.innerHTML = Object.keys(data).map(provider => {
         const info = data[provider];
-        const statusColor = info.status === 'healthy' ? '#00FF9D' : (info.status === 'error' ? '#FFB020' : '#FF4444');
+        const statusColor = info.status === 'healthy' ? '#4CAF7D' : (info.status === 'error' ? '#FFB020' : '#FF4444');
         return `
             <div class="provider-pill" data-provider="${provider}">
                 <span class="pill-dot" style="background:${statusColor}; box-shadow:0 0 6px ${statusColor};"></span>
@@ -826,7 +826,7 @@ function updateProviderPills(data) {
 }
 
 function getProviderColor(p) {
-    const colors = { openai: "#10a37f", anthropic: "#d97757", google: "#4285f4", perplexity: "#00bcd4", mistral: "#facc15", local: "#a855f7" };
+    const colors = { openai: "#C8C8CC", anthropic: "#F5A800", google: "#C47D00", perplexity: "#E8E8EC", mistral: "#FFD166", local: "#9A9A9E" };
     return colors[p] || "#888";
 }
 
@@ -1047,7 +1047,7 @@ const ResearchDock = {
             .replace(/\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]/g, "");
 
         return this.sanitizeHtml(cleanText)
-            .replace(/^# (.*$)/gim, '<h2 style="color:#00FF9D; margin-top:20px;">$1</h2>')
+            .replace(/^# (.*$)/gim, '<h2 style="color:#4CAF7D; margin-top:20px;">$1</h2>')
             .replace(/^## (.*$)/gim, '<h3 style="color:#FFF; margin-top:15px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:5px;">$1</h3>')
             .replace(/^### (.*$)/gim, '<h4 style="color:#AAA; margin-top:10px;">$1</h4>')
             .replace(/^\* (.*$)/gim, '<li style="margin-left:20px; color:#DDD;">$1</li>')
@@ -2255,7 +2255,7 @@ function renderChainResults(result) {
         <div class="agent-response" style="font-size:0.62rem; line-height:1.7;">
             ${allRisks.length ? `<div style="margin-bottom:12px;"><strong style="color:#FF4444;">RISK VECTORS IDENTIFIED</strong><br>${allRisks.map(r => `<span style="color:#CCC;">• ${r}</span>`).join('<br>')}</div>` : ''}
             ${allActions.length ? `<div style="margin-bottom:12px;"><strong style="color:#00E5FF;">RECOMMENDED ACTIONS</strong><br>${allActions.map(a => `<span style="color:#CCC;">• ${a}</span>`).join('<br>')}</div>` : ''}
-            ${tbMatches.length ? `<div><strong style="color:#00FF9D;">VERIFIED FACTS (${tbMatches.length})</strong><br>${tbMatches.slice(0, 8).map(t => `<span style="color:#999;">• ${t.replace(/\[\/?\s*TRUTH_BOMB\s*\]/g, '').trim()}</span>`).join('<br>')}${tbMatches.length > 8 ? `<br><span style="color:#555;">...and ${tbMatches.length - 8} more</span>` : ''}</div>` : ''}
+            ${tbMatches.length ? `<div><strong style="color:#4CAF7D;">VERIFIED FACTS (${tbMatches.length})</strong><br>${tbMatches.slice(0, 8).map(t => `<span style="color:#999;">• ${t.replace(/\[\/?\s*TRUTH_BOMB\s*\]/g, '').trim()}</span>`).join('<br>')}${tbMatches.length > 8 ? `<br><span style="color:#555;">...and ${tbMatches.length - 8} more</span>` : ''}</div>` : ''}
         </div>
     `;
     analysisGrid.appendChild(comparisonCard);
@@ -2317,7 +2317,7 @@ function renderChainResults(result) {
                     <div class="ph-model-name">${title}</div>
                     <div class="ph-role-label">${model} • ${phase}</div>
                     <div class="ph-truth-container">
-                        <div class="truth-score-val" style="color: ${truthScore > 80 ? '#00FF9D' : truthScore > 50 ? '#FFB020' : '#FF4444'}">
+                        <div class="truth-score-val" style="color: ${truthScore > 80 ? '#4CAF7D' : truthScore > 50 ? '#FFB020' : '#FF4444'}">
                             TRUTH SCORE: ${truthScore}/100
                         </div>
                         <div class="truth-bar-container">
@@ -2371,8 +2371,7 @@ function renderChainResults(result) {
     updateResultsDockState({
         pill: 'Results Ready',
         text: 'Council, analysis, and interrogation outputs are ready in the artifact dock.',
-        ready: true,
-        mode: 'ready'
+        ready: true
     });
     switchDockTab('council');
     document.getElementById('recallAnalysisBtn').style.display = 'none';
@@ -2394,7 +2393,6 @@ function renderChainResults(result) {
         affected: 'Council, analysis, execution',
         nextMove: 'Interrogate or verify'
     });
-    setCommsContextActive(true);
     addCommsActivity('Synthesis ready', (synthesisData.meta?.summary || 'Sequential council output is ready for review.').slice(0, 120), 'ready');
 
     // Populate sessionState.lastResponses so follow-ups and interrogations have context
@@ -2602,7 +2600,7 @@ function updateThreadBadge() {
         const newThreadBtn = document.createElement('button');
         newThreadBtn.textContent = 'NEW THREAD';
         newThreadBtn.title = 'Start a fresh analysis thread';
-        newThreadBtn.style.cssText = 'background:rgba(0,255,157,0.12);border:1px solid rgba(0,255,157,0.3);color:#00FF9D;padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;letter-spacing:0.5px;font-family:inherit;';
+        newThreadBtn.style.cssText = 'background:rgba(76,175,125,0.12);border:1px solid rgba(76,175,125,0.3);color:#4CAF7D;padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;letter-spacing:0.5px;font-family:inherit;';
         newThreadBtn.addEventListener('click', () => {
             sessionState.activeThreadId = null;
             sessionState.threadHistory = [];
@@ -3119,7 +3117,7 @@ window.executeVerify = async function (claimText, providerName) {
     verifyCard.innerHTML = `
         <div class="precision-header" style="border-bottom: 1px solid #00BFFF;">
             <div class="ph-left">
-                <div class="ph-model-name" style="color:#00BFFF">🔎 SOURCE VERIFICATION</div>
+                <div class="ph-model-name" style="color:#C8C8CC">🔎 SOURCE VERIFICATION</div>
                 <div class="ph-role-label" style="color:#66D9FF">PERPLEXITY · FACT CHECK</div>
             </div>
             <div class="ph-right">
@@ -3160,11 +3158,11 @@ window.executeVerify = async function (claimText, providerName) {
         verifyCard.innerHTML = `
             <div class="precision-header" style="border-bottom: 1px solid #00BFFF;">
                 <div class="ph-left">
-                    <div class="ph-model-name" style="color:#00BFFF">🔎 SOURCE VERIFICATION</div>
+                    <div class="ph-model-name" style="color:#C8C8CC">🔎 SOURCE VERIFICATION</div>
                     <div class="ph-role-label" style="color:#66D9FF">PERPLEXITY · ${result.model || 'sonar'}</div>
                 </div>
                 <div class="ph-right">
-                    <div class="metric-pill" style="color:#00FF9D">COMPLETE</div>
+                    <div class="metric-pill" style="color:#4CAF7D">COMPLETE</div>
                     <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.agent-card').querySelector('.agent-response').innerText, 'Verification copied')" title="Copy">📋</div>
                 </div>
             </div>
@@ -3190,13 +3188,6 @@ window.executeVerify = async function (claimText, providerName) {
         setTextById('evalRevisionTitle', 'Synthesis Revision');
         setTextById('evalRevisionCopy', 'Verification changed the active answer state.');
         setEvaluationStepState('evalRevisionStep', 'live');
-        setCommsContextActive(true);
-        updateResultsDockState({
-            pill: 'Revision Live',
-            text: 'Verification output is available in the artifact dock.',
-            ready: true,
-            mode: 'revision'
-        });
         addCommsActivity('Verification complete', `Perplexity reviewed the selected claim and returned ${result.verdict || 'a verdict'}.`, result.verdict === 'INACCURATE' ? 'alert' : 'ready');
 
         // === TRUTH SCORE FEEDBACK — use structured verdict from backend ===
@@ -3339,7 +3330,7 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
                     <div class="agent-response" style="margin: 0;">${attackerHtml}</div>
                 </div>
                 <div style="border-left: 3px solid #00FF9D; padding: 10px 14px; background: rgba(0,255,157,0.04);">
-                    <div style="color: #00FF9D; font-size: 0.6rem; letter-spacing: 0.12em; margin-bottom: 6px;">
+                    <div style="color: #4CAF7D; font-size: 0.6rem; letter-spacing: 0.12em; margin-bottom: 6px;">
                         🛡️ DEFENDER · ${result.defender.role_display.toUpperCase()}
                     </div>
                     <div class="agent-response" style="margin: 0;">${defenderHtml}</div>
@@ -3362,13 +3353,6 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
         setTextById('evalRevisionTitle', 'Synthesis Revision');
         setTextById('evalRevisionCopy', 'Cross-examination updated the mission posture.');
         setEvaluationStepState('evalRevisionStep', 'live');
-        setCommsContextActive(true);
-        updateResultsDockState({
-            pill: 'Revision Live',
-            text: 'Interrogation output is available in the artifact dock.',
-            ready: true,
-            mode: 'revision'
-        });
         addCommsActivity('Interrogation complete', `${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'alert');
 
         // === TRUTH SCORE FEEDBACK — use structured verdict + delta from backend ===
@@ -3379,7 +3363,7 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
             updateTruthScore(targetProvider, delta, verdict);
 
             // Show verdict banner inside the faceoff card
-            const verdictColor = delta > 4 ? '#00FF9D' : delta > 0 ? '#A0FFC0' : delta > -8 ? '#FFB020' : '#FF4444';
+            const verdictColor = delta > 4 ? '#4CAF7D' : delta > 0 ? '#8FD9B0' : delta > -8 ? '#FFB020' : '#FF4444';
             const verdictIcon = delta > 0 ? '🛡️ DEFENSE HELD' : '⚔️ CONCESSION DETECTED';
             const verdictBanner = document.createElement('div');
             verdictBanner.style.cssText = `
@@ -3852,9 +3836,9 @@ function showLoadingState(taskName) {
             <div class="decoding-state" style="padding:40px; text-align:center; font-family:var(--font-head);">
                 <div class="neural-pulse" style="width:60px; height:60px; margin:0 auto 20px; border:2px solid #00FF9D; border-radius:50%; animation: pulse 1.5s infinite;"></div>
                 <h2 style="color:#FFF; letter-spacing:2px; font-size:14px; text-transform:uppercase;">${taskName || 'Decoding Intelligence'}</h2>
-                <p style="color:#00FF9D; font-size:11px; margin-top:10px; opacity:0.7;">Council is synthesizing your selection...</p>
+                <p style="color:#4CAF7D; font-size:11px; margin-top:10px; opacity:0.7;">Council is synthesizing your selection...</p>
                 <div class="loading-bar-min" style="width:200px; height:2px; background:rgba(0,255,157,0.1); margin:20px auto; position:relative; overflow:hidden;">
-                    <div class="loading-fill-min" style="position:absolute; width:50%; height:100%; background:#00FF9D; animation: slide 1s infinite ease-in-out;"></div>
+                    <div class="loading-fill-min" style="position:absolute; width:50%; height:100%; background:#4CAF7D; animation: slide 1s infinite ease-in-out;"></div>
                 </div>
             </div>
         `;
@@ -3924,7 +3908,7 @@ function formatV2Content(content, phase) {
 
     // SPECIAL RENDERING FOR PHASE 1 (JSON)
     if (phase === "CONSTRAINT ANALYSIS" && typeof content === 'object') {
-        let metaContent = `<div style="margin-bottom:10px;"><strong style="color:#00FF9D">CORE GOAL:</strong><br>${content.core_goal || "N/A"}</div>`;
+        let metaContent = `<div style="margin-bottom:10px;"><strong style="color:#4CAF7D">CORE GOAL:</strong><br>${content.core_goal || "N/A"}</div>`;
 
         if (content.explicit_constraints?.length) {
             metaContent += `<strong style="color:#FFB020">EXPLICIT CONSTRAINTS:</strong><ul style="margin-top:5px; padding-left:20px; color:#ddd;">`;
@@ -3942,7 +3926,7 @@ function formatV2Content(content, phase) {
 function formatV2Text(text) {
     if (!text) return "";
     return text
-        .replace(/^## (.*?)$/gm, '<h3 style="color:#00FF9D; margin-top:15px; border-bottom:1px solid #333; padding-bottom:5px;">$1</h3>')
+        .replace(/^## (.*?)$/gm, '<h3 style="color:#4CAF7D; margin-top:15px; border-bottom:1px solid #333; padding-bottom:5px;">$1</h3>')
         .replace(/^### (.*?)$/gm, '<h4 style="color:#FFB020; margin-top:10px;">$1</h4>')
         .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#FFF;">$1</strong>')
         .replace(/^- (.*?)$/gm, '• $1<br>')
@@ -4074,7 +4058,6 @@ async function executeCouncil(query, roleName) {
         revisionTitle: 'Synthesis Revision',
         revisionCopy: 'Revision state will update once an answer lands.'
     });
-    setCommsContextActive(true);
     updateRevisionSummary({
         latestFollowup: query.length > 96 ? `${query.slice(0, 96)}...` : query,
         revisionState: 'Answer generation in progress.',
@@ -4267,7 +4250,7 @@ function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
     let truthScore = meta.composite_truth_score;
     if (truthScore === undefined || truthScore === null) truthScore = Math.round(avgConfidence);
     else if (truthScore <= 1) truthScore = Math.round(truthScore * 100);
-    const truthColor = truthScore > 80 ? '#00FF9D' : truthScore > 50 ? '#FFB020' : '#FF4444';
+    const truthColor = truthScore > 80 ? '#4CAF7D' : truthScore > 50 ? '#FFB020' : '#FF4444';
 
     // Summary text: prefer synthesis, fallback to consensus
     const summaryText = meta.summary || data.consensus || 'Council analysis complete.';
@@ -4320,7 +4303,7 @@ function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
         actionsHtml = `<div style="margin-top:10px; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
             <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em; margin-bottom:6px;">PRIORITY ACTIONS</div>
             ${topActions.map(item => {
-                const pc = item.priority === 'high' ? '#FF4444' : item.priority === 'med' ? '#FFB020' : '#00FF9D';
+                const pc = item.priority === 'high' ? '#FF4444' : item.priority === 'med' ? '#FFB020' : '#4CAF7D';
                 return `<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
                     <span style="background:${pc}20; color:${pc}; border:1px solid ${pc}40; padding:1px 6px; border-radius:2px; font-size:0.5rem; letter-spacing:0.08em;">${(item.priority || 'MED').toUpperCase()}</span>
                     <span style="color:#AAA; font-size:0.6rem;">${item.task || ''}</span>
@@ -4393,7 +4376,7 @@ function renderResults(data, roleName) {
     if (confEl) confEl.textContent = Math.round(avgConfidence) + '%';
     if (violEl) {
         violEl.textContent = violations;
-        violEl.style.color = violations > 0 ? '#FF4444' : '#00FF9D';
+        violEl.style.color = violations > 0 ? '#FF4444' : '#4CAF7D';
     }
 
     // Consensus
@@ -4468,7 +4451,7 @@ function renderResults(data, roleName) {
                     <div class="ph-role-label">${getProviderName(provider)} | ${res.model || "v2.0"}</div>
 
                     <div class="ph-truth-container">
-                        <div class="truth-score-val" style="color: ${truthScore > 80 ? '#00FF9D' : truthScore > 50 ? '#FFB020' : '#FF4444'}">
+                        <div class="truth-score-val" style="color: ${truthScore > 80 ? '#4CAF7D' : truthScore > 50 ? '#FFB020' : '#FF4444'}">
                             TRUTH SCORE: ${truthScore}/100
                         </div>
                         <div class="truth-bar-container">
@@ -4660,7 +4643,7 @@ function renderResults(data, roleName) {
             briefHtml += `<div class="exec-brief-actions">
                 <div class="exec-brief-section-title">ACTION ITEMS</div>`;
             structured.action_items.forEach(item => {
-                const priorityColor = item.priority === 'high' ? '#FF4444' : item.priority === 'med' ? '#FFB020' : '#00FF9D';
+                const priorityColor = item.priority === 'high' ? '#FF4444' : item.priority === 'med' ? '#FFB020' : '#4CAF7D';
                 briefHtml += `<div class="exec-action-item">
                     <span class="exec-action-priority" style="background:${priorityColor}20; color:${priorityColor}; border:1px solid ${priorityColor}40">${(item.priority || 'med').toUpperCase()}</span>
                     <span class="exec-action-task">${item.task || ''}</span>
@@ -4712,7 +4695,7 @@ function renderResults(data, roleName) {
                 divScore.style.color = score > 50 ? '#FF4444' : '#FFB020';
                 varianceStat.classList.add('variance-active');
             } else {
-                divScore.style.color = '#00FF9D';
+                divScore.style.color = '#4CAF7D';
                 varianceStat.classList.remove('variance-active');
             }
         }
@@ -4834,8 +4817,7 @@ function renderResults(data, roleName) {
     updateResultsDockState({
         pill: 'Results Ready',
         text: 'Council outputs are live in the artifact dock and ready for review.',
-        ready: true,
-        mode: 'ready'
+        ready: true
     });
     switchDockTab('council');
     document.getElementById('recallAnalysisBtn').style.display = 'none'; // Hide recall button when showing fresh results
@@ -4857,7 +4839,6 @@ function renderResults(data, roleName) {
         affected: 'Council response',
         nextMove: 'Interrogate or verify'
     });
-    setCommsContextActive(true);
     addCommsActivity('Council response ready', (synthesisMeta.summary || data.consensus || 'Mission answer available.').slice(0, 120), 'ready');
     logTelemetry("Consensus Reached. Displaying Output.", "system");
 
@@ -4911,15 +4892,15 @@ function openDivergenceModal() {
             </div>
             <div class="divergence-modal-scores">
                 <div class="modal-score-block">
-                    <div class="modal-score-value" style="color:${div.consensus_score >= 70 ? '#00FF9D' : '#FFB020'}">${div.consensus_score || 0}</div>
+                    <div class="modal-score-value" style="color:${div.consensus_score >= 70 ? '#4CAF7D' : '#FFB020'}">${div.consensus_score || 0}</div>
                     <div class="modal-score-label">CONSENSUS</div>
                 </div>
                 <div class="modal-score-block">
-                    <div class="modal-score-value" style="color:${div.divergence_score > 50 ? '#FF4444' : div.divergence_score > 30 ? '#FFB020' : '#00FF9D'}">${div.divergence_score || 0}</div>
+                    <div class="modal-score-value" style="color:${div.divergence_score > 50 ? '#FF4444' : div.divergence_score > 30 ? '#FFB020' : '#4CAF7D'}">${div.divergence_score || 0}</div>
                     <div class="modal-score-label">DIVERGENCE</div>
                 </div>
                 <div class="modal-score-block">
-                    <div class="modal-score-value ${div.protocol_variance ? 'variance-flash' : ''}" style="color:${div.protocol_variance ? '#FF4444' : '#00FF9D'}">${div.protocol_variance ? 'ACTIVE' : 'CLEAR'}</div>
+                    <div class="modal-score-value ${div.protocol_variance ? 'variance-flash' : ''}" style="color:${div.protocol_variance ? '#FF4444' : '#4CAF7D'}">${div.protocol_variance ? 'ACTIVE' : 'CLEAR'}</div>
                     <div class="modal-score-label">VARIANCE</div>
                 </div>
             </div>
@@ -5299,7 +5280,6 @@ const sentinelChat = {
         // User Message
         this.appendMessage(query, 'user');
         this.history.push({ role: 'user', content: query });
-        setCommsContextActive(true);
         updateRevisionSummary({
             latestFollowup: query,
             revisionState: 'Follow-up in progress.',
@@ -5361,7 +5341,6 @@ const sentinelChat = {
         if (wrapper) wrapper.innerHTML = '';
         this.refreshEmptyState();
         resetCommsActivity();
-        setCommsContextActive(false);
         logTelemetry("Global Comms cleared", "system");
     },
 
@@ -5458,14 +5437,7 @@ function updateRevisionSummary({
     setTextById('revisionNextMoveValue', nextMove);
 }
 
-function setCommsContextActive(active) {
-    ['commsThreadSummary', 'revisionImpactStrip', 'commsActivityFeed'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.classList.toggle('is-collapsed', !active);
-    });
-}
-
-function updateResultsDockState({ pill = 'Standby', text, ready = false, mode = 'standby' } = {}) {
+function updateResultsDockState({ pill = 'Standby', text, ready = false } = {}) {
     const dock = document.getElementById('resultsDock');
     const pillEl = document.getElementById('resultsStatusPill');
     const textEl = document.getElementById('resultsStatusText');
@@ -5473,7 +5445,6 @@ function updateResultsDockState({ pill = 'Standby', text, ready = false, mode = 
     if (pillEl) {
         pillEl.textContent = pill;
         pillEl.classList.toggle('is-ready', ready);
-        pillEl.classList.toggle('is-revision', mode === 'revision');
     }
     if (textEl && text) {
         textEl.textContent = text;
@@ -5556,8 +5527,6 @@ function updateStageFromAnswer({
 
 function initializeMissionSurface() {
     resetCommsActivity();
-    setCommsContextActive(false);
-    const hasDockArtifacts = Array.isArray(ResearchDock?.snippets) && ResearchDock.snippets.length > 0;
     updateStageState({
         subtitle: 'Project Neptune · Finance Desk',
         primaryState: 'Generation Live',
@@ -5582,12 +5551,9 @@ function initializeMissionSurface() {
         nextMove: 'Interrogate or verify'
     });
     updateResultsDockState({
-        pill: hasDockArtifacts ? 'Artifacts Ready' : 'Standby',
-        text: hasDockArtifacts
-            ? `${ResearchDock.snippets.length} docked artifact${ResearchDock.snippets.length === 1 ? '' : 's'} available in the results layer.`
-            : 'Results, exports, and revision outputs land here.',
-        ready: hasDockArtifacts,
-        mode: hasDockArtifacts ? 'ready' : 'standby'
+        pill: 'Standby',
+        text: 'Results, exports, and revision outputs land here.',
+        ready: false
     });
 }
 
@@ -5781,8 +5747,8 @@ function logTelemetry(msg, type = "info") {
         const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
         let color = "#888"; // info
-        if (type === "process") color = "#00BFFF";
-        if (type === "success") color = "#00FF9D";
+        if (type === "process") color = "#F5A800";
+        if (type === "success") color = "#4CAF7D";
         if (type === "error") color = "#FF4444";
         if (type === "user") color = "#FFB020";
 
@@ -5968,7 +5934,7 @@ function renderExportToolbar(container, _data) {
         <div class="ecc-controls">
             <button class="ecc-preview-btn" onclick="PreviewManager.open()" style="background:var(--accent-green); color:#000; border:none; padding:8px 15px; border-radius:6px; cursor:pointer; font-family:var(--font-head); font-size:11px; font-weight:800; margin-right:15px; box-shadow:0 0 15px rgba(0,255,157,0.2);">💎 PREVIEW PACKAGE</button>
             ${sessionState.mainMissionData && sessionState.isSubTask ? `
-                <button class="ecc-back-btn" onclick="returnToMainMission()" style="background:rgba(0,188,212,0.2); border:1px solid #00bcd4; color:#00bcd4; padding:8px 12px; border-radius:6px; cursor:pointer; font-family:var(--font-head); font-size:11px; font-weight:700;">↩ RETURN TO MAIN MISSION</button>
+                <button class="ecc-back-btn" onclick="returnToMainMission()" style="background:rgba(245,168,0,0.12); border:1px solid rgba(245,168,0,0.4); color:#F5A800; padding:8px 12px; border-radius:6px; cursor:pointer; font-family:var(--font-head); font-size:11px; font-weight:700;">↩ RETURN TO MAIN MISSION</button>
             ` : ''}
             <select id="exportDoc" onchange="handleDocExport(this.value)">
                 <option value="" disabled selected>Export Report...</option>
@@ -6336,7 +6302,7 @@ function renderActionPanel(synthesis, classification) {
         html += `<div class="exec-brief-actions">
             <div class="exec-brief-section-title">ACTION ITEMS</div>`;
         structured.action_items.forEach(item => {
-            const priorityColor = item.priority === 'high' ? '#FF4444' : item.priority === 'med' ? '#FFB020' : '#00FF9D';
+            const priorityColor = item.priority === 'high' ? '#FF4444' : item.priority === 'med' ? '#FFB020' : '#4CAF7D';
             html += `<div class="exec-action-item">
                 <span class="exec-action-priority" style="background:${priorityColor}20; color:${priorityColor}; border:1px solid ${priorityColor}40">${(item.priority || 'med').toUpperCase()}</span>
                 <span class="exec-action-task">${item.task || ''}</span>
