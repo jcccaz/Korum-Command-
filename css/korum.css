@@ -138,6 +138,7 @@ body {
     border: 1px solid rgba(200, 200, 204, 0.12);
     background: linear-gradient(180deg, rgba(30, 30, 30, 0.96), rgba(18, 18, 18, 0.96));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    transition: all 0.3s ease;
 }
 
 .mission-flow-step.is-complete {
@@ -504,6 +505,52 @@ body {
     height: calc(100% - 136px - var(--dock-resting-height));
     position: relative;
     overflow: hidden;
+    transition: grid-template-columns 0.4s ease;
+}
+
+@media (max-width: 1600px) {
+    .dashboard-grid {
+        grid-template-columns: minmax(360px, 400px) minmax(0, 1fr) minmax(340px, 400px);
+        gap: 12px;
+    }
+}
+
+@media (max-width: 1440px) {
+    .dashboard-grid {
+        grid-template-columns: minmax(330px, 360px) minmax(0, 1fr) minmax(320px, 360px);
+        gap: 10px;
+    }
+    .panel {
+        padding: 16px !important;
+    }
+}
+
+@media (max-width: 1280px) {
+    .dashboard-grid {
+        grid-template-columns: minmax(300px, 330px) minmax(0, 1fr) minmax(280px, 330px);
+        gap: 8px;
+    }
+    .panel {
+        padding: 14px !important;
+    }
+    .mission-flow-strip {
+        gap: 6px !important;
+    }
+    .mission-flow-step {
+        padding: 8px 10px !important;
+        min-height: 64px !important;
+    }
+    .flow-title {
+        font-size: 11px !important;
+    }
+    .flow-copy {
+        font-size: 10px !important;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
 }
 
 /* PANELS */
@@ -5256,18 +5303,33 @@ body.activated .sphere-texture {
 }
 
 /* Better nav behavior on mid widths */
+@media (max-width: 1440px) {
+    .nav-links {
+        gap: 6px;
+    }
+    .nav-links a {
+        padding: 6px 12px;
+        font-size: 11px;
+    }
+}
+
 @media (max-width: 1280px) {
     .top-bar {
         gap: 10px;
-        align-items: flex-start;
+        align-items: center; /* Changed from flex-start to keep it centered vertically */
     }
 
     .nav-links {
         flex-wrap: nowrap;
         overflow-x: auto;
-        scrollbar-width: thin;
-        max-width: calc(100vw - 220px);
-        padding-bottom: 4px;
+        scrollbar-width: none; /* Hide scrollbar for cleaner look */
+        max-width: calc(100vw - 320px); /* Adjust based on flanking elements */
+        padding-bottom: 0;
+        -ms-overflow-style: none;
+    }
+    
+    .nav-links::-webkit-scrollbar {
+        display: none;
     }
 
     .nav-links a {
@@ -7042,22 +7104,41 @@ body.report-library-open .results-container {
     }
 }
 
-/* =========================================
-   RESPONSIVE BREAKPOINTS — LAPTOP & SMALL DESKTOP
-   Fixes layout compression on screens < 1400px
-   ========================================= */
+/* ═══════════════════════════════════════════════════════════
+   FINAL RESPONSIVE CALIBRATION (V3.1) - MERGED
+   ═══════════════════════════════════════════════════════════ */
 
-/* Large laptops: 1200px–1399px — shrink panels slightly */
-@media (max-width: 1399px) {
-    .dashboard-grid {
-        grid-template-columns: minmax(320px, 380px) minmax(0, 1fr) minmax(300px, 360px);
-        gap: 10px;
+/* Short monitors/laptops: compress vertical spacing */
+@media (max-height: 850px) {
+    .screen-container {
+        padding: 8px !important;
     }
-    .panel {
-        padding: 18px;
+    .top-bar {
+        margin-bottom: 12px !important;
+    }
+    .mission-flow-strip {
+        margin-bottom: 8px !important;
+    }
+    .dashboard-grid {
+        height: calc(100% - 100px - var(--dock-resting-height)) !important;
+        gap: 8px !important;
+    }
+    .panel-header {
+        margin-bottom: 12px !important;
+    }
+    .brand-hero-container, .brand-hero-logo {
+        width: 100px !important;
+        height: 100px !important;
     }
     .left-panel h1 {
-        font-size: 22px !important;
+        font-size: 24px !important;
+    }
+}
+
+/* XL Desktop calibration */
+@media (max-width: 1500px) {
+    .dashboard-grid {
+        grid-template-columns: minmax(320px, 350px) minmax(0, 1fr) minmax(310px, 350px) !important;
     }
 }
 
@@ -7133,14 +7214,9 @@ body.report-library-open .results-container {
         width: 130px;
         height: 130px;
     }
-    /* Right panel: shrink cost/telemetry text */
-    .cost-matrix,
-    .execution-telemetry {
-        font-size: 10px !important;
-    }
 }
 
-/* Very small / squished — below 900px go single column (all pointer types, not just touch) */
+/* Very small / squished — below 900px go single column */
 @media (max-width: 900px) {
     body {
         overflow-y: auto !important;
@@ -7172,18 +7248,5 @@ body.report-library-open .results-container {
     .right-panel,
     .global-comms {
         order: 2 !important;
-    }
-    .sphere-container {
-        width: 160px !important;
-        height: 160px !important;
-    }
-    .results-container {
-        left: 0 !important;
-        right: 0 !important;
-        height: 55vh !important;
-        border-radius: 12px 12px 0 0 !important;
-    }
-    .results-grid {
-        grid-template-columns: 1fr !important;
     }
 }
