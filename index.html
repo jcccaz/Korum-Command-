@@ -403,6 +403,19 @@
                         </div>
                     </div>
 
+                    <!-- PINNED INPUT: always visible at top -->
+                    <div class="sentinel-input-area sentinel-input-top">
+                        <input type="text" id="sentinelInput" class="sentinel-input"
+                            placeholder="Type tactical query..." autocomplete="off">
+                        <button id="sentinelSendBtn" class="sentinel-send">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+
                     <div class="sentinel-scroll-area">
                         <div class="comms-thread-summary" id="commsThreadSummary">
                             <div class="thread-summary-block">
@@ -457,18 +470,6 @@
                                     <div class="comms-empty-text">Submit a query to start.</div>
                                 </div>
                                 <div class="sentinel-wrapper"></div>
-                            </div>
-
-                            <div class="sentinel-input-area">
-                                <input type="text" id="sentinelInput" class="sentinel-input"
-                                    placeholder="Type tactical query..." autocomplete="off">
-                                <button id="sentinelSendBtn" class="sentinel-send">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2">
-                                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                                    </svg>
-                                </button>
                             </div>
                         </div>
 
