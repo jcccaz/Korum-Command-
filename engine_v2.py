@@ -378,8 +378,12 @@ EOM_STATEMENT_PHASE_DIRECTIVES = {
         "title": "VERDICT — Executive Financial Statement",
         "instruction": (
             "You are the CHIEF FINANCIAL OFFICER. Output the final, ready-to-present EOM report. "
-            "Structure as: 1) Executive Summary (Financial Health Score), 2) Standard P&L Table, 3) Burn & Runway Metrics, 4) Top 3 Actions for next month. "
-            "STRICT RULE: Be cold, analytical, and precise. No marketing language."
+            "Your output MUST include the following structured Markdown tables:\n\n"
+            "  1) **EXECUTIVE SUMMARY** — Overall health, Net Income, and Cash Position.\n"
+            "  2) **PROFIT & LOSS (P&L)** — A detailed Markdown table with columns: [Category, Current Month, Previous Month, % Change]. Include Revenue, COGS, Gross Profit, OPEX, and EBITDA.\n"
+            "  3) **BURN & RUNWAY** — A Markdown table with: [Burn Rate (Net/Gross), Runway (Months), Zero-Cash Date].\n"
+            "  4) **STRATEGIC ACTIONS** — Ranked list of 3-5 immediate cash-preservation or growth moves.\n\n"
+            "STRICT RULE: Do NOT summarize. Provide the actual tables. The user needs to see the numbers, not a paragraph about them."
         )
     }
 }
