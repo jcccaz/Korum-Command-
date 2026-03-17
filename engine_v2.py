@@ -137,6 +137,22 @@ WORKFLOW_DNA = {
         "time_horizon": "Immediate resolution + preventive measures",
         "posture": "Systems Engineer / SRE Lead",
         "output_structure": ["System Status", "Root Cause Analysis", "Performance Metrics", "Resolution Steps", "Monitoring Recommendations"]
+    },
+    # --- ALIASES TO BRIDGE UI NAMES ---
+    "CREATIVE_COUNCIL": { "alias": "CREATIVE" },
+    "STARTUP_LAUNCH": { "alias": "STARTUP" },
+    "CODE_AUDIT": { "alias": "AUDIT" },
+    "CYBER_COMMAND": { "alias": "CYBER" },
+    "DEFENSE_COUNCIL": { "alias": "DEFENSE" },
+    "INTEL_BRIEF": { "alias": "INTEL" },
+    "SCIENCE_PANEL": { "alias": "SCIENCE" },
+    "SOCIAL_POST": {
+        "goal": "Draft high-impact, platform-specific social media content that drives engagement and positions the author as a thought leader.",
+        "tone": "Authentic, insightful, and platform-optimized.",
+        "risk_bias": "Engagement-focused",
+        "time_horizon": "Immediate impact",
+        "posture": "Social Media Strategist & Brand Voice",
+        "output_structure": ["Target Platform", "Core Hook", "Main Draft", "Engagement Tactics", "Success Metrics"]
     }
 }
 
@@ -857,6 +873,8 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
 
     # Retrieve Workflow DNA
     dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
+    if "alias" in dna:
+        dna = WORKFLOW_DNA.get(dna["alias"], dna)
 
     # --- PHASE DIRECTIVES: Each position has a unique, non-overlapping mission ---
     # Directives are domain-adaptive: the structure stays constant but the
@@ -1907,6 +1925,15 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         "CREATIVE": CREATIVE_PHASE_DIRECTIVES,
         "TECH": TECH_PHASE_DIRECTIVES,
         "SYSTEM": SYSTEM_PHASE_DIRECTIVES,
+        # --- ALIASES TO BRIDGE UI NAMES ---
+        "CREATIVE_COUNCIL": CREATIVE_PHASE_DIRECTIVES,
+        "STARTUP_LAUNCH": STARTUP_PHASE_DIRECTIVES,
+        "CODE_AUDIT": AUDIT_PHASE_DIRECTIVES,
+        "CYBER_COMMAND": CYBER_PHASE_DIRECTIVES,
+        "DEFENSE_COUNCIL": DEFENSE_PHASE_DIRECTIVES,
+        "INTEL_BRIEF": INTEL_PHASE_DIRECTIVES,
+        "SCIENCE_PANEL": SCIENCE_PHASE_DIRECTIVES,
+        "SOCIAL_POST": CREATIVE_PHASE_DIRECTIVES,
     }
 
     # Select workflow-specific directives if available, else generic
