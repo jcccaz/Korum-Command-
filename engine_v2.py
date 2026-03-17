@@ -99,12 +99,12 @@ WORKFLOW_DNA = {
         "output_structure": ["Scope & Methodology", "Control Findings", "Compliance Gap Analysis", "Evidence Assessment", "Remediation Priorities"]
     },
     "CREATIVE": {
-        "goal": "Generate innovative concepts, narratives, and strategic messaging with brand alignment.",
+        "goal": "Generate innovative concepts, narratives, and strategic messaging — then draft the actual deliverable.",
         "tone": "Bold, imaginative, and audience-aware.",
         "risk_bias": "Risk-tolerant / Push boundaries",
         "time_horizon": "Campaign-based",
         "posture": "Creative Director & Brand Strategist",
-        "output_structure": ["Creative Concept", "Target Audience", "Messaging Framework", "Content Strategy", "Execution Plan"]
+        "output_structure": ["Creative Concept", "Target Audience", "Messaging Framework", "Draft Deliverable", "Execution Plan"]
     },
     "SCIENCE": {
         "goal": "Evaluate hypotheses with methodological rigor and reproducibility standards.",
@@ -1724,29 +1724,36 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
             )
         },
         3: {
-            "title": "EXECUTION PLAN — Make It Real",
+            "title": "DRAFT THE DELIVERABLE — Write the Actual Content",
             "instruction": (
-                "You are the HEAD OF PRODUCTION. The surviving concepts are above. "
-                "Your job is to turn the concept into a production plan. Output:\n"
-                "  1) Channel plan — which platforms, in what sequence, with what format\n"
-                "  2) Content calendar — phased rollout timeline\n"
-                "  3) Production requirements — what needs to be shot, designed, written, or coded\n"
-                "  4) Budget allocation — rough percentage split across production, media, and measurement\n"
-                "  5) Collaboration needs — external partners, influencers, or platforms required\n"
-                "Be specific. Name the platform, the format, the asset type. No vague 'leverage social media.'"
+                "You are the CONTENT CREATOR. The strategic insight, surviving concepts, and critique are above. "
+                "Your job is to WRITE the actual finished deliverable — not plan it, not describe it, WRITE IT.\n\n"
+                "If the directive asks for a LinkedIn post, WRITE the LinkedIn post. If it asks for ad copy, WRITE the ad copy. "
+                "If it asks for an email, WRITE the email. Match the platform's tone, length, and format conventions.\n\n"
+                "Output:\n"
+                "  1) FINAL DRAFT — the complete, ready-to-publish content piece (formatted for its target platform)\n"
+                "  2) HOOK RATIONALE — why the opening line works and what psychological trigger it uses\n"
+                "  3) VOICE NOTES — 2-3 sentences on the tone, register, and persona projected by this draft\n"
+                "  4) ALTERNATE HOOKS — 2 alternative opening lines with different angles\n\n"
+                "RULES:\n"
+                "  - Write as the person or brand, NOT as an AI describing what they should write\n"
+                "  - No placeholders like [INSERT NAME] — commit to specific language\n"
+                "  - Keep it to the platform's ideal length (LinkedIn: 150-250 words, Tweet: 280 chars, etc.)\n"
+                "  - Sound like a real human who has built something, not a copywriter pitching a campaign"
             )
         },
         4: {
-            "title": "SUCCESS METRICS — How We Know It Worked",
+            "title": "EXECUTION & MEASUREMENT — Ship It and Track It",
             "instruction": (
-                "You are the MEASUREMENT LEAD. All prior analysis is above. "
-                "Your job is to define success and how to measure it. Output:\n"
-                "  1) Primary KPI — the single metric that defines success for this campaign\n"
-                "  2) Secondary metrics — 3-5 supporting metrics with target values\n"
-                "  3) Measurement methodology — how each metric is tracked and attributed\n"
-                "  4) Benchmarks — industry standards or historical performance that defines 'good'\n"
-                "  5) Learning agenda — what we want to learn regardless of whether the campaign hits target\n"
-                "Do NOT repeat the creative or execution plan. Focus exclusively on measurement and learning."
+                "You are the HEAD OF OPERATIONS. The draft deliverable and all prior analysis is above. "
+                "Your job is to plan the rollout and define success. Output:\n"
+                "  1) Channel plan — which platforms, in what sequence, with what format and posting cadence\n"
+                "  2) Content calendar — phased rollout timeline (specific dates or day offsets)\n"
+                "  3) Production requirements — what else needs to be created (visuals, video, carousels, threads)\n"
+                "  4) Primary KPI — the single metric that defines success, with a target value\n"
+                "  5) Secondary metrics — 3-5 supporting metrics with benchmarks\n"
+                "  6) Measurement methodology — how each metric is tracked and attributed\n"
+                "Be specific. Name the platform, the format, the asset type. No vague 'leverage social media.'"
             )
         }
     }
