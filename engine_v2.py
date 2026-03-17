@@ -228,8 +228,17 @@ FINANCE_PHASE_DIRECTIVES = {
         "instruction": "Map to accounting standards (GAAP/IFRS) and tax obligations."
     },
     4: {
-        "title": "VERDICT — ROI & Recommendation",
-        "instruction": "Deliver the bottom line: Go/No-Go, ROI range, and key success metrics."
+        "title": "VERDICT — Full Financial Decision Package",
+        "instruction": (
+            "You are the CFO / LEAD AUDITOR. Deliver the complete financial decision package — NOT a summary paragraph. "
+            "Structure as:\n"
+            "  1) **DECISION** — Go / No-Go / Conditional (one line, bold)\n"
+            "  2) **ROI TABLE** — Markdown table: [Scenario, ROI %, Payback Period, Key Assumption]\n"
+            "  3) **SENSITIVITY MATRIX** — Base case / Bull case / Bear case with % outcomes\n"
+            "  4) **TOP 3 RISKS** — Each with a specific mitigation action\n"
+            "  5) **KEY SUCCESS METRICS** — The exact numbers that define success in 90 days\n"
+            "STRICT RULE: Every number must come from prior phase analysis. No prose opinions. Tables and lists only."
+        )
     }
 }
 
@@ -240,7 +249,16 @@ WAR_ROOM_PHASE_DIRECTIVES = {
     1: { "title": "THREAT ASSESSMENT", "instruction": "Map blast radius and cascade risks for next 72 hours." },
     2: { "title": "IMMEDIATE ACTION", "instruction": "Containment only. STOP actions and PROTECT actions." },
     3: { "title": "RESOURCE ALLOCATION", "instruction": "Assign owners, tools, and budget to the containment plan." },
-    4: { "title": "ESCALATION PATH", "instruction": "Define tripwires for escalation and de-escalation criteria." }
+    4: { "title": "COMMANDER'S DECISION BRIEF", "instruction": (
+        "You are the INCIDENT COMMANDER. Output the complete decision brief — ready to brief upward in 60 seconds. "
+        "Structure as:\n"
+        "  1) **SITREP** — Current status in 2 sentences\n"
+        "  2) **DECISION REQUIRED** — The single yes/no choice that must be made NOW\n"
+        "  3) **RECOMMENDED COA** — Your chosen course of action with rationale\n"
+        "  4) **ESCALATION TRIPWIRES** — Markdown table: [Trigger, Threshold, Who Owns It, Action]\n"
+        "  5) **DE-ESCALATION CRITERIA** — What does 'resolved' look like? Exact metrics.\n"
+        "STRICT RULE: No new analysis. Compile and command. This brief must be copy-pasteable to a Slack channel or exec email."
+    ) }
 }
 
 LEGAL_PHASE_DIRECTIVES = {
@@ -248,7 +266,15 @@ LEGAL_PHASE_DIRECTIVES = {
     1: { "title": "RISK ANALYSIS", "instruction": "Score every exposure with statute/case citations and jurisdiction." },
     2: { "title": "ADVERSARIAL REVIEW", "instruction": "Attack the position as opposing counsel. Find the fatal flaw." },
     3: { "title": "MITIGATION", "instruction": "Provide specific contract language and structural changes to reduce risk." },
-    4: { "title": "POSTURE", "instruction": "Decisive Go/No-Go verdict with non-negotiable prerequisites." }
+    4: { "title": "LEGAL POSTURE — Full Opinion", "instruction": (
+        "You are the GENERAL COUNSEL. Deliver the complete legal opinion package. Structure as:\n"
+        "  1) **VERDICT** — Proceed / Do Not Proceed / Proceed With Conditions (bold, one line)\n"
+        "  2) **RISK REGISTER** — Markdown table: [Risk, Severity (H/M/L), Jurisdiction, Statute/Case, Mitigation]\n"
+        "  3) **NON-NEGOTIABLE PREREQUISITES** — Numbered list of conditions that MUST be satisfied before proceeding\n"
+        "  4) **RECOMMENDED CONTRACT LANGUAGE** — Specific clause text or redline, ready to insert\n"
+        "  5) **MONITORING TRIGGERS** — Events that require immediate legal review\n"
+        "STRICT RULE: Cite actual statutes, regulations, or case names. No generic legal hedging."
+    ) }
 }
 
 MEDICAL_PHASE_DIRECTIVES = {
@@ -256,7 +282,15 @@ MEDICAL_PHASE_DIRECTIVES = {
     1: { "title": "DIFFERENTIAL", "instruction": "Rank candidate diagnoses with ICD-10 codes and evidence grades." },
     2: { "title": "CHALLENGE — Blind Spots", "instruction": "Find rare or dangerous conditions missed. Audit for cognitive bias." },
     3: { "title": "TREATMENT PLAN", "instruction": "Evidence-based interventions with dosage ranges and contraindications." },
-    4: { "title": "SAFETY & ETHICS", "instruction": "Final protection layer: interaction flags and informed consent requirements." }
+    4: { "title": "CLINICAL DECISION BRIEF", "instruction": (
+        "You are the CHIEF MEDICAL OFFICER. Deliver the complete clinical decision brief. Structure as:\n"
+        "  1) **PRIMARY DIAGNOSIS** — ICD-10 code, confidence level, and one-sentence rationale\n"
+        "  2) **TREATMENT PLAN TABLE** — Markdown table: [Intervention, Dosage/Protocol, Evidence Grade, Contraindications]\n"
+        "  3) **DIFFERENTIAL WATCHLIST** — Top 2 ruled-out diagnoses and what would change the verdict\n"
+        "  4) **DRUG INTERACTION FLAGS** — Any interactions that require immediate attention\n"
+        "  5) **INFORMED CONSENT CHECKLIST** — Bullet list of what the patient must be told before proceeding\n"
+        "STRICT RULE: Cite clinical guidelines (e.g. AHA, WHO, UpToDate). No general health advice."
+    ) }
 }
 
 QUANTUM_SECURITY_PHASE_DIRECTIVES = {
@@ -264,7 +298,15 @@ QUANTUM_SECURITY_PHASE_DIRECTIVES = {
     1: { "title": "VULNERABILITY", "instruction": "Score vs classical (BEAST/POODLE) and emerging quantum threats." },
     2: { "title": "ZERO TRUST AUDIT", "instruction": "Audit vs NIST 800-207 pillars (Identity/Device/Network/App/Data)." },
     3: { "title": "COMPLIANCE MAPPING", "instruction": "Map current gaps to FedRAMP, CMMC, and NIST IR 8413." },
-    4: { "title": "PQC ROADMAP", "instruction": "Sequence migration to NIST PQC algorithms (ML-KEM, ML-DSA)." }
+    4: { "title": "PQC MIGRATION ROADMAP", "instruction": (
+        "You are the CISO. Deliver the complete Post-Quantum Cryptography migration plan. Structure as:\n"
+        "  1) **MIGRATION PRIORITY TABLE** — Markdown table: [System/Algorithm, Quantum Risk, Replace With, Timeline, Owner]\n"
+        "  2) **PHASE 1 (0-90 days)** — Immediate actions: inventory, disable deprecated algorithms\n"
+        "  3) **PHASE 2 (90-180 days)** — Migration to ML-KEM (key encapsulation) and ML-DSA (signatures)\n"
+        "  4) **PHASE 3 (180+ days)** — Full PQC posture, audit, and compliance sign-off\n"
+        "  5) **COMPLIANCE CHECKLIST** — NIST IR 8413, FedRAMP, CMMC specific sign-off items\n"
+        "STRICT RULE: Name specific algorithms (e.g. Kyber-1024, Dilithium-3). No generic 'upgrade encryption' language."
+    ) }
 }
 
 DEFENSE_PHASE_DIRECTIVES = {
@@ -272,7 +314,15 @@ DEFENSE_PHASE_DIRECTIVES = {
     1: { "title": "THREAT ASSESSMENT", "instruction": "Model MLCOA (Most Likely) and MDCOA (Most Dangerous) adversary moves." },
     2: { "title": "RED CELL", "instruction": "Attack our plan from the adversary perspective. Find the feint." },
     3: { "title": "COURSES OF ACTION", "instruction": "Friendly options: Scheme of maneuver, requirements, and decision points." },
-    4: { "title": "COMMANDER ESTIMATE", "instruction": "Single decisive recommendation with risk acceptance." }
+    4: { "title": "COMMANDER'S ESTIMATE", "instruction": (
+        "You are the COMMANDING OFFICER. Deliver the complete commander's estimate. Structure as:\n"
+        "  1) **MISSION** — Restated in one sentence\n"
+        "  2) **SELECTED COA** — The chosen course of action (bold) with a 2-sentence rationale\n"
+        "  3) **EXECUTION TABLE** — Markdown table: [Phase, Task, Unit/Owner, Timeline, Success Criteria]\n"
+        "  4) **ACCEPTED RISKS** — What risks are being accepted and why\n"
+        "  5) **DECISION POINTS** — Specific triggers that would force a COA change\n"
+        "STRICT RULE: One recommendation only. No hedging. State risk acceptance explicitly."
+    ) }
 }
 
 CYBER_PHASE_DIRECTIVES = {
@@ -280,7 +330,15 @@ CYBER_PHASE_DIRECTIVES = {
     1: { "title": "ATTACK ANALYSIS", "instruction": "Map to MITRE ATT&CK techniques and kill chain stages." },
     2: { "title": "ADVERSARIAL INTENT", "instruction": "Predict objectives: exfiltration, ransomware, or persistence?" },
     3: { "title": "CONTAINMENT", "instruction": "Immediate stop/remove actions and evidence preservation." },
-    4: { "title": "HARDENING", "instruction": "Prevention: SIEM rules, EDR policy changes, and NIST control mapping." }
+    4: { "title": "HARDENING PLAYBOOK", "instruction": (
+        "You are the CYBER DEFENSE LEAD. Deliver the complete post-incident hardening playbook. Structure as:\n"
+        "  1) **IMMEDIATE ACTIONS (24h)** — Numbered list: specific firewall rules, account disables, or patch installs\n"
+        "  2) **SIEM RULES** — Exact detection logic (e.g. sigma rule pseudocode or query) for each identified TTPs\n"
+        "  3) **EDR POLICY CHANGES** — Specific policy updates with product names (CrowdStrike, Defender, etc.)\n"
+        "  4) **NIST CONTROL MAP** — Markdown table: [MITRE Technique, NIST 800-53 Control, Status, Owner]\n"
+        "  5) **30-DAY VALIDATION PLAN** — How you confirm the hardening worked\n"
+        "STRICT RULE: Be tool-specific. No generic 'patch your systems' advice."
+    ) }
 }
 
 INTEL_PHASE_DIRECTIVES = {
@@ -288,7 +346,15 @@ INTEL_PHASE_DIRECTIVES = {
     1: { "title": "ANALYTIC LINE", "instruction": "Numbered judgments with ICD 203 confidence levels." },
     2: { "title": "ALT ANALYSIS", "instruction": "Structured analytic techniques: Analysis of Competing Hypotheses (ACH)." },
     3: { "title": "IMPLICATIONS", "instruction": "So what? Policy implications and opportunity windows." },
-    4: { "title": "VERDICT", "instruction": "BLUF summary and collection priorities for future updates." }
+    4: { "title": "FINISHED INTELLIGENCE PRODUCT", "instruction": (
+        "You are the SENIOR INTELLIGENCE OFFICER. Deliver the complete finished intelligence product. Structure as:\n"
+        "  1) **KEY JUDGMENTS** — Numbered list, each starting with an ICD 203 confidence label (High/Moderate/Low)\n"
+        "  2) **BLUF** — Bottom Line Up Front in 2 sentences max\n"
+        "  3) **EVIDENCE SUMMARY TABLE** — Markdown table: [Source, Reliability, Info Certainty, Key Finding]\n"
+        "  4) **ALTERNATIVE HYPOTHESIS** — The most credible competing explanation and why it was downgraded\n"
+        "  5) **COLLECTION GAPS** — Specific intelligence gaps and recommended collection platforms/methods\n"
+        "STRICT RULE: Every judgment must have a confidence level. No ungraded assertions."
+    ) }
 }
 
 SCIENCE_PHASE_DIRECTIVES = {
@@ -296,7 +362,15 @@ SCIENCE_PHASE_DIRECTIVES = {
     1: { "title": "EVIDENCE ANALYSIS", "instruction": "Evaluate study design (RCT/cohort) and statistical power." },
     2: { "title": "PEER REVIEW", "instruction": "Methodology challenge: confounding variables and selection bias." },
     3: { "title": "SYNTHESIS", "instruction": "What the evidence says: Verdict on hypothesis vs practical significance." },
-    4: { "title": "RESEARCH GAPS", "instruction": "The future agenda: Critical unknowns and recommended study designs." }
+    4: { "title": "RESEARCH CONCLUSION & AGENDA", "instruction": (
+        "You are the PRINCIPAL INVESTIGATOR. Deliver the complete research conclusion package. Structure as:\n"
+        "  1) **VERDICT ON HYPOTHESIS** — Supported / Refuted / Inconclusive with confidence grade (p-value or effect size if available)\n"
+        "  2) **SUMMARY OF EVIDENCE TABLE** — Markdown table: [Study/Source, Design, Sample Size, Key Finding, Limitation]\n"
+        "  3) **PRACTICAL SIGNIFICANCE** — What this means in the real world, not just statistically\n"
+        "  4) **CRITICAL UNKNOWNS** — Top 3 gaps that would change the verdict if resolved\n"
+        "  5) **RECOMMENDED STUDY DESIGNS** — Specific methodologies (RCT, cohort, meta-analysis) to close each gap\n"
+        "STRICT RULE: Distinguish statistical significance from practical significance. Cite study designs by name."
+    ) }
 }
 
 STARTUP_PHASE_DIRECTIVES = {
@@ -304,7 +378,15 @@ STARTUP_PHASE_DIRECTIVES = {
     1: { "title": "UNIT ECONOMICS", "instruction": "Model LTV:CAC, burn rate, and funding requirements. Assume nothing." },
     2: { "title": "KILL THE BUSINESS", "instruction": "Find the fatal flaw: Market, Execution, Competition, or Timing risk." },
     3: { "title": "GO-TO-MARKET", "instruction": "Design the launch strategy: Beachhead segment, channels, and pricing." },
-    4: { "title": "INVESTOR VERDICT", "instruction": "Decisive Invest/Pass/Conditional verdict with valuation anchors." }
+    4: { "title": "INVESTOR DECISION MEMO", "instruction": (
+        "You are the LEAD PARTNER. Deliver the complete investment decision memo. Structure as:\n"
+        "  1) **VERDICT** — Invest / Pass / Conditional (bold) with one sentence rationale\n"
+        "  2) **VALUATION TABLE** — Markdown table: [Method, Pre-Money, Post-Money, Key Assumption]\n"
+        "  3) **DEAL TERMS** — Recommended check size, instrument (SAFE/priced round), and key protective provisions\n"
+        "  4) **FATAL FLAW RESPONSE** — The top risk identified and what evidence would de-risk it\n"
+        "  5) **CONDITIONS TO CLOSE** — Specific milestones or diligence items required before wire\n"
+        "STRICT RULE: Put a number on everything. No 'promising' or 'exciting' language."
+    ) }
 }
 
 AUDIT_PHASE_DIRECTIVES = {
@@ -312,7 +394,15 @@ AUDIT_PHASE_DIRECTIVES = {
     1: { "title": "CONTROL TESTING", "instruction": "Test each control vs evidence. Findings: Effective / Ineffective / Exception." },
     2: { "title": "RED TEAM AUDIT", "instruction": "Attack the audit chain. Find self-reported evidence gaps." },
     3: { "title": "REMEDIATION", "instruction": "Map every finding to a specific fix, owner, and timeline." },
-    4: { "title": "AUDIT OPINION", "instruction": "Defensible conclusion: Clean, Qualified, Adverse, or Disclaimer." }
+    4: { "title": "AUDIT OPINION — Full Report", "instruction": (
+        "You are the LEAD AUDITOR. Deliver the complete audit opinion. Structure as:\n"
+        "  1) **OPINION** — Clean / Qualified / Adverse / Disclaimer of Opinion (bold, one line)\n"
+        "  2) **FINDINGS TABLE** — Markdown table: [Control, Status, Severity (Critical/High/Med/Low), Evidence Gap, Owner]\n"
+        "  3) **MANAGEMENT LETTER POINTS** — Specific deficiencies that fall short of a finding but need attention\n"
+        "  4) **REMEDIATION ROADMAP** — Numbered list: each finding with specific fix, deadline, and responsible party\n"
+        "  5) **RE-AUDIT CRITERIA** — What must be true for a clean opinion on the next audit cycle\n"
+        "STRICT RULE: Every finding must map to a specific control framework (SOC2 CC, ISO Annex A, NIST CSF). No vague conclusions."
+    ) }
 }
 
 CREATIVE_PHASE_DIRECTIVES = {
@@ -323,7 +413,15 @@ CREATIVE_PHASE_DIRECTIVES = {
         "WRITE the actual finished deliverable (LinkedIn post, email, ad copy). "
         "Write as the brand/persona, match platform conventions, and sound like a human builder."
     )},
-    4: { "title": "EXECUTION PLAN", "instruction": "Phase rollout timeline, KPIs, and measurement methodology." }
+    4: { "title": "CREATIVE EXECUTION PACKAGE", "instruction": (
+        "You are the CREATIVE DIRECTOR. Deliver the complete execution package. Structure as:\n"
+        "  1) **SELECTED CONCEPT** — The winning Big Idea from phase 1, stated in one line\n"
+        "  2) **FINAL DELIVERABLE** — The actual finished creative work (copy, script, campaign brief) ready to use\n"
+        "  3) **ALTERNATE VERSION** — A second ready-to-use version with a different angle or tone\n"
+        "  4) **ROLLOUT TIMELINE** — Markdown table: [Phase, Action, Owner, Date, Success KPI]\n"
+        "  5) **MEASUREMENT PLAN** — Specific metrics and benchmarks to evaluate creative performance\n"
+        "STRICT RULE: The deliverable must be ready to hand to a client or post immediately. No meta-commentary."
+    ) }
 }
 
 TECH_PHASE_DIRECTIVES = {
@@ -331,7 +429,15 @@ TECH_PHASE_DIRECTIVES = {
     1: { "title": "TRADE-OFF ANALYSIS", "instruction": "Compare tech stack options (gains/sacrifices) with version specifics." },
     2: { "title": "FAILURE MODES", "instruction": "Break the system: Bottlenecks, SPOFs, and data integrity risks." },
     3: { "title": "BUILD SEQUENCE", "instruction": "Phased implementation: MVP, Scale, and Harden cycles." },
-    4: { "title": "CTO VERDICT", "instruction": "Ship/Rearchitect verdict with budget for acceptable tech debt." }
+    4: { "title": "CTO DECISION BRIEF", "instruction": (
+        "You are the CTO. Deliver the complete technical decision brief. Structure as:\n"
+        "  1) **VERDICT** — Ship / Rearchitect / Stop (bold) with one-sentence rationale\n"
+        "  2) **ARCHITECTURE DECISION TABLE** — Markdown table: [Component, Current State, Recommended Change, Effort (S/M/L), Risk]\n"
+        "  3) **TECH DEBT REGISTER** — Accepted debt items with a specific payoff timeline and cost estimate\n"
+        "  4) **BUILD SEQUENCE** — Ordered list: MVP → Scale → Harden with specific milestones\n"
+        "  5) **GO/NO-GO CHECKLIST** — The exact criteria that must be met before shipping to production\n"
+        "STRICT RULE: Name specific technologies, version numbers, and cost estimates. No generic 'refactor the codebase' language."
+    ) }
 }
 
 SYSTEM_PHASE_DIRECTIVES = {
