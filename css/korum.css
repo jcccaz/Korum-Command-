@@ -173,6 +173,22 @@ body {
     box-shadow: inset 0 1px 0 rgba(255, 209, 102, 0.08);
 }
 
+.mission-flow-step.processing {
+    border-color: rgba(245, 168, 0, 0.35);
+    background: linear-gradient(180deg, rgba(45, 33, 12, 0.98), rgba(24, 18, 10, 0.98));
+    animation: flowStepPulse 2s ease-in-out infinite;
+}
+
+@keyframes flowStepPulse {
+    0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 209, 102, 0.08); }
+    50% { box-shadow: inset 0 1px 0 rgba(255, 209, 102, 0.08), 0 0 12px rgba(245, 168, 0, 0.15); }
+}
+
+.mission-flow-step.is-complete .flow-index::after {
+    content: ' \2713';
+    color: rgba(76, 175, 125, 0.7);
+}
+
 .flow-index,
 .flow-title {
     font-family: var(--font-mono);

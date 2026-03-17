@@ -2168,7 +2168,8 @@ async function executeReasoningChain(query) {
         renderChainResults(data.pipeline_result);
         setMissionStep(2, 'complete');
         setMissionStep(3, 'complete');
-        setMissionStep(4, 'active');
+        setMissionStep(4, 'complete');
+        setMissionStep(5, 'active');
         if (data.execution_metrics) {
             renderExecutionDashboard(data.execution_metrics);
         }
@@ -2448,7 +2449,39 @@ function renderChainResults(result) {
 
     logTelemetry("Pipeline Execution Complete.", "system");
     setMissionStep(3, 'complete');
-    setMissionStep(4, 'active');
+    setMissionStep(4, 'complete');
+    setMissionStep(5, 'active');
+
+    // Build execution metrics from pipeline result for Cost Matrix
+    if (result.execution_metrics) {
+        renderExecutionDashboard(result.execution_metrics);
+    } else {
+        const pipelineCost = (result.metrics?.deconstruct?.cost || 0) + (result.metrics?.build?.cost || 0) +
+                             (result.metrics?.stress?.cost || 0) + (result.metrics?.synthesize?.cost || 0) +
+                             (result.metrics?.hacker?.cost || 0);
+        const modelsUsed = ['anthropic', 'openai', 'google'].filter(p => {
+            if (p === 'anthropic') return !!result.constraints;
+            if (p === 'openai') return !!result.standard_solution || !!result.final_artifact;
+            if (p === 'google') return !!result.failure_analysis;
+            return false;
+        });
+        const costBreakdown = {};
+        if (result.metrics?.deconstruct?.cost) costBreakdown['anthropic'] = result.metrics.deconstruct.cost;
+        if (result.metrics?.build?.cost || result.metrics?.synthesize?.cost) costBreakdown['openai'] = (result.metrics?.build?.cost || 0) + (result.metrics?.synthesize?.cost || 0);
+        if (result.metrics?.stress?.cost || result.metrics?.hacker?.cost) costBreakdown['google'] = (result.metrics?.stress?.cost || 0) + (result.metrics?.hacker?.cost || 0);
+        const totalModels = modelsUsed.length || 1;
+        const contributionScores = {};
+        modelsUsed.forEach(p => { contributionScores[p] = Math.round(100 / totalModels); });
+        renderExecutionDashboard({
+            run_cost: pipelineCost,
+            session_total_cost: pipelineCost,
+            latency_ms: totalTime * 1000,
+            workflow_name: synthesisData.meta.workflow,
+            models_used: modelsUsed,
+            ai_cost_breakdown: costBreakdown,
+            contribution_scores: contributionScores
+        });
+    }
 
     // Show Command Console
     const cmdConsole = document.getElementById("commandConsole");
@@ -4244,8 +4277,9 @@ async function executeCouncil(query, roleName) {
     renderResults(data, roleName);
     setMissionStep(2, 'complete');
     setMissionStep(3, 'complete');
-    setMissionStep(4, 'active');
-    
+    setMissionStep(4, 'complete');
+    setMissionStep(5, 'active');
+
     // RENDER EXECUTION METRICS
     if (data.execution_metrics) {
         renderExecutionDashboard(data.execution_metrics);
@@ -4923,6 +4957,11 @@ function renderResults(data, roleName) {
         nextMove: 'Interrogate or verify'
     });
     addCommsActivity('Council response ready', (synthesisMeta.summary || data.consensus || 'Mission answer available.').slice(0, 120), 'ready');
+
+    // Advance mission flow to Results (step 5)
+    setMissionStep(4, 'complete');
+    setMissionStep(5, 'active');
+
     logTelemetry("Consensus Reached. Displaying Output.", "system");
 
     // RENDER CHARTS
@@ -5404,6 +5443,10 @@ const sentinelChat = {
                 });
                 setEvaluationStepState('evalRevisionStep', 'live');
                 addCommsActivity('Follow-up answered', data.response.slice(0, 120) + (data.response.length > 120 ? '...' : ''), 'ready');
+
+                // Advance mission flow to Follow Up (step 6)
+                setMissionStep(5, 'complete');
+                setMissionStep(6, 'active');
             } else {
                 this.appendMessage("Connection Lost. Re-establishing...", 'sentinel error');
                 addCommsActivity('Follow-up failed', 'Global Comms could not reach the mission thread.', 'alert');
@@ -6008,7 +6051,8 @@ function renderV2Results(data) {
         renderChainResults(data.pipeline_result);
         setMissionStep(2, 'complete');
         setMissionStep(3, 'complete');
-        setMissionStep(4, 'active');
+        setMissionStep(4, 'complete');
+        setMissionStep(5, 'active');
     } else {
         console.warn("[V2] No pipeline_result in data", data);
     }
@@ -6260,6 +6304,10 @@ async function handleDocExport(format) {
 
             logTelemetry(`Intelligence Asset Deployed: ${formatNames[format] || format.toUpperCase()}`, "success");
             showProcessingToast(`${formatNames[format] || format.toUpperCase()} Downloaded`);
+
+            // Advance mission flow: Results complete → Follow Up active
+            setMissionStep(5, 'complete');
+            setMissionStep(6, 'active');
         } else {
             const err = await response.json();
             throw new Error(err.error || "Server failed to build asset");
