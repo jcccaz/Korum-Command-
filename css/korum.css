@@ -5350,19 +5350,20 @@ body.activated .sphere-texture {
     }
 }
 
-@media (max-width: 1280px) {
+/* Mid-range and Large Monitor Nav Calibration (Up to 1800px) */
+@media (max-width: 1800px) {
     .top-bar {
-        gap: 10px;
-        align-items: center; /* Changed from flex-start to keep it centered vertically */
+        gap: 8px;
     }
 
     .nav-links {
         flex-wrap: nowrap;
         overflow-x: auto;
-        scrollbar-width: none; /* Hide scrollbar for cleaner look */
-        max-width: calc(100vw - 320px); /* Adjust based on flanking elements */
-        padding-bottom: 0;
+        scrollbar-width: none; 
+        max-width: calc(100vw - 420px); /* Leave more for flanking elements */
+        padding-bottom: 2px;
         -ms-overflow-style: none;
+        justify-content: flex-start; /* Better for scrolling */
     }
     
     .nav-links::-webkit-scrollbar {
@@ -5371,6 +5372,14 @@ body.activated .sphere-texture {
 
     .nav-links a {
         flex: 0 0 auto;
+        padding: 6px 12px !important;
+        font-size: 11px !important;
+    }
+}
+
+@media (max-width: 1280px) {
+    .nav-links {
+        max-width: calc(100vw - 320px);
     }
 }
 
