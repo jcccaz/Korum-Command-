@@ -169,7 +169,9 @@ def _extract_parts(intelligence_object):
     meta = data.get("meta", {}) or {}
     sections = data.get("sections", {}) or {}
     structured = data.get("structured_data", {}) or {}
-    return meta, sections, structured
+    interrogations = data.get("interrogations", [])
+    verifications = data.get("verifications", [])
+    return meta, sections, structured, interrogations, verifications
 
 
 class WordExporter:
@@ -250,7 +252,7 @@ class WordExporter:
 
     @staticmethod
     def generate(intelligence_object, output_dir=None):
-        meta, sections, structured = _extract_parts(intelligence_object)
+        meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         card_results = intelligence_object.get("_card_results", {})
         mission_ctx = intelligence_object.get("_mission_context") or {}
 
@@ -440,6 +442,64 @@ class WordExporter:
                 para = para.strip()
                 if para:
                     doc.add_paragraph(para)
+            WordExporter._add_section_divider(doc)
+
+        # ═══════════════════════════════════════════════════════════════
+        # AUDIT & VERIFICATION TRAIL
+        # ═══════════════════════════════════════════════════════════════
+        if interrogations or verifications:
+            WordExporter._add_branded_heading(doc, "Audit & Verification Trail")
+
+            if interrogations:
+                doc.add_paragraph("The following adversarial cross-examinations were performed by the council to challenge and validate the synthesis results.")
+                for idx, entry in enumerate(interrogations):
+                    table = doc.add_table(rows=1, cols=2)
+                    table.autofit = True
+                    hdr = table.rows[0].cells
+                    hdr[0].text = f"INTERROGATION #{idx+1}"
+                    hdr[1].text = entry.get('verdict', 'CONTESTED')
+                    WordExporter._style_header_row(table.rows[0], bg_hex="1A0A0A", text_color=RGBColor(0xFF, 0x44, 0x44))
+
+                    row = table.add_row().cells
+                    row[0].text = "ATTACKER"
+                    row[1].text = f"{entry.get('attacker', '').upper()} ({entry.get('attacker_model', '')})"
+
+                    row = table.add_row().cells
+                    row[0].text = "DEFENDER"
+                    row[1].text = f"{entry.get('defender', '').upper()} ({entry.get('defender_model', '')})"
+
+                    if entry.get('attacker_response'):
+                        row = table.add_row().cells
+                        row[0].text = "CHALLENGE"
+                        row[1].text = _clean_tags(entry['attacker_response'])
+
+                    if entry.get('defender_response'):
+                        row = table.add_row().cells
+                        row[0].text = "REBUTTAL"
+                        row[1].text = _clean_tags(entry['defender_response'])
+
+                    doc.add_paragraph() # Spacer
+
+            if verifications:
+                doc.add_paragraph("Authoritative source verification results via external intelligence nodes.")
+                for idx, entry in enumerate(verifications):
+                    table = doc.add_table(rows=1, cols=2)
+                    table.autofit = True
+                    hdr = table.rows[0].cells
+                    hdr[0].text = f"SOURCE CHECK #{idx+1}"
+                    hdr[1].text = entry.get('verdict', 'UNRESOLVED')
+                    WordExporter._style_header_row(table.rows[0], bg_hex="0A1628", text_color=RGBColor(0x00, 0xE5, 0xFF))
+
+                    row = table.add_row().cells
+                    row[0].text = "CLAIM"
+                    row[1].text = entry.get('claim', '')
+
+                    row = table.add_row().cells
+                    row[0].text = "EVIDENCE"
+                    row[1].text = _clean_tags(entry.get('verification', ''))
+
+                    doc.add_paragraph()
+
             WordExporter._add_section_divider(doc)
 
         # ═══════════════════════════════════════════════════════════════
@@ -933,7 +993,7 @@ class PPTXExporter:
     def generate(intelligence_object, output_dir=None):
         from pptx.util import Pt as PptxPt
 
-        meta, sections, _ = _extract_parts(intelligence_object)
+        meta, sections, _, interrogations, verifications = _extract_parts(intelligence_object)
         prs = PPTXPresentation()
 
         title_slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -966,7 +1026,7 @@ class PPTXExporter:
 class ExcelExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
-        meta, sections, structured = _extract_parts(intelligence_object)
+        meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         wb = Workbook()
 
         ws_meta = wb.active
@@ -1021,6 +1081,33 @@ class ExcelExporter:
                 ]
             )
 
+        if interrogations:
+            ws_int = wb.create_sheet("Audit - Interrogations")
+            ws_int.append(["Timestamp", "Target", "Attacker", "Defender", "Verdict", "Score Delta", "Challenge", "Rebuttal"])
+            for entry in interrogations:
+                ws_int.append([
+                    entry.get('timestamp', ''),
+                    entry.get('target', ''),
+                    f"{entry.get('attacker', '').upper()} ({entry.get('attacker_model', '')})",
+                    f"{entry.get('defender', '').upper()} ({entry.get('defender_model', '')})",
+                    entry.get('verdict', ''),
+                    entry.get('score_delta', 0),
+                    entry.get('attacker_response', ''),
+                    entry.get('defender_response', '')
+                ])
+
+        if verifications:
+            ws_ver = wb.create_sheet("Audit - Verifications")
+            ws_ver.append(["Timestamp", "Claim", "Verdict", "Score Delta", "Evidence"])
+            for entry in verifications:
+                ws_ver.append([
+                    entry.get('timestamp', ''),
+                    entry.get('claim', ''),
+                    entry.get('verdict', ''),
+                    entry.get('score_delta', 0),
+                    entry.get('verification', '')
+                ])
+
         filename = f"korum_intelligence_{_timestamp()}.xlsx"
         filepath = _output_path(filename, output_dir)
         wb.save(filepath)
@@ -1030,12 +1117,20 @@ class ExcelExporter:
 class CSVExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
-        meta, sections, structured = _extract_parts(intelligence_object)
+        meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         filename = f"korum_intelligence_{_timestamp()}.csv"
         filepath = _output_path(filename, output_dir)
         with open(filepath, "w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
             writer.writerow(["type", "key", "value", "extra"])
+
+            if interrogations:
+                for entry in interrogations:
+                    writer.writerow(["audit_interrogation", entry.get('target', ''), entry.get('verdict', ''), f"Delta: {entry.get('score_delta', 0)}"])
+            
+            if verifications:
+                for entry in verifications:
+                    writer.writerow(["audit_verification", entry.get('claim', ''), entry.get('verdict', ''), ""])
 
             writer.writerow(["meta", "title", _as_text(meta.get("title", "")), ""])
             writer.writerow(["meta", "generated_at", _as_text(meta.get("generated_at", "")), ""])
@@ -1063,7 +1158,7 @@ class CSVExporter:
 class TextExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
-        meta, sections, structured = _extract_parts(intelligence_object)
+        meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         filename = f"korum_intelligence_{_timestamp()}.txt"
         filepath = _output_path(filename, output_dir)
         with open(filepath, "w", encoding="utf-8") as file:
@@ -1087,7 +1182,7 @@ class TextExporter:
 class MarkdownExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
-        meta, sections, structured = _extract_parts(intelligence_object)
+        meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         filename = f"korum_intelligence_{_timestamp()}.md"
         filepath = _output_path(filename, output_dir)
         with open(filepath, "w", encoding="utf-8") as file:
@@ -1097,6 +1192,22 @@ class MarkdownExporter:
             file.write(f"## Executive Summary\n\n{_as_text(meta.get('summary', ''))}\n\n")
             for section_id, content in sections.items():
                 file.write(f"## {section_id.replace('_', ' ').title()}\n\n{_as_text(content)}\n\n")
+            if interrogations or verifications:
+                file.write("## Audit & Verification Trail\n\n")
+                if interrogations:
+                    file.write("### Adversarial Interrogations\n\n")
+                    for entry in interrogations:
+                        file.write(f"**Target:** {entry.get('target', 'Claim')}\n")
+                        file.write(f"**Verdict:** {entry.get('verdict', 'CONTESTED')} (Delta: {entry.get('score_delta', 0)})\n\n")
+                        file.write(f"> **Attacker ({entry.get('attacker', '').upper()}):** {entry.get('attacker_response', '')}\n\n")
+                        file.write(f"> **Defender ({entry.get('defender', '').upper()}):** {entry.get('defender_response', '')}\n\n")
+                if verifications:
+                    file.write("### Source Verifications\n\n")
+                    for entry in verifications:
+                        file.write(f"**Claim:** {entry.get('claim', '')}\n")
+                        file.write(f"**Verdict:** {entry.get('verdict', 'UNRESOLVED')}\n\n")
+                        file.write(f"> **Evidence:** {entry.get('verification', '')}\n\n")
+
             file.write("## Structured Data\n\n")
             file.write("```json\n")
             file.write(json.dumps(structured, indent=2, ensure_ascii=True))
@@ -1119,7 +1230,7 @@ class PDFExporter:
 
     @staticmethod
     def generate(intelligence_object, output_dir=None):
-        meta, sections, structured = _extract_parts(intelligence_object)
+        meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         card_results = intelligence_object.get("_card_results", {})
         mission_ctx = intelligence_object.get("_mission_context") or {}
         filename = f"korum_report_{_timestamp()}.pdf"
@@ -1364,6 +1475,67 @@ class PDFExporter:
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor(BG_CARD), colors.HexColor(BG_SURFACE)])
             ]))
             story.append(t)
+
+        # --- AUDIT & VERIFICATION TRAIL ---
+        if interrogations or verifications:
+            story.append(Paragraph("Audit & Verification Trail", styles['BrandedHeading1']))
+
+            if interrogations:
+                story.append(Paragraph("The following adversarial cross-examinations were performed by the council to challenge and validate the synthesis results.", styles['SectionBody']))
+                story.append(Spacer(1, 4))
+                for idx, entry in enumerate(interrogations):
+                    i_data = [
+                        [Paragraph(f"<b>INTERROGATION #{idx+1}</b>", styles['SectionBody']),
+                         Paragraph(f"<b>{entry.get('verdict', 'CONTESTED')}</b>", styles['SectionBody'])],
+                        ["ATTACKER", f"{entry.get('attacker', '').upper()} ({entry.get('attacker_model', '')})"],
+                        ["DEFENDER", f"{entry.get('defender', '').upper()} ({entry.get('defender_model', '')})"]
+                    ]
+
+                    if entry.get('attacker_response'):
+                        i_data.append(["CHALLENGE", Paragraph(entry['attacker_response'][:1000], styles['SectionBody'])])
+                    if entry.get('defender_response'):
+                        i_data.append(["REBUTTAL", Paragraph(entry['defender_response'][:1000], styles['SectionBody'])])
+
+                    t = Table(i_data, colWidths=[100, 412])
+                    t.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A0A0A")),
+                        ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor(ACCENT_RED)),
+                        ('TEXTCOLOR', (1, 0), (1, 0), colors.HexColor(ACCENT_RED)),
+                        ('FONTSIZE', (0, 0), (-1, -1), 8),
+                        ('TEXTCOLOR', (0, 1), (0, -1), colors.HexColor(TEXT_SECONDARY)),
+                        ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor(TEXT_PRIMARY)),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
+                        ('VALIGN', (1, 1), (1, -1), 'TOP'),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                        ('TOPPADDING', (0, 0), (-1, -1), 6)
+                    ]))
+                    story.append(t)
+                    story.append(Spacer(1, 10))
+
+            if verifications:
+                story.append(Paragraph("Authoritative source verification results via external intelligence nodes.", styles['SectionBody']))
+                story.append(Spacer(1, 4))
+                for idx, entry in enumerate(verifications):
+                    v_data = [
+                        [Paragraph(f"<b>SOURCE CHECK #{idx+1}</b>", styles['SectionBody']),
+                         Paragraph(f"<b>{entry.get('verdict', 'UNRESOLVED')}</b>", styles['SectionBody'])],
+                        ["CLAIM", Paragraph(f"<i>\"{entry.get('claim', '')}\"</i>", styles['SectionBody'])],
+                        ["EVIDENCE", Paragraph(entry.get('verification', ''), styles['SectionBody'])]
+                    ]
+                    t = Table(v_data, colWidths=[100, 412])
+                    t.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0A1628")),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_CYAN)),
+                        ('FONTSIZE', (0, 0), (-1, -1), 8),
+                        ('TEXTCOLOR', (0, 1), (0, -1), colors.HexColor(TEXT_SECONDARY)),
+                        ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor(TEXT_PRIMARY)),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
+                        ('VALIGN', (1, 1), (1, -1), 'TOP'),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                        ('TOPPADDING', (0, 0), (-1, -1), 6)
+                    ]))
+                    story.append(t)
+                    story.append(Spacer(1, 10))
 
         # --- ANALYTIC DIVERGENCE ---
         divergence = intelligence_object.get("divergence_analysis") or {}
