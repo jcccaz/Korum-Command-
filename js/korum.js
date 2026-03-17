@@ -5443,6 +5443,13 @@ function setTextById(id, value) {
     }
 }
 
+function summarizeMissionText(text, maxLength = 110) {
+    if (text === undefined || text === null) return text;
+    const compact = String(text).replace(/\s+/g, ' ').trim();
+    if (!compact) return compact;
+    return compact.length > maxLength ? `${compact.slice(0, Math.max(0, maxLength - 3))}...` : compact;
+}
+
 // ── EVALUATION STRIP (dynamic) ──────────────────────────────
 function buildEvaluationStrip() {
     const container = document.getElementById('evaluationSteps');
@@ -5514,7 +5521,7 @@ function addCommsActivity(title, detail, kind = 'ready') {
         <span class="activity-dot ${kind === 'live' ? 'is-live' : kind === 'alert' ? 'is-alert' : 'is-ready'}"></span>
         <div>
             <strong>${title}</strong>
-            <span>${detail}</span>
+            <span>${summarizeMissionText(detail, 160)}</span>
         </div>
     `;
     list.prepend(item);
@@ -5545,7 +5552,7 @@ function updateRevisionSummary({
     affected,
     nextMove
 } = {}) {
-    setTextById('threadLatestFollowup', latestFollowup);
+    setTextById('threadLatestFollowup', summarizeMissionText(latestFollowup, 130));
     setTextById('threadRevisionState', revisionState);
     setTextById('revisionImpactValue', impact);
     setTextById('revisionAffectedValue', affected);

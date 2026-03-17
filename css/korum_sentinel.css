@@ -199,6 +199,19 @@
     color: var(--text-primary);
     font-size: 13px;
     line-height: 1.45;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+    text-overflow: ellipsis;
+}
+
+.thread-summary-block strong {
+    -webkit-line-clamp: 4;
+}
+
+.revision-impact-item strong {
+    -webkit-line-clamp: 3;
 }
 
 .sentinel-chat-container {
@@ -291,6 +304,9 @@
     border-radius: 8px;
     padding: 8px;
     flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
 }
 
 .sentinel-input {
