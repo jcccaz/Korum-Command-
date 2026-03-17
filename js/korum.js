@@ -1532,7 +1532,6 @@ function toggleMode(mode) {
     }
 }
 
-// Query pattern detection for smart suggestions
 const QUERY_PATTERNS = {
     "War Room": ["crisis", "threat", "emergency", "attack", "vulnerability", "breach", "defend", "strategy", "takeover", "hostile"],
     "Deep Research": ["research", "study", "analyze", "investigate", "explain", "how does", "what is", "history", "scientific", "academic"],
@@ -1550,6 +1549,20 @@ const QUERY_PATTERNS = {
     "Intel Brief": ["intelligence", "osint", "sigint", "humint", "geopolitical", "adversary", "threat assessment", "espionage", "counterintelligence", "national security", "classified", "briefing", "surveillance", "reconnaissance", "entity", "encrypted communication", "shell organization", "financial transfer", "logistics movement", "satellite monitoring", "coordinated operation", "deception", "false flag", "operational chain", "threat scenario", "intrusion group", "redacted"],
     "System Core": ["general", "help", "question", "advice"]
 };
+
+
+function setMissionStep(step, status) {
+    const el = document.getElementById(`flow-step-${step}`);
+    if (!el) return;
+    el.classList.remove('is-active', 'is-complete', 'processing');
+    if (status === 'active') {
+        el.classList.add('is-active');
+    } else if (status === 'complete') {
+        el.classList.add('is-complete');
+    } else if (status === 'processing') {
+        el.classList.add('is-active', 'processing');
+    }
+}
 
 function analyzeQuery(query) {
     const lowerQuery = query.toLowerCase();
@@ -1866,6 +1879,20 @@ function setupActionBindings() {
         const query = document.getElementById('queryInput')?.value?.trim();
         if (query) triggerCouncil(query);
     });
+
+    const updateLiveSubtitle = () => {
+        const client = document.getElementById('intake-client')?.value || 'Project Neptune';
+        const industry = document.getElementById('intake-industry')?.value;
+        const workflow = document.getElementById('intake-workflow');
+        const workflowLabel = workflow ? workflow.options[workflow.selectedIndex].text.split('(')[0].replace(/[^\w\s\)/]/g, '').trim() : 'Finance Desk';
+        
+        setTextById('stageSubtitle', `${client} · ${industry || workflowLabel}`);
+    };
+
+    document.getElementById('intake-client')?.addEventListener('input', updateLiveSubtitle);
+    document.getElementById('intake-industry')?.addEventListener('input', updateLiveSubtitle);
+    document.getElementById('intake-workflow')?.addEventListener('change', updateLiveSubtitle);
+
     document.getElementById('intakeModal')?.addEventListener('click', (e) => {
         if (e.target?.id === 'intakeModal') closeIntakeModal();
     });
@@ -2039,6 +2066,8 @@ async function triggerCouncil(query) {
 
     animateActivation();
     startProcessingLogs();
+    setMissionStep(1, 'complete');
+    setMissionStep(2, 'processing');
 
     const isV2 = activeModes.v2;
 
@@ -2113,6 +2142,9 @@ async function executeReasoningChain(query) {
         logTelemetry(`VAULT: ${vaultDocIds.length} vault document(s) attached to V2 chain`, "process");
     }
 
+    setMissionStep(2, 'complete');
+    setMissionStep(3, 'processing');
+
     const response = await authFetch('/api/v2/reasoning_chain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2124,6 +2156,9 @@ async function executeReasoningChain(query) {
 
     if (data.success) {
         renderChainResults(data.pipeline_result);
+        setMissionStep(2, 'complete');
+        setMissionStep(3, 'complete');
+        setMissionStep(4, 'active');
         if (data.execution_metrics) {
             renderExecutionDashboard(data.execution_metrics);
         }
@@ -2402,6 +2437,8 @@ function renderChainResults(result) {
     if (result.final_artifact) sessionState.lastResponses['openai_exec'] = result.final_artifact;
 
     logTelemetry("Pipeline Execution Complete.", "system");
+    setMissionStep(3, 'complete');
+    setMissionStep(4, 'active');
 
     // Show Command Console
     const cmdConsole = document.getElementById("commandConsole");
@@ -4046,18 +4083,39 @@ async function executeCouncil(query, roleName) {
         showLoadingState(taskType);
     }
 
+    // Determine active workflow label
+    const activeNav = document.querySelector('.nav-links a.active');
+    const currentWorkflow = activeNav?.textContent?.trim() || roleName || 'Council';
+
+    // Count active (non-silenced) models for the role copy
+    const rosterModels = ["openai", "anthropic", "google", "perplexity", "mistral", "local"]
+        .filter(p => AIHealth.isAvailable(p) && !document.querySelector(`.deck-card.${p}`)?.classList.contains('silenced'));
+    const rosterNames = rosterModels.map(p => getProviderName(p)).join(', ');
+
+    const clientName = sessionState.missionContext?.client || 'Council';
+    const workflowName = currentWorkflow || sessionState.missionContext?.industry || 'Strategist';
+
     updateStageState({
-        subtitle: `${(sessionState.originalQuery || query).split('\n')[0].slice(0, 80)}${roleName ? ` · ${roleName}` : ''}`,
+        subtitle: `${clientName} · ${workflowName}`,
         primaryState: 'Generation Live',
         secondaryState: activeModes.falcon ? 'Falcon Aware' : 'Council Active',
-        councilCopy: 'Directive accepted and routed to the active council.',
-        roleCopy: 'Generating the next answer across the selected roster.',
+        councilCopy: `Directive accepted and routed to the ${currentWorkflow} council.`,
+        roleCopy: rosterNames ? `${rosterNames} aligned.` : 'Generating the next answer across the selected roster.',
         verifyTitle: 'Verification Window',
         verifyCopy: 'Waiting for the answer before evidence review begins.',
-        verifyState: 'live',
+        verifyState: null,
         revisionTitle: 'Synthesis Revision',
-        revisionCopy: 'Revision state will update once an answer lands.'
+        revisionCopy: 'Revision state will update once an answer lands.',
+        revisionState: null
     });
+    // Drive evaluation strip: council active, roles aligning
+    setEvaluationStepState('evalCouncilStep', 'live');
+    setTextById('evalCouncilTitle', 'Council Active');
+    setTextById('evalCouncilCopy', `Directive accepted and routed to the ${currentWorkflow} council.`);
+    setEvaluationStepState('evalRoleStep', 'live');
+    setTextById('evalRoleTitle', 'Role Assignment');
+    setTextById('evalRoleCopy', rosterNames ? `${rosterNames} aligned.` : 'Aligning roster...');
+    setCommsContextActive(true);
     updateRevisionSummary({
         latestFollowup: query.length > 96 ? `${query.slice(0, 96)}...` : query,
         revisionState: 'Answer generation in progress.',
@@ -4142,10 +4200,16 @@ async function executeCouncil(query, roleName) {
             formData.append('files', file);
         }
         logTelemetry(`${pendingFiles.length} file(s) attached to query (multipart)`, "process");
+        setMissionStep(2, 'complete');
+        setMissionStep(3, 'processing');
+
         response = await authFetch('/api/ask', { method: 'POST', body: formData }, 300000);
         pendingFiles = [];
         renderFilePreview();
     } else {
+        setMissionStep(2, 'complete');
+        setMissionStep(3, 'processing');
+
         response = await authFetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }, 300000);
         if (vaultDocIds.length > 0) {
             VaultUploader.clear();
@@ -4162,6 +4226,9 @@ async function executeCouncil(query, roleName) {
     }
 
     renderResults(data, roleName);
+    setMissionStep(2, 'complete');
+    setMissionStep(3, 'complete');
+    setMissionStep(4, 'active');
     
     // RENDER EXECUTION METRICS
     if (data.execution_metrics) {
@@ -5376,6 +5443,54 @@ function setTextById(id, value) {
     }
 }
 
+// ── EVALUATION STRIP (dynamic) ──────────────────────────────
+function buildEvaluationStrip() {
+    const container = document.getElementById('evaluationSteps');
+    if (!container || container.children.length > 0) return;
+
+    const steps = [
+        { id: 'evalCouncilStep', titleId: 'evalCouncilTitle', copyId: 'evalCouncilCopy',
+          title: 'Awaiting Directive', copy: 'Submit a query to activate the council.' },
+        { id: 'evalRoleStep', titleId: 'evalRoleTitle', copyId: 'evalRoleCopy',
+          title: 'Role Assignment', copy: 'Roster will align once the directive is accepted.' },
+        { id: 'evalVerifyStep', titleId: 'evalVerifyTitle', copyId: 'evalVerifyCopy',
+          title: 'Verification Window', copy: 'Evidence review begins after generation.' },
+        { id: 'evalRevisionStep', titleId: 'evalRevisionTitle', copyId: 'evalRevisionCopy',
+          title: 'Synthesis Revision', copy: 'Revision state updates after verification.' }
+    ];
+
+    steps.forEach(s => {
+        const step = document.createElement('div');
+        step.className = 'evaluation-step';
+        step.id = s.id;
+        step.innerHTML = `
+            <span class="evaluation-dot"></span>
+            <div>
+                <strong id="${s.titleId}">${s.title}</strong>
+                <span id="${s.copyId}">${s.copy}</span>
+            </div>`;
+        container.appendChild(step);
+    });
+}
+
+function resetEvaluationStrip() {
+    const steps = [
+        { id: 'evalCouncilStep', titleId: 'evalCouncilTitle', copyId: 'evalCouncilCopy',
+          title: 'Awaiting Directive', copy: 'Submit a query to activate the council.' },
+        { id: 'evalRoleStep', titleId: 'evalRoleTitle', copyId: 'evalRoleCopy',
+          title: 'Role Assignment', copy: 'Roster will align once the directive is accepted.' },
+        { id: 'evalVerifyStep', titleId: 'evalVerifyTitle', copyId: 'evalVerifyCopy',
+          title: 'Verification Window', copy: 'Evidence review begins after generation.' },
+        { id: 'evalRevisionStep', titleId: 'evalRevisionTitle', copyId: 'evalRevisionCopy',
+          title: 'Synthesis Revision', copy: 'Revision state updates after verification.' }
+    ];
+    steps.forEach(s => {
+        setEvaluationStepState(s.id, null);
+        setTextById(s.titleId, s.title);
+        setTextById(s.copyId, s.copy);
+    });
+}
+
 function setEvaluationStepState(stepId, state) {
     const el = document.getElementById(stepId);
     if (!el) return;
@@ -5506,8 +5621,11 @@ function updateStageFromAnswer({
     councilCopy,
     roleCopy
 } = {}) {
+    const clientPrefix = sessionState.missionContext?.client || 'Mission synthesis';
+    const workflowSuffix = title || workflow || sessionState.missionContext?.industry || 'Council';
+
     updateStageState({
-        subtitle: `${title || 'Mission synthesis ready'}${workflow ? ` · ${workflow}` : ''}`,
+        subtitle: `${clientPrefix} · ${workflowSuffix}`,
         primaryState: 'Synthesis Ready',
         secondaryState: activeModes.falcon ? 'Falcon Aware' : `${activeModels || 0} Models Active`,
         runway: runway || 'Locked',
@@ -5523,32 +5641,51 @@ function updateStageFromAnswer({
         revisionCopy: 'Follow-up can still update the total response.',
         revisionState: null
     });
+
+    // Drive evaluation strip: council + roles complete, verification now live
+    setEvaluationStepState('evalCouncilStep', 'complete');
+    setTextById('evalCouncilTitle', 'Council Active');
+    setTextById('evalCouncilCopy', councilCopy || 'Council response complete and ready for review.');
+    setEvaluationStepState('evalRoleStep', 'complete');
+    setTextById('evalRoleTitle', 'Role Alignment');
+    setTextById('evalRoleCopy', roleCopy || 'Active roster completed the current pass.');
+    setEvaluationStepState('evalVerifyStep', 'live');
 }
 
 function initializeMissionSurface() {
+    buildEvaluationStrip();
+    resetEvaluationStrip();
     resetCommsActivity();
+    setCommsContextActive(false);
+    const hasDockArtifacts = Array.isArray(ResearchDock?.snippets) && ResearchDock.snippets.length > 0;
+
+    // Determine current workflow context for the idle label
+    const activeNav = document.querySelector('.nav-links a.active');
+    const workflowLabel = activeNav?.textContent?.trim() || 'Command Center';
+    
+    const clientName = sessionState.missionContext?.client || 'Awaiting directive';
+    const industryName = sessionState.missionContext?.industry || workflowLabel;
     updateStageState({
-        subtitle: 'Project Neptune · Finance Desk',
-        primaryState: 'Generation Live',
+        subtitle: `${clientName} · ${industryName}`,
+        primaryState: 'System Ready',
         secondaryState: activeModes.falcon ? 'Falcon Aware' : 'Mission Idle',
-        runway: '3.1 mo',
-        burn: '$11.58M',
-        risk: 'Critical',
-        truth: '79 / 100',
-        councilCopy: 'Directive routed to the finance council.',
-        roleCopy: 'CFO, Auditor, Scout, Tax, Hedge Fund aligned.',
+        runway: '--',
+        burn: '--',
+        risk: '--',
+        truth: '-- / 100',
+        councilCopy: 'Submit a query to activate the council.',
+        roleCopy: 'Roster will align once the directive is accepted.',
         verifyTitle: 'Verification Window',
-        verifyCopy: 'Ready for source checks and interrogation.',
-        verifyState: 'live',
+        verifyCopy: 'Evidence review begins after generation.',
         revisionTitle: 'Synthesis Revision',
-        revisionCopy: 'Follow-up can still update the total response.'
+        revisionCopy: 'Revision state updates after verification.'
     });
     updateRevisionSummary({
-        latestFollowup: 'Verify vendor cost math and confirm the bankruptcy trigger.',
-        revisionState: 'Synthesis stays live until evidence locks.',
-        impact: 'Confidence 79 → 73',
-        affected: 'Risk, burn, execution',
-        nextMove: 'Interrogate or verify'
+        latestFollowup: 'No active follow-up.',
+        revisionState: 'Idle — awaiting first council pass.',
+        impact: '--',
+        affected: '--',
+        nextMove: 'Submit directive'
     });
     updateResultsDockState({
         pill: 'Standby',
@@ -5680,6 +5817,8 @@ function triggerNetworkAnimation() {
 
     animateActivation();
     startProcessingLogs();
+    setMissionStep(1, 'complete');
+    setMissionStep(2, 'processing');
 }
 
 function animateActivation() {
@@ -5844,6 +5983,9 @@ function renderV2Results(data) {
     // Delegate to renderChainResults for V2 pipeline output
     if (data && data.pipeline_result) {
         renderChainResults(data.pipeline_result);
+        setMissionStep(2, 'complete');
+        setMissionStep(3, 'complete');
+        setMissionStep(4, 'active');
     } else {
         console.warn("[V2] No pipeline_result in data", data);
     }
@@ -6553,15 +6695,23 @@ document.getElementById('libraryOverlay')?.addEventListener('click', () => toggl
 // ============================================================
 // KORUM WORLDVIEW BRIDGE
 // ============================================================
+const WORLDVIEW_BASE_URL = window.KORUM_CONFIG?.worldviewUrl
+    || (window.location.hostname === 'localhost' ? 'http://localhost:5001' : '');
+
 document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     const anomalyId = params.get('worldview_anomaly');
     if (anomalyId) {
         logTelemetry("Korum WorldView Handoff Detected: anomaly_id=" + anomalyId, "system");
         showProcessingToast("Importing context from WorldView Engine...");
-        
-        // Fetch the anomaly context from WorldView backend (runs on 5001)
-        fetch(`http://localhost:5001/api/anomalies/${anomalyId}`)
+
+        if (!WORLDVIEW_BASE_URL) {
+            console.error("WorldView Bridge: No WORLDVIEW_BASE_URL configured for this environment.");
+            logTelemetry("WorldView bridge skipped — no base URL configured", "error");
+            return;
+        }
+
+        fetch(`${WORLDVIEW_BASE_URL}/api/anomalies/${anomalyId}`)
             .then(res => res.json())
             .then(data => {
                 if (data && data.severity) {

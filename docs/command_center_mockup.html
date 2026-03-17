@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KORUM-OS Command Center Mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --deep-black:#0A0A0A;
+            --surface-black:#141414;
+            --elevated-surface:#1E1E1E;
+            --falcon-silver:#C8C8CC;
+            --high-silver:#E8E8EC;
+            --amber-eye:#F5A800;
+            --deep-amber:#C47D00;
+            --bright-amber:#FFD166;
+            --border:#2A2A2A;
+            --muted:#6B6B6B;
+            --disabled:#3D3D3D;
+            --alert:#FF4D4D;
+            --confirm:#4CAF7D;
+            --warning:#E8B84B;
+            --green:var(--confirm);
+            --gold:var(--amber-eye);
+            --blue:var(--falcon-silver);
+            --red:var(--alert);
+            --taupe:var(--falcon-silver);
+            --ember:var(--deep-amber);
+            --dim:var(--muted);
+            --text:var(--high-silver);
+            --line:rgba(200,200,204,.16);
+            --line2:rgba(232,232,236,.18);
+            --openai:var(--confirm);
+            --anthropic:var(--deep-amber);
+            --google:var(--high-silver);
+            --perplexity:var(--warning);
+            --mistral:var(--amber-eye);
+            --local:var(--falcon-silver);
+            --head:'Outfit',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+        }
+        * { box-sizing:border-box; }
+        html, body { margin:0; min-height:100%; background:
+            radial-gradient(circle at 50% -10%, rgba(245,168,0,.04), transparent 26%),
+            linear-gradient(180deg, #111317 0%, #0A0A0A 45%, #070707 100%);
+            color:var(--text); font-family:var(--body); }
+        body { padding:24px; }
+        .shell { width:min(1800px,100%); margin:0 auto; display:grid; gap:18px; }
+        .bar, .rail, .panel, .phase-section, .deploy, .dock {
+            border:1px solid rgba(200,200,204,.12);
+            background:
+                linear-gradient(180deg, rgba(20,20,20,.98), rgba(10,10,10,.99)),
+                linear-gradient(90deg, rgba(232,232,236,.02), rgba(232,232,236,0));
+            border-radius:26px;
+            box-shadow:
+                0 18px 50px rgba(0,0,0,.46),
+                inset 0 1px 0 rgba(255,255,255,.04),
+                inset 0 -1px 0 rgba(0,0,0,.65);
+        }
+        .bar { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 22px; }
+        .brand, .meta { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+        .account-label { color:var(--falcon-silver); font:500 13px var(--body); }
+        .eyebrow, .label, .tiny, .phase-top, .stack { font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; }
+        .eyebrow { color:var(--amber-eye); }
+        .divider { width:1px; height:20px; background:var(--line2); }
+        .title { font:700 20px var(--head); }
+        .chip { padding:10px 12px; border-radius:999px; border:1px solid var(--line); background:rgba(232,232,236,.03); color:var(--muted); font-size:13px; }
+        .chip.success, .state.active, .mini.active, .status-tag { color:var(--confirm); border-color:rgba(76,175,125,.28); background:linear-gradient(135deg,rgba(76,175,125,.14),rgba(18,28,22,.96)); box-shadow:none; }
+        .action.primary { color:var(--amber-eye); border-color:rgba(245,168,0,.26); background:linear-gradient(135deg,rgba(245,168,0,.12),rgba(34,24,8,.96)); }
+        .chip.money { color:var(--amber-eye); font-family:var(--head); font-weight:700; }
+        .utility-btn { width:38px; height:38px; display:grid; place-items:center; border-radius:10px; border:1px solid var(--line); background:rgba(232,232,236,.02); font:700 17px var(--head); }
+        .utility-btn.history { color:var(--falcon-silver); border-color:rgba(200,200,204,.22); }
+        .utility-btn.logs { color:var(--alert); border-color:rgba(255,77,77,.28); }
+        .utility-btn.cost { color:var(--amber-eye); border-color:rgba(245,168,0,.28); }
+        .utility-btn.menu { color:var(--falcon-silver); border-color:rgba(200,200,204,.18); font-size:20px; }
+        .rail { display:flex; gap:10px; padding:12px; overflow-x:auto; background:linear-gradient(180deg, rgba(18,18,18,.98), rgba(10,10,10,.98)); }
+        .pill { border:1px solid rgba(200,200,204,.18); background:linear-gradient(180deg, rgba(30,30,30,.96), rgba(16,16,16,.96)); color:var(--falcon-silver); border-radius:999px; padding:11px 16px; white-space:nowrap; font:500 13px var(--head); letter-spacing:.08em; text-transform:uppercase; box-shadow:inset 0 1px 0 rgba(232,232,236,.03); }
+        .pill.active { color:#1b1200; background:linear-gradient(135deg,var(--bright-amber),var(--amber-eye)); border-color:rgba(245,168,0,.4); box-shadow:0 0 0 2px rgba(245,168,0,.14), 0 0 16px rgba(245,168,0,.14); }
+        .flow-strip { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+        .flow-step {
+            padding:14px 16px;
+            border:1px solid rgba(197,179,150,.14);
+            border-radius:18px;
+            background:linear-gradient(180deg, rgba(21,23,28,.96), rgba(11,13,16,.96));
+            box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+        }
+        .flow-step strong { display:block; margin-top:8px; font:700 15px var(--head); }
+        .flow-step.active { border-color:rgba(255,176,32,.28); background:linear-gradient(135deg,rgba(255,176,32,.12),rgba(36,25,8,.92)); }
+        .flow-step.complete { border-color:rgba(76,175,125,.16); background:linear-gradient(135deg,rgba(76,175,125,.08),rgba(8,24,18,.92)); }
+        .grid { display:grid; gap:18px; grid-template-columns:320px minmax(700px,1fr) 340px; align-items:start; }
+        .panel { padding:22px; }
+        .left, .right { min-height:860px; }
+        .header, .section-head, .deploy-head, .dock-head { display:flex; justify-content:space-between; gap:18px; }
+        h1, h2, h3, p { margin:0; }
+        h1, h2, h3 { font-family:var(--head); letter-spacing:-.02em; }
+        .mission { display:flex; gap:16px; }
+        .logo { width:92px; height:92px; object-fit:cover; border-radius:20px; border:1px solid rgba(255,176,32,.18); box-shadow:0 18px 35px rgba(0,0,0,.35); }
+        .sub { margin-top:8px; color:var(--muted); line-height:1.6; }
+        .card { margin-top:18px; padding:18px; border-radius:22px; border:1px solid var(--line); background:linear-gradient(180deg,rgba(14,17,22,.98),rgba(7,8,10,.98)); }
+        .card p { margin-top:12px; line-height:1.6; }
+        .input-shell { margin-top:18px; padding:16px; border-radius:18px; border:1px solid rgba(197,179,150,.16); background:linear-gradient(180deg,rgba(34,36,42,.96),rgba(20,21,26,.96)); box-shadow:inset 0 1px 0 rgba(255,255,255,.04); }
+        .prompt-box { min-height:102px; padding:14px 16px; border-radius:14px; border:1px solid rgba(245,168,0,.4); background:#F8F8F6; color:#1a1a1a; font:600 15px/1.45 var(--body); box-shadow:inset 0 0 0 1px rgba(245,168,0,.14); white-space:pre-line; }
+        .prompt-actions { display:flex; gap:10px; margin-top:12px; }
+        .mini-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; border:1px solid rgba(255,255,255,.16); color:var(--muted); background:rgba(255,255,255,.02); font-size:15px; }
+        .mini-icon.star { color:var(--gold); border-color:rgba(255,176,32,.28); }
+        .stack { margin-top:22px; color:var(--dim); }
+        .roster-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:22px; }
+        .roster-tools { width:26px; height:26px; display:grid; place-items:center; border-radius:7px; border:1px solid var(--line); color:var(--dim); background:rgba(255,255,255,.02); font:700 13px var(--mono); }
+        .roster { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+        .roster-card { position:relative; padding:14px; border-radius:12px; border:1px solid rgba(197,179,150,.12); background:linear-gradient(180deg,rgba(30,32,38,.98),rgba(16,18,22,.98)); display:grid; gap:8px; box-shadow:inset 3px 0 0 rgba(255,255,255,.04); }
+        .roster-card::after { content:""; position:absolute; top:10px; right:10px; width:14px; height:14px; border-radius:50%; border:1px solid rgba(255,68,68,.35); background:rgba(255,68,68,.08); }
+        .roster-card.local::after { border-color:rgba(200,200,204,.35); background:rgba(200,200,204,.08); }
+        .provider { font:700 18px var(--head); }
+        .role { font:12px var(--mono); letter-spacing:.08em; text-transform:uppercase; }
+        .roster-card::before { content:""; position:absolute; left:10px; bottom:10px; width:8px; height:8px; border-radius:50%; }
+        .openai .role { color:var(--openai); } .openai::before { background:var(--openai); box-shadow:0 0 10px var(--openai); }
+        .anthropic .role { color:var(--anthropic); } .anthropic::before { background:var(--anthropic); box-shadow:0 0 10px var(--anthropic); }
+        .google .role { color:var(--google); } .google::before { background:var(--google); box-shadow:0 0 10px var(--google); }
+        .perplexity .role { color:var(--perplexity); } .perplexity::before { background:var(--perplexity); box-shadow:0 0 10px var(--perplexity); }
+        .mistral .role { color:var(--mistral); } .mistral::before { background:var(--mistral); box-shadow:0 0 10px var(--mistral); }
+        .local .role { color:var(--taupe); } .local::before { background:var(--taupe); box-shadow:0 0 10px var(--taupe); }
+        .protocols { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-top:18px; }
+        .left-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+        .collapse-btn { border:1px solid var(--line); background:rgba(255,255,255,.03); color:var(--muted); border-radius:12px; padding:10px 12px; font:600 11px var(--mono); letter-spacing:.08em; text-transform:uppercase; }
+        button { cursor:pointer; }
+        .protocol, .tab, .mini, .action, .execute { border:1px solid var(--line); background:rgba(255,255,255,.03); color:var(--text); border-radius:14px; padding:12px 14px; font:500 13px var(--head); }
+        .protocol { font-size:12px; letter-spacing:.04em; }
+        .protocol.seq { color:var(--confirm); border-color:rgba(76,175,125,.28); background:linear-gradient(135deg,rgba(76,175,125,.14),rgba(10,24,18,.96)); box-shadow:none; }
+        .protocol.red { color:var(--alert); border-color:rgba(255,77,77,.28); background:linear-gradient(135deg,rgba(255,77,77,.12),rgba(32,12,12,.96)); }
+        .protocol.live { color:var(--high-silver); border-color:rgba(232,232,236,.2); background:linear-gradient(135deg,rgba(232,232,236,.08),rgba(24,24,24,.96)); }
+        .protocol.falcon-btn { color:var(--amber-eye); border-color:rgba(245,168,0,.28); background:linear-gradient(135deg,rgba(245,168,0,.14),rgba(36,24,8,.96)); box-shadow:none; }
+        .protocol.level { color:var(--falcon-silver); border-color:rgba(200,200,204,.22); background:linear-gradient(135deg,rgba(200,200,204,.08),rgba(24,24,24,.96)); }
+        .execute { width:100%; margin-top:14px; padding:16px; text-transform:uppercase; letter-spacing:.1em; background:linear-gradient(135deg,rgba(245,168,0,.14),rgba(40,28,8,.98)); border-color:rgba(245,168,0,.26); color:var(--gold); }
+        .falcon { margin-top:16px; padding:16px; border-radius:18px; border:1px solid rgba(255,176,32,.2); background:linear-gradient(180deg, rgba(32,28,18,.98), rgba(18,17,12,.98)); box-shadow:inset 0 1px 0 rgba(255,214,122,.06); }
+        .falcon-row { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+        .falcon-title { font:700 16px var(--head); color:var(--gold); }
+        .falcon-copy { margin-top:8px; color:var(--muted); line-height:1.5; font-size:13px; }
+        .term-box { margin-top:14px; padding:12px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.24); }
+        .term-input { margin-top:10px; width:100%; border:1px solid var(--line); border-radius:12px; background:rgba(255,255,255,.03); color:var(--muted); padding:12px 14px; font-family:var(--mono); }
+        .ghost-eye { margin-top:12px; display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-radius:14px; border:1px solid rgba(255,176,32,.24); background:rgba(255,176,32,.06); color:var(--gold); font:600 12px var(--mono); letter-spacing:.08em; text-transform:uppercase; }
+        .ghost-copy { color:var(--muted); font-size:12px; text-transform:none; letter-spacing:0; font-family:var(--body); }
+        .status { margin-top:18px; padding:16px 18px; border-radius:16px; border:1px solid rgba(76,175,125,.16); background:linear-gradient(135deg,rgba(76,175,125,.08),rgba(18,24,20,.98)); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+        .status-copy { display:block; margin-top:8px; font-size:13px; color:var(--muted); }
+        .led { width:12px; height:12px; border-radius:50%; background:var(--green); box-shadow:0 0 18px var(--green); flex:0 0 auto; }
+        .state-row, .mini-row { display:flex; gap:8px; flex-wrap:wrap; }
+        .state { padding:10px 12px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.03); color:var(--muted); font-size:12px; }
+        .signals { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px; }
+        .signal { padding:14px 16px; border-radius:16px; border:1px solid rgba(197,179,150,.12); background:linear-gradient(180deg,rgba(29,31,36,.98),rgba(15,17,20,.98)); position:relative; overflow:hidden; }
+        .signal::before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--taupe); opacity:.75; }
+        .signal.runway::before { background:var(--warning); }
+        .signal.burn-rate::before { background:var(--deep-amber); }
+        .signal.risk::before { background:var(--alert); }
+        .signal.truth::before { background:var(--confirm); }
+        .signal strong { display:block; margin-top:12px; font:700 20px var(--head); }
+        .danger { color:var(--alert); }
+        .tabs { display:inline-flex; gap:8px; margin-top:18px; padding:6px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.02); }
+        .tab.active { color:#1b1200; background:linear-gradient(135deg,var(--bright-amber),var(--amber-eye)); border-color:rgba(245,168,0,.24); }
+        .canvas {
+            margin-top:18px;
+            min-height:500px;
+            border-radius:28px;
+            border:1px solid rgba(197,179,150,.16);
+            background:
+                radial-gradient(circle at 50% 44%, rgba(255,176,32,.035), transparent 24%),
+                linear-gradient(180deg, rgba(11,13,17,.99), rgba(4,5,7,1));
+            box-shadow:
+                inset 0 1px 0 rgba(255,255,255,.04),
+                inset 0 0 0 1px rgba(255,255,255,.015);
+            overflow:hidden;
+        }
+        .view { display:none; min-height:500px; padding:24px 28px 28px; }
+        .view.active { display:grid; align-content:space-between; }
+        .caption { max-width:74ch; color:var(--muted); line-height:1.6; }
+        .orbital-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px; }
+        .summary-chip { padding:12px 14px; border:1px solid rgba(197,179,150,.12); border-radius:16px; background:linear-gradient(180deg, rgba(28,30,35,.96), rgba(16,18,22,.96)); }
+        .summary-chip strong { display:block; margin-top:8px; font:700 16px var(--head); }
+        .summary-chip.mission strong { color:var(--taupe); }
+        .summary-chip.primary strong { color:var(--gold); }
+        .summary-chip.ghost strong { color:var(--high-silver); }
+        .timeline { margin-top:18px; padding:18px; border-radius:22px; border:1px solid rgba(197,179,150,.14); background:linear-gradient(180deg,rgba(17,19,23,.98),rgba(8,10,12,.98)); }
+        .timeline-list { margin-top:14px; display:grid; gap:14px; }
+        .step { display:grid; grid-template-columns:20px 1fr; gap:12px; }
+        .dot { width:12px; height:12px; border-radius:50%; margin-top:4px; border:1px solid var(--line2); background:rgba(255,255,255,.08); }
+        .done .dot { background:var(--confirm); box-shadow:0 0 10px rgba(76,175,125,.18); } .live .dot { background:var(--amber-eye); box-shadow:0 0 10px rgba(245,168,0,.16); }
+        .step p { margin-top:6px; color:var(--muted); line-height:1.5; }
+        .summary, .telemetry { margin-top:18px; padding:18px; border-radius:22px; border:1px solid rgba(197,179,150,.14); background:linear-gradient(180deg,rgba(17,19,23,.98),rgba(8,10,12,.98)); }
+        .summary { display:grid; gap:14px; }
+        .stream { margin-top:18px; display:grid; gap:12px; }
+        .message { padding:16px; border-radius:16px; border:1px solid rgba(197,179,150,.1); background:linear-gradient(180deg, rgba(27,29,34,.98), rgba(15,17,20,.98)); }
+        .message p { margin-top:10px; color:var(--muted); line-height:1.6; }
+        .badge { display:inline-flex; padding:6px 10px; border-radius:999px; font:11px var(--mono); letter-spacing:.08em; text-transform:uppercase; }
+        .scout { color:var(--warning); background:rgba(232,184,75,.12); } .auditor { color:var(--deep-amber); background:rgba(196,125,0,.12); } .cfo { color:var(--confirm); background:rgba(76,175,125,.12); }
+        .source-strip { margin-top:18px; padding:12px 14px; border-radius:14px; border-left:3px solid var(--gold); background:linear-gradient(90deg, rgba(255,176,32,.08), rgba(255,255,255,.02)); color:var(--text); font-size:13px; }
+        .source-strip span { display:block; margin-top:4px; color:var(--muted); font-family:var(--mono); font-size:11px; letter-spacing:.04em; }
+        .telemetry-head { display:flex; justify-content:space-between; gap:12px; }
+        .mode { color:var(--gold); font-family:var(--head); }
+        .tgrid { margin-top:16px; display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+        .input { margin-top:18px; display:grid; grid-template-columns:1fr auto; gap:10px; }
+        .input input { width:100%; border:1px solid rgba(197,179,150,.16); border-radius:14px; background:linear-gradient(180deg, rgba(25,27,32,.98), rgba(14,16,20,.98)); color:var(--dim); padding:14px 16px; font-family:var(--mono); }
+        .input button { border:1px solid rgba(245,168,0,.18); background:linear-gradient(135deg,rgba(245,168,0,.14),rgba(36,24,8,.96)); color:var(--amber-eye); border-radius:14px; padding:0 18px; font-family:var(--head); }
+        .phase-section, .deploy, .dock { padding:22px; }
+        .phase-grid { margin-top:20px; display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+        .phase { min-height:190px; padding:20px; border-radius:22px; border:1px solid rgba(197,179,150,.14); background:linear-gradient(180deg, rgba(20,22,27,.98), rgba(11,13,16,.98)); }
+        .phase h3 { margin:10px 0 12px; font-size:22px; }
+        .phase p { color:var(--muted); line-height:1.6; }
+        .score { display:inline-block; margin-top:18px; padding:8px 10px; border-radius:999px; font:11px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--gold); background:rgba(255,176,32,.12); }
+        .deploy { display:flex; justify-content:space-between; align-items:center; gap:18px; }
+        .actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+        .action.save { color:var(--gold); border-color:rgba(255,176,32,.25); background:linear-gradient(135deg,rgba(255,176,32,.14),rgba(255,176,32,.04)); }
+        .dock-box { margin-top:18px; padding:18px; border-radius:22px; border:1px solid rgba(197,179,150,.14); background:linear-gradient(180deg,rgba(18,20,24,.98),rgba(9,10,12,.98)); display:grid; justify-items:center; gap:14px; text-align:center; }
+        .dock-tags { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+        .dock-tag { padding:9px 12px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.03); color:var(--muted); font:12px var(--mono); }
+        .handle { width:120px; height:6px; border-radius:999px; background:linear-gradient(90deg, rgba(255,255,255,.08), rgba(255,255,255,.32), rgba(255,255,255,.08)); }
+        .dock-box p { color:var(--muted); line-height:1.6; max-width:80ch; }
+        .orbital { position:relative; min-height:340px; }
+        .ring { position:absolute; inset:14px; border-radius:50%; border:1px dashed rgba(197,179,150,.48); }
+        .core { position:absolute; inset:28% 28%; border-radius:50%; background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.85), rgba(255,255,255,0) 24%), radial-gradient(circle at center, rgba(120,120,120,.34), rgba(0,0,0,.95) 70%); box-shadow:inset 0 0 60px rgba(255,255,255,.08),0 0 90px rgba(255,255,255,.04); }
+        .orbital-flare { position:absolute; inset:0; pointer-events:none; }
+        .bolt { position:absolute; width:110px; height:3px; border-radius:999px; background:linear-gradient(90deg, rgba(245,168,0,0), rgba(245,168,0,.95), rgba(255,209,102,.72), rgba(245,168,0,0)); box-shadow:0 0 18px rgba(245,168,0,.32); opacity:.9; animation:pulseBolt 2.4s ease-in-out infinite; }
+        .bolt.b1 { top:24%; left:18%; transform:rotate(-26deg); }
+        .bolt.b2 { top:34%; right:16%; transform:rotate(38deg); animation-delay:.8s; }
+        .bolt.b3 { bottom:20%; left:24%; transform:rotate(22deg); animation-delay:1.4s; }
+        .bolt::after { content:""; position:absolute; right:18px; top:-3px; width:18px; height:9px; clip-path:polygon(0 0, 50% 0, 34% 50%, 100% 50%, 40% 100%, 52% 58%, 0 58%); background:linear-gradient(180deg, #ffe2a6, var(--gold)); filter:drop-shadow(0 0 8px rgba(255,176,32,.45)); }
+        .node { position:absolute; padding:8px 10px; border-radius:999px; font:11px var(--mono); background:rgba(0,0,0,.72); border:1px solid var(--line); }
+        .node::before { content:""; display:inline-block; width:10px; height:10px; margin-right:8px; border-radius:50%; vertical-align:-1px; }
+        .n1 { top:48%; left:10%; } .n1::before { background:var(--openai); box-shadow:0 0 12px var(--openai); }
+        .n2 { top:12%; left:50%; transform:translateX(-50%); } .n2::before { background:var(--anthropic); box-shadow:0 0 12px var(--anthropic); }
+        .n3 { top:54%; right:8%; } .n3::before { background:var(--google); box-shadow:0 0 12px var(--google); }
+        .n4 { bottom:10%; right:22%; } .n4::before { background:var(--perplexity); box-shadow:0 0 12px var(--perplexity); }
+        .n5 { bottom:18%; left:18%; } .n5::before { background:var(--mistral); box-shadow:0 0 12px var(--mistral); }
+        .chart { position:relative; min-height:300px; border-radius:24px; border:1px solid var(--line); background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01)); padding:30px; overflow:hidden; }
+        .chart::before { content:""; position:absolute; inset:0; background:linear-gradient(transparent 24%, rgba(255,255,255,.06) 25%, transparent 26%), linear-gradient(90deg, transparent 24%, rgba(255,255,255,.04) 25%, transparent 26%); background-size:100% 72px, 120px 100%; opacity:.6; }
+        .bars { position:relative; z-index:1; height:260px; display:flex; align-items:end; justify-content:space-around; gap:18px; }
+        .col { display:grid; justify-items:center; gap:12px; }
+        .barfill { width:92px; height:180px; border-radius:18px 18px 8px 8px; background:linear-gradient(180deg,rgba(200,200,204,.88),rgba(200,200,204,.18)); box-shadow:inset 0 -20px 30px rgba(0,0,0,.25),0 0 18px rgba(200,200,204,.08); }
+        .burn { height:230px; background:linear-gradient(180deg,rgba(255,77,77,.88),rgba(255,77,77,.2)); }
+        .capex { height:210px; background:linear-gradient(180deg,rgba(245,168,0,.88),rgba(245,168,0,.2)); }
+        .runway { height:120px; background:linear-gradient(180deg,rgba(76,175,125,.88),rgba(76,175,125,.18)); }
+        .col label { font:12px var(--mono); color:var(--muted); }
+        .mermaid { min-height:300px; display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; }
+        .mnode { min-width:120px; padding:14px 18px; border-radius:16px; border:1px solid var(--line); text-align:center; font-family:var(--head); background:rgba(255,255,255,.03); }
+        .mnode.start { color:var(--high-silver); border-color:rgba(232,232,236,.22); } .mnode.alert { color:var(--amber-eye); border-color:rgba(245,168,0,.24); } .mnode.ok { color:var(--confirm); border-color:rgba(76,175,125,.24); }
+        .arrow { width:42px; height:2px; background:linear-gradient(90deg, rgba(255,255,255,.12), rgba(255,255,255,.6)); position:relative; }
+        .arrow::after { content:""; position:absolute; right:0; top:-4px; border-left:8px solid rgba(255,255,255,.6); border-top:5px solid transparent; border-bottom:5px solid transparent; }
+        @keyframes pulseBolt {
+            0%, 100% { opacity:.25; filter:brightness(.8); }
+            50% { opacity:1; filter:brightness(1.22); }
+        }
+        @media (max-width:1280px) {
+            .grid { grid-template-columns:1fr; }
+            .flow-strip { grid-template-columns:1fr 1fr 1fr; }
+            .left, .right { min-height:auto; }
+            .phase-grid { grid-template-columns:1fr 1fr; }
+            .deploy { flex-direction:column; align-items:flex-start; }
+            .actions { justify-content:flex-start; }
+        }
+        @media (max-width:760px) {
+            body { padding:12px; }
+            .bar, .header, .section-head, .deploy-head, .dock-head, .mission { flex-direction:column; align-items:flex-start; }
+            .signals, .roster, .protocols, .phase-grid, .tgrid, .orbital-summary, .flow-strip { grid-template-columns:1fr; }
+            .view { padding:18px; }
+            .barfill { width:52px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <header class="bar">
+            <div class="brand">
+                <span class="eyebrow">KORUM-OS</span>
+                <span class="divider"></span>
+                <span class="title">Decision Intelligence Command Center</span>
+            </div>
+            <div class="meta">
+                <span class="account-label">carlos.casabianca@yahoo.com</span>
+                <span class="utility-btn history" title="History">📄</span>
+                <span class="utility-btn logs" title="Audit Logs">⤴</span>
+                <span class="utility-btn cost" title="Cost Ledger">$</span>
+                <span class="utility-btn menu" title="Saved Reports">☰</span>
+            </div>
+        </header>
+
+        <nav class="rail" aria-label="Workflow rail">
+            <button class="pill">War Room</button>
+            <button class="pill">Research</button>
+            <button class="pill">Creative</button>
+            <button class="pill">Audit</button>
+            <button class="pill">System</button>
+            <button class="pill">Legal</button>
+            <button class="pill">Medical</button>
+            <button class="pill active">Finance</button>
+            <button class="pill">Science</button>
+            <button class="pill">Startup</button>
+            <button class="pill">Tech</button>
+            <button class="pill">Defense</button>
+            <button class="pill">Cyber</button>
+            <button class="pill">Quantum Sec</button>
+            <button class="pill">Intel</button>
+        </nav>
+
+        <section class="flow-strip">
+            <article class="flow-step complete">
+                <div class="label">01</div>
+                <strong>Input</strong>
+                <p class="sub">Operator prompt and mission objective.</p>
+            </article>
+            <article class="flow-step complete">
+                <div class="label">02</div>
+                <strong>Constraints</strong>
+                <p class="sub">Falcon, protected terms, workflow mode.</p>
+            </article>
+            <article class="flow-step active">
+                <div class="label">03</div>
+                <strong>Generation</strong>
+                <p class="sub">Council response and live visual stage.</p>
+            </article>
+            <article class="flow-step">
+                <div class="label">04</div>
+                <strong>Evaluation</strong>
+                <p class="sub">Interrogate, verify, challenge, revise.</p>
+            </article>
+            <article class="flow-step">
+                <div class="label">05</div>
+                <strong>Results</strong>
+                <p class="sub">Decision, evidence, exports, artifact dock.</p>
+            </article>
+            <article class="flow-step">
+                <div class="label">06</div>
+                <strong>Follow-up</strong>
+                <p class="sub">New questions that update the synthesis.</p>
+            </article>
+        </section>
+
+        <main class="grid">
+            <section class="panel left">
+                <div class="left-head">
+                    <div class="mission">
+                        <img src="../assets/korum_branding_hero.png" alt="Korum logo" class="logo">
+                        <div>
+                            <h1>Decision Intelligence</h1>
+                            <p class="sub">Autonomous Neural Council</p>
+                        </div>
+                    </div>
+                    <button class="collapse-btn">Collapse</button>
+                </div>
+                <div class="input-shell">
+                    <div class="prompt-box">Execute: &gt; TYR: Finalize the Excel table with these hard numbers.
+HEIMDALL: Create the 3D 'Burn Rate' visualization showing the $2.45M inflow versus the $14M+ GPU CAPEX.
+ODIN: Confirm the [RISK_VECTOR: BANKRUPTCY] if the Vance Trust doesn't authorize additional liquidity."</div>
+                    <div class="prompt-actions">
+                        <div class="mini-icon">🗑</div>
+                        <div class="mini-icon star">★</div>
+                        <div class="mini-icon">📎</div>
+                    </div>
+                </div>
+                <div class="roster-head">
+                    <div class="stack" style="margin-top:0;">Active Roster</div>
+                    <div class="roster-tools">C</div>
+                </div>
+                <div class="roster">
+                    <article class="roster-card openai"><span class="provider">GPT-4o</span><span class="role">CFO</span></article>
+                    <article class="roster-card anthropic"><span class="provider">Claude</span><span class="role">Auditor</span></article>
+                    <article class="roster-card google"><span class="provider">Gemini</span><span class="role">Hedge Fund</span></article>
+                    <article class="roster-card perplexity"><span class="provider">Perplexity</span><span class="role">Scout</span></article>
+                    <article class="roster-card mistral"><span class="provider">Mistral</span><span class="role">Tax</span></article>
+                    <article class="roster-card local"><span class="provider">Local</span><span class="role">Oracle</span></article>
+                </div>
+                <div class="protocols">
+                    <button class="protocol seq">⚡ Sequential</button>
+                    <button class="protocol red">😈 Red Team</button>
+                    <button class="protocol live">🌐 Live</button>
+                    <button class="protocol falcon-btn">🦅 Falcon</button>
+                    <button class="protocol level">Standard</button>
+                </div>
+                <div class="falcon">
+                    <div class="falcon-row">
+                        <div class="falcon-title">Falcon Protocol</div>
+                        <span class="chip">Standard</span>
+                    </div>
+                    <p class="falcon-copy">Keep protected terms and Ghost Eye visible, but scoped so Falcon stays present without overrunning mission setup.</p>
+                    <div class="term-box">
+                        <div class="label">Protected Terms</div>
+                        <input class="term-input" type="text" value="Add protected term, alias, or contract marker..." aria-label="Protected terms">
+                    </div>
+                    <div class="ghost-eye">
+                        <span>Ghost Eye</span>
+                        <span class="ghost-copy">Telemetry, veil state, and trace inspection ready</span>
+                    </div>
+                </div>
+                <button class="execute">Execute Protocol</button>
+                <div class="status">
+                    <div>
+                        <span class="status-tag chip">System Ready</span>
+                        <span class="status-copy">All finance roles aligned and awaiting task execution.</span>
+                    </div>
+                    <div class="led"></div>
+                </div>
+            </section>
+            <section class="panel">
+                <div class="header">
+                    <div>
+                        <div class="label">Generation</div>
+                        <h2>Project Neptune</h2>
+                    </div>
+                    <div class="state-row">
+                        <span class="state active">Generation Live</span>
+                        <span class="state">Finance Mode</span>
+                    </div>
+                </div>
+                <div class="signals">
+                    <article class="signal runway"><span class="tiny">Runway</span><strong>3.1 mo</strong></article>
+                    <article class="signal burn-rate"><span class="tiny">Burn Rate</span><strong>$11.58M</strong></article>
+                    <article class="signal risk"><span class="tiny">Risk Vector</span><strong class="danger">Critical</strong></article>
+                    <article class="signal truth"><span class="tiny">Truth Score</span><strong>79 / 100</strong></article>
+                </div>
+                <div class="tabs" role="tablist" aria-label="Stage view">
+                    <button class="tab active" data-target="orbital">Orbital</button>
+                    <button class="tab" data-target="chart">Chart</button>
+                    <button class="tab" data-target="mermaid">Mermaid</button>
+                </div>
+                <div class="canvas">
+                    <section class="view active" data-view="orbital">
+                        <div class="orbital-summary">
+                            <div class="summary-chip mission"><span class="tiny">Prompt</span><strong>Locked</strong></div>
+                            <div class="summary-chip primary"><span class="tiny">View</span><strong>Orbital handshake</strong></div>
+                            <div class="summary-chip ghost"><span class="tiny">Constraints</span><strong>Falcon aware</strong></div>
+                        </div>
+                        <div class="orbital">
+                            <div class="orbital-flare">
+                                <div class="bolt b1"></div>
+                                <div class="bolt b2"></div>
+                                <div class="bolt b3"></div>
+                            </div>
+                            <div class="ring"></div>
+                            <div class="core"></div>
+                            <div class="node n1">GPT-4o</div>
+                            <div class="node n2">Claude</div>
+                            <div class="node n3">Gemini</div>
+                            <div class="node n4">Perplexity</div>
+                            <div class="node n5">Mistral</div>
+                        </div>
+                        <div class="caption">The center remains cinematic, but the user can now tell this is the generation stage of the mission rather than an isolated visual.</div>
+                    </section>
+                    <section class="view" data-view="chart" aria-hidden="true">
+                        <div class="chart">
+                            <div class="bars">
+                                <div class="col"><span class="barfill"></span><label>Revenue</label></div>
+                                <div class="col"><span class="barfill burn"></span><label>Burn</label></div>
+                                <div class="col"><span class="barfill capex"></span><label>Capex</label></div>
+                                <div class="col"><span class="barfill runway"></span><label>Runway</label></div>
+                            </div>
+                        </div>
+                        <div class="caption">Visualization mode should feel native to the stage and surface the important numbers immediately.</div>
+                    </section>
+                    <section class="view" data-view="mermaid" aria-hidden="true">
+                        <div class="mermaid">
+                            <div class="mnode start">Intake</div>
+                            <div class="arrow"></div>
+                            <div class="mnode">Deconstruct</div>
+                            <div class="arrow"></div>
+                            <div class="mnode">Architect</div>
+                            <div class="arrow"></div>
+                            <div class="mnode alert">Stress Test</div>
+                            <div class="arrow"></div>
+                            <div class="mnode ok">Execute</div>
+                        </div>
+                        <div class="caption">Mermaid output should occupy the same stage without forcing users into a separate visual mode elsewhere on the page.</div>
+                    </section>
+                </div>
+                <div class="timeline">
+                    <div class="stack">Evaluation</div>
+                    <div class="timeline-list">
+                        <div class="step done">
+                            <span class="dot"></span>
+                            <div><strong>Council Active</strong><p>Directive parsed and routed to the finance council.</p></div>
+                        </div>
+                        <div class="step done">
+                            <span class="dot"></span>
+                            <div><strong>Role Alignment</strong><p>CFO, Auditor, Hedge Fund, Scout, and Tax nodes aligned.</p></div>
+                        </div>
+                        <div class="step live">
+                            <span class="dot"></span>
+                            <div><strong>Verification Window</strong><p>Ready for interrogation, highlight verify, and source checks.</p></div>
+                        </div>
+                        <div class="step">
+                            <span class="dot"></span>
+                            <div><strong>Synthesis Revision</strong><p>Follow-up answers can still revise the final response.</p></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <aside class="panel right">
+                <div class="header">
+                    <div>
+                        <div class="label">Follow-Up</div>
+                        <h2>Global Comms</h2>
+                    </div>
+                    <div class="mini-row">
+                        <button class="mini active">Chat</button>
+                        <button class="mini">Dock</button>
+                    </div>
+                </div>
+                <div class="summary">
+                    <div>
+                        <div class="tiny">Latest Follow-Up</div>
+                        <strong>Verify vendor cost math and confirm bankruptcy trigger.</strong>
+                    </div>
+                    <div>
+                        <div class="tiny">Revision State</div>
+                        <strong>Synthesis contested, awaiting evidence lock.</strong>
+                    </div>
+                </div>
+                <div class="stream">
+                    <article class="message">
+                        <span class="badge scout">Scout</span>
+                        <p>Perplexity source check confirms the vendor-cost band, but the inflow assumption is still conditional.</p>
+                    </article>
+                    <article class="message">
+                        <span class="badge auditor">Auditor</span>
+                        <p>Interrogation weakened the original confidence because the trust funding path is not locked.</p>
+                    </article>
+                </div>
+                <div class="source-strip">
+                    Impact on synthesis: confidence dropped from 79 to 73 after interrogation and verification.
+                    <span>Affected areas: risk vector, burn narrative, final recommendation.</span>
+                </div>
+                <div class="telemetry">
+                    <div class="telemetry-head">
+                        <span class="stack">Thread Telemetry</span>
+                        <span class="mode">Research</span>
+                    </div>
+                    <div class="tgrid">
+                        <div><div class="tiny">Run Cost</div><strong>$0.0000</strong></div>
+                        <div><div class="tiny">Revision Events</div><strong>3</strong></div>
+                        <div><div class="tiny">Latency</div><strong>-- ms</strong></div>
+                        <div><div class="tiny">Confidence</div><strong>73 / 100</strong></div>
+                    </div>
+                </div>
+                <div class="input">
+                    <input type="text" value="Type tactical query..." aria-label="Tactical query input">
+                    <button>Send</button>
+                </div>
+            </aside>
+        </main>
+
+        <section class="phase-section">
+            <div class="section-head">
+                <div>
+                    <div class="label">Results</div>
+                    <h2>What the council is ready to deliver</h2>
+                </div>
+                <div class="sub">Final output first, evidence and action path immediately after.</div>
+            </div>
+            <div class="phase-grid">
+                <article class="phase">
+                    <div class="phase-top">Result 1</div>
+                    <h3>Decision</h3>
+                    <p>Current recommendation is controlled suspension unless bridge capital is confirmed immediately.</p>
+                    <span class="score">Confidence 73 / 100</span>
+                </article>
+                <article class="phase">
+                    <div class="phase-top">Result 2</div>
+                    <h3>Evidence</h3>
+                    <p>Vendor-cost verification held, but the funding path remains contested after interrogation.</p>
+                    <span class="score">Source Checked</span>
+                </article>
+                <article class="phase">
+                    <div class="phase-top">Result 3</div>
+                    <h3>Risk Posture</h3>
+                    <p>Single-source financing dependence remains the dominant failure mode and drives the bankruptcy flag.</p>
+                    <span class="score">Critical Risk</span>
+                </article>
+                <article class="phase">
+                    <div class="phase-top">Result 4</div>
+                    <h3>Next Follow-Up</h3>
+                    <p>Best next question is whether trust liquidity is binding, conditional, or still speculative.</p>
+                    <span class="score">Ready For Follow-Up</span>
+                </article>
+            </div>
+        </section>
+
+        <section class="deploy">
+            <div class="deploy-head">
+                <div>
+                    <div class="label">Deploy Intelligence</div>
+                    <h2>Keep exports downstream of analysis, not ahead of it</h2>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="action primary">Preview Package</button>
+                <button class="action">Export Report</button>
+                <button class="action">Create Deck</button>
+                <button class="action">Share</button>
+                <button class="action save">Save Snapshot</button>
+            </div>
+        </section>
+
+        <section class="dock">
+            <div class="dock-head">
+                <div>
+                    <div class="label">Artifact Dock</div>
+                    <h2>Collapsed by default until results exist</h2>
+                </div>
+                <div class="sub">Reduced visual weight during mission intake</div>
+            </div>
+            <div class="dock-box">
+                <div class="handle"></div>
+                <div class="dock-tags">
+                    <span class="dock-tag">Charts</span>
+                    <span class="dock-tag">Tables</span>
+                    <span class="dock-tag">Mermaid</span>
+                    <span class="dock-tag">Source Checks</span>
+                    <span class="dock-tag">Ghost View Artifacts</span>
+                </div>
+                <p>The dock remains available, but it stops competing with the stage during pre-execution and in-flight states.</p>
+            </div>
+        </section>
+    </div>
+    <script>
+        const tabs = document.querySelectorAll('.tab');
+        const views = document.querySelectorAll('.view');
+        tabs.forEach((tab) => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.target;
+                tabs.forEach((item) => item.classList.toggle('active', item === tab));
+                views.forEach((view) => {
+                    const match = view.dataset.view === target;
+                    view.classList.toggle('active', match);
+                    view.setAttribute('aria-hidden', String(!match));
+                });
+            });
+        });
+    </script>
+</body>
+</html>

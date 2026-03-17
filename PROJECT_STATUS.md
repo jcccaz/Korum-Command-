@@ -1,66 +1,114 @@
-# 🚀 KorumOS Project Status
-**Date:** February 16, 2026
-**Current Version:** 2.0 (Verified Intelligence Update)
+# KorumOS Project Status
+**Date:** March 16, 2026  
+**Branch:** `main`  
+**Current Version:** 2.1 (Command Center / Revision-Aware UI)
 
-## ✅ Accomplished Today
+## Current Snapshot
 
-1.  **Intelligence Engine Evolution:**
-    *   Transitioned from "Chatbot Thinking" to "Intelligence Engine" architecture.
-    *   Implemented standardized **Intelligence Object** schema (JSON) for all council outputs.
-    *   Standardized synthesis to include `meta` (truth scores, model breakdown) and deep-structured sections.
+KorumOS is no longer sitting on the February intelligence-export state. `main` now contains a substantial command-center redesign, a live mission-stage workflow, revision-aware Global Comms, and stronger interrogation / verification plumbing. The repo is also carrying active local UI work that has not been committed yet.
 
-2.  **Professional Document Engine:**
-    *   Built **Word Engine** (`python-docx`) for generating enterprise-grade Executive Memos.
-    *   Upgraded **PowerPoint Engine** to build strategic decks directly from structured intelligence.
-    *   Implemented asynchronous **Asset Deployment** flow for direct file downloads.
+## Shipped on `main`
 
-3.  **UI/UX Refinement (Deploy Intelligence):**
-    *   Rebranded "Export Results" as **DEPLOY INTELLIGENCE** in the Sentinel Card.
-    *   Unified the dropdown for professional formats (Word, PPTX, PDF).
-    *   Added real-time "Asset Deployment" status to the telemetry log.
+### 1. Command Center Redesign
+- Introduced the new mission flow strip:
+  - `Input`
+  - `Constraints`
+  - `Generation`
+  - `Evaluation`
+  - `Results`
+  - `Follow Up`
+- Reworked the center of the app into the **Live Intelligence Stage** with:
+  - mission subtitle
+  - state chips (`Generation Live`, `Mission Idle`, `Falcon Aware`, etc.)
+  - key metrics strip
+  - orbital stage
+  - evaluation track beneath the stage
+- Kept the left **Decision Intelligence** rail as the primary control surface while shifting it toward darker black / gunmetal treatment.
 
-4.  **UI/UX Preservation:**
-    *   Implemented full sequential chain: **Deconstruction -> Architecture -> Stress Test -> Synthesis**.
-    *   Forced V2 orchestration for all standard queries.
-    *   Integrated model-to-role accuracy (Claude for deconstruct, GPT-4o for build, Gemini for stress).
+### 2. Global Comms + Results Flow
+- Expanded and rebalanced **Global Comms** so the right rail can carry:
+  - thread summary
+  - revision state
+  - impact summary
+  - follow-up guidance
+  - live activity feed
+  - execution telemetry
+- Added revision-aware dock behavior:
+  - `Standby`
+  - `Artifacts Ready`
+  - `Revision Live`
+- Reserved layout space for the dock so it no longer crushes the main dashboard content.
 
-2.  **AI Accountability & Truth Contracts:**
-    *   Implemented real-time **Truth Meter** (80%+ score targeting).
-    *   Interactive **Claim Highlighting** (Verified/Suspect markers).
-    *   Integrated **Interrogation Mirroring** into Global Comms chat history.
+### 3. Live State Wiring
+- Wired stage, comms, and dock state transitions so the UI responds when:
+  - generation begins
+  - answers land
+  - follow-ups are submitted
+  - verification runs
+  - interrogation completes
+- Added quieter idle behavior so `Global Comms` does not read as wasted space before a mission becomes active.
 
-3.  **Data Portability & Infrastructure:**
-    *   **Excel Synthesis**: Smart CSV copy/export converts MD tables into Excel-ready grids.
-    *   **Research Dock**: Functional snippet collection with multi-format export (Markdown/CSV/JSON).
-    *   **Stabilized Orb**: Fixed orbital node persistence and gyroscopic label drift.
+### 4. Orbital / Visual Stage Work
+- Reworked the center orbital multiple times to move toward a more cinematic command-center presence:
+  - glossy orb restoration
+  - hidden cloud / dark core treatment
+  - added perspective and depth
+  - orbital animation refinement
+- The orbital is improved, but still an active polish target rather than a finished visual system.
 
-4.  **Deployment Prep:**
-    *   Cleaned documentation for GitHub push.
-    *   Verified API key fallbacks and neural handshake telemetry.
+### 5. Verification / Interrogation Backend Improvements
+- `/api/interrogate` and `/api/verify` now return structured verdict + `score_delta` data instead of relying on brittle client-side keyword parsing.
+- The frontend uses backend verdict / score data to update truth / revision behavior more reliably.
+- Falcon sanitization was improved by adding `Project`, `Operation`, `Mission`, and `Phase` to stopwords to reduce bad PERSON tagging on codename-prefixed phrases.
 
----
+## Current Local Worktree (Not Yet Committed)
 
-## 📋 Next Steps (To-Do)
+There is active in-progress work on top of `main`:
 
-### 1. Research Dock Evolution 📌
-*   **Feature:** Add Tags/Labels to snippets in the dock.
-*   **Feature:** "Summarize Highlights" button for executive briefs.
-*   **UX:** Interactive "Drag snippets to slides" prototype.
+- Modified:
+  - `css/korum.css`
+  - `index.html`
+  - `js/korum.js`
+- Untracked:
+  - `assets/korum os logo.png`
+  - `css/animations.css`
+  - `docs/command_center_mockup.html`
+  - local helper scripts (`fix_html.py`, `mega_repair.py`, `repair.py`)
 
-### 2. Multi-Session Memory 💾
-*   Implement persistent session storage for Research Dock snippets.
-*   Allow "Recall Analysis" to rebuild previous Council decision states.
+### What the in-progress local changes are doing
+- Replacing the hard-coded bottom **Evaluation** cards with a dynamic renderer so that strip always says something mission-relevant.
+- Continuing refinement of the center/right UI behavior rather than introducing another full layout rewrite.
 
-### 3. Polish & Scale ☁️
-*   Complete Railway auto-deploy pipeline.
-*   Refine "Micro-Tracker" UI for mobile responsiveness.
+## Immediate Priorities
 
----
+### 1. Finish Dynamic Evaluation Strip
+- Complete the JS renderer so the evaluation row is fully state-driven.
+- Remove the remaining assumptions from older hard-coded evaluation content.
 
-## 🔑 Crucial Notes
-*   **Run Server:** `python app.py`
-*   **Interrogation:** Select text + ⚠️ CHALLENGE to trigger targeted investigation.
-*   **Excel Export:** Use the 📋 button on cards with tables for CSV grid copy.
+### 2. Tune Global Comms from Real Runs
+- Validate the right rail against real mission traffic instead of idle placeholders.
+- Improve grouping for:
+  - follow-up
+  - interrogation
+  - verification
+  - revision impact
 
----
-*End of Session Log*
+### 3. Final Orbital / Motion Polish
+- Improve node choreography relative to the orb.
+- Keep depth and mystery without flattening the centerpiece.
+- Coordinate with outside visual refinement passes if needed.
+
+### 4. Cleanup Pass
+- Normalize any leftover legacy colors or older component treatments.
+- Remove or commit local helper artifacts and mockup files once the live direction stabilizes.
+
+## Operator Notes
+
+- Run server: `python app.py`
+- Verification: highlight a claim and send it through verify; Perplexity is the primary evidence path with fallback behavior in code.
+- Interrogation: opens attacker-vs-defender flow rather than acting as generic chat.
+- Artifact Dock remains part of the product and is now positioned as the `Results` layer, not the primary stage.
+
+## Bottom Line
+
+KorumOS has moved from a February export-focused intelligence UI into a March command-center build with live stage states, revision-aware comms, stronger dock behavior, and better backend truth plumbing. The remaining work is mostly refinement, dynamic state cleanup, and live-run tuning rather than a fresh architecture shift.

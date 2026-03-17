@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KORUM-OS | Decision Intelligence</title>
     <link rel="stylesheet" href="css/korum.css?v=20260316c">
+    <link rel="stylesheet" href="css/animations.css?v=20260316c">
     <link rel="stylesheet" href="css/korum_sentinel.css?v=20260316c">
     <link rel="stylesheet" href="css/client_preview.css">
     <link
@@ -57,6 +58,7 @@
                             <line x1="16" y1="13" x2="8" y2="13"></line>
                             <line x1="16" y1="17" x2="8" y2="17"></line>
                             <polyline points="10 9 9 9 8 9"></polyline>
+                            <polyline points="10 9 9 9 8 9"></polyline>
                         </svg>
                     </button>
                     <button class="auth-logout-btn" id="authLogoutBtn" title="Logout">
@@ -85,32 +87,32 @@
         </nav>
 
         <section class="mission-flow-strip" aria-label="Mission flow">
-            <article class="mission-flow-step is-complete">
+            <article class="mission-flow-step is-active" id="flow-step-1">
                 <span class="flow-index">01</span>
                 <span class="flow-title">Input</span>
                 <span class="flow-copy">Prompt and mission objective.</span>
             </article>
-            <article class="mission-flow-step is-complete">
+            <article class="mission-flow-step" id="flow-step-2">
                 <span class="flow-index">02</span>
                 <span class="flow-title">Constraints</span>
                 <span class="flow-copy">Roster, Falcon, protected terms.</span>
             </article>
-            <article class="mission-flow-step is-active">
+            <article class="mission-flow-step" id="flow-step-3">
                 <span class="flow-index">03</span>
                 <span class="flow-title">Generation</span>
                 <span class="flow-copy">Council response and live stage.</span>
             </article>
-            <article class="mission-flow-step">
+            <article class="mission-flow-step" id="flow-step-4">
                 <span class="flow-index">04</span>
                 <span class="flow-title">Evaluation</span>
                 <span class="flow-copy">Interrogate, verify, revise.</span>
             </article>
-            <article class="mission-flow-step">
+            <article class="mission-flow-step" id="flow-step-5">
                 <span class="flow-index">05</span>
                 <span class="flow-title">Results</span>
                 <span class="flow-copy">Decision, evidence, exports.</span>
             </article>
-            <article class="mission-flow-step">
+            <article class="mission-flow-step" id="flow-step-6">
                 <span class="flow-index">06</span>
                 <span class="flow-title">Follow Up</span>
                 <span class="flow-copy">Keep the synthesis alive.</span>
@@ -118,8 +120,7 @@
         </section>
 
         <main class="dashboard-grid">
-
-            <!-- LEFT PANEL: INPUT MODULE -->
+<!-- LEFT PANEL: INPUT MODULE -->
             <section class="panel left-panel">
                 <div class="panel-header">
                     <div class="header-main">
@@ -298,7 +299,7 @@
                     <div class="stage-command-copy">
                         <span class="stage-kicker">Generation</span>
                         <h2>Live Intelligence Stage</h2>
-                        <p class="stage-subtitle" id="stageSubtitle">Project Neptune · Finance Desk</p>
+                        <p class="stage-subtitle" id="stageSubtitle">Awaiting mission context...</p>
                     </div>
                     <div class="stage-command-state">
                         <span class="stage-state-chip active" id="stagePrimaryState">Generation Live</span>
@@ -309,19 +310,19 @@
                 <div class="stage-metric-strip">
                     <article class="stage-metric-card metric-runway">
                         <span class="stage-metric-label">Runway</span>
-                        <strong id="stageMetricRunway">3.1 mo</strong>
+                        <strong id="stageMetricRunway">--</strong>
                     </article>
                     <article class="stage-metric-card metric-burn">
                         <span class="stage-metric-label">Burn Rate</span>
-                        <strong id="stageMetricBurn">$11.58M</strong>
+                        <strong id="stageMetricBurn">--</strong>
                     </article>
                     <article class="stage-metric-card metric-risk">
                         <span class="stage-metric-label">Risk Vector</span>
-                        <strong id="stageMetricRisk">Critical</strong>
+                        <strong id="stageMetricRisk">--</strong>
                     </article>
                     <article class="stage-metric-card metric-truth">
                         <span class="stage-metric-label">Truth Score</span>
-                        <strong id="stageMetricTruth">79 / 100</strong>
+                        <strong id="stageMetricTruth">-- / 100</strong>
                     </article>
                 </div>
 
@@ -382,36 +383,7 @@
                         <span class="evaluation-kicker">Evaluation</span>
                         <span class="evaluation-copy">Follow the run from generation into verification and revision.</span>
                     </div>
-                    <div class="evaluation-steps">
-                        <div class="evaluation-step is-complete">
-                            <span class="evaluation-dot"></span>
-                            <div>
-                                <strong id="evalCouncilTitle">Council Active</strong>
-                                <span id="evalCouncilCopy">Directive routed to the finance council.</span>
-                            </div>
-                        </div>
-                        <div class="evaluation-step is-complete">
-                            <span class="evaluation-dot"></span>
-                            <div>
-                                <strong id="evalRoleTitle">Role Alignment</strong>
-                                <span id="evalRoleCopy">CFO, Auditor, Scout, Tax, Hedge Fund aligned.</span>
-                            </div>
-                        </div>
-                        <div class="evaluation-step is-live" id="evalVerifyStep">
-                            <span class="evaluation-dot"></span>
-                            <div>
-                                <strong id="evalVerifyTitle">Verification Window</strong>
-                                <span id="evalVerifyCopy">Ready for source checks and interrogation.</span>
-                            </div>
-                        </div>
-                        <div class="evaluation-step" id="evalRevisionStep">
-                            <span class="evaluation-dot"></span>
-                            <div>
-                                <strong id="evalRevisionTitle">Synthesis Revision</strong>
-                                <span id="evalRevisionCopy">Follow-up can still update the total response.</span>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="evaluation-steps" id="evaluationSteps"></div>
                 </div>
             </section>
 
