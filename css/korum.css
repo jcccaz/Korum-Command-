@@ -566,12 +566,19 @@ body {
 }
 
 @media (max-width: 1366px) {
+    .dashboard-grid {
+        grid-template-columns: minmax(300px, 340px) minmax(0, 1fr) minmax(280px, 340px);
+        gap: 10px;
+    }
     .top-bar-wordmark-img {
         height: 28px !important;
     }
     .nav-links a {
         padding: 6px 10px !important;
         font-size: 10px !important;
+    }
+    .panel {
+        padding: 14px !important;
     }
 }
 
@@ -958,6 +965,40 @@ body {
     filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.45));
     perspective: 1200px;
     perspective-origin: 50% 42%;
+}
+
+/* Large monitor scaling — globe + typography */
+@media (min-width: 2560px) {
+    .globe {
+        max-width: 620px;
+        max-height: 620px;
+    }
+    .nav-links a {
+        font-size: 12px;
+        padding: 8px 16px;
+    }
+    .mission-flow-step .flow-title {
+        font-size: 13px;
+    }
+    .stage-metric-card strong {
+        font-size: 22px;
+    }
+    .evaluation-step strong {
+        font-size: 15px;
+    }
+}
+@media (min-width: 3840px) {
+    .globe {
+        max-width: 780px;
+        max-height: 780px;
+    }
+    .nav-links a {
+        font-size: 13px;
+        padding: 10px 18px;
+    }
+    .stage-metric-card strong {
+        font-size: 26px;
+    }
 }
 
 .orbit {
@@ -7272,10 +7313,11 @@ body.report-library-open .results-container {
         display: block !important; /* Stack them for better scrolling */
     }
 
-    /* Globe compression */
+    /* Globe compression — use flex shrink instead of negative margins */
     .globe-container {
-        transform: scale(0.85) !important;
-        margin: -40px 0 !important;
+        transform: scale(0.8) !important;
+        flex: 0 1 auto !important;
+        max-height: 280px !important;
     }
     .stage-metric-strip {
         gap: 6px !important;
