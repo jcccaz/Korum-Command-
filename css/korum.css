@@ -195,7 +195,7 @@ body {
 }
 
 .top-bar-wordmark-img {
-    height: 32px;
+    height: 38px;
     width: auto;
     display: block;
     opacity: 0.92;
@@ -762,7 +762,7 @@ body {
 .stage-state-chip {
     display: inline-flex;
     align-items: center;
-    min-height: 32px;
+    min-height: 38px;
     padding: 0 12px;
     border-radius: 999px;
     border: 1px solid rgba(232, 232, 236, 0.12);
