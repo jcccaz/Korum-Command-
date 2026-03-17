@@ -327,7 +327,6 @@
 }
 
 .sentinel-input-area {
-    margin-top: auto;
     display: flex;
     gap: 8px;
     background: rgba(10, 10, 10, 0.72);
@@ -335,9 +334,20 @@
     border-radius: 8px;
     padding: 8px;
     flex-shrink: 0;
-    position: sticky;
-    bottom: 0;
     z-index: 3;
+}
+
+/* Pinned at top of Global Comms, always visible */
+.sentinel-input-top {
+    margin: 0 0 0 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid rgba(245, 168, 0, 0.2);
+    background: rgba(8, 8, 12, 0.9);
+    padding: 10px 12px;
+    flex-shrink: 0;
 }
 
 .sentinel-input {
