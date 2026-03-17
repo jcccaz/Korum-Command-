@@ -233,7 +233,7 @@ body {
 }
 
 .nav-links {
-    flex: 1 1 0%;
+    flex: 1 1 0px;
     min-width: 0;
     display: flex;
     gap: 8px;
@@ -242,10 +242,9 @@ body {
     scrollbar-width: none;
     -ms-overflow-style: none;
     align-items: center;
-    justify-content: flex-start; /* Alignment for scrolling */
+    justify-content: flex-start;
     padding: 4px 0;
-    mask-image: linear-gradient(to right, black 85%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+    z-index: 1;
 }
 
 .nav-links::-webkit-scrollbar {
@@ -257,6 +256,11 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
+    background: linear-gradient(to left, #060606 80%, transparent);
+    padding-left: 30px;
+    margin-left: -20px;
+    z-index: 10;
+    position: relative;
 }
 
 .auth-user-email {
