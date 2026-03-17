@@ -315,6 +315,20 @@ function updateTruthScore(provider, delta, reason) {
         }
     }
 
+    const workspaceRecord = currentWorkspaceProviders.find(record => record.provider === provider);
+    if (workspaceRecord) {
+        workspaceRecord.truthScore = newScore;
+        const roster = document.getElementById('dock-roster');
+        if (roster) {
+            roster.innerHTML = buildWorkspaceRoster(currentWorkspaceProviders);
+            document.querySelector(`.roster-card[data-provider="${sessionState.selectedCardProvider}"]`)?.classList.add('selected');
+        }
+        if (sessionState.selectedCardProvider === provider) {
+            renderWorkspaceReader(provider);
+            renderWorkspaceInspector(provider);
+        }
+    }
+
     // Update session stats (overall confidence)
     const confEl = document.getElementById('stat-confidence');
     if (confEl && lastCouncilData.results) {
@@ -1944,6 +1958,27 @@ function setupActionBindings() {
     document.querySelector('.results-content')?.addEventListener('click', (e) => {
         const target = e.target;
 
+        const rosterCard = target.closest('.roster-card[data-provider]');
+        if (rosterCard) {
+            e.stopPropagation();
+            selectWorkspaceProvider(rosterCard.dataset.provider);
+            return;
+        }
+
+        const inspectorAction = target.closest('[data-inspector-action]');
+        if (inspectorAction) {
+            e.stopPropagation();
+            runProviderAction(inspectorAction.dataset.inspectorAction);
+            return;
+        }
+
+        const inspectorToggle = target.closest('[data-inspector-toggle]');
+        if (inspectorToggle) {
+            e.stopPropagation();
+            document.getElementById(inspectorToggle.dataset.inspectorToggle)?.classList.toggle('open');
+            return;
+        }
+
         // Chart dropdown option click
         const chartOption = target.closest('.chart-option');
         if (chartOption) {
@@ -2008,7 +2043,8 @@ function setupActionBindings() {
         }
 
         // Deselect when clicking empty space
-        if (target.classList.contains('results-content') || target.classList.contains('results-grid') || target.classList.contains('dock-pane')) {
+        if ((target.classList.contains('results-content') || target.classList.contains('results-grid') || target.classList.contains('dock-pane'))
+            && !target.closest('.workspace-pane')) {
             deselectCard();
         }
     });
@@ -2521,7 +2557,6 @@ let sessionState = {
 // --- CARD SELECTION & ANALYSIS ACTION BAR ---
 
 function selectCard(cardEl) {
-    // Remove selection from all cards
     document.querySelectorAll('.agent-card.card-selected').forEach(c => {
         c.classList.remove('card-selected');
         c.querySelector('.analysis-action-bar')?.remove();
@@ -2529,20 +2564,24 @@ function selectCard(cardEl) {
 
     if (!cardEl || cardEl.classList.contains('no-interrogate')) return;
 
-    // Infer provider if card is missing data-provider (legacy/special cards)
     if (!cardEl.dataset.provider) {
         const nameHint = cardEl.dataset.name || cardEl.querySelector('.ph-model-name, .agent-name')?.innerText || '';
         const inferredProvider = resolveProviderKey(nameHint);
         if (inferredProvider) cardEl.dataset.provider = inferredProvider;
     }
 
-    // Select this card
+    const provider = cardEl.dataset.provider || null;
     cardEl.classList.add('card-selected');
     sessionState.selectedCardId = cardEl.dataset.cardId || null;
-    sessionState.selectedCardProvider = cardEl.dataset.provider || null;
+    sessionState.selectedCardProvider = provider;
     sessionState.selectedCardResponse = cardEl.querySelector('.agent-response')?.innerText || '';
 
-    // Inject action bar after known card headers (for backward compatibility/hover-like selection)
+    const workspaceActive = !!document.getElementById('dock-reader') && !!document.getElementById('dock-inspector');
+    if (workspaceActive && provider) {
+        selectWorkspaceProvider(provider);
+        return;
+    }
+
     const actionBar = buildAnalysisActionBar();
     const header = cardEl.querySelector('.precision-header, .agent-header');
     if (header) {
@@ -2550,20 +2589,6 @@ function selectCard(cardEl) {
     } else {
         cardEl.insertAdjacentElement('afterbegin', actionBar);
     }
-
-    // NEW: Card Expansion on Selection
-    const provider = cardEl.dataset.provider || "";
-    const name = cardEl.dataset.name || getProviderName(provider);
-    const content = cardEl.querySelector('.agent-response')?.innerText || "";
-    const model = cardEl.querySelector('.ph-role-label')?.innerText || provider;
-
-    openCardModal({
-        name: name,
-        provider: provider,
-        meta: `<div class="agent-meta"><span>${provider.toUpperCase()}</span><span>${model}</span></div>`,
-        content: content,
-        model: model
-    });
 }
 
 function deselectCard() {
@@ -2571,9 +2596,12 @@ function deselectCard() {
         c.classList.remove('card-selected');
         c.querySelector('.analysis-action-bar')?.remove();
     });
+    document.querySelectorAll('.roster-card.selected').forEach(card => card.classList.remove('selected'));
     sessionState.selectedCardId = null;
     sessionState.selectedCardProvider = null;
     sessionState.selectedCardResponse = null;
+    if (document.getElementById('dock-reader')) renderWorkspaceReader(null);
+    if (document.getElementById('dock-inspector')) renderWorkspaceInspector(null);
 }
 
 function buildAnalysisActionBar() {
@@ -2615,27 +2643,310 @@ function handleActionBarClick(e) {
     const card = btn.closest('.agent-card');
     if (!card) return;
     const provider = card.dataset.provider || '';
-    const providerName = getProviderName(provider);
     const response = card.querySelector('.agent-response')?.innerText || '';
+    runProviderAction(action, provider, response);
+}
+
+function runProviderAction(action, provider = sessionState.selectedCardProvider, response = null) {
+    const record = getWorkspaceProviderRecord(provider);
+    const providerName = record?.label || getProviderName(provider || 'selected response');
+    const selectedResponse = response || record?.rawResponse || sessionState.selectedCardResponse || '';
 
     switch (action) {
         case 'interrogate':
-            openInterrogation(providerName);
+            openInterrogation(providerName, selectedResponse);
             break;
         case 'verify':
-            executeVerify(response, providerName);
+            executeVerify(selectedResponse, providerName);
             break;
         case 'defend':
-            openInterrogation(providerName);
+            openInterrogation(providerName, selectedResponse);
             break;
         case 'visualize':
-            // Dropdown handles chart type selection; direct click falls through here only
-            // if no dropdown option was picked (shouldn't happen with new dropdown UI)
-            window.visualizeSelection(response);
+            window.visualizeSelection(selectedResponse);
             break;
         case 'document':
             saveReport();
             break;
+        case 'copy':
+            copyTextToClipboard(selectedResponse, `${providerName} output copied`);
+            break;
+        case 'expand':
+            openProviderModal(provider);
+            break;
+    }
+}
+
+function escapeHtml(text = '') {
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function summarizeText(text = '', maxLength = 160) {
+    const clean = String(text).replace(/\s+/g, ' ').trim();
+    if (clean.length <= maxLength) return clean;
+    return `${clean.slice(0, maxLength - 3)}...`;
+}
+
+function getWorkspaceProviderRecord(provider = sessionState.selectedCardProvider) {
+    if (!provider) return null;
+    return currentWorkspaceProviders.find(record => record.provider === provider) || null;
+}
+
+function buildReaderCitationsHtml(citations = []) {
+    if (!citations.length) return '';
+    return `
+        <div class="reader-citations">
+            <div class="reader-section-label">Sources</div>
+            <div class="reader-citations-list">
+                ${citations.map((url, index) => {
+                    let domain = url;
+                    try {
+                        domain = new URL(url).hostname.replace('www.', '');
+                    } catch (e) {}
+                    return `<a class="reader-citation-link" href="${url}" target="_blank" rel="noopener">[${index + 1}] ${escapeHtml(domain)}</a>`;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function buildWorkspaceSummaryStrip(summary) {
+    const divergenceClass = summary.divergenceScore > 50 ? 'is-danger' : summary.divergenceScore > 20 ? 'is-warning' : 'is-good';
+    return `
+        <div class="dock-summary-strip">
+            <div class="dock-summary-item">
+                <span class="dock-summary-label">Truth</span>
+                <span class="dock-summary-value">${summary.truthScore}/100</span>
+            </div>
+            <div class="dock-summary-item">
+                <span class="dock-summary-label">Models</span>
+                <span class="dock-summary-value">${summary.modelCount}</span>
+            </div>
+            <div class="dock-summary-item">
+                <span class="dock-summary-label">Latency</span>
+                <span class="dock-summary-value">${summary.totalTime.toFixed(1)}s</span>
+            </div>
+            <div class="dock-summary-item">
+                <span class="dock-summary-label">Cost</span>
+                <span class="dock-summary-value">$${summary.totalCost.toFixed(4)}</span>
+            </div>
+            <div class="dock-summary-item">
+                <span class="dock-summary-label">Divergence</span>
+                <span class="dock-summary-value ${divergenceClass}">${summary.divergenceScore}%</span>
+            </div>
+            <div class="dock-summary-item consensus">
+                <span class="dock-summary-label">Council Decision</span>
+                <span class="dock-summary-value">${escapeHtml(summary.consensusPreview)}</span>
+            </div>
+        </div>
+    `;
+}
+
+function buildWorkspaceRoster(records) {
+    if (!records.length) {
+        return '<div class="workspace-empty-state">No provider results yet.</div>';
+    }
+
+    return records.map(record => {
+        const truthPill = record.success ? `<span class="roster-card-pill">Truth ${record.truthScore}</span>` : '<span class="roster-card-pill">Error</span>';
+        const citationsPill = record.citations?.length ? `<span class="roster-card-pill">${record.citations.length} src</span>` : '';
+        const preview = record.success
+            ? escapeHtml(summarizeText(record.rawResponse, 150))
+            : escapeHtml(record.error || 'Provider did not return a usable response.');
+        return `
+            <button type="button" class="roster-card ${record.provider} ${record.success ? '' : 'failed'}" data-provider="${record.provider}">
+                <div class="roster-card-name">${escapeHtml(record.label)}</div>
+                <div class="roster-card-model">${escapeHtml(record.providerMeta || record.model || 'Unavailable')}</div>
+                <div class="roster-card-preview">${preview}</div>
+                <div class="roster-card-stats">
+                    ${truthPill}
+                    <span class="roster-card-pill">${record.success ? `${record.time.toFixed(1)}s` : 'Retry needed'}</span>
+                    ${citationsPill}
+                </div>
+            </button>
+        `;
+    }).join('');
+}
+
+function buildInspectorPanel(id, title, bodyHtml, isOpen = false) {
+    if (!bodyHtml) return '';
+    return `
+        <section class="inspector-panel ${isOpen ? 'open' : ''}" id="${id}">
+            <button type="button" class="inspector-panel-header" data-inspector-toggle="${id}">
+                <span>${title}</span>
+                <span class="inspector-panel-chevron">▾</span>
+            </button>
+            <div class="inspector-panel-body">${bodyHtml}</div>
+        </section>
+    `;
+}
+
+function buildWorkspaceInspectorPanels(data) {
+    const panels = [];
+    const consensusText = data.consensus ? `<div class="consensus-body">${formatText(data.consensus)}</div>` : '';
+    if (consensusText) panels.push(buildInspectorPanel('inspectorConsensus', 'Council Decision', consensusText, true));
+
+    const synthesis = data.synthesis || {};
+    const execSummary = synthesis.meta?.summary ? `<div>${formatText(synthesis.meta.summary)}</div>` : '';
+    if (execSummary) panels.push(buildInspectorPanel('inspectorExecBrief', 'Executive Brief', execSummary));
+
+    const divergence = data.divergence || {};
+    let divergenceHtml = '';
+    if (divergence.divergence_summary) {
+        divergenceHtml += `<div class="divergence-summary">${formatText(divergence.divergence_summary)}</div>`;
+    }
+    if (divergence.contested_topics?.length) {
+        divergenceHtml += `<div class="div-section"><div class="inspector-section-label" style="margin:12px 0 6px;">Contested Topics</div>${divergence.contested_topics.slice(0, 4).map(topic => `<div>${escapeHtml(topic.topic || topic)}</div>`).join('')}</div>`;
+    }
+    if (divergenceHtml) panels.push(buildInspectorPanel('inspectorDivergence', 'Divergence', divergenceHtml));
+
+    const placeholderMap = data.falcon?.placeholder_map || {};
+    if (Object.keys(placeholderMap).length) {
+        const falconHtml = `
+            <div>Sensitive entities were replaced before provider execution.</div>
+            <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px;">
+                ${Object.entries(placeholderMap).slice(0, 8).map(([token, value]) => `<span class="roster-card-pill">${escapeHtml(token)} → ${escapeHtml(String(value).slice(0, 18))}</span>`).join('')}
+            </div>
+        `;
+        panels.push(buildInspectorPanel('inspectorFalcon', 'Falcon', falconHtml));
+    }
+
+    return panels.join('');
+}
+
+function renderWorkspaceReader(provider = sessionState.selectedCardProvider) {
+    const reader = document.getElementById('dock-reader');
+    if (!reader) return;
+
+    const record = getWorkspaceProviderRecord(provider);
+    if (!record) {
+        reader.innerHTML = '<div class="workspace-empty-state">Select a provider to review the answer.</div>';
+        return;
+    }
+
+    const truthColor = record.truthScore > 80 ? '#4CAF7D' : record.truthScore > 50 ? '#FFB020' : '#FF4444';
+    const readerBody = record.success
+        ? highlightClaims(formatText(record.rawResponse), record.verifiedClaims || [])
+        : `<div class="agent-response">${escapeHtml(record.error || 'Provider response unavailable.')}</div>`;
+
+    reader.innerHTML = `
+        <div class="reader-shell">
+            <div class="reader-header">
+                <div>
+                    <div class="reader-provider">${escapeHtml(record.label)}</div>
+                    <div class="ph-role-label" style="margin-top:6px;">${escapeHtml(record.providerMeta)}</div>
+                </div>
+                <div class="reader-meta">
+                    <span class="reader-meta-pill" style="color:${truthColor};">Truth ${record.truthScore}/100</span>
+                    <span class="reader-meta-pill">$${record.cost.toFixed(4)}</span>
+                    <span class="reader-meta-pill">${record.time.toFixed(1)}s</span>
+                    ${record.citations?.length ? `<span class="reader-meta-pill">${record.citations.length} sources</span>` : ''}
+                </div>
+            </div>
+            <div class="reader-body">${readerBody}</div>
+            ${buildReaderCitationsHtml(record.citations || [])}
+        </div>
+    `;
+
+    if (window.mermaid) {
+        setTimeout(() => mermaid.run({ querySelector: '#dock-reader .mermaid', suppressErrors: true }), 80);
+    }
+}
+
+function renderWorkspaceInspector(provider = sessionState.selectedCardProvider) {
+    const inspector = document.getElementById('dock-inspector');
+    if (!inspector) return;
+
+    const record = getWorkspaceProviderRecord(provider);
+    if (!record) {
+        inspector.innerHTML = '<div class="workspace-empty-state">Select a provider to unlock workspace tools.</div>';
+        return;
+    }
+
+    const selectionCopy = record.success
+        ? summarizeText(record.rawResponse, 180)
+        : (record.error || 'Provider did not return a usable response.');
+
+    inspector.innerHTML = `
+        <section class="inspector-card">
+            <div class="inspector-section-label">Selected Answer</div>
+            <div class="inspector-selection-meta" style="margin-top:10px;">
+                <div class="inspector-selection-name">${escapeHtml(record.label)}</div>
+                <div class="inspector-selection-copy">${escapeHtml(selectionCopy)}</div>
+            </div>
+        </section>
+        <section class="inspector-card">
+            <div class="inspector-section-label">Actions</div>
+            <div class="inspector-actions" style="margin-top:10px;">
+                <button type="button" class="inspector-btn" data-inspector-action="interrogate"><span class="btn-icon">🔎</span>Interrogate</button>
+                <button type="button" class="inspector-btn" data-inspector-action="verify"><span class="btn-icon">⚖</span>Verify</button>
+                <button type="button" class="inspector-btn" data-inspector-action="defend"><span class="btn-icon">🛡</span>Defend</button>
+                <button type="button" class="inspector-btn" data-inspector-action="visualize"><span class="btn-icon">📊</span>Visualize</button>
+                <button type="button" class="inspector-btn" data-inspector-action="copy"><span class="btn-icon">📋</span>Copy</button>
+                <button type="button" class="inspector-btn" data-inspector-action="document"><span class="btn-icon">📄</span>Document</button>
+                <button type="button" class="inspector-btn" data-inspector-action="expand"><span class="btn-icon">⤢</span>Expand</button>
+            </div>
+        </section>
+        ${buildWorkspaceInspectorPanels(lastCouncilData || {})}
+    `;
+}
+
+function selectWorkspaceProvider(provider) {
+    const record = getWorkspaceProviderRecord(provider);
+    if (!record) return;
+
+    sessionState.selectedCardId = record.cardId;
+    sessionState.selectedCardProvider = record.provider;
+    sessionState.selectedCardResponse = record.rawResponse;
+
+    document.querySelectorAll('.roster-card.selected').forEach(card => card.classList.remove('selected'));
+    document.querySelector(`.roster-card[data-provider="${record.provider}"]`)?.classList.add('selected');
+
+    renderWorkspaceReader(record.provider);
+    renderWorkspaceInspector(record.provider);
+}
+
+function openProviderModal(provider = sessionState.selectedCardProvider) {
+    const record = getWorkspaceProviderRecord(provider);
+    if (!record) return;
+
+    openCardModal({
+        name: record.label,
+        provider: record.provider,
+        meta: `<div class="agent-meta"><span>${escapeHtml(record.provider.toUpperCase())}</span><span>${escapeHtml(record.providerMeta)}</span></div>`,
+        content: record.rawResponse,
+        model: record.model
+    });
+}
+
+function renderCouncilWorkspace(councilPane, data, providerRecords, summary) {
+    currentWorkspaceProviders = providerRecords;
+
+    const workspace = document.createElement('div');
+    workspace.className = 'dock-workspace';
+    workspace.innerHTML = `
+        ${buildWorkspaceSummaryStrip(summary)}
+        <div class="dock-roster" id="dock-roster">${buildWorkspaceRoster(providerRecords)}</div>
+        <div class="dock-reader" id="dock-reader"></div>
+        <aside class="dock-inspector" id="dock-inspector"></aside>
+    `;
+
+    councilPane.appendChild(workspace);
+
+    const preferredProvider = providerRecords.find(record => record.provider === sessionState.selectedCardProvider)
+        || providerRecords.find(record => record.success)
+        || providerRecords[0];
+
+    if (preferredProvider) {
+        selectWorkspaceProvider(preferredProvider.provider);
+    } else {
+        renderWorkspaceReader(null);
+        renderWorkspaceInspector(null);
     }
 }
 
@@ -2684,6 +2995,7 @@ function updateThreadBadge() {
         newThreadBtn.addEventListener('click', () => {
             sessionState.activeThreadId = null;
             sessionState.threadHistory = [];
+            currentWorkspaceProviders = [];
             updateThreadBadge();
             const cp = document.getElementById('pane-council');
             const ap = document.getElementById('pane-analysis');
@@ -4088,35 +4400,46 @@ function copyAsCSV(content) {
 function renderSkeletonCards(providers) {
     const councilPane = document.getElementById('pane-council');
     if (!councilPane) return;
+    currentWorkspaceProviders = [];
+    sessionState.selectedCardId = null;
+    sessionState.selectedCardProvider = null;
+    sessionState.selectedCardResponse = null;
     councilPane.innerHTML = '';
-
-    const grid = document.createElement('div');
-    grid.className = 'results-grid skeleton-grid';
-
-    providers.forEach(provider => {
+    const rosterSkeleton = providers.map(provider => {
         const role = document.getElementById(`roleLabel-${provider}`)?.innerText || provider.toUpperCase();
-        const card = document.createElement('div');
-        card.className = `agent-card ${provider} skeleton-card`;
-        card.innerHTML = `
-            <div class="precision-header">
-                <div class="ph-left">
-                    <div class="ph-model-name">${role}</div>
-                    <div class="ph-role-label">${getProviderName(provider)} | analyzing...</div>
+        return `
+            <div class="roster-card ${provider} skeleton" data-provider="${provider}">
+                <div class="roster-card-name">${escapeHtml(role)}</div>
+                <div class="roster-card-model">${escapeHtml(getProviderName(provider))} | analyzing...</div>
+                <div class="roster-card-preview">Generating response...</div>
+                <div class="roster-card-stats">
+                    <span class="roster-card-pill">Processing</span>
                 </div>
-                <div class="ph-right">
-                    <div class="metric-pill" style="color:#FFB020; animation: pulse 1.5s infinite;">PROCESSING</div>
-                </div>
-            </div>
-            <div class="agent-response" style="padding:16px;">
-                <div class="skeleton-line" style="width:90%; height:10px; background:rgba(255,255,255,0.04); border-radius:3px; margin-bottom:8px; animation: shimmer 1.5s infinite;"></div>
-                <div class="skeleton-line" style="width:75%; height:10px; background:rgba(255,255,255,0.03); border-radius:3px; margin-bottom:8px; animation: shimmer 1.5s infinite 0.2s;"></div>
-                <div class="skeleton-line" style="width:60%; height:10px; background:rgba(255,255,255,0.02); border-radius:3px; animation: shimmer 1.5s infinite 0.4s;"></div>
             </div>
         `;
-        grid.appendChild(card);
-    });
+    }).join('');
 
-    councilPane.appendChild(grid);
+    councilPane.innerHTML = `
+        <div class="dock-workspace">
+            <div class="dock-summary-strip">
+                <div class="dock-summary-item">
+                    <span class="dock-summary-label">Status</span>
+                    <span class="dock-summary-value">Generating</span>
+                </div>
+                <div class="dock-summary-item consensus">
+                    <span class="dock-summary-label">Council</span>
+                    <span class="dock-summary-value">Selected providers are building the next answer.</span>
+                </div>
+            </div>
+            <div class="dock-roster" id="dock-roster">${rosterSkeleton}</div>
+            <div class="dock-reader" id="dock-reader">
+                <div class="workspace-empty-state">Answers will load here as soon as a provider finishes.</div>
+            </div>
+            <aside class="dock-inspector" id="dock-inspector">
+                <div class="workspace-empty-state">Workspace tools unlock when an answer lands.</div>
+            </aside>
+        </div>
+    `;
 
     // Make dock visible and switch to council tab
     document.querySelector('.results-container')?.classList.add('visible');
@@ -4311,6 +4634,7 @@ async function executeCouncil(query, roleName) {
 // ── DOCK TAB SWITCHING ─────────────────────────────────────
 let activeDockTab = 'council';
 let interrogationBadgeCount = 0;
+let currentWorkspaceProviders = [];
 
 function initDockTabs() {
     document.querySelectorAll('.dock-tab').forEach(tab => {
@@ -4475,8 +4799,8 @@ function renderResults(data, roleName) {
     const councilPane = document.getElementById('pane-council');
     const analysisPane = document.getElementById('pane-analysis');
     const interPane = document.getElementById('pane-interrogation');
-    const councilGrid = document.createElement("div"); councilGrid.className = "results-grid";
     const analysisGrid = document.createElement("div"); analysisGrid.className = "results-grid";
+    const providerRecords = [];
 
     // Update Mission Stats
     const totalTime = data.results ? Object.values(data.results).reduce((acc, r) => acc + (r.time || 0), 0) : 0;
@@ -4526,134 +4850,48 @@ function renderResults(data, roleName) {
             sessionState.lastResponses[provider] = res.response;
         }
 
-        // Create card
-        const card = document.createElement("div");
-        card.className = `agent-card ${provider} ${!res.success ? 'failed' : ''}`;
-        card.dataset.name = res.role ? res.role.toUpperCase() : getProviderName(provider);
-        card.dataset.provider = provider;
-        card.dataset.cardId = `card-${provider}-${Date.now()}`;
-
-        // --- NEW: CLAIM HIGHLIGHTING ---
         const rawResponse = res.response;
         const verifiedClaims = res.verified_claims || [];
         const truthScore = res.truth_meter !== undefined ? res.truth_meter : 85;
-
-        const displayContent = highlightClaims(formatText(rawResponse), verifiedClaims);
         const cost = res.cost || 0.0091;
         const time = res.time || 12.34;
         const citations = res.citations || [];
-
-        // Build citations footer if sources exist
-        let citationsHtml = '';
-        if (citations.length > 0) {
-            citationsHtml = `
-                <div class="citations-footer" style="border-top:1px solid rgba(255,255,255,0.06); padding:8px 16px; background:rgba(245,168,0,0.02);">
-                    <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em; margin-bottom:4px;">SOURCES (${citations.length})</div>
-                    ${citations.map((url, i) => {
-                        const domain = (() => { try { return new URL(url).hostname.replace('www.',''); } catch(e) { return url; } })();
-                        return `<div style="margin-bottom:2px;">
-                            <a href="${url}" target="_blank" rel="noopener" style="color:#00DCFF; font-size:0.55rem; text-decoration:none; opacity:0.8; transition:opacity 0.15s;"
-                               onmouseenter="this.style.opacity='1';this.style.textDecoration='underline'" onmouseleave="this.style.opacity='0.8';this.style.textDecoration='none'">
-                                <span style="color:#555;">[${i+1}]</span> ${domain}
-                            </a>
-                        </div>`;
-                    }).join('')}
-                </div>`;
-        }
-
-        card.innerHTML = `
-            <div class="precision-header">
-                <div class="ph-left">
-                    <div class="ph-model-name">${res.role ? res.role.toUpperCase() : getProviderName(provider)}</div>
-                    <div class="ph-role-label">${getProviderName(provider)} | ${res.model || "v2.0"}</div>
-
-                    <div class="ph-truth-container">
-                        <div class="truth-score-val" style="color: ${truthScore > 80 ? '#4CAF7D' : truthScore > 50 ? '#FFB020' : '#FF4444'}">
-                            TRUTH SCORE: ${truthScore}/100
-                        </div>
-                        <div class="truth-bar-container">
-                            <div class="truth-fill" style="width: ${truthScore}%"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="ph-right">
-                    <div class="metric-pill">$${cost.toFixed(4)}</div>
-                    <div class="metric-pill time">${time}s</div>
-                    ${citations.length > 0 ? `<div class="metric-pill" style="color:#00DCFF; border-color:rgba(245,168,0,0.3);">${citations.length} sources</div>` : ''}
-                    <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); saveReport()" title="Save">💾</div>
-                    <div class="tool-action" onclick="event.stopPropagation(); this.classList.add('success'); setTimeout(()=>this.classList.remove('success'), 1000); copyTextToClipboard(decodeURIComponent('${encodeURIComponent(rawResponse)}'), '${getProviderName(provider)} output copied')" title="Copy">📋</div>
-                </div>
-            </div>
-            <div class="agent-response">${displayContent}</div>
-            ${citationsHtml}
-        `;
-
-        // Single click = select card + show action bar
-        card.addEventListener('click', (e) => {
-            if (e.target.closest('button') || e.target.closest('.tool-action') || e.target.closest('.analysis-action-bar')) return;
-            selectCard(card);
-        });
-        // Double click = open full-screen modal
-        card.addEventListener('dblclick', (e) => {
-            if (e.target.closest('button') || e.target.closest('.tool-action') || e.target.closest('.analysis-action-bar')) return;
-            openCardModal({
-                name: getProviderName(provider),
-                provider: provider,
-                meta: `<div class="agent-meta"><span>${getProviderName(provider)}</span><span>${res.model || provider}</span></div>`,
-                content: res.response,
-                model: res.model || provider
-            });
-        });
-
-        // Store Response for Context
         sessionState.lastResponses[provider] = res.response;
-
-        councilGrid.appendChild(card);
+        providerRecords.push({
+            provider,
+            label: res.role ? res.role.toUpperCase() : getProviderName(provider),
+            providerMeta: `${getProviderName(provider)} | ${res.model || 'v2.0'}`,
+            model: res.model || provider,
+            success: !!res.success,
+            rawResponse: rawResponse || res.error || '',
+            verifiedClaims,
+            truthScore,
+            cost,
+            time,
+            citations,
+            error: res.error || '',
+            cardId: `card-${provider}-${Date.now()}`
+        });
     });
 
     // 5TH CARD: RED TEAM EXPLOIT (ADDITIVE)
     if (data.results && data.results['red_team'] && data.results['red_team'].success) {
         const res = data.results['red_team'];
-        const card = document.createElement("div");
-        card.className = "agent-card red-team-card";
-
-        // Critical Styling
-        card.style.border = "1px solid #FF4444";
-        card.style.background = "rgba(255, 68, 68, 0.05)";
-        card.style.marginTop = "20px";
-
-        const displayContent = formatText(res.response);
-
-        card.innerHTML = `
-            <div class="precision-header" style="border-bottom: 1px solid #FF4444;">
-                <div class="ph-left">
-                    <div class="ph-model-name" style="color:#FF4444">☠️ RED TEAM</div>
-                    <div class="ph-role-label" style="color:#FF8888">EXPLOIT VECTOR</div>
-                    <div class="badge-stack">
-                        <div class="status-badge" style="border-color:#FF4444; color:#FF4444;">SEVERITY: CRITICAL</div>
-                    </div>
-                </div>
-                <div class="ph-right">
-                   <div class="metric-pill" style="color:#FF4444">THREAT DETECTED</div>
-                   <div class="tool-action" onclick="event.stopPropagation(); saveReport()" title="Save">💾</div>
-                   <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(decodeURIComponent('${encodeURIComponent(res.response)}'), 'Threat vector copied')" title="Copy">📋</div>
-                </div>
-            </div>
-            <div class="agent-response" style="color:#FFDDDD">${displayContent}</div>
-        `;
-
-        // Custom Modal for Red Team
-        card.addEventListener('click', () => {
-            openCardModal({
-                name: "RED TEAM EXPLOIT",
-                provider: 'red_team',
-                meta: `<div class="agent-meta"><span style="color:#FF4444">RED TEAM</span><span>EXPLOIT</span></div>`,
-                content: res.response,
-                model: "CRITICAL"
-            });
+        providerRecords.push({
+            provider: 'red_team',
+            label: 'RED TEAM',
+            providerMeta: 'EXPLOIT VECTOR | CRITICAL',
+            model: 'CRITICAL',
+            success: true,
+            rawResponse: res.response || '',
+            verifiedClaims: [],
+            truthScore: 0,
+            cost: res.cost || 0,
+            time: res.time || 0,
+            citations: res.citations || [],
+            error: '',
+            cardId: `card-red-team-${Date.now()}`
         });
-
-        councilGrid.appendChild(card);
     }
 
     // FALCON REDACTION SUMMARY CARD
@@ -4922,12 +5160,14 @@ function renderResults(data, roleName) {
 
     // EXPORT COMMAND CENTER (Phase 6)
     renderExportToolbar(councilPane, data);
-
-    // EXECUTIVE SUMMARY CARD — top of Council tab
-    const execSummaryCard = buildExecutiveSummary(data, roleName, avgConfidence, totalTime);
-    if (execSummaryCard) councilPane.appendChild(execSummaryCard);
-
-    councilPane.appendChild(councilGrid);
+    renderCouncilWorkspace(councilPane, data, providerRecords, {
+        truthScore: stageTruth,
+        modelCount: providerRecords.filter(record => record.provider !== 'red_team').length,
+        totalTime,
+        totalCost,
+        divergenceScore: data.divergence?.divergence_score || 0,
+        consensusPreview: summarizeText(consensusText, 180)
+    });
     analysisPane.appendChild(analysisGrid);
 
     document.querySelector(".results-container").classList.add("visible");
@@ -5801,7 +6041,7 @@ window.onload = async function () {
 };
 
 // UTILS
-function getProviderName(key) { const names = { openai: "Strategic Core", anthropic: "Architect", google: "Critic", perplexity: "Intel", mistral: "Analyst", local: "Oracle" }; return names[key] || key; }
+function getProviderName(key) { const names = { openai: "Strategic Core", anthropic: "Architect", google: "Critic", perplexity: "Intel", mistral: "Analyst", local: "Oracle", red_team: "Red Team" }; return names[key] || key; }
 function formatText(text) {
     if (!text) return "";
     // Convert intelligence tags into styled inline highlights
@@ -6336,8 +6576,26 @@ function buildSocialPayload(synthesis) {
     const meta = synthesis.meta || {};
     const sections = synthesis.sections || {};
     const title = meta.title || "Korum Intelligence Brief";
+    
+    // PRIORITIZE SPECIFIC DRAFTS FROM SOCIAL_POST WORKFLOW
+    const mainDraft = sections.main_draft || sections.recommended_post || sections.final_draft;
+    const alternateA = sections.alternate_version_a || sections.alternate_versions;
     const summary = (meta.summary || sections.executive_summary || "").trim();
 
+    if (mainDraft) {
+        // We have a targeted post from the engine — use it verbatim!
+        const cleanDraft = mainDraft.replace(/\*\*(RECOMMENDED POST|VERSION 1):?\*\*/i, '').trim();
+        return {
+            linkedin: cleanDraft,
+            twitter: cleanDraft.length > 280 ? cleanDraft.slice(0, 277) + '...' : cleanDraft,
+            threads: cleanDraft.length > 450 ? cleanDraft.slice(0, 447) + '...' : cleanDraft,
+            redditTitle: title,
+            redditBody: cleanDraft + (alternateA ? `\n\n---\n**ALTERNATE VERSION:**\n${alternateA}` : ""),
+            medium: `# ${title}\n\n${cleanDraft}\n\n${Object.entries(sections).filter(([k]) => !['main_draft', 'recommended_post', 'final_draft'].includes(k)).map(([k, v]) => `## ${k.replace(/_/g, ' ')}\n\n${v || ''}`).join('\n\n')}`
+        };
+    }
+
+    // FALLBACK: Assembly logic for non-social missions (e.g. Research)
     const bullets = [
         sections.market_analysis,
         sections.technical_architecture,
