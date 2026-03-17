@@ -190,14 +190,16 @@ body {
 .top-bar-wordmark {
     grid-column: 1;
     justify-self: start;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    color: #6E7178;
-    text-transform: uppercase;
-    font-family: inherit;
-    user-select: none;
-    opacity: 0.85;
+    display: flex;
+    align-items: center;
+}
+
+.top-bar-wordmark-img {
+    height: 32px;
+    width: auto;
+    display: block;
+    opacity: 0.92;
+    filter: drop-shadow(0 0 8px rgba(245, 168, 0, 0.15));
 }
 
 
