@@ -24,6 +24,7 @@
     --accent-red: #FF4D4D;
     --accent-warning: #E8B84B;
     --border-subtle: #2A2A2A;
+    --dock-resting-height: 76px;
 
     --font-head: 'Outfit', sans-serif;
     --font-body: 'Inter', sans-serif;
@@ -485,7 +486,7 @@ body {
     display: grid;
     grid-template-columns: minmax(400px, 430px) minmax(0, 1fr) minmax(380px, 430px);
     gap: 14px;
-    height: calc(100% - 136px);
+    height: calc(100% - 136px - var(--dock-resting-height));
     position: relative;
     overflow: hidden;
 }
