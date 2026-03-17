@@ -378,12 +378,8 @@ EOM_STATEMENT_PHASE_DIRECTIVES = {
         "title": "VERDICT — Executive Financial Statement",
         "instruction": (
             "You are the CHIEF FINANCIAL OFFICER. Output the final, ready-to-present EOM report. "
-            "Your output MUST include the following structured Markdown tables:\n\n"
-            "  1) **EXECUTIVE SUMMARY** — Overall health, Net Income, and Cash Position.\n"
-            "  2) **PROFIT & LOSS (P&L)** — A detailed Markdown table with columns: [Category, Current Month, Previous Month, % Change]. Include Revenue, COGS, Gross Profit, OPEX, and EBITDA.\n"
-            "  3) **BURN & RUNWAY** — A Markdown table with: [Burn Rate (Net/Gross), Runway (Months), Zero-Cash Date].\n"
-            "  4) **STRATEGIC ACTIONS** — Ranked list of 3-5 immediate cash-preservation or growth moves.\n\n"
-            "STRICT RULE: Do NOT summarize. Provide the actual tables. The user needs to see the numbers, not a paragraph about them."
+            "Structure as: 1) Executive Summary (Financial Health Score), 2) Standard P&L Table, 3) Burn & Runway Metrics, 4) Top 3 Actions for next month. "
+            "STRICT RULE: Be cold, analytical, and precise. No marketing language."
         )
     }
 }
@@ -1236,6 +1232,27 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     if context.ghost_map or context.residual_report:
         mimir_block = _build_mimir_block(context.ghost_map, context.residual_report)
 
+    # Document-assembly workflows: final phase MUST compile everything, not just add unique content
+    DOCUMENT_ASSEMBLY_WORKFLOWS = {"EOM_STATEMENT", "FINANCE", "AUDIT", "CODE_AUDIT", "LEGAL"}
+    is_final_phase = (position == total_steps - 1)
+    is_assembly_workflow = context.workflow in DOCUMENT_ASSEMBLY_WORKFLOWS
+
+    if is_final_phase and is_assembly_workflow:
+        assembly_rule = (
+            "## CRITICAL RULE: FULL DOCUMENT ASSEMBLY\n"
+            "    You are the FINAL AUTHOR. Your job is to compile ALL prior phase outputs into ONE complete, "
+            "ready-to-present document. Use every figure, table, and finding from the prior phases — "
+            "structured exactly as your phase mission defines. This is NOT a summary. It is the final deliverable. "
+            "If it is not complete enough to hand to a client or executive, you have FAILED."
+        )
+    else:
+        assembly_rule = (
+            "## CRITICAL RULE: ZERO REPETITION\n"
+            "    The prior phases are provided for CONTEXT ONLY. DO NOT restate, summarize, or echo their findings.\n"
+            "    Your ONLY job is to add what is MISSING \u2014 the unique contribution defined by your phase mission above.\n"
+            "    If your output overlaps with prior phases, you have FAILED your mission."
+        )
+
     # Standard Professional Template with DNA Overlay
     prompt = f"""
     ## PROFESSIONAL INTELLIGENCE BRIEF
@@ -1257,10 +1274,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     ## YOUR PHASE MISSION
     {phase['instruction']}
 
-    ## CRITICAL RULE: ZERO REPETITION
-    The prior phases are provided for CONTEXT ONLY. DO NOT restate, summarize, or echo their findings.
-    Your ONLY job is to add what is MISSING — the unique contribution defined by your phase mission above.
-    If your output overlaps with prior phases, you have FAILED your mission.
+    {assembly_rule}
 
     {mimir_block}
     ## INTERNAL STRUCTURING (FOR SYSTEM PARSING)
@@ -1299,9 +1313,12 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         if context.previous_context:
             prompt += "\nNote: A prior session's conclusions are provided above. Acknowledge them briefly, then focus on what is NEW in this follow-up query."
     else:
-        prompt += "\n## PRIOR PHASE CONTEXT (for reference — DO NOT REPEAT):\n"
+        # Final assembly phase gets full prior phase output; others get 2000-char snippets
+        max_chars = 6000 if (is_final_phase and is_assembly_workflow) else 2000
+        header = "\n## PRIOR PHASE OUTPUT (COMPILE INTO FINAL DOCUMENT):\n" if (is_final_phase and is_assembly_workflow) else "\n## PRIOR PHASE CONTEXT (for reference — DO NOT REPEAT):\n"
+        prompt += header
         for entry in context.history:
-            snippet = (entry['response'][:2000] + '...') if len(entry['response']) > 2000 else entry['response']
+            snippet = (entry['response'][:max_chars] + '...') if len(entry['response']) > max_chars else entry['response']
             prompt += f"\n-- PHASE [{entry['persona'].upper()}] ({entry['ai'].upper()}):\n{snippet}\n"
 
     return prompt
