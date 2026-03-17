@@ -2371,7 +2371,8 @@ function renderChainResults(result) {
     updateResultsDockState({
         pill: 'Results Ready',
         text: 'Council, analysis, and interrogation outputs are ready in the artifact dock.',
-        ready: true
+        ready: true,
+        mode: 'ready'
     });
     switchDockTab('council');
     document.getElementById('recallAnalysisBtn').style.display = 'none';
@@ -2393,6 +2394,7 @@ function renderChainResults(result) {
         affected: 'Council, analysis, execution',
         nextMove: 'Interrogate or verify'
     });
+    setCommsContextActive(true);
     addCommsActivity('Synthesis ready', (synthesisData.meta?.summary || 'Sequential council output is ready for review.').slice(0, 120), 'ready');
 
     // Populate sessionState.lastResponses so follow-ups and interrogations have context
@@ -3188,6 +3190,13 @@ window.executeVerify = async function (claimText, providerName) {
         setTextById('evalRevisionTitle', 'Synthesis Revision');
         setTextById('evalRevisionCopy', 'Verification changed the active answer state.');
         setEvaluationStepState('evalRevisionStep', 'live');
+        setCommsContextActive(true);
+        updateResultsDockState({
+            pill: 'Revision Live',
+            text: 'Verification output is available in the artifact dock.',
+            ready: true,
+            mode: 'revision'
+        });
         addCommsActivity('Verification complete', `Perplexity reviewed the selected claim and returned ${result.verdict || 'a verdict'}.`, result.verdict === 'INACCURATE' ? 'alert' : 'ready');
 
         // === TRUTH SCORE FEEDBACK — use structured verdict from backend ===
@@ -3353,6 +3362,13 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
         setTextById('evalRevisionTitle', 'Synthesis Revision');
         setTextById('evalRevisionCopy', 'Cross-examination updated the mission posture.');
         setEvaluationStepState('evalRevisionStep', 'live');
+        setCommsContextActive(true);
+        updateResultsDockState({
+            pill: 'Revision Live',
+            text: 'Interrogation output is available in the artifact dock.',
+            ready: true,
+            mode: 'revision'
+        });
         addCommsActivity('Interrogation complete', `${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'alert');
 
         // === TRUTH SCORE FEEDBACK — use structured verdict + delta from backend ===
@@ -4058,6 +4074,7 @@ async function executeCouncil(query, roleName) {
         revisionTitle: 'Synthesis Revision',
         revisionCopy: 'Revision state will update once an answer lands.'
     });
+    setCommsContextActive(true);
     updateRevisionSummary({
         latestFollowup: query.length > 96 ? `${query.slice(0, 96)}...` : query,
         revisionState: 'Answer generation in progress.',
@@ -4817,7 +4834,8 @@ function renderResults(data, roleName) {
     updateResultsDockState({
         pill: 'Results Ready',
         text: 'Council outputs are live in the artifact dock and ready for review.',
-        ready: true
+        ready: true,
+        mode: 'ready'
     });
     switchDockTab('council');
     document.getElementById('recallAnalysisBtn').style.display = 'none'; // Hide recall button when showing fresh results
@@ -4839,6 +4857,7 @@ function renderResults(data, roleName) {
         affected: 'Council response',
         nextMove: 'Interrogate or verify'
     });
+    setCommsContextActive(true);
     addCommsActivity('Council response ready', (synthesisMeta.summary || data.consensus || 'Mission answer available.').slice(0, 120), 'ready');
     logTelemetry("Consensus Reached. Displaying Output.", "system");
 
@@ -5280,6 +5299,7 @@ const sentinelChat = {
         // User Message
         this.appendMessage(query, 'user');
         this.history.push({ role: 'user', content: query });
+        setCommsContextActive(true);
         updateRevisionSummary({
             latestFollowup: query,
             revisionState: 'Follow-up in progress.',
@@ -5341,6 +5361,7 @@ const sentinelChat = {
         if (wrapper) wrapper.innerHTML = '';
         this.refreshEmptyState();
         resetCommsActivity();
+        setCommsContextActive(false);
         logTelemetry("Global Comms cleared", "system");
     },
 
@@ -5437,7 +5458,14 @@ function updateRevisionSummary({
     setTextById('revisionNextMoveValue', nextMove);
 }
 
-function updateResultsDockState({ pill = 'Standby', text, ready = false } = {}) {
+function setCommsContextActive(active) {
+    ['commsThreadSummary', 'revisionImpactStrip', 'commsActivityFeed'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('is-collapsed', !active);
+    });
+}
+
+function updateResultsDockState({ pill = 'Standby', text, ready = false, mode = 'standby' } = {}) {
     const dock = document.getElementById('resultsDock');
     const pillEl = document.getElementById('resultsStatusPill');
     const textEl = document.getElementById('resultsStatusText');
@@ -5445,6 +5473,7 @@ function updateResultsDockState({ pill = 'Standby', text, ready = false } = {}) 
     if (pillEl) {
         pillEl.textContent = pill;
         pillEl.classList.toggle('is-ready', ready);
+        pillEl.classList.toggle('is-revision', mode === 'revision');
     }
     if (textEl && text) {
         textEl.textContent = text;
@@ -5527,6 +5556,8 @@ function updateStageFromAnswer({
 
 function initializeMissionSurface() {
     resetCommsActivity();
+    setCommsContextActive(false);
+    const hasDockArtifacts = Array.isArray(ResearchDock?.snippets) && ResearchDock.snippets.length > 0;
     updateStageState({
         subtitle: 'Project Neptune · Finance Desk',
         primaryState: 'Generation Live',
@@ -5551,9 +5582,12 @@ function initializeMissionSurface() {
         nextMove: 'Interrogate or verify'
     });
     updateResultsDockState({
-        pill: 'Standby',
-        text: 'Results, exports, and revision outputs land here.',
-        ready: false
+        pill: hasDockArtifacts ? 'Artifacts Ready' : 'Standby',
+        text: hasDockArtifacts
+            ? `${ResearchDock.snippets.length} docked artifact${ResearchDock.snippets.length === 1 ? '' : 's'} available in the results layer.`
+            : 'Results, exports, and revision outputs land here.',
+        ready: hasDockArtifacts,
+        mode: hasDockArtifacts ? 'ready' : 'standby'
     });
 }
 

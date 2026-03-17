@@ -6669,6 +6669,12 @@ body.report-library-open .results-container {
     color: var(--accent-gold-bright);
 }
 
+.results-status-pill.is-revision {
+    border-color: rgba(255, 77, 77, 0.24);
+    background: rgba(48, 18, 18, 0.94);
+    color: #ffb3b3;
+}
+
 .results-status-text {
     color: var(--text-secondary);
     font-size: 12px;

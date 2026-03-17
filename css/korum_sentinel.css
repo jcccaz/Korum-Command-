@@ -85,6 +85,12 @@
     margin-top: 14px;
 }
 
+.comms-thread-summary.is-collapsed,
+.revision-impact-strip.is-collapsed,
+.comms-activity-feed.is-collapsed {
+    display: none;
+}
+
 .comms-activity-feed {
     display: flex;
     flex-direction: column;
