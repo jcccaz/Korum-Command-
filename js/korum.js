@@ -5454,8 +5454,8 @@ function fireLightning(node) {
     const svg = document.getElementById('lightning-layer'); if (!svg) return;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path"); path.classList.add("lightning-path");
     const color = getComputedStyle(node).getPropertyValue('--node-color').trim() || '#FFF'; path.style.stroke = color; svg.appendChild(path);
-    const duration = 400; const startTime = Date.now(); const sphere = document.querySelector('.sphere-container');
-    function animate() { const elapsed = Date.now() - startTime; if (elapsed > duration) { path.remove(); sphere?.classList.remove('impact'); return; } const nodeRect = node.getBoundingClientRect(); const svgRect = svg.getBoundingClientRect(); const startX = nodeRect.left + nodeRect.width / 2 - svgRect.left; const startY = nodeRect.top + nodeRect.height / 2 - svgRect.top; const endX = svgRect.width / 2; const endY = svgRect.height / 2; const d = generateLightningPath(startX, startY, endX, endY, 8); path.setAttribute("d", d); path.style.opacity = Math.random() > 0.5 ? 1 : 0.3; if (Math.random() > 0.8) sphere?.classList.add('impact'); else sphere?.classList.remove('impact'); requestAnimationFrame(animate); } animate();
+    const duration = 400; const startTime = Date.now(); const storm = document.querySelector('.storm-core');
+    function animate() { const elapsed = Date.now() - startTime; if (elapsed > duration) { path.remove(); storm?.classList.remove('impact'); return; } const nodeRect = node.getBoundingClientRect(); const svgRect = svg.getBoundingClientRect(); const startX = nodeRect.left + nodeRect.width / 2 - svgRect.left; const startY = nodeRect.top + nodeRect.height / 2 - svgRect.top; const endX = svgRect.width / 2; const endY = svgRect.height / 2; const d = generateLightningPath(startX, startY, endX, endY, 8); path.setAttribute("d", d); path.style.opacity = Math.random() > 0.5 ? 1 : 0.3; if (Math.random() > 0.8) storm?.classList.add('impact'); else storm?.classList.remove('impact'); requestAnimationFrame(animate); } animate();
 }
 
 function generateLightningPath(x1, y1, x2, y2, segments) {

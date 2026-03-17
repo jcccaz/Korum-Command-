@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KORUM-OS | Decision Intelligence</title>
-    <link rel="stylesheet" href="css/korum.css?v=20260317">
-    <link rel="stylesheet" href="css/korum_sentinel.css">
+    <link rel="stylesheet" href="css/korum.css?v=20260316b">
+    <link rel="stylesheet" href="css/korum_sentinel.css?v=20260316b">
     <link rel="stylesheet" href="css/client_preview.css">
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
@@ -81,6 +81,39 @@
                 </svg>
             </div>
         </nav>
+
+        <section class="mission-flow-strip" aria-label="Mission flow">
+            <article class="mission-flow-step is-complete">
+                <span class="flow-index">01</span>
+                <span class="flow-title">Input</span>
+                <span class="flow-copy">Prompt and mission objective.</span>
+            </article>
+            <article class="mission-flow-step is-complete">
+                <span class="flow-index">02</span>
+                <span class="flow-title">Constraints</span>
+                <span class="flow-copy">Roster, Falcon, protected terms.</span>
+            </article>
+            <article class="mission-flow-step is-active">
+                <span class="flow-index">03</span>
+                <span class="flow-title">Generation</span>
+                <span class="flow-copy">Council response and live stage.</span>
+            </article>
+            <article class="mission-flow-step">
+                <span class="flow-index">04</span>
+                <span class="flow-title">Evaluation</span>
+                <span class="flow-copy">Interrogate, verify, revise.</span>
+            </article>
+            <article class="mission-flow-step">
+                <span class="flow-index">05</span>
+                <span class="flow-title">Results</span>
+                <span class="flow-copy">Decision, evidence, exports.</span>
+            </article>
+            <article class="mission-flow-step">
+                <span class="flow-index">06</span>
+                <span class="flow-title">Follow Up</span>
+                <span class="flow-copy">Keep the synthesis alive.</span>
+            </article>
+        </section>
 
         <main class="dashboard-grid">
 
@@ -259,6 +292,37 @@
 
             <!-- CENTER PANEL: VISUALIZATION -->
             <section class="panel center-panel">
+                <div class="stage-command-header">
+                    <div class="stage-command-copy">
+                        <span class="stage-kicker">Generation</span>
+                        <h2>Live Intelligence Stage</h2>
+                        <p class="stage-subtitle">Project Neptune · Finance Desk</p>
+                    </div>
+                    <div class="stage-command-state">
+                        <span class="stage-state-chip active">Generation Live</span>
+                        <span class="stage-state-chip">Falcon Aware</span>
+                    </div>
+                </div>
+
+                <div class="stage-metric-strip">
+                    <article class="stage-metric-card metric-runway">
+                        <span class="stage-metric-label">Runway</span>
+                        <strong>3.1 mo</strong>
+                    </article>
+                    <article class="stage-metric-card metric-burn">
+                        <span class="stage-metric-label">Burn Rate</span>
+                        <strong>$11.58M</strong>
+                    </article>
+                    <article class="stage-metric-card metric-risk">
+                        <span class="stage-metric-label">Risk Vector</span>
+                        <strong>Critical</strong>
+                    </article>
+                    <article class="stage-metric-card metric-truth">
+                        <span class="stage-metric-label">Truth Score</span>
+                        <strong>79 / 100</strong>
+                    </article>
+                </div>
+
                 <div class="globe-container">
                     <div class="globe">
                         <svg id="lightning-layer" class="lightning-layer" width="100%" height="100%"
@@ -270,10 +334,19 @@
                             <circle cx="260" cy="260" r="220" class="orbit" />
                         </svg>
 
-                        <!-- High Gloss Sphere -->
-                        <div class="sphere-container">
-                            <div class="sphere-texture"></div>
-                            <div class="sphere-shine"></div>
+                        <!-- Cosmic Storm Core -->
+                        <div class="storm-core">
+                            <div class="storm-cloud"></div>
+                            <div class="storm-cloud storm-cloud-secondary"></div>
+                            <div class="storm-eye"></div>
+                        </div>
+
+                        <!-- Orbiting White Sphere -->
+                        <div class="sphere-orbit">
+                            <div class="sphere-container">
+                                <div class="sphere-texture"></div>
+                                <div class="sphere-shine"></div>
+                            </div>
                         </div>
 
                         <!-- Orbiting Nodes -->
@@ -301,6 +374,43 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="evaluation-track">
+                    <div class="evaluation-track-header">
+                        <span class="evaluation-kicker">Evaluation</span>
+                        <span class="evaluation-copy">Follow the run from generation into verification and revision.</span>
+                    </div>
+                    <div class="evaluation-steps">
+                        <div class="evaluation-step is-complete">
+                            <span class="evaluation-dot"></span>
+                            <div>
+                                <strong>Council Active</strong>
+                                <span>Directive routed to the finance council.</span>
+                            </div>
+                        </div>
+                        <div class="evaluation-step is-complete">
+                            <span class="evaluation-dot"></span>
+                            <div>
+                                <strong>Role Alignment</strong>
+                                <span>CFO, Auditor, Scout, Tax, Hedge Fund aligned.</span>
+                            </div>
+                        </div>
+                        <div class="evaluation-step is-live">
+                            <span class="evaluation-dot"></span>
+                            <div>
+                                <strong>Verification Window</strong>
+                                <span>Ready for source checks and interrogation.</span>
+                            </div>
+                        </div>
+                        <div class="evaluation-step">
+                            <span class="evaluation-dot"></span>
+                            <div>
+                                <strong>Synthesis Revision</strong>
+                                <span>Follow-up can still update the total response.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- RIGHT PANEL: SENTINEL INTERFACE -->
@@ -315,6 +425,32 @@
                             <button class="comms-tab active" data-mode="chat" data-comms-mode="chat">💬 Chat</button>
                             <button class="comms-tab" data-mode="dock" data-comms-mode="dock">📌 Dock
                                 <span class="dock-count">0</span></button>
+                        </div>
+                    </div>
+
+                    <div class="comms-thread-summary">
+                        <div class="thread-summary-block">
+                            <span class="thread-summary-label">Latest Follow Up</span>
+                            <strong>Verify vendor cost math and confirm the bankruptcy trigger.</strong>
+                        </div>
+                        <div class="thread-summary-block">
+                            <span class="thread-summary-label">Revision State</span>
+                            <strong>Synthesis stays live until evidence locks.</strong>
+                        </div>
+                    </div>
+
+                    <div class="revision-impact-strip">
+                        <div class="revision-impact-item">
+                            <span class="impact-label">Impact</span>
+                            <strong>Confidence 79 → 73</strong>
+                        </div>
+                        <div class="revision-impact-item">
+                            <span class="impact-label">Affected</span>
+                            <strong>Risk, burn, execution</strong>
+                        </div>
+                        <div class="revision-impact-item">
+                            <span class="impact-label">Next Move</span>
+                            <strong>Interrogate or verify</strong>
                         </div>
                     </div>
 

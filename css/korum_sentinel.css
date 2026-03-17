@@ -44,7 +44,7 @@
 /* --- SENTINEL INTERNALS --- */
 
 .sentinel-header {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(232, 232, 236, 0.08);
     padding-bottom: 12px;
     margin-bottom: 0;
     flex-shrink: 0;
@@ -65,11 +65,45 @@
 
 .sentinel-subtitle {
     font-size: 13px;
-    color: var(--accent-green);
+    color: var(--accent-gold);
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    text-shadow: 0 0 5px rgba(0, 255, 157, 0.4);
+    text-shadow: 0 0 10px rgba(245, 168, 0, 0.18);
     opacity: 0.8;
+}
+
+.comms-thread-summary,
+.revision-impact-strip {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.thread-summary-block,
+.revision-impact-item {
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(232, 232, 236, 0.08);
+    background: linear-gradient(180deg, rgba(24, 24, 24, 0.96), rgba(14, 14, 14, 0.98));
+}
+
+.thread-summary-label,
+.impact-label {
+    display: block;
+    margin-bottom: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-tertiary);
+}
+
+.thread-summary-block strong,
+.revision-impact-item strong {
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 .sentinel-chat-container {
@@ -103,9 +137,9 @@
 }
 
 .chat-message.sentinel {
-    background: rgba(255, 255, 255, 0.05);
-    border-left: 2px solid var(--accent-green);
-    color: #EEE;
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 2px solid var(--accent-gold);
+    color: var(--text-primary);
     align-self: flex-start;
     border-top-left-radius: 2px;
 }
@@ -113,7 +147,7 @@
 .chat-message.user {
     background: rgba(0, 0, 0, 0.3);
     border-right: 2px solid var(--accent-taupe);
-    color: #CCC;
+    color: var(--text-secondary);
     align-self: flex-end;
     border-top-right-radius: 2px;
     text-align: right;
@@ -157,8 +191,8 @@
     margin-top: auto;
     display: flex;
     gap: 8px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(10, 10, 10, 0.72);
+    border: 1px solid rgba(232, 232, 236, 0.12);
     border-radius: 8px;
     padding: 8px;
     flex-shrink: 0;
@@ -181,7 +215,7 @@
 .sentinel-send {
     background: transparent;
     border: none;
-    color: var(--accent-green);
+    color: var(--accent-gold);
     cursor: pointer;
     transition: transform 0.2s, color 0.2s;
     padding: 4px;
@@ -191,9 +225,9 @@
 }
 
 .sentinel-send:hover {
-    color: #FFF;
+    color: var(--accent-gold-bright);
     transform: translateX(2px);
-    text-shadow: 0 0 8px var(--accent-green);
+    text-shadow: 0 0 8px rgba(245, 168, 0, 0.3);
 }
 
 .sentinel-send:active {
@@ -253,9 +287,9 @@
 }
 
 .comms-tab.active {
-    background: rgba(0, 255, 157, 0.1);
-    border-color: var(--accent-green);
-    color: var(--accent-green);
+    background: rgba(245, 168, 0, 0.1);
+    border-color: var(--accent-gold);
+    color: var(--accent-gold-bright);
 }
 
 .comms-tab .dock-count {
@@ -833,4 +867,4 @@
     color: #FFB020;
     font-weight: 600;
     margin-bottom: 4px;
-}
+}
