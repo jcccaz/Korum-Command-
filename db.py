@@ -1,3 +1,7 @@
+# CONFIDENTIAL - TRADE SECRET
+# Proprietary KorumOS source code. Access is limited to authorized personnel
+# and collaborators operating under written confidentiality obligations.
+
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, inspect
 

@@ -1,3 +1,6 @@
+# CONFIDENTIAL - TRADE SECRET
+# Proprietary KorumOS source code. Access is limited to authorized personnel
+# and collaborators operating under written confidentiality obligations.
 
 import os
 import requests
