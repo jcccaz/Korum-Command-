@@ -199,19 +199,18 @@ body {
 
 /* TOP BAR */
 .top-bar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    display: flex;
     align-items: center;
+    justify-content: space-between;
     margin-bottom: 20px;
-    z-index: 10;
-    gap: 12px;
+    z-index: 100;
+    gap: 20px;
+    padding: 0 4px;
+    height: 60px;
 }
 
-/* .logo styles removed per redesign */
-
 .top-bar-wordmark {
-    grid-column: 1;
-    justify-self: start;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
 }
@@ -224,8 +223,6 @@ body {
     filter: drop-shadow(0 0 8px rgba(245, 168, 0, 0.15));
 }
 
-
-/* Mobile nav toggle - hidden on desktop */
 .mobile-nav-toggle {
     display: none;
     background: none;
@@ -236,22 +233,40 @@ body {
 }
 
 .nav-links {
-    gap: 8px;
+    flex: 1 1 0%;
+    min-width: 0;
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    grid-column: 2;
-    justify-self: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     align-items: center;
+    justify-content: flex-start; /* Alignment for scrolling */
+    padding: 4px 0;
+    mask-image: linear-gradient(to right, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
+
+.nav-links::-webkit-scrollbar {
+    display: none;
 }
 
 .top-bar-utilities {
-    grid-column: 3;
-    justify-self: end;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-width: 0;
+    gap: 12px;
+}
+
+.auth-user-email {
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
 }
 
 .nav-links a {
@@ -279,8 +294,6 @@ body {
     color: #000;
     border-color: #FFF;
     box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
-    outline: 2px solid var(--accent-green);
-    outline-offset: 4px;
 }
 
 @media (max-width: 768px) and (hover: none), (max-width: 768px) and (pointer: coarse) {
@@ -5350,36 +5363,14 @@ body.activated .sphere-texture {
     }
 }
 
-/* Mid-range and Large Monitor Nav Calibration (Up to 1800px) */
+/* Mid-range and Large Monitor Nav Calibration */
 @media (max-width: 1800px) {
-    .top-bar {
-        gap: 8px;
-    }
-
     .nav-links {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        scrollbar-width: none; 
-        max-width: calc(100vw - 420px); /* Leave more for flanking elements */
-        padding-bottom: 2px;
-        -ms-overflow-style: none;
-        justify-content: flex-start; /* Better for scrolling */
+        max-width: calc(100vw - 420px);
     }
-    
-    .nav-links::-webkit-scrollbar {
-        display: none;
-    }
-
     .nav-links a {
-        flex: 0 0 auto;
-        padding: 6px 12px !important;
+        padding: 5px 12px !important;
         font-size: 11px !important;
-    }
-}
-
-@media (max-width: 1280px) {
-    .nav-links {
-        max-width: calc(100vw - 320px);
     }
 }
 
