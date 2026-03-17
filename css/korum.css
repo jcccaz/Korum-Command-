@@ -986,6 +986,22 @@ body {
     content: none;
 }
 
+/* Amber ground shadow under sphere for depth */
+.sphere-orbit::after {
+    content: '';
+    position: absolute;
+    bottom: 30%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 18px;
+    background: radial-gradient(ellipse at center, rgba(245, 168, 0, 0.22) 0%, transparent 70%);
+    border-radius: 50%;
+    filter: blur(6px);
+    pointer-events: none;
+    z-index: -1;
+}
+
 .sphere-container {
     width: 158px;
     height: 158px;
@@ -1171,6 +1187,7 @@ body {
     height: 0;
     will-change: transform;
     animation: spin 60s linear infinite;
+    z-index: 15;
 }
 
 .node {
