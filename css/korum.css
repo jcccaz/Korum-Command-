@@ -126,6 +126,27 @@ body {
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 10px;
     margin-bottom: 14px;
+    transition: all 0.3s ease;
+}
+
+@media (max-height: 800px) {
+    .mission-flow-strip {
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+    .mission-flow-step {
+        min-height: 48px !important;
+        padding: 6px 10px !important;
+    }
+    .flow-copy {
+        display: none !important; /* Hide copy to save major vertical space */
+    }
+    .flow-index {
+        font-size: 8px !important;
+    }
+    .flow-title {
+        font-size: 10px !important;
+    }
 }
 
 .mission-flow-step {
@@ -525,6 +546,16 @@ body {
     }
 }
 
+@media (max-width: 1366px) {
+    .top-bar-wordmark-img {
+        height: 28px !important;
+    }
+    .nav-links a {
+        padding: 6px 10px !important;
+        font-size: 10px !important;
+    }
+}
+
 @media (max-width: 1280px) {
     .dashboard-grid {
         grid-template-columns: minmax(300px, 330px) minmax(0, 1fr) minmax(280px, 330px);
@@ -553,7 +584,6 @@ body {
     }
 }
 
-/* PANELS */
 .panel {
     display: flex;
     flex-direction: column;
@@ -565,6 +595,13 @@ body {
     will-change: opacity, transform;
     transition: all 0.3s ease;
     min-height: 0;
+    overflow: hidden; /* Contain children */
+}
+
+.control-stack, .sentinel-wrapper, .comms-activity-feed {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
 }
 
 /* LEFT PANEL */
@@ -7104,149 +7141,131 @@ body.report-library-open .results-container {
     }
 }
 
+
 /* ═══════════════════════════════════════════════════════════
-   FINAL RESPONSIVE CALIBRATION (V3.1) - MERGED
+   FINAL RESPONSIVE CALIBRATION (V3.2) - ULTRA COMPRESSION
    ═══════════════════════════════════════════════════════════ */
 
-/* Short monitors/laptops: compress vertical spacing */
-@media (max-height: 850px) {
+/* Short monitors/laptops: compress vertical spacing aggressively */
+@media (max-height: 800px) {
     .screen-container {
-        padding: 8px !important;
+        padding: 6px !important;
     }
     .top-bar {
-        margin-bottom: 12px !important;
-    }
-    .mission-flow-strip {
         margin-bottom: 8px !important;
+        grid-template-columns: auto minmax(0, 1fr) auto !important; /* Allow nav to compress */
+    }
+    .top-bar-wordmark-img {
+        height: 24px !important;
+    }
+    .nav-links {
+        max-width: calc(100vw - 350px) !important;
+    }
+    .nav-links a {
+        min-height: 28px !important;
+        padding: 4px 10px !important;
+        font-size: 9px !important;
     }
     .dashboard-grid {
-        height: calc(100% - 100px - var(--dock-resting-height)) !important;
-        gap: 8px !important;
-    }
-    .panel-header {
-        margin-bottom: 12px !important;
-    }
-    .brand-hero-container, .brand-hero-logo {
-        width: 100px !important;
-        height: 100px !important;
-    }
-    .left-panel h1 {
-        font-size: 24px !important;
-    }
-}
-
-/* XL Desktop calibration */
-@media (max-width: 1500px) {
-    .dashboard-grid {
-        grid-template-columns: minmax(320px, 350px) minmax(0, 1fr) minmax(310px, 350px) !important;
-    }
-}
-
-/* Standard laptops: 1024px–1199px — compress panels more aggressively */
-@media (max-width: 1199px) {
-    .dashboard-grid {
-        grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(240px, 300px);
-        gap: 8px;
+        height: calc(100% - 70px - var(--dock-resting-height)) !important; /* More space for grid */
+        gap: 6px !important;
     }
     .panel {
-        padding: 14px;
+        padding: 12px !important;
+    }
+    .panel-header {
+        margin-bottom: 8px !important;
+    }
+    .brand-hero-container, .brand-hero-logo {
+        width: 70px !important;
+        height: 70px !important;
     }
     .left-panel h1 {
         font-size: 20px !important;
+        margin-bottom: 2px !important;
     }
-    .left-panel h1 + p,
-    .left-panel .subtitle {
-        font-size: 10px !important;
+    .subtitle {
+        font-size: 9px !important;
+        margin-bottom: 12px !important;
+    }
+    .input-module {
+        margin-top: 8px !important;
+        padding: 10px !important;
+        gap: 8px !important;
     }
     .glass-textarea {
-        height: 60px !important;
+        height: 64px !important;
+        font-size: 12px !important;
+    }
+    .command-deck {
+        margin-top: 10px !important;
     }
     .agent-grid {
-        gap: 5px !important;
-    }
-    .sphere-container {
-        width: 160px;
-        height: 160px;
-    }
-}
-
-/* Small laptops / 13" screens: 900px–1023px — stack or squeeze hard */
-@media (max-width: 1023px) {
-    body {
-        overflow-y: auto !important;
-        height: auto !important;
-        min-height: 100vh !important;
-    }
-    .screen-container {
-        height: auto !important;
-        min-height: 100vh !important;
-        overflow-y: auto !important;
-    }
-    .dashboard-grid {
-        grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(200px, 260px);
-        gap: 6px;
-    }
-    .panel {
-        padding: 12px;
-    }
-    .left-panel h1 {
-        font-size: 18px !important;
-        margin-bottom: 4px !important;
-    }
-    .left-panel h1 + p,
-    .left-panel .subtitle {
-        font-size: 9px !important;
-        margin-bottom: 4px !important;
-    }
-    .glass-textarea {
-        height: 52px !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
     }
     .deck-card {
-        padding: 6px 8px !important;
+        padding: 4px !important;
+    }
+    .deck-avatar {
+        font-size: 9px !important;
+        height: 24px !important;
+        line-height: 24px !important;
     }
     .deck-role {
-        font-size: 11px !important;
+        font-size: 8px !important;
     }
-    .agent-grid {
+    .mode-selector {
+        padding-top: 8px !important;
         gap: 4px !important;
     }
-    .sphere-container {
-        width: 130px;
-        height: 130px;
+    .mode-btn {
+        padding: 6px 8px !important;
+        font-size: 9px !important;
     }
-}
-
-/* Very small / squished — below 900px go single column */
-@media (max-width: 900px) {
-    body {
-        overflow-y: auto !important;
-        height: auto !important;
-        min-height: 100vh !important;
-        align-items: flex-start !important;
+    .trigger-scan {
+        padding: 12px !important;
+        font-size: 11px !important;
+        margin-top: 8px !important;
     }
-    .screen-container {
-        width: 100% !important;
-        height: auto !important;
-        padding: 10px !important;
-        border-radius: 0 !important;
-        overflow-y: auto !important;
-    }
-    .dashboard-grid {
-        grid-template-columns: 1fr !important;
-        grid-template-rows: auto auto auto !important;
-        gap: 16px !important;
-        height: auto !important;
-        overflow: visible !important;
-    }
-    .center-panel {
-        min-height: 340px !important;
-        order: 0 !important;
-    }
+    
+    /* Ensure the left panel can scroll to reach the button if still overflown */
     .left-panel {
-        order: 1 !important;
+        max-height: 100% !important;
     }
-    .right-panel,
-    .global-comms {
-        order: 2 !important;
+    .control-stack {
+        flex: 1 !important;
+        min-height: 0 !important;
+        display: block !important; /* Stack them for better scrolling */
+    }
+
+    /* Globe compression */
+    .globe-container {
+        transform: scale(0.85) !important;
+        margin: -40px 0 !important;
+    }
+    .stage-metric-strip {
+        gap: 6px !important;
+    }
+    .stage-metric-card {
+        min-height: 54px !important;
+        padding: 8px 10px !important;
+    }
+    .stage-metric-label {
+        font-size: 9px !important;
+    }
+    .stage-metric-card strong {
+        font-size: 14px !important;
+    }
+    
+    /* Comms compression */
+    .comms-thread-summary {
+        margin-bottom: 6px !important;
+    }
+    .thread-summary-block {
+        padding: 6px !important;
+    }
+    .sentinel-card h2 {
+        font-size: 14px !important;
     }
 }
