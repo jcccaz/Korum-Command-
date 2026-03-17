@@ -233,18 +233,19 @@ body {
 }
 
 .nav-links {
-    flex: 1 1 0px;
+    flex: 1;
     min-width: 0;
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
     align-items: center;
     justify-content: flex-start;
-    padding: 4px 0;
-    z-index: 1;
+    padding: 0 10px;
+    mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent 100%);
 }
 
 .nav-links::-webkit-scrollbar {
@@ -255,12 +256,10 @@ body {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 12px;
-    background: linear-gradient(to left, #060606 80%, transparent);
-    padding-left: 30px;
-    margin-left: -20px;
+    gap: 8px;
     z-index: 10;
-    position: relative;
+    padding-left: 10px;
+    border-left: 1px solid rgba(255, 255, 255, 0.05); /* Clean divider instead of gradient */
 }
 
 .auth-user-email {
@@ -281,14 +280,15 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 36px;
-    font-size: 13px;
-    font-weight: 700;
+    min-height: 32px;
+    font-size: 11px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    padding: 8px 16px;
-    border-radius: 100px;
-    transition: all 0.3s;
+    letter-spacing: 0.08em;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    white-space: nowrap;
 }
 
 .nav-links a:hover,
@@ -5369,12 +5369,12 @@ body.activated .sphere-texture {
 
 /* Mid-range and Large Monitor Nav Calibration */
 @media (max-width: 1800px) {
-    .nav-links {
-        max-width: calc(100vw - 420px);
-    }
     .nav-links a {
-        padding: 5px 12px !important;
-        font-size: 11px !important;
+        padding: 5px 10px !important;
+        font-size: 10px !important;
+    }
+    .auth-user-email {
+        max-width: 100px;
     }
 }
 
