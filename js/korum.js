@@ -1561,13 +1561,15 @@ function initViz() {
 
 function positionNodes() {
     const nodes = document.querySelectorAll(".node"); if (!nodes.length) return;
-    const radius = 220;
+    const radiusX = 232;
+    const radiusY = 126;
     nodes.forEach((node, i) => {
         const angleRad = (i / nodes.length) * 2 * Math.PI;
-        const x = radius * Math.cos(angleRad); const y = radius * Math.sin(angleRad);
+        const x = radiusX * Math.cos(angleRad); const y = radiusY * Math.sin(angleRad);
 
         // Important: Include the centering translation so the node center aligns with the point
         node.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+        node.style.zIndex = `${20 + Math.round(y + radiusY)}`;
 
         // Store angle for beam calculations if needed
         node.style.setProperty('--angle-offset', `${(angleRad * 180 / Math.PI) + 180}deg`);

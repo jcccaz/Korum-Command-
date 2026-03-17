@@ -816,6 +816,8 @@ body {
     min-height: 250px;
     position: relative;
     filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.45));
+    perspective: 1200px;
+    perspective-origin: 50% 42%;
 }
 
 .orbit {
@@ -855,14 +857,14 @@ body {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 246px;
-    height: 246px;
+    width: 332px;
+    height: 188px;
     border-radius: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) rotate(-6deg);
     z-index: 5;
     overflow: hidden;
     background:
-        radial-gradient(circle at 42% 38%, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.03) 10%, rgba(22, 22, 22, 0.9) 34%, rgba(7, 7, 7, 0.98) 68%, rgba(0, 0, 0, 1) 100%);
+        radial-gradient(ellipse at 42% 40%, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(24, 24, 24, 0.9) 34%, rgba(7, 7, 7, 0.98) 68%, rgba(0, 0, 0, 1) 100%);
     border: 1px solid rgba(232, 232, 236, 0.08);
     box-shadow:
         inset 0 0 34px rgba(255, 255, 255, 0.04),
@@ -919,6 +921,7 @@ body {
     filter: blur(18px);
     opacity: 0.78;
     animation: stormPulse 10s ease-in-out infinite;
+    transform: scaleY(0.78);
 }
 
 .storm-cloud-secondary {
@@ -932,12 +935,12 @@ body {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 110px;
-    height: 110px;
+    width: 122px;
+    height: 78px;
     transform: translate(-50%, -50%);
     border-radius: 50%;
     background:
-        radial-gradient(circle at 38% 38%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 12%, rgba(30, 30, 30, 0.24) 28%, rgba(4, 4, 4, 0.92) 72%);
+        radial-gradient(ellipse at 38% 38%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 12%, rgba(30, 30, 30, 0.24) 28%, rgba(4, 4, 4, 0.92) 72%);
     box-shadow:
         inset 0 0 16px rgba(255, 255, 255, 0.04),
         0 0 30px rgba(0, 0, 0, 0.42);
@@ -948,12 +951,13 @@ body {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 292px;
-    height: 292px;
-    transform: translate(-50%, -50%);
+    width: 470px;
+    height: 248px;
+    transform: translate(-50%, -50%) rotate(-6deg);
     transform-origin: center;
     z-index: 8;
     pointer-events: none;
+    transform-style: preserve-3d;
     animation: sphereOrbit 18s linear infinite;
 }
 
@@ -967,8 +971,8 @@ body {
 }
 
 .sphere-container {
-    width: 116px;
-    height: 116px;
+    width: 132px;
+    height: 132px;
     border-radius: 50%;
     position: absolute;
     top: 50%;
@@ -983,6 +987,7 @@ body {
         inset 10px 10px 22px rgba(255, 255, 255, 0.26),
         inset 0 0 18px rgba(255, 255, 255, 0.14),
         0 0 20px rgba(255, 255, 255, 0.22),
+        0 16px 24px rgba(0, 0, 0, 0.35),
         0 0 34px rgba(245, 168, 0, 0.05);
     overflow: hidden;
     transition: box-shadow 0.12s ease, filter 0.12s ease, transform 0.12s ease;
@@ -1031,6 +1036,15 @@ body {
     pointer-events: none;
 }
 
+.orbit-rings {
+    transform-origin: center;
+    transform: translateZ(0) rotateX(68deg) rotate(-6deg);
+}
+
+.orbit-nodes {
+    transform-style: preserve-3d;
+}
+
 @keyframes textureSpin {
     from {
         transform: rotate(0deg);
@@ -1043,21 +1057,21 @@ body {
 
 @keyframes sphereOrbit {
     from {
-        transform: translate(-50%, -50%) rotate(0deg);
+        transform: translate(-50%, -50%) rotate(-6deg) rotateX(68deg) rotate(0deg);
     }
 
     to {
-        transform: translate(-50%, -50%) rotate(360deg);
+        transform: translate(-50%, -50%) rotate(-6deg) rotateX(68deg) rotate(360deg);
     }
 }
 
 @keyframes sphereSelfSpin {
     from {
-        transform: translateY(-50%) rotate(0deg);
+        transform: translateY(-50%) rotateX(-68deg) rotate(0deg);
     }
 
     to {
-        transform: translateY(-50%) rotate(360deg);
+        transform: translateY(-50%) rotateX(-68deg) rotate(360deg);
     }
 }
 
