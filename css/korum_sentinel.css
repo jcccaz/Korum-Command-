@@ -13,20 +13,25 @@
 .right-column-stack {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 12px;
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
     /* Grid slot handled by parent .dashboard-grid */
 }
 
 /* 1. TOP CARD: SENTINEL (Chat + Exports) */
 .sentinel-card {
-    flex: 1 1 60%;
-    min-height: 300px;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: hidden;
     padding: 16px;
     display: flex;
     flex-direction: column;
-    min-height: 0;
+}
+
+.execution-dashboard {
+    flex: 0 0 auto;
 }
 
 /* 2. BOTTOM CARD: AUX (Telemetry only - compact log) */
@@ -651,7 +656,7 @@
     padding: 10px;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
