@@ -324,6 +324,20 @@ function updateTruthScore(provider, delta, reason) {
 
     const sign = delta > 0 ? '+' : '';
     logTelemetry(`TRUTH RECALIBRATED: ${provider.toUpperCase()} ${sign}${delta} → ${newScore}/100 (${reason})`, delta > 0 ? "success" : "error");
+
+    // Propagate to stage header metric
+    syncStageTruthMetric();
+}
+
+function syncStageTruthMetric() {
+    if (!lastCouncilData?.results) return;
+    const scores = Object.values(lastCouncilData.results)
+        .filter(r => r?.truth_meter)
+        .map(r => r.truth_meter);
+    if (scores.length) {
+        const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+        setTextById('stageMetricTruth', `${avg} / 100`);
+    }
 }
 
 // === FILE UPLOAD STATE ===
@@ -2472,7 +2486,9 @@ let sessionState = {
     selectedCardResponse: null,
     selectedText: "",
     highlightToolbarVisible: false,
-    archivePanelOpen: false
+    archivePanelOpen: false,
+    interrogations: [], // Audit of adversarial face-offs
+    verifications: []   // Audit of source evidence checks
 };
 
 // --- CARD SELECTION & ANALYSIS ACTION BAR ---
@@ -3227,6 +3243,10 @@ window.executeVerify = async function (claimText, providerName) {
         setEvaluationStepState('evalRevisionStep', 'live');
         addCommsActivity('Verification complete', `Perplexity reviewed the selected claim and returned ${result.verdict || 'a verdict'}.`, result.verdict === 'INACCURATE' ? 'alert' : 'ready');
 
+        // Advance phase bar: Evaluation complete → Results processing
+        setMissionStep(4, 'complete');
+        setMissionStep(5, 'processing');
+
         // === TRUTH SCORE FEEDBACK — use structured verdict from backend ===
         const sourceProvider = resolveProviderKey(providerName);
         if (sourceProvider) {
@@ -3251,8 +3271,50 @@ window.executeVerify = async function (claimText, providerName) {
                 badge.textContent = verdictLabel;
                 headerRight.insertAdjacentElement('afterbegin', badge);
             }
+
+            // Also mark the original agent card with a verdict badge
+            if (sourceProvider) {
+                const sourceCard = document.querySelector(`.agent-card[data-provider="${sourceProvider}"]`);
+                if (sourceCard) {
+                    const existing = sourceCard.querySelector('.verify-verdict-badge');
+                    if (existing) existing.remove();
+                    const srcBadge = document.createElement('div');
+                    srcBadge.className = 'verify-verdict-badge';
+                    srcBadge.style.cssText = `
+                        position: absolute; top: 6px; right: 60px;
+                        padding: 2px 8px; font-size: 0.55rem; letter-spacing: 0.1em;
+                        border: 1px solid ${verdictColor}; color: ${verdictColor};
+                        background: ${verdictColor}12; border-radius: 3px;
+                    `;
+                    srcBadge.textContent = verdictLabel;
+                    sourceCard.style.position = 'relative';
+                    sourceCard.appendChild(srcBadge);
+                }
+            }
         }
 
+        // Offer chart generation for data-heavy verification results
+        if (isDataHeavy(result.verification)) {
+            const chartOffer = document.createElement('div');
+            chartOffer.style.cssText = 'padding: 6px 16px; border-top: 1px solid rgba(0,191,255,0.1);';
+            const vizBtn = document.createElement('button');
+            vizBtn.className = 'aab-btn aab-visualize';
+            vizBtn.style.cssText = 'font-size:0.6rem; padding:4px 10px; cursor:pointer;';
+            vizBtn.textContent = '📊 VISUALIZE DATA';
+            vizBtn.addEventListener('click', () => generateCardChart(result.verification, 'auto'));
+            chartOffer.appendChild(vizBtn);
+            verifyCard.appendChild(chartOffer);
+        }
+
+        // --- PUSH TO AUDIT TRAIL for Report Generation ---
+        sessionState.verifications.push({
+            timestamp: new Date().toISOString(),
+            claim: claim,
+            provider: providerName,
+            verification: result.verification,
+            verdict: result.verdict || 'UNRESOLVED',
+            score_delta: result.score_delta
+        });
     } catch (e) {
         console.error('Verify error:', e);
         logTelemetry(`Verification network error: ${e.message}`, "error");
@@ -3392,12 +3454,21 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
         setEvaluationStepState('evalRevisionStep', 'live');
         addCommsActivity('Interrogation complete', `${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'alert');
 
+        // Advance phase bar: Evaluation complete → Results processing
+        setMissionStep(4, 'complete');
+        setMissionStep(5, 'processing');
+
         // === TRUTH SCORE FEEDBACK — use structured verdict + delta from backend ===
         const targetProvider = sessionState.targetCard || resolveProviderKey(targetName);
         if (targetProvider) {
             const delta = result.score_delta || -2;
             const verdict = result.verdict || 'CHALLENGED';
             updateTruthScore(targetProvider, delta, verdict);
+
+            // Escalate risk metric on critical concession
+            if (verdict === 'CRITICAL CONCESSION' || delta <= -12) {
+                setTextById('stageMetricRisk', 'Escalated');
+            }
 
             // Show verdict banner inside the faceoff card
             const verdictColor = delta > 4 ? '#4CAF7D' : delta > 0 ? '#8FD9B0' : delta > -8 ? '#FFB020' : '#FF4444';
@@ -3422,6 +3493,33 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
             faceoffCard.appendChild(verdictBanner);
         }
 
+        // Offer chart generation for data-heavy interrogation results
+        const combinedText = (result.attacker?.response || '') + '\n' + (result.defender?.response || '');
+        if (isDataHeavy(combinedText)) {
+            const chartOffer = document.createElement('div');
+            chartOffer.style.cssText = 'padding: 6px 16px; border-top: 1px solid rgba(255,68,68,0.1);';
+            const vizBtn = document.createElement('button');
+            vizBtn.className = 'aab-btn aab-visualize';
+            vizBtn.style.cssText = 'font-size:0.6rem; padding:4px 10px; cursor:pointer;';
+            vizBtn.textContent = '📊 VISUALIZE DATA';
+            vizBtn.addEventListener('click', () => generateCardChart(combinedText, 'auto'));
+            chartOffer.appendChild(vizBtn);
+            faceoffCard.appendChild(chartOffer);
+        }
+
+        // --- PUSH TO AUDIT TRAIL for Report Generation ---
+        sessionState.interrogations.push({
+            timestamp: new Date().toISOString(),
+            attacker: attackerRole,
+            defender: defenderRole,
+            target: targetName,
+            attacker_model: result.attacker?.model,
+            defender_model: result.defender?.model,
+            attacker_response: result.attacker?.response,
+            defender_response: result.defender?.response,
+            verdict: result.verdict || 'CONTESTED',
+            score_delta: result.score_delta
+        });
     } catch (err) {
         logTelemetry(`Interrogation network error: ${err.message}`, "error");
         faceoffCard.querySelector('.agent-response').innerHTML = `<span style="color:#FF4444">Connection issue — unable to complete cross-examination. Please retry.</span>`;
@@ -3708,6 +3806,15 @@ window.visualizeSelection = function (fallbackText) {
     generateCardChart(textToProcess, 'auto');
 };
 
+// Detect data-heavy content that would benefit from visualization
+function isDataHeavy(text) {
+    if (!text || text.length < 50) return false;
+    const numbers = text.match(/\d+\.?\d*/g) || [];
+    const words = text.split(/\s+/).length;
+    const hasTable = /^\|.*\|$/m.test(text) && /\|[-:]+\|/.test(text);
+    return hasTable || (numbers.length > 5 && numbers.length / words > 0.25);
+}
+
 // Lightweight chart generation — single Gemini Flash call, returns Mermaid
 async function generateCardChart(data, chartType = 'auto', cardEl = null) {
     logTelemetry(`GENERATING ${chartType.toUpperCase()} CHART...`, "process");
@@ -3764,6 +3871,11 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
 
         logTelemetry(`CHART GENERATED: ${chartType}`, "success");
         showProcessingToast("Chart rendered.");
+
+        // Auto-dock chart to Research Dock
+        if (typeof ResearchDock !== 'undefined' && ResearchDock.add) {
+            ResearchDock.add(result.mermaid_code, `chart-${chartType}`);
+        }
 
     } catch (e) {
         console.error('Chart generation error:', e);
@@ -5355,6 +5467,7 @@ const sentinelChat = {
             nextMove: 'Answering follow-up'
         });
         addCommsActivity('Follow-up queued', query.length > 96 ? `${query.slice(0, 96)}...` : query, 'live');
+        setMissionStep(6, 'processing');
         input.value = '';
         input.disabled = true;
 
@@ -5386,7 +5499,11 @@ const sentinelChat = {
                     affected: 'Current mission thread',
                     nextMove: 'Interrogate or verify'
                 });
-                setEvaluationStepState('evalRevisionStep', 'live');
+                setEvaluationStepState('evalRevisionStep', 'complete');
+                setTextById('evalRevisionTitle', 'Follow-Up Applied');
+                setTextById('evalRevisionCopy', 'Synthesis updated with follow-up context.');
+                setMissionStep(5, 'complete');
+                setMissionStep(6, 'active');
                 addCommsActivity('Follow-up answered', data.response.slice(0, 120) + (data.response.length > 120 ? '...' : ''), 'ready');
             } else {
                 this.appendMessage("Connection Lost. Re-establishing...", 'sentinel error');
@@ -6194,11 +6311,14 @@ async function handleDocExport(format) {
 
     try {
         const intelligenceObj = { ...lastCouncilData.synthesis };
-        // Inject divergence data into intelligence object for exporters
+        // Inject audit and divergence data into intelligence object for exporters
+        intelligenceObj.interrogations = sessionState.interrogations || [];
+        intelligenceObj.verifications = sessionState.verifications || [];
+
         if (lastCouncilData.divergence) {
             intelligenceObj.divergence_analysis = lastCouncilData.divergence;
         }
-        logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis}`, "process");
+        logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis} | Audit: ${intelligenceObj.interrogations.length} int, ${intelligenceObj.verifications.length} ver`, "process");
         const payload = {
             intelligence_object: intelligenceObj,
             card_results: lastCouncilData.results || {},
