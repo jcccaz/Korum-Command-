@@ -491,6 +491,7 @@
 
 .dock-toolbar {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 12px;
     flex-shrink: 0;
@@ -649,6 +650,8 @@
     font-weight: 700 !important;
     text-shadow: 0 0 8px rgba(0, 255, 157, 0.5);
     box-shadow: 0 0 10px rgba(0, 255, 157, 0.1);
+    width: 100%;
+    flex: 0 0 100%;
 }
 
 .btn-summarize:hover {
