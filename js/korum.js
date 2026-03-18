@@ -1169,27 +1169,26 @@ const ResearchDock = {
     // Render dock UI
     render() {
         const container = document.getElementById('researchDock');
-        if (!container) return;
+        const snippetList = container?.querySelector('.dock-snippets');
 
-        const snippetList = container.querySelector('.dock-snippets');
-        if (!snippetList) return;
+        // Workspace pane — compact artifact cards
+        const workspacePane = document.getElementById('pane-council');
+        let artifactSection = workspacePane?.querySelector('.workspace-artifacts');
 
-        // Toolbar Setup
-        const toolbar = container.querySelector('.dock-toolbar');
-        if (toolbar) {
-            if (!toolbar.querySelector('.btn-summarize')) {
-                const sumBtn = document.createElement('button');
-                sumBtn.className = 'dock-action btn-summarize';
-                sumBtn.title = '✨ Generate Executive Summary';
-                sumBtn.innerHTML = '✨ Summarize Bits';
-                sumBtn.onclick = () => this.summarizeHighlights();
-                toolbar.prepend(sumBtn);
-            }
-            // CSV button already exists in HTML toolbar — no dynamic injection needed
+        // Toolbar: ensure Summarize Bits button exists
+        const toolbar = container?.querySelector('.dock-toolbar');
+        if (toolbar && !toolbar.querySelector('.btn-summarize')) {
+            const sumBtn = document.createElement('button');
+            sumBtn.className = 'dock-action btn-summarize';
+            sumBtn.title = 'Generate Executive Summary';
+            sumBtn.innerHTML = 'Summarize Bits';
+            sumBtn.onclick = () => this.summarizeHighlights();
+            toolbar.prepend(sumBtn);
         }
 
         if (this.snippets.length === 0) {
-            snippetList.innerHTML = `<div class="dock-empty">Select text and click 📌 DOCK to collect research</div>`;
+            if (snippetList) snippetList.innerHTML = `<div class="dock-empty">Select text and click DOCK to collect research</div>`;
+            if (artifactSection) artifactSection.remove();
             updateResultsDockState({
                 pill: 'Standby',
                 text: 'Results, exports, and revision outputs land here.',
@@ -1198,42 +1197,88 @@ const ResearchDock = {
             return;
         }
 
-        snippetList.innerHTML = this.snippets.map(s => `
-            <div class="dock-snippet" data-id="${s.id}" data-type="${s.type}">
-                <div class="snippet-header">
-                    <span class="snippet-icon">${s.icon}</span>
-                    <span class="snippet-label">${s.label}</span>
-                    ${s.includeInReport ? `<span class="snippet-status-pill">IN REPORT</span>` : ''}
-                    <div class="snippet-actions">
-                        <button onclick="ResearchDock.toggleReportInclusion('${s.id}')" title="${s.includeInReport ? 'Remove from final report' : 'Include in final report'}">${s.includeInReport ? '📄' : '➕'}</button>
-                        <button onclick="ResearchDock.copy('${s.id}')" title="Copy">📋</button>
-                        ${['data', 'csv', 'table'].includes(s.type) ? `
-                            <button onclick="ResearchDock.generateChart('${s.id}', 'pie')" title="Pie Chart">🥧</button>
-                            <button onclick="ResearchDock.generateChart('${s.id}', 'line')" title="Line Chart">📈</button>
-                        ` : ''}
-                        ${s.type !== 'mermaid' ? `
-                            <button onclick="ResearchDock.generateChart('${s.id}', 'mermaid')" title="Diagram">🔀</button>
-                        ` : ''}
-                        <button onclick="ResearchDock.remove('${s.id}')" title="Remove">✕</button>
+        // Build side-panel snippet HTML (full controls)
+        const snippetsHtml = this.snippets.map(s => {
+            const isMermaid = s.type === 'mermaid' || s.content.includes('graph TD') || s.content.includes('flowchart');
+            const body = isMermaid
+                ? `<div class="rendered-mermaid-snippet" style="background:rgba(0,0,0,0.2); border-radius:4px; margin-top:8px; padding:10px; overflow:hidden;">
+                       <div class="dock-mermaid">${s.content}</div>
+                   </div>`
+                : `<div class="snippet-preview">${this.escapeHtml(s.preview)}</div>`;
+
+            return `
+                <div class="dock-snippet" data-id="${s.id}" data-type="${s.type}">
+                    <div class="snippet-header">
+                        <span class="snippet-icon">${s.icon}</span>
+                        <span class="snippet-label">${s.label}</span>
+                        ${s.includeInReport ? `<span class="snippet-status-pill">IN REPORT</span>` : ''}
+                        <div class="snippet-actions">
+                            <button onclick="ResearchDock.toggleReportInclusion('${s.id}')" title="${s.includeInReport ? 'Remove from final report' : 'Include in final report'}">${s.includeInReport ? '📄' : '➕'}</button>
+                            <button onclick="ResearchDock.copy('${s.id}')" title="Copy">📋</button>
+                            ${['data', 'csv', 'table'].includes(s.type) ? `
+                                <button onclick="ResearchDock.generateChart('${s.id}', 'pie')" title="Pie Chart">🥧</button>
+                                <button onclick="ResearchDock.generateChart('${s.id}', 'line')" title="Line Chart">📈</button>
+                            ` : ''}
+                            ${s.type !== 'mermaid' ? `
+                                <button onclick="ResearchDock.generateChart('${s.id}', 'mermaid')" title="Diagram">🔀</button>
+                            ` : ''}
+                            <button onclick="ResearchDock.remove('${s.id}')" title="Remove">✕</button>
+                        </div>
+                    </div>
+                    ${body}
+                    <div class="snippet-tags">
+                        ${(s.tags || []).map(t => `
+                            <span class="tag-chip">
+                                ${t} <span class="tag-close" onclick="ResearchDock.removeTag('${s.id}', '${t}')">x</span>
+                            </span>
+                        `).join('')}
+                        <input type="text" class="tag-add-input" placeholder="+ Tag"
+                            onkeypress="if(event.key === 'Enter') { ResearchDock.addTag('${s.id}', this.value); this.value=''; }">
                     </div>
                 </div>
-                <div class="snippet-preview">${this.escapeHtml(s.preview)}</div>
-                
-                <div class="snippet-tags">
-                    ${(s.tags || []).map(t => `
-                        <span class="tag-chip">
-                            ${t} <span class="tag-close" onclick="ResearchDock.removeTag('${s.id}', '${t}')">×</span>
-                        </span>
+            `;
+        }).join('');
+
+        if (snippetList) snippetList.innerHTML = snippetsHtml;
+
+        // Workspace pane: compact artifact manifest (no duplicate full HTML)
+        if (workspacePane) {
+            if (!artifactSection) {
+                artifactSection = document.createElement('div');
+                artifactSection.className = 'workspace-artifacts';
+                artifactSection.style.cssText = 'margin-top:20px; border-top:1px solid rgba(255,255,255,0.1); padding-top:15px;';
+                workspacePane.appendChild(artifactSection);
+            }
+            const reportCount = this.snippets.filter(s => s.includeInReport).length;
+            artifactSection.innerHTML = `
+                <div class="inspector-section-label" style="margin-bottom:10px;">DOCKED ARTIFACTS (${this.snippets.length})</div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    ${this.snippets.map(s => `
+                        <div style="display:flex; align-items:center; gap:6px; padding:6px 10px; background:rgba(0,255,157,0.06); border:1px solid rgba(0,255,157,${s.includeInReport ? '0.35' : '0.12'}); border-radius:6px; font-size:11px; color:#ccc; cursor:pointer;"
+                             onclick="toggleCommsMode('dock')" title="${this.escapeHtml(s.preview)}">
+                            <span>${s.icon}</span>
+                            <span>${s.label}</span>
+                            ${s.includeInReport ? '<span style="color:#00FF9D; font-size:9px; font-weight:600;">IN REPORT</span>' : ''}
+                        </div>
                     `).join('')}
-                    <input type="text" class="tag-add-input" placeholder="+ Tag" 
-                        onkeypress="if(event.key === 'Enter') { ResearchDock.addTag('${s.id}', this.value); this.value=''; }">
                 </div>
-            </div>
-        `).join('');
+                <div style="margin-top:8px; font-size:10px; color:rgba(255,255,255,0.4);">${reportCount} artifact${reportCount === 1 ? '' : 's'} marked for report export</div>
+            `;
+        }
+
+        // Render only NEW dock mermaid diagrams (scoped selector avoids re-rendering page charts)
+        if (window.mermaid) {
+            setTimeout(() => {
+                try {
+                    mermaid.run({ querySelector: '.dock-mermaid', suppressErrors: true });
+                } catch (e) { /* mermaid render error — non-fatal */ }
+            }, 100);
+        }
 
         // Update counter
-        const counter = container.querySelector('.dock-count');
+        const counter = document.querySelector('.dock-count');
         if (counter) counter.textContent = this.snippets.length;
+
         updateResultsDockState({
             pill: 'Artifacts Ready',
             text: `${this.snippets.length} docked artifact${this.snippets.length === 1 ? '' : 's'} available in the results layer.`,
