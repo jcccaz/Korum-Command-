@@ -1453,7 +1453,7 @@ const PROTOCOL_CONFIGS = {
     "Quantum Security": { openai: "zero_trust", anthropic: "cryptographer", google: "compliance", perplexity: "ai_architect", mistral: "hacker" },
     "Intel Brief": { openai: "intel_analyst", anthropic: "counterintel", google: "defense_ops", perplexity: "scout", mistral: "sigint" },
     "EOM_STATEMENT": { openai: "cfo", anthropic: "auditor", google: "analyst", perplexity: "scout", mistral: "tax" },
-    "PORTFOLIO_BUILDER": { openai: "bizstrat", anthropic: "product", google: "analyst", perplexity: "scout", mistral: "cfo" }
+    "PORTFOLIO_BUILDER": { openai: "hedge_fund", anthropic: "hedge_fund", google: "hedge_fund", perplexity: "scout", mistral: "hedge_fund" }
 };
 
 // Available Roles for Manual Cycling
