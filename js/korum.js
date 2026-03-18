@@ -6628,7 +6628,15 @@ function buildSocialPayload(synthesis) {
 
 function copyTextToClipboard(text, successMessage) {
     if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
+    // Strip leftover intelligence tags, bullet characters, and markdown symbols
+    // so pasting into Excel / Word doesn't produce #NAME? errors
+    const clean = text
+        .replace(/\[\/?(?:DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]/g, '')
+        .replace(/\u2022/g, '-')   // • bullet
+        .replace(/\u2023/g, '-')   // ‣ triangular bullet
+        .replace(/\u25aa/g, '-')   // ▪ small square bullet
+        .replace(/^([=+@])/gm, "'$1"); // Excel formula injection guard
+    navigator.clipboard.writeText(clean).then(() => {
         showProcessingToast(successMessage);
     }).catch(() => {
         showProcessingToast("Clipboard unavailable. Please select and copy text manually.");
