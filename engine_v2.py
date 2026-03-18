@@ -1536,7 +1536,14 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
             for pos in topic.get('positions', []):
                 history_text += f"  - {pos.get('provider', '').upper()}: {pos.get('position', '')}\n"
 
-    schema_sections = {section.lower().replace(" ", "_"): "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations." for section in dna["output_structure"]}
+    # Dynamic schema building based on DNA
+    schema_sections = {}
+    for section in dna["output_structure"]:
+        key = section.lower().replace(" ", "_")
+        if "table" in key or "metrics" in key or "roadmap" in key:
+            schema_sections[key] = "THE ACTUAL MARKDOWN TABLE from the council discussion. DO NOT summarize into paragraphs. If no table is found, build one from the mentioned data."
+        else:
+            schema_sections[key] = "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations."
 
     prompt = f"""
     You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a comprehensive, high-fidelity "Intelligence Object".
@@ -1548,10 +1555,11 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
 
     ## CRITICAL RULES:
     1. EXCLUSIVITY: Only use the provided COUNCIL DISCUSSION.
-    2. VERBATIM DRAFTS: If there is a section titled "Main Draft", "Draft Deliverable", or "Final Draft", you MUST extract the actual content from the 'CONTENT CREATOR' or 'WRITER' phase verbatim. DO NOT summarize it. DO NOT add "In this post..." or other meta-commentary. Just provide the ready-to-publish content.
-    3. DEPTH: For all OTHER sections, provide 3-5 detailed paragraphs. Pull specific findings, data points, and recommendations.
-    4. NO CONVERSATIONAL FLUFF: Output only the result.
-    5. THE COUNCIL CONTRIBUTORS table must use the actual Phase Titles and Roles from the history.
+    2. VERBATIM DRAFTS: If there is a section titled "Main Draft", "Draft Deliverable", or "Final Draft", you MUST extract the actual content from the 'CONTENT CREATOR' or 'WRITER' phase verbatim. DO NOT summarize it.
+    3. DATA INTEGRITY (TABLES): If the mission is {context.workflow} and involves financial or technical tables (e.g. P&L, Burn Rate, Roadmap), you MUST extract or reconstruct the actual Markdown table. DO NOT convert tables into paragraphs. If a table was generated in ANY phase, it must appear in the corresponding section of this report.
+    4. DEPTH: For all narrative sections, provide 3-5 detailed paragraphs. Pull specific findings, data points, and recommendations.
+    5. NO CONVERSATIONAL FLUFF: Output only the result.
+    6. THE COUNCIL CONTRIBUTORS table must use the actual Phase Titles and Roles from the history.
 
     COUNCIL DISCUSSION:
     {history_text}
