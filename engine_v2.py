@@ -1670,19 +1670,31 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
         decisions = re.findall(r'\[DECISION_CANDIDATE\](.*?)\[/DECISION_CANDIDATE\]', history_text, re.DOTALL)
         risks = re.findall(r'\[RISK_VECTOR\](.*?)\[/RISK_VECTOR\]', history_text, re.DOTALL)
         metrics = re.findall(r'\[METRIC_ANCHOR\](.*?)\[/METRIC_ANCHOR\]', history_text, re.DOTALL)
+        truth_bombs = re.findall(r'\[TRUTH_BOMB\](.*?)\[/TRUTH_BOMB\]', history_text, re.DOTALL)
         
-        # Merge safety-extracted tags if they aren't already in the JSON
-        if not data.get("intelligence_tags"): data["intelligence_tags"] = {"decisions": [], "risks": [], "metrics": []}
+        # Merge safety-extracted tags
+        if not data.get("intelligence_tags"): 
+            data["intelligence_tags"] = {"decisions": [], "risks": [], "metrics": [], "truth_bombs": []}
+        elif "truth_bombs" not in data["intelligence_tags"]:
+            data["intelligence_tags"]["truth_bombs"] = []
         
         for d in decisions: 
-            if d.strip() not in data["intelligence_tags"]["decisions"]: 
+            if d.strip() and d.strip() not in data["intelligence_tags"]["decisions"]: 
                 data["intelligence_tags"]["decisions"].append(d.strip())
         for r in risks:
-            if r.strip() not in data["intelligence_tags"]["risks"]:
+            if r.strip() and r.strip() not in data["intelligence_tags"]["risks"]:
                 data["intelligence_tags"]["risks"].append(r.strip())
         for m in metrics:
-            if m.strip() not in data["intelligence_tags"]["metrics"]:
+            if m.strip() and m.strip() not in data["intelligence_tags"]["metrics"]:
                 data["intelligence_tags"]["metrics"].append(m.strip())
+        for t in truth_bombs:
+            if t.strip() and t.strip() not in data["intelligence_tags"]["truth_bombs"]:
+                data["intelligence_tags"]["truth_bombs"].append(t.strip())
+
+        # If we have Truth Bombs, inject them into the summary if not present
+        if data["intelligence_tags"]["truth_bombs"] and "TRUTH BOMB" not in data.get("meta", {}).get("summary", ""):
+            tb_prefix = " [TRUTH BOMB CRITICAL]: " + data["intelligence_tags"]["truth_bombs"][0][:150] + "... "
+            data["meta"]["summary"] = tb_prefix + data["meta"].get("summary", "")
 
         return data
     except Exception as e:

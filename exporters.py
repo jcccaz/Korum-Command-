@@ -1514,6 +1514,24 @@ class PDFExporter:
             ]))
             story.append(t)
 
+        # --- TRUTH BOMBS ---
+        truth_bombs = (intelligence_object.get("intelligence_tags") or {}).get("truth_bombs", [])
+        if truth_bombs:
+            story.append(Paragraph("CRITICAL DISCREPANCIES (TRUTH BOMBS)", styles['BrandedHeading1']))
+            for tb in truth_bombs:
+                tb_data = [[Paragraph(tb, ParagraphStyle('TruthBombBody', parent=styles['SectionBody'], textColor=colors.HexColor("#FFFFFF")))]]
+                tb_table = Table(tb_data, colWidths=[512])
+                tb_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#330000")),
+                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor("#FF0000")),
+                    ('TOPPADDING', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ]))
+                story.append(tb_table)
+                story.append(Spacer(1, 10))
+
         # Risks
         risks = structured.get("risks", [])
         if risks:
