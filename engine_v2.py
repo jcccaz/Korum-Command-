@@ -27,15 +27,15 @@ WORKFLOW_DNA = {
         "risk_bias": "Conservative (Minimize immediate damage)",
         "time_horizon": "0–72 hours",
         "posture": "Tactical Commander",
-        "output_structure": ["Situation", "Threat", "Immediate Action", "Resource Allocation", "Escalation Path"]
+        "output_structure": ["Situation Brief", "Threat Vector Table", "Immediate Action Steps", "Resource Allocation Matrix", "Escalation Protocol"]
     },
-    "RESEARCH": {
-        "goal": "Deep understanding and evidence-based exploration.",
-        "tone": "Neutral, academic, and comprehensive.",
-        "risk_bias": "Balanced",
-        "time_horizon": "Long-term strategic",
-        "posture": "Objective Scientist",
-        "output_structure": ["Hypotheses", "Evidence", "Counterarguments", "Confidence Score", "Further Research Paths"]
+    "DEEP_INTELLIGENCE": {
+        "goal": "Deep understanding and evidence-based exploration with strategic foresight.",
+        "tone": "Cold, professional, and foresight-oriented.",
+        "risk_bias": "Analytically skeptical",
+        "time_horizon": "Strategic (1-5 years)",
+        "posture": "Chief Intelligence Officer",
+        "output_structure": ["Intake Baseline", "Evidence & Sentiment Table", "Counter-Thesis Analysis", "Confidence Scoring Matrix", "Strategic Roadmap"]
     },
     "FINANCE": {
         "goal": "Economic viability and downside protection.",
@@ -43,7 +43,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Downside-aware",
         "time_horizon": "Scenario-based",
         "posture": "CFO / Auditor",
-        "output_structure": ["Cost", "Revenue Impact", "Sensitivity Table", "Worst-case Scenario", "ROI Summary"]
+        "output_structure": ["Cost Baseline", "Revenue Impact Table", "Sensitivity Matrix", "Worst-case Scenario", "Executive ROI Table"]
     },
     "LEGAL": {
         "goal": "Exposure reduction and regulatory compliance.",
@@ -51,7 +51,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Zero-risk / Protective",
         "time_horizon": "Indefinite",
         "posture": "General Counsel",
-        "output_structure": ["Regulatory Exposure", "Contractual Impact", "Risk Mitigation", "Recommended Posture"]
+        "output_structure": ["Regulatory Exposure Matrix", "Contractual Impact Table", "Risk Mitigation Roadmap", "Final Legal Posture"]
     },
     "QUANTUM_SECURITY": {
         "goal": "Assess cryptographic vulnerabilities, enforce Zero Trust architecture, and map to strict government compliance (NIST 800-207, FedRAMP, CMMC).",
@@ -59,7 +59,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Zero-trust / Absolute Security",
         "time_horizon": "Long-term (Post-Quantum Readiness)",
         "posture": "Chief Information Security Officer (CISO) & Cryptographer",
-        "output_structure": ["Threat Landscape", "Cryptographic Vulnerabilities", "Zero Trust Controls", "Compliance Mapping (NIST/FedRAMP)", "Mitigation Architecture"]
+        "output_structure": ["Threat Vector Map", "Vulnerability Metrics Table", "Zero Trust Controls Matrix", "Compliance Roadmap (NIST/FedRAMP)", "Mitigation Architecture"]
     },
     "MEDICAL": {
         "goal": "Evidence-based clinical assessment with patient safety as the absolute priority.",
@@ -67,7 +67,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Conservative (Do No Harm)",
         "time_horizon": "Immediate clinical + long-term outcomes",
         "posture": "Chief Medical Officer & Clinical Review Board",
-        "output_structure": ["Clinical Assessment", "Evidence Review", "Differential Diagnosis", "Treatment Options", "Risk-Benefit Analysis"]
+        "output_structure": ["Clinical Assessment", "Evidence Table", "Differential Diagnosis Matrix", "Treatment Protocol Table", "Benefit-Risk Analysis"]
     },
     "CYBER": {
         "goal": "Identify active threats, map attack surfaces, and provide actionable defense recommendations.",
@@ -75,7 +75,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Assume breach / Adversarial",
         "time_horizon": "0-72 hours tactical + ongoing hardening",
         "posture": "Cyber Command / Red Team Lead",
-        "output_structure": ["Threat Intelligence", "Attack Surface Analysis", "Active Indicators (IOCs)", "Mitigation Playbook", "Detection Rules"]
+        "output_structure": ["Active Threat Intel", "Attack Surface Table", "IOC & Malware Metrics", "Mitigation Playbook Table", "Detection Rule Matrix"]
     },
     "DEFENSE": {
         "goal": "Strategic defense analysis with geopolitical awareness and operational security.",
@@ -83,7 +83,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Threat-forward / Worst-case planning",
         "time_horizon": "Multi-domain (tactical to strategic)",
         "posture": "Defense Intelligence Analyst",
-        "output_structure": ["Situation Assessment", "Force Disposition", "Threat Analysis", "Courses of Action", "Intelligence Gaps"]
+        "output_structure": ["Battlefield Assessment", "Disposition Table", "Threat Analysis Matrix", "COA Action Table", "Intelligence Gaps"]
     },
     "STARTUP": {
         "goal": "Validate business viability, identify product-market fit, and assess go-to-market readiness.",
@@ -91,7 +91,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Calculated risk / Move fast with data",
         "time_horizon": "0-18 months runway",
         "posture": "Startup Advisor / VC Partner",
-        "output_structure": ["Market Opportunity", "Unit Economics", "Competitive Landscape", "Go-to-Market Strategy", "Funding & Runway"]
+        "output_structure": ["Market Opportunity Table", "Unit Economics Metrics", "Competitor Matrix", "GTM Strategy Table", "Funding & Runway Roadmap"]
     },
     "AUDIT": {
         "goal": "Identify control failures, compliance gaps, and evidence discrepancies against applicable frameworks.",
@@ -99,7 +99,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Skeptical / Trust but verify",
         "time_horizon": "Point-in-time assessment + remediation timeline",
         "posture": "Lead Auditor (SOC2 / ISO 27001 / NIST)",
-        "output_structure": ["Scope & Methodology", "Control Findings", "Compliance Gap Analysis", "Evidence Assessment", "Remediation Priorities"]
+        "output_structure": ["Scope & Methodology", "Control Findings Table", "Compliance Gap Matrix", "Evidence Assessment Table", "Remediation Roadmap"]
     },
     "CREATIVE": {
         "goal": "Generate innovative concepts, narratives, and strategic messaging — then draft the actual deliverable.",
@@ -107,7 +107,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Risk-tolerant / Push boundaries",
         "time_horizon": "Campaign-based",
         "posture": "Creative Director & Brand Strategist",
-        "output_structure": ["Creative Concept", "Target Audience", "Messaging Framework", "Draft Deliverable", "Execution Plan"]
+        "output_structure": ["Concept Brief", "Target Audience Matrix", "Messaging Framework Table", "Draft Deliverable Content", "Campaign Roadmap"]
     },
     "SCIENCE": {
         "goal": "Evaluate hypotheses with methodological rigor and reproducibility standards.",
@@ -115,7 +115,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Evidence-weighted / Null hypothesis default",
         "time_horizon": "Study-dependent",
         "posture": "Principal Investigator & Peer Reviewer",
-        "output_structure": ["Hypothesis Evaluation", "Methodology Assessment", "Data Analysis", "Literature Context", "Conclusions & Limitations"]
+        "output_structure": ["Hypothesis Verdict", "Methodology Metrics", "Data Analysis Table", "Evidence Grading Matrix", "Conclusions & Roadmap"]
     },
     "TECH": {
         "goal": "Evaluate technical architecture, scalability, and engineering trade-offs.",
@@ -123,7 +123,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Reliability-first",
         "time_horizon": "Build cycle (sprint to quarterly)",
         "posture": "CTO / Principal Engineer",
-        "output_structure": ["Architecture Assessment", "Technical Trade-offs", "Scalability Analysis", "Implementation Plan", "Technical Debt & Risks"]
+        "output_structure": ["Architecture Snapshot", "Tech Trade-off Matrix", "Scalability Metrics Table", "Decision Log Table", "Strategic Debt Roadmap"]
     },
     "INTEL": {
         "goal": "Produce finished intelligence products with source evaluation and confidence grading.",
@@ -131,7 +131,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Analytic confidence calibration",
         "time_horizon": "Current intelligence + strategic forecast",
         "posture": "Senior Intelligence Analyst",
-        "output_structure": ["Key Judgments", "Source Evaluation", "Analytic Confidence", "Alternative Hypotheses", "Intelligence Gaps"]
+        "output_structure": ["Key Judgments", "Source Attribution Table", "Confidence Grading Matrix", "Warning & Indicators Table", "Intelligence Gaps"]
     },
     "SYSTEM": {
         "goal": "Diagnose system behavior, optimize performance, and ensure operational integrity.",
@@ -139,15 +139,13 @@ WORKFLOW_DNA = {
         "risk_bias": "Stability-first",
         "time_horizon": "Immediate resolution + preventive measures",
         "posture": "Systems Engineer / SRE Lead",
-        "output_structure": ["System Status", "Root Cause Analysis", "Performance Metrics", "Resolution Steps", "Monitoring Recommendations"]
+        "output_structure": ["System Status Table", "Root Cause Analysis", "Performance Metrics Table", "Resolution Step Roadmap", "Monitoring Matrix"]
     },
     # --- ALIASES TO BRIDGE UI NAMES ---
-    "CREATIVE_COUNCIL": { "alias": "CREATIVE" },
-    "STARTUP_LAUNCH": { "alias": "STARTUP" },
-    "CODE_AUDIT": { "alias": "AUDIT" },
-    "CYBER_COMMAND": { "alias": "CYBER" },
-    "DEFENSE_COUNCIL": { "alias": "DEFENSE" },
-    "INTEL_BRIEF": { "alias": "INTEL" },
+    "RESEARCH": { "alias": "DEEP_INTELLIGENCE" },
+    "CREATIVE_COUNCIL": { "alias": "CREATIVE" }, "STARTUP_LAUNCH": { "alias": "STARTUP" },
+    "CODE_AUDIT": { "alias": "AUDIT" }, "CYBER_COMMAND": { "alias": "CYBER" },
+    "DEFENSE_COUNCIL": { "alias": "DEFENSE" }, "INTEL_BRIEF": { "alias": "INTEL" },
     "SCIENCE_PANEL": { "alias": "SCIENCE" },
     "SOCIAL_POST": {
         "goal": "Draft high-impact technical narratives that positions the author as a builder-authority and stops the scroll.",
@@ -155,15 +153,15 @@ WORKFLOW_DNA = {
         "risk_bias": "Trust-focused (Build in public)",
         "time_horizon": "Immediate impact",
         "posture": "Founder-Builder & Storyteller",
-        "output_structure": ["Target Audience", "Core Hook", "Main Draft", "Alternate Versions", "Engagement Logic"]
+        "output_structure": ["Audience Matrix", "Core Hook Analysis", "Primary Social Draft", "Alternate Narrative Table", "Engagement Roadmap"]
     },
     "EOM_STATEMENT": {
-        "goal": "Generate a professional, structured End-of-Month (EOM) financial report with zero fluff.",
-        "tone": "Formal, precise, and accounting-standard aligned.",
-        "risk_bias": "Conservative (Downside-aware)",
-        "time_horizon": "Monthly / Trailing 12-month",
-        "posture": "Chief Financial Officer (CFO)",
-        "output_structure": ["Executive Summary", "P&L Table", "Balance Sheet Table", "Cash Flow & Burn Metrics", "Strategic Actions Table", "The CFO Verdict"]
+        "goal": "Generate a comprehensive, forensic-grade End of Month financial review with specific attention to cash flow and burn.",
+        "tone": "Forensic, executive-clinical, and zero-embellishment.",
+        "risk_bias": "Trust but verify / Forensic skeptical",
+        "time_horizon": "Monthly (30-day lookback)",
+        "posture": "CFO & Forensic Auditor",
+        "output_structure": ["Executive P&L Table", "Revenue Stream Metrics", "Burn & Runway Analytics", "Risk & Variance Table", "Critical Action Roadmap"]
     },
     "PORTFOLIO_BUILDER": {
         "goal": "Build a complete, actionable investment portfolio with specific tickers, allocations, entry ranges, and price targets. No disclaimers. No hedging. Picks with numbers.",
@@ -1503,7 +1501,7 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
     Now includes divergence analysis for calibrated synthesis.
     """
     # Retrieve Workflow DNA for structure
-    dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
+    dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["DEEP_INTELLIGENCE"])
     if "alias" in dna:
         dna = WORKFLOW_DNA.get(dna["alias"], dna)
 
