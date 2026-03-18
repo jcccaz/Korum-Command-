@@ -39,6 +39,26 @@ def _as_text(value):
     return str(value)
 
 
+def _sanitize_for_csv(value):
+    """Strip intelligence tags, clean bullets, and prevent Excel formula injection."""
+    import re
+    text = _as_text(value)
+    # Strip intelligence system tags (keep inner content)
+    text = re.sub(r'\[\/?(?:DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', text)
+    # Replace bullet characters that cause #NAME? in Excel
+    text = text.replace('\u2022', '-').replace('\u2023', '-').replace('\u25aa', '-')
+    # Strip markdown bold/italic
+    text = re.sub(r'\*{1,2}(.*?)\*{1,2}', r'\1', text)
+    # Strip markdown headings
+    text = re.sub(r'^#{1,4}\s*', '', text, flags=re.MULTILINE)
+    # Collapse excessive whitespace
+    text = re.sub(r'[ \t]{2,}', ' ', text).strip()
+    # Prevent Excel formula injection (cells starting with =, +, -, @)
+    if text and text[0] in ('=', '+', '-', '@'):
+        text = "'" + text
+    return text
+
+
 def _sanitize_for_pptx(text):
     """Replace Unicode symbols that render as squares in default PowerPoint fonts."""
     if not isinstance(text, str):
@@ -1174,25 +1194,25 @@ class CSVExporter:
                 for entry in verifications:
                     writer.writerow(["audit_verification", entry.get('claim', ''), entry.get('verdict', ''), ""])
 
-            writer.writerow(["meta", "title", _as_text(meta.get("title", "")), ""])
-            writer.writerow(["meta", "generated_at", _as_text(meta.get("generated_at", "")), ""])
-            writer.writerow(["meta", "summary", _as_text(meta.get("summary", "")), ""])
-            writer.writerow(["meta", "truth_score", _as_text(meta.get("composite_truth_score", "")), ""])
+            writer.writerow(["meta", "title", _sanitize_for_csv(meta.get("title", "")), ""])
+            writer.writerow(["meta", "generated_at", _sanitize_for_csv(meta.get("generated_at", "")), ""])
+            writer.writerow(["meta", "summary", _sanitize_for_csv(meta.get("summary", "")), ""])
+            writer.writerow(["meta", "truth_score", _sanitize_for_csv(meta.get("composite_truth_score", "")), ""])
 
             for section_id, content in sections.items():
-                writer.writerow(["section", section_id, _as_text(content), ""])
+                writer.writerow(["section", section_id, _sanitize_for_csv(content), ""])
 
             for metric in structured.get("key_metrics", []):
                 writer.writerow(
-                    ["key_metric", _as_text(metric.get("metric", "")), _as_text(metric.get("value", "")), _as_text(metric.get("context", ""))]
+                    ["key_metric", _sanitize_for_csv(metric.get("metric", "")), _sanitize_for_csv(metric.get("value", "")), _sanitize_for_csv(metric.get("context", ""))]
                 )
             for item in structured.get("action_items", []):
                 writer.writerow(
-                    ["action_item", _as_text(item.get("task", "")), _as_text(item.get("priority", "")), _as_text(item.get("timeline", ""))]
+                    ["action_item", _sanitize_for_csv(item.get("task", "")), _sanitize_for_csv(item.get("priority", "")), _sanitize_for_csv(item.get("timeline", ""))]
                 )
             for risk in structured.get("risks", []):
                 writer.writerow(
-                    ["risk", _as_text(risk.get("risk", "")), _as_text(risk.get("severity", "")), _as_text(risk.get("mitigation", ""))]
+                    ["risk", _sanitize_for_csv(risk.get("risk", "")), _sanitize_for_csv(risk.get("severity", "")), _sanitize_for_csv(risk.get("mitigation", ""))]
                 )
         return filepath
 
