@@ -1088,9 +1088,13 @@ class PPTXExporter:
 class ExcelExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
+        from openpyxl.chart import PieChart, Reference
+        from openpyxl.styles import PatternFill, Font
+
         meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         wb = Workbook()
 
+        # ── SUMMARY SHEET ──
         ws_meta = wb.active
         ws_meta.title = "Summary"
         ws_meta.append(["Field", "Value"])
@@ -1105,44 +1109,56 @@ class ExcelExporter:
         )
         ws_meta.append(["Summary", _as_text(meta.get("summary", ""))])
 
+        # ── SECTIONS SHEET ──
         ws_sections = wb.create_sheet("Sections")
         ws_sections.append(["Section", "Content"])
         for section_id, content in sections.items():
             ws_sections.append([section_id.replace("_", " ").title(), _as_text(content)])
 
+        # ── KEY METRICS & PIE CHART ──
         ws_metrics = wb.create_sheet("Key Metrics")
         ws_metrics.append(["Metric", "Value", "Context"])
+        chart_data_rows = 0
         for metric in structured.get("key_metrics", []):
-            ws_metrics.append(
-                [
-                    _as_text(metric.get("metric", "")),
-                    _as_text(metric.get("value", "")),
-                    _as_text(metric.get("context", "")),
-                ]
-            )
+            val_str = _as_text(metric.get("value", ""))
+            ws_metrics.append([_as_text(metric.get("metric", "")), val_str, _as_text(metric.get("context", ""))])
+            chart_data_rows += 1
 
+        # Embed Pie Chart if we have metrics (try to parse numeric values)
+        if chart_data_rows > 1:
+            try:
+                pie = PieChart()
+                labels = Reference(ws_metrics, min_col=1, min_row=2, max_row=chart_data_rows + 1)
+                data = Reference(ws_metrics, min_col=2, min_row=1, max_row=chart_data_rows + 1)
+                pie.add_data(data, titles_from_data=True)
+                pie.set_categories(labels)
+                pie.title = "Metrics Breakdown"
+                ws_metrics.add_chart(pie, "E2")
+            except:
+                pass # Skip chart if data is non-numeric
+
+        # ── ACTION ITEMS ──
         ws_actions = wb.create_sheet("Action Items")
         ws_actions.append(["Task", "Priority", "Timeline"])
         for item in structured.get("action_items", []):
-            ws_actions.append(
-                [
-                    _as_text(item.get("task", "")),
-                    _as_text(item.get("priority", "")),
-                    _as_text(item.get("timeline", "")),
-                ]
-            )
+            ws_actions.append([_as_text(item.get("task", "")), _as_text(item.get("priority", "")), _as_text(item.get("timeline", ""))])
 
+        # ── RISKS (WITH COLOR) ──
         ws_risks = wb.create_sheet("Risks")
         ws_risks.append(["Risk", "Severity", "Mitigation"])
+        red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+        red_font = Font(color="990000", bold=True)
+        
         for risk in structured.get("risks", []):
-            ws_risks.append(
-                [
-                    _as_text(risk.get("risk", "")),
-                    _as_text(risk.get("severity", "")),
-                    _as_text(risk.get("mitigation", "")),
-                ]
-            )
+            severity = _as_text(risk.get("severity", "")).lower()
+            row_idx = ws_risks.max_row + 1
+            ws_risks.append([_as_text(risk.get("risk", "")), severity, _as_text(risk.get("mitigation", ""))])
+            if "high" in severity or "critical" in severity or "truth bomb" in severity:
+                for cell in ws_risks[row_idx]:
+                    cell.fill = red_fill
+                    cell.font = red_font
 
+        # ── AUDIT TRAILS ──
         if interrogations:
             ws_int = wb.create_sheet("Audit - Interrogations")
             ws_int.append(["Timestamp", "Target", "Attacker", "Defender", "Verdict", "Score Delta", "Challenge", "Rebuttal"])

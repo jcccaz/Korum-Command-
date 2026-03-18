@@ -163,7 +163,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Conservative (Downside-aware)",
         "time_horizon": "Monthly / Trailing 12-month",
         "posture": "Chief Financial Officer (CFO)",
-        "output_structure": ["P&L Statement", "Balance Sheet Snapshot", "Cash Flow & Burn Rate", "Runway & Forecast", "Financial Priorities"]
+        "output_structure": ["Executive Summary", "P&L Table", "Balance Sheet Table", "Cash Flow & Burn Metrics", "Strategic Actions Table", "The CFO Verdict"]
     },
     "PORTFOLIO_BUILDER": {
         "goal": "Build a complete, actionable investment portfolio with specific tickers, allocations, entry ranges, and price targets. No disclaimers. No hedging. Picks with numbers.",
@@ -171,7 +171,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Risk-calibrated — position size to the conviction level, not to comfort.",
         "time_horizon": "12-month primary / 3-year thesis",
         "posture": "Hedge Fund Portfolio Manager & Investment Committee",
-        "output_structure": ["Macro Setup", "Screened Candidates", "Red Team Challenge", "Portfolio Architecture", "Final Portfolio — Ready to Execute"]
+        "output_structure": ["Macro Setup", "Screened Candidates Table", "Red Team Challenge", "Portfolio Architecture Table", "Final Portfolio Table"]
     }
 }
 
