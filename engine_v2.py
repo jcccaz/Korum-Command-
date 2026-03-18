@@ -1507,6 +1507,10 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
     if "alias" in dna:
         dna = WORKFLOW_DNA.get(dna["alias"], dna)
 
+    # Flag assembly workflows — their final card renders the full document, not a summary
+    SYNTHESIS_ASSEMBLY_WORKFLOWS = {"EOM_STATEMENT", "FINANCE", "AUDIT", "CODE_AUDIT", "LEGAL", "PORTFOLIO_BUILDER"}
+    is_synthesis_assembly = context.workflow in SYNTHESIS_ASSEMBLY_WORKFLOWS
+
     # Build history with enriched context so the synthesizer knows exactly who did what
     history_text = ""
     for i, entry in enumerate(context.history):
@@ -1558,6 +1562,7 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
         "title": "Concise, Descriptive Report Title",
         "generated_at": "{datetime.now().isoformat()}",
         "summary": "4-6 sentence executive overview: key finding, primary risk, recommended action, and confidence level",
+        "final_document": "ASSEMBLY WORKFLOWS ONLY: If this is an EOM_STATEMENT, FINANCE, AUDIT, CODE_AUDIT, LEGAL, or PORTFOLIO_BUILDER mission, place the COMPLETE final deliverable here in full Markdown — every table, every section, every figure. For all other workflows, set this to null.",
         "composite_truth_score": 85,
         "models_used": [],
         "workflow": "{context.workflow}"
