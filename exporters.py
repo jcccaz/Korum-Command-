@@ -461,11 +461,70 @@ class WordExporter:
             if section_id == "executive_summary":
                 continue
             WordExporter._add_branded_heading(doc, section_id.replace("_", " ").title())
+            
             text = _clean_tags(_as_text(content))
-            for para in text.split("\n\n"):
-                para = para.strip()
-                if para:
-                    doc.add_paragraph(para)
+            # New: Detect and render markdown tables vs paragraphs
+            lines = text.split("\n")
+            in_table = False
+            table_lines = []
+            
+            def flush_para(para_lines):
+                p_text = " ".join(l.strip() for l in para_lines if l.strip())
+                if p_text:
+                    doc.add_paragraph(p_text)
+            
+            def flush_table(t_lines):
+                rows = []
+                for l in t_lines:
+                    if "|" in l:
+                        # Split by pipe, remove empty outer columns if they exist
+                        cells = [c.strip() for c in l.split("|")]
+                        if not cells[0]: cells = cells[1:]
+                        if not cells[-1]: cells = cells[:-1]
+                        # Skip separators
+                        if all(c.replace("-", "").replace(":", "").replace(" ", "") == "" for c in cells):
+                            continue
+                        rows.append(cells)
+                
+                if rows:
+                    cols = max(len(r) for r in rows)
+                    table = doc.add_table(rows=len(rows), cols=cols)
+                    table.autofit = True
+                    for i, r_cells in enumerate(rows):
+                        for j, c_text in enumerate(r_cells):
+                            if j < len(table.rows[i].cells):
+                                table.rows[i].cells[j].text = c_text
+                    
+                    WordExporter._style_header_row(table.rows[0])
+                    for i in range(1, len(table.rows)):
+                        WordExporter._style_data_row(table.rows[i], i-1)
+                    doc.add_paragraph() # Spacer after table
+            
+            current_para = []
+            for line in lines:
+                if "|" in line:
+                    if not in_table:
+                        # Flush previous paragraph
+                        flush_para(current_para)
+                        current_para = []
+                        in_table = True
+                    table_lines.append(line)
+                else:
+                    if in_table:
+                        # Flush table
+                        flush_table(table_lines)
+                        table_lines = []
+                        in_table = False
+                    if not line.strip():
+                        flush_para(current_para)
+                        current_para = []
+                    else:
+                        current_para.append(line)
+            
+            # Final flush
+            if in_table: flush_table(table_lines)
+            else: flush_para(current_para)
+            
             WordExporter._add_section_divider(doc)
 
         # ═══════════════════════════════════════════════════════════════
@@ -1486,10 +1545,65 @@ class PDFExporter:
             if section_id == "executive_summary": continue
             story.append(Paragraph(section_id.replace("_", " ").title(), styles['BrandedHeading1']))
             text = _clean_tags(_as_text(content))
-            for para in text.split("\n\n"):
-                if para.strip():
-                    story.append(Paragraph(para.strip(), styles['SectionBody']))
-                    story.append(Spacer(1, 6))
+            
+            lines = text.split("\n")
+            in_table = False
+            table_lines = []
+            current_para = []
+
+            def flush_para_pdf(para_lines, s):
+                p_text = " ".join(l.strip() for l in para_lines if l.strip())
+                if p_text:
+                    s.append(Paragraph(p_text, styles['SectionBody']))
+                    s.append(Spacer(1, 6))
+
+            def flush_table_pdf(t_lines, s):
+                rows = []
+                for l in t_lines:
+                    if "|" in l:
+                        cells = [c.strip() for c in l.split("|")]
+                        if not cells[0]: cells = cells[1:]
+                        if not cells[-1]: cells = cells[:-1]
+                        if all(c.replace("-", "").replace(":", "").replace(" ", "") == "" for c in cells):
+                            continue
+                        rows.append([Paragraph(c, tbl_cell) for c in cells])
+                
+                if rows:
+                    col_count = max(len(r) for r in rows)
+                    # Simple heuristic for column widths
+                    cw = [512 / col_count] * col_count
+                    t = Table(rows, colWidths=cw, repeatRows=1)
+                    t.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00E5FF")),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor(BG_CARD), colors.HexColor(BG_SURFACE)])
+                    ]))
+                    s.append(t)
+                    s.append(Spacer(1, 10))
+
+            for line in lines:
+                if "|" in line:
+                    if not in_table:
+                        flush_para_pdf(current_para, story)
+                        current_para = []
+                        in_table = True
+                    table_lines.append(line)
+                else:
+                    if in_table:
+                        flush_table_pdf(table_lines, story)
+                        table_lines = []
+                        in_table = False
+                    if not line.strip():
+                        flush_para_pdf(current_para, story)
+                        current_para = []
+                    else:
+                        current_para.append(line)
+            
+            if in_table: flush_table_pdf(table_lines, story)
+            else: flush_para_pdf(current_para, story)
 
         # --- STRUCTURED DATA TABLES (Metrics, Actions, Risks) ---
         metrics = structured.get("key_metrics", [])

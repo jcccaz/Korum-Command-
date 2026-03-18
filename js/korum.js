@@ -940,6 +940,8 @@ const ResearchDock = {
         this.render();
         this.save();
         logTelemetry(`Docked: ${typeInfo.label} (${content.length} chars)`, "success");
+        showProcessingToast(`${typeInfo.icon} ${typeInfo.label} docked!`);
+        toggleCommsMode('dock');
         updateResultsDockState({
             pill: this.snippets.length > 0 ? 'Artifacts Ready' : 'Standby',
             text: this.snippets.length > 0 ? `${this.snippets.length} docked artifact${this.snippets.length === 1 ? '' : 's'} ready for review or export.` : 'Results, exports, and revision outputs land here.',
@@ -1680,6 +1682,14 @@ function positionNodes() {
 function setupActionBindings() {
     if (actionBindingsInitialized) return;
     actionBindingsInitialized = true;
+
+    // 0. COMMS MODE TABS
+    document.querySelectorAll('.comms-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.dataset.commsMode;
+            if (mode) toggleCommsMode(mode);
+        });
+    });
 
     // 1. NAVIGATION & PROTOCOLS
     const navLinks = document.querySelectorAll('.nav-links a');
@@ -6962,10 +6972,18 @@ const PreviewManager = {
         document.getElementById('closePreviewBtn')?.addEventListener('click', () => this.close());
         modal.addEventListener('click', (e) => { if (e.target === modal) this.close(); });
 
-        // Deploy PDF button
+        // Deploy buttons
         document.getElementById('deployPdfBtn')?.addEventListener('click', () => {
             this.close();
             handleDocExport('pdf');
+        });
+        document.getElementById('deployDocxBtn')?.addEventListener('click', () => {
+            this.close();
+            handleDocExport('docx');
+        });
+        document.getElementById('deployXlsxBtn')?.addEventListener('click', () => {
+            this.close();
+            handleDocExport('xlsx');
         });
 
         // Tab switching
