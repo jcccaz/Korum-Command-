@@ -3,9 +3,12 @@
 # and collaborators operating under written confidentiality obligations.
 
 import csv
+import io
 import json
 import os
+import re
 from datetime import datetime
+from xml.sax.saxutils import escape
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -17,7 +20,7 @@ from pptx import Presentation as PPTXPresentation
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 def _timestamp() -> str:
@@ -210,6 +213,92 @@ def _artifact_label(snippet):
         if "chart" not in label.lower() and "diagram" not in label.lower():
             return f"{label} Chart"
     return label
+
+
+def _render_chart_image(snippet_content):
+    content = _as_text(snippet_content).strip()
+    if not content:
+        return None
+
+    # Support fenced Mermaid blocks while keeping raw Mermaid syntax valid.
+    content = re.sub(r"^```(?:mermaid)?\s*", "", content, flags=re.IGNORECASE)
+    content = re.sub(r"\s*```$", "", content).strip()
+
+    lines = [line.strip() for line in content.splitlines() if line.strip() and not line.strip().startswith("%%")]
+    if not lines:
+        return None
+
+    first_line = lines[0]
+    if not re.match(r"^pie\b", first_line, re.IGNORECASE):
+        return None
+
+    title = "Chart"
+    first_line_title = re.match(r"^pie(?:\s+showData)?(?:\s+title\s+(.+))?$", first_line, re.IGNORECASE)
+    if first_line_title and first_line_title.group(1):
+        title = first_line_title.group(1).strip()
+
+    entries = []
+    for line in lines[1:]:
+        if re.match(r"^title\s+", line, re.IGNORECASE):
+            title = re.sub(r"^title\s+", "", line, flags=re.IGNORECASE).strip() or title
+            continue
+        match = re.match(r'^"([^"]+)"\s*:\s*(-?\d+(?:\.\d+)?)$', line)
+        if match:
+            label = match.group(1).strip()
+            value = float(match.group(2))
+            if value < 0:
+                return None
+            entries.append((label, value))
+
+    if not entries:
+        return None
+
+    total = sum(value for _, value in entries)
+    if total <= 0:
+        return None
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except Exception:
+        return None
+
+    labels = [label for label, _ in entries]
+    values = [value for _, value in entries]
+    palette = ["#00FF9D", "#F5A800", "#66D9FF", "#FF4444", "#7CE0B8", "#FFD166", "#5B8DEF"]
+
+    fig, ax = plt.subplots(figsize=(6, 4), facecolor="#0d0d1a")
+    ax.set_facecolor("#0d0d1a")
+    wedges, texts, autotexts = ax.pie(
+        values,
+        labels=labels,
+        autopct="%1.1f%%",
+        startangle=90,
+        colors=[palette[i % len(palette)] for i in range(len(values))],
+        wedgeprops={"edgecolor": "#0d0d1a", "linewidth": 1.2},
+        textprops={"color": "#cccccc", "fontsize": 9},
+    )
+    for autotext in autotexts:
+        autotext.set_color("#cccccc")
+        autotext.set_fontsize(8.5)
+
+    ax.set_title(title, color="#00FF9D", fontsize=12, fontweight="bold", pad=14)
+    ax.axis("equal")
+
+    buffer = io.BytesIO()
+    fig.savefig(
+        buffer,
+        format="png",
+        dpi=150,
+        bbox_inches="tight",
+        facecolor="#0d0d1a",
+        edgecolor="none",
+    )
+    plt.close(fig)
+    buffer.seek(0)
+    buffer.name = "chart.png"
+    return buffer
 
 
 class WordExporter:
@@ -1158,18 +1247,28 @@ class WordExporter:
                     row[0].text = "TAGS"
                     row[1].text = tags
                 
-                content = _clean_tags(_as_text(s.get("content", "")))
+                raw_content = _as_text(s.get("content", ""))
+                content = _clean_tags(raw_content)
+                chart_buffer = None
+                if s.get("type") == "mermaid":
+                    chart_buffer = _render_chart_image(raw_content)
+
+                if chart_buffer:
+                    row = table.add_row().cells
+                    row[0].text = "CONTENT"
+                    row[1].text = "Rendered chart attached below"
+                    doc.add_picture(chart_buffer, width=Inches(5))
                 # If content is large, add as separate paragraph
-                if len(content) > 100:
+                elif len(content) > 100:
                     p = doc.add_paragraph()
                     p.paragraph_format.space_before = Pt(8)
-                    run = p.add_run(content)
+                    run = p.add_run(raw_content if s.get("type") == "mermaid" else content)
                     run.font.size = Pt(9)
                     run.font.name = "Consolas" if s.get('type') == 'code' or s.get('type') == 'mermaid' else "Calibri"
                 else:
                     row = table.add_row().cells
                     row[0].text = "CONTENT"
-                    row[1].text = content
+                    row[1].text = raw_content if s.get("type") == "mermaid" else content
                 
                 doc.add_paragraph() # Spacer
             
@@ -1944,6 +2043,58 @@ class PDFExporter:
             ]))
             story.append(ct)
             story.append(Spacer(1, 10))
+
+        # --- EXECUTIVE EXHIBITS ---
+        snippets = _report_artifacts(intelligence_object)
+        if snippets:
+            story.append(Paragraph("Executive Exhibits", styles['BrandedHeading1']))
+            story.append(Paragraph(
+                "The following selected artifacts were curated in the dock and attached as supporting exhibits for executive review.",
+                styles['SectionBody']
+            ))
+            story.append(Spacer(1, 8))
+
+            for idx, snippet in enumerate(snippets):
+                exhibit_data = [
+                    [Paragraph(f"<b>EXHIBIT #{idx + 1} - {escape(_artifact_label(snippet).upper())}</b>", styles['SectionBody']),
+                     Paragraph(f"<b>{escape(_as_text(snippet.get('type', 'text')).upper())}</b>", styles['SectionBody'])],
+                    ["SOURCE", escape(_as_text(snippet.get("source", "Selection")))]
+                ]
+
+                tags = ", ".join(snippet.get("tags", []))
+                if tags:
+                    exhibit_data.append(["TAGS", escape(tags)])
+
+                exhibit_table = Table(exhibit_data, colWidths=[100, 412])
+                exhibit_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(BG_CARD)),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_GREEN)),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('TEXTCOLOR', (0, 1), (0, -1), colors.HexColor(TEXT_SECONDARY)),
+                    ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor(TEXT_PRIMARY)),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6)
+                ]))
+                story.append(exhibit_table)
+                story.append(Spacer(1, 8))
+
+                raw_content = _as_text(snippet.get("content", ""))
+                content = _clean_tags(raw_content)
+                chart_buffer = None
+                if snippet.get("type") == "mermaid":
+                    chart_buffer = _render_chart_image(raw_content)
+
+                if chart_buffer:
+                    story.append(RLImage(chart_buffer, width=400, height=300))
+                else:
+                    fallback_text = raw_content if snippet.get("type") == "mermaid" else content
+                    fallback = escape(fallback_text).replace("\n", "<br/>")
+                    story.append(Paragraph(fallback or "No exhibit content provided.", styles['SectionBody']))
+
+                story.append(Spacer(1, 12))
 
         # --- FOOTER ATTESTATION ---
         story.append(Spacer(1, 40))
