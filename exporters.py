@@ -198,6 +198,20 @@ def _extract_parts(intelligence_object):
     return meta, sections, structured, interrogations, verifications
 
 
+def _report_artifacts(intelligence_object):
+    snippets = intelligence_object.get("docked_snippets") or []
+    selected = [s for s in snippets if s.get("includeInReport")]
+    return selected or snippets
+
+
+def _artifact_label(snippet):
+    label = _as_text(snippet.get("label", "Artifact")).strip() or "Artifact"
+    if snippet.get("type") == "mermaid" or snippet.get("source") == "visualization":
+        if "chart" not in label.lower() and "diagram" not in label.lower():
+            return f"{label} Chart"
+    return label
+
+
 class WordExporter:
     """Palantir-tier DOCX report — branded, color-coded tables, visual truth scores."""
 
@@ -1068,25 +1082,31 @@ class WordExporter:
         # ═══════════════════════════════════════════════════════════════
         # RESEARCH ARTIFACTS
         # ═══════════════════════════════════════════════════════════════
-        snippets = intelligence_object.get("docked_snippets") or []
+        snippets = _report_artifacts(intelligence_object)
         if snippets:
             doc.add_page_break()
-            WordExporter._add_branded_heading(doc, "Research Artifacts & Evidence")
-            doc.add_paragraph("The following evidence snippets and artifacts were collected during the research phase and docked as relevant supporting materials.")
+            WordExporter._add_branded_heading(doc, "Executive Exhibits")
+            doc.add_paragraph("The following selected artifacts were curated in the dock and attached as supporting exhibits for executive review.")
             
             for idx, s in enumerate(snippets):
                 table = doc.add_table(rows=1, cols=2)
                 table.autofit = True
                 hdr = table.rows[0].cells
-                hdr[0].text = f"ARTIFACT #{idx+1} — {s.get('label', 'Snippet').upper()}"
+                hdr[0].text = f"EXHIBIT #{idx+1} — {_artifact_label(s).upper()}"
                 hdr[1].text = s.get('type', 'text').upper()
                 WordExporter._style_header_row(table.rows[0], bg_hex="161B22", text_color=RGBColor(0x00, 0xFF, 0x9D))
                 
                 row = table.add_row().cells
                 row[0].text = "SOURCE"
                 row[1].text = s.get('source', 'Selection')
+
+                tags = ", ".join(s.get("tags", []))
+                if tags:
+                    row = table.add_row().cells
+                    row[0].text = "TAGS"
+                    row[1].text = tags
                 
-                content = _as_text(s.get("content", ""))
+                content = _clean_tags(_as_text(s.get("content", "")))
                 # If content is large, add as separate paragraph
                 if len(content) > 100:
                     p = doc.add_paragraph()
@@ -2277,14 +2297,14 @@ class ResearchPaperWordExporter:
                     p.add_run(f" — {timeline}")
 
         # --- RESEARCH ARTIFACTS ---
-        snippets = intelligence_object.get("docked_snippets") or []
+        snippets = _report_artifacts(intelligence_object)
         if snippets:
             wdoc.add_heading(f"{section_counter}. Research Artifacts & Evidence", level=1)
             section_counter += 1
-            wdoc.add_paragraph("The following evidence snippets and artifacts were collected during the research phase and docked as relevant supporting materials.")
+            wdoc.add_paragraph("The following selected dock artifacts were attached as executive exhibits for the final package.")
             
             for s in snippets:
-                label = s.get('label', 'Snippet')
+                label = _artifact_label(s)
                 source = s.get('source', 'Selection')
                 content = _clean_tags(_as_text(s.get("content", "")))
                 
@@ -2292,6 +2312,14 @@ class ResearchPaperWordExporter:
                 run = p.add_run(f"[{label.upper()}] from {source}")
                 run.bold = True
                 run.font.size = Pt(10)
+
+                tags = ", ".join(s.get("tags", []))
+                if tags:
+                    p_tags = wdoc.add_paragraph()
+                    p_tags.paragraph_format.left_indent = Inches(0.3)
+                    run_tags = p_tags.add_run(f"Tags: {tags}")
+                    run_tags.italic = True
+                    run_tags.font.size = Pt(8.5)
                 
                 # Use smaller font for content
                 p_content = wdoc.add_paragraph()

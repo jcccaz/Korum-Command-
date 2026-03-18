@@ -210,8 +210,10 @@ PHASE_DIRECTIVES = {
     4: {
         "title": "VALIDATION — Standards & Confidence Assessment",
         "instruction": (
-            "You are the VALIDATION ANALYST. Assess the quality of the entire analysis and map it to relevant standards. "
-            "Provide a final confidence assessment and flag residual risks."
+            "You are the VALIDATION ANALYST. Stress-test the analysis instead of praising it. "
+            "Identify the hidden structural weakness, quantify the downside where possible, and state what breaks first if the core assumption is wrong. "
+            "Map the analysis to relevant standards only after you have challenged it. "
+            "Output a hard final judgment, the top residual risk, the first-failure scenario, and the confidence gates that would change the verdict."
         )
     }
 }
@@ -867,6 +869,43 @@ def _strip_phantom_tokens(text):
     return _FAKE_FALCON_RE.sub('[value not provided]', text)
 
 
+def _score_truth_bomb(text):
+    lower = (text or "").lower()
+    score = 0
+
+    if re.search(r'[$€£]|\b\d+(?:\.\d+)?%|\b\d+(?:\.\d+)?x\b|\b\d+(?:\.\d+)?\b', text or ""):
+        score += 3
+    if any(token in lower for token in (
+        "hidden risk", "structural weakness", "fragility", "bottleneck", "single point",
+        "dependency", "concentration", "liquidity", "counterparty", "failure mode",
+        "downside", "exposure"
+    )):
+        score += 4
+    if any(token in lower for token in (
+        "what breaks first", "breaks first", "first failure", "fails first", "snap point", "tripwire"
+    )):
+        score += 5
+    if any(token in lower for token in ("if ", "when ", "once ", "unless ")):
+        score += 2
+    if any(token in lower for token in (
+        "strong financial health", "strong early-stage profitability", "recommended actions include",
+        "confidence in the findings", "moderate-to-high", "demonstrates strong"
+    )):
+        score -= 6
+    if len((text or "").strip()) < 80:
+        score -= 2
+
+    return score
+
+
+def _select_best_truth_bomb(truth_bombs):
+    cleaned = [tb.strip() for tb in truth_bombs if tb and tb.strip()]
+    if not cleaned:
+        return None
+    ranked = sorted(cleaned, key=lambda tb: (_score_truth_bomb(tb), len(tb)), reverse=True)
+    return ranked[0]
+
+
 def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None, ledger_mission_id=None, ghost_map=None, residual_report=None):
     # 1. Setup IDs
     import uuid
@@ -1453,9 +1492,17 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     - [DECISION_CANDIDATE] ...recommendation text... [/DECISION_CANDIDATE]
     - [RISK_VECTOR] ...risk description... [/RISK_VECTOR]
     - [METRIC_ANCHOR] ...metric value... [/METRIC_ANCHOR]
-    - [TRUTH_BOMB] ...critically verified fact... [/TRUTH_BOMB]
+    - [TRUTH_BOMB] ...the uncomfortable finding that challenges the current assumption: hidden risk or structural weakness, quantified impact where possible, and what breaks first... [/TRUTH_BOMB]
 
     Do not let these tags disrupt your narrative flow; they are for the backend extractor.
+
+    ## TRUTH BOMB STANDARD
+    When you emit a [TRUTH_BOMB], follow these rules:
+    1. Do NOT summarize metrics that are already obvious from the baseline.
+    2. Identify at least one hidden risk, structural weakness, or dependency trap.
+    3. Quantify the impact where possible using actual figures, ranges, percentages, or timing.
+    4. Include a "what breaks first" scenario when the downside is material.
+    5. Use direct, high-conviction language. Challenge the assumption; do not restate it.
 
     ## STRICT OUTPUT RULE
     ONLY use the four system tags listed above ([DECISION_CANDIDATE], [RISK_VECTOR], [METRIC_ANCHOR], [TRUTH_BOMB]).
@@ -1558,16 +1605,17 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
     4. DEPTH: For all narrative sections, provide 3-5 detailed paragraphs. Pull specific findings, data points, and recommendations.
     5. NO CONVERSATIONAL FLUFF: Output only the result.
     6. THE COUNCIL CONTRIBUTORS table must use the actual Phase Titles and Roles from the history.
+    7. If [TRUTH_BOMB] tags exist, treat them as contrarian failure-mode findings, not generic success summaries. Preserve the sharpest one.
 
     COUNCIL DISCUSSION:
     {history_text}
 
     Return ONLY a single valid JSON object with this schema:
     {{
-      "meta": {{
+        "meta": {{
         "title": "Concise, Descriptive Report Title",
         "generated_at": "{datetime.now().isoformat()}",
-        "summary": "4-6 sentence executive overview: key finding, primary risk, recommended action, and confidence level",
+        "summary": "4-6 sentence executive overview: key finding, primary risk, recommended action, confidence level, and if supported by the discussion the hidden structural weakness plus what breaks first",
         "final_document": "ASSEMBLY WORKFLOWS ONLY: If this is an EOM_STATEMENT, FINANCE, AUDIT, CODE_AUDIT, LEGAL, or PORTFOLIO_BUILDER mission, place the COMPLETE final deliverable here in full Markdown — every table, every section, every figure. For all other workflows, set this to null.",
         "composite_truth_score": 85,
         "models_used": [],
@@ -1689,9 +1737,10 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
             if t.strip() and t.strip() not in data["intelligence_tags"]["truth_bombs"]:
                 data["intelligence_tags"]["truth_bombs"].append(t.strip())
 
-        # If we have Truth Bombs, inject them into the summary if not present
-        if data["intelligence_tags"]["truth_bombs"] and "TRUTH BOMB" not in data.get("meta", {}).get("summary", ""):
-            tb_prefix = " [TRUTH BOMB CRITICAL]: " + data["intelligence_tags"]["truth_bombs"][0][:150] + "... "
+        # If we have Truth Bombs, inject the strongest one into the summary if not present
+        best_truth_bomb = _select_best_truth_bomb(data["intelligence_tags"]["truth_bombs"])
+        if best_truth_bomb and "TRUTH BOMB" not in data.get("meta", {}).get("summary", ""):
+            tb_prefix = " [TRUTH BOMB CRITICAL]: " + best_truth_bomb[:220] + "... "
             data["meta"]["summary"] = tb_prefix + data["meta"].get("summary", "")
 
         return data

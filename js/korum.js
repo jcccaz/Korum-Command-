@@ -918,6 +918,7 @@ const ResearchDock = {
         if (!content || content.trim().length < 3) return null;
 
         const typeInfo = this.detectType(content);
+        const isReportReadyArtifact = source === 'visualization' || typeInfo.type === 'mermaid';
         const snippet = {
             id: `snip-${Date.now()}`,
             content: content.trim(),
@@ -926,6 +927,7 @@ const ResearchDock = {
             label: typeInfo.label,
             source: source,
             tags: [],
+            includeInReport: isReportReadyArtifact,
             timestamp: new Date(),
             preview: content.trim().substring(0, 80) + (content.length > 80 ? '...' : '')
         };
@@ -969,6 +971,21 @@ const ResearchDock = {
                 showProcessingToast("Copied to clipboard!");
             });
         }
+    },
+
+    toggleReportInclusion(id) {
+        const snippet = this.snippets.find(s => s.id === id);
+        if (!snippet) return;
+        snippet.includeInReport = !snippet.includeInReport;
+        this.render();
+        this.save();
+        showProcessingToast(snippet.includeInReport ? "Artifact added to final report." : "Artifact removed from final report.");
+        logTelemetry(`Artifact ${snippet.includeInReport ? 'included' : 'excluded'} for report`, "success");
+    },
+
+    getReportArtifacts() {
+        const selected = this.snippets.filter(s => s.includeInReport);
+        return selected.length > 0 ? selected : this.snippets;
     },
 
     // Tag management
@@ -1186,7 +1203,9 @@ const ResearchDock = {
                 <div class="snippet-header">
                     <span class="snippet-icon">${s.icon}</span>
                     <span class="snippet-label">${s.label}</span>
+                    ${s.includeInReport ? `<span class="snippet-status-pill">IN REPORT</span>` : ''}
                     <div class="snippet-actions">
+                        <button onclick="ResearchDock.toggleReportInclusion('${s.id}')" title="${s.includeInReport ? 'Remove from final report' : 'Include in final report'}">${s.includeInReport ? '📄' : '➕'}</button>
                         <button onclick="ResearchDock.copy('${s.id}')" title="Copy">📋</button>
                         ${['data', 'csv', 'table'].includes(s.type) ? `
                             <button onclick="ResearchDock.generateChart('${s.id}', 'pie')" title="Pie Chart">🥧</button>
@@ -1257,6 +1276,7 @@ const ResearchDock = {
             if (data.success && data.snippets && data.snippets.length > 0) {
                 this.snippets = data.snippets.map(s => ({
                     ...s,
+                    includeInReport: !!s.includeInReport,
                     timestamp: new Date(s.timestamp)
                 }));
                 logTelemetry("Dock loaded from Mission Intelligence Cloud", "system");
@@ -1266,6 +1286,7 @@ const ResearchDock = {
                 if (saved) {
                     this.snippets = JSON.parse(saved).map(s => ({
                         ...s,
+                        includeInReport: !!s.includeInReport,
                         timestamp: new Date(s.timestamp)
                     }));
                 }
@@ -1276,6 +1297,7 @@ const ResearchDock = {
             if (saved) {
                 this.snippets = JSON.parse(saved).map(s => ({
                     ...s,
+                    includeInReport: !!s.includeInReport,
                     timestamp: new Date(s.timestamp)
                 }));
             }
@@ -1295,6 +1317,8 @@ window.ResearchDock = ResearchDock;
 
 // Toggle between Chat and Dock modes
 window.toggleCommsMode = function (mode) {
+    const sentinelCard = document.querySelector('.sentinel-card');
+    const sentinelTitle = document.querySelector('.sentinel-header h2');
     const chatPanel = document.getElementById('commsChatPanel');
     const dockPanel = document.getElementById('researchDock');
     const tabs = document.querySelectorAll('.comms-tab');
@@ -1303,9 +1327,13 @@ window.toggleCommsMode = function (mode) {
     document.querySelector(`.comms-tab[data-comms-mode="${mode}"]`)?.classList.add('active');
 
     if (mode === 'chat') {
+        sentinelCard?.classList.remove('is-dock-mode');
+        if (sentinelTitle) sentinelTitle.textContent = 'Global Comms';
         chatPanel?.classList.add('active');
         dockPanel?.classList.remove('active');
     } else {
+        sentinelCard?.classList.add('is-dock-mode');
+        if (sentinelTitle) sentinelTitle.textContent = 'Research Dock';
         chatPanel?.classList.remove('active');
         dockPanel?.classList.add('active');
         ResearchDock.render(); // Refresh dock view
@@ -4154,8 +4182,7 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
                     <div class="chart-modal-header">
                         <span>📊 ${chartType.toUpperCase()} VISUALIZATION</span>
                         <div style="display:flex; gap:10px; align-items:center;">
-                            <button class="modal-action-btn" style="padding:4px 10px; font-size:10px; background:rgba(0,255,157,0.1); border-color:rgba(0,255,157,0.3); color:#00FF9D;" 
-                                onclick="ResearchDock.add(\`${result.mermaid_code.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`, 'visualization'); this.innerHTML='📌 DOCKED'; this.disabled=true;">
+                            <button class="modal-action-btn" id="${chartId}-dock-btn" style="padding:4px 10px; font-size:10px; background:rgba(0,255,157,0.1); border-color:rgba(0,255,157,0.3); color:#00FF9D;">
                                 📌 DOCK CHART
                             </button>
                             <button class="chart-modal-close" onclick="document.getElementById('${chartId}-overlay').remove()">✕</button>
@@ -4168,6 +4195,14 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+        document.getElementById(`${chartId}-dock-btn`)?.addEventListener('click', (event) => {
+            const btn = event.currentTarget;
+            const snippet = ResearchDock.add(result.mermaid_code, 'visualization');
+            if (!snippet) return;
+            btn.innerHTML = '📌 DOCKED';
+            btn.disabled = true;
+            showProcessingToast("Chart docked to research dock.");
+        });
 
         // Render the Mermaid diagram
         if (window.mermaid) {
@@ -5445,10 +5480,17 @@ function handleTextSelection(e) {
         const anchorEl = selection.anchorNode?.nodeType === 1 ? selection.anchorNode : selection.anchorNode?.parentElement;
         const focusEl = selection.focusNode?.nodeType === 1 ? selection.focusNode : selection.focusNode?.parentElement;
         const agentCard = anchorEl?.closest?.('.agent-card') || focusEl?.closest?.('.agent-card');
-        
-        if (!agentCard) return; // Only show for text inside agent cards
-        
-        showHighlightToolbar(rect, text, agentCard.dataset.provider);
+        const workspaceReader = anchorEl?.closest?.('#dock-reader, .dock-reader, .reader-body')
+            || focusEl?.closest?.('#dock-reader, .dock-reader, .reader-body');
+        let provider = agentCard?.dataset?.provider || null;
+
+        if (!provider && workspaceReader) {
+            provider = sessionState.selectedCardProvider || null;
+        }
+
+        if (!agentCard && !workspaceReader) return;
+
+        showHighlightToolbar(rect, text, provider);
     } else {
         // Use a small delay to allow clicking buttons
         setTimeout(() => {
@@ -5477,8 +5519,8 @@ function showHighlightToolbar(rect, text, provider) {
                     <div class="ht-chart-opt" data-chart="auto">🎯 Auto</div>
                 </div>
             </div>
-            <button class="ht-btn export-xls" title="Export Selection as XLS">📥 XLS</button>
-            <button class="ht-btn document" title="Document Selection">📄 DOC</button>
+            <button class="ht-btn export-xls" title="Export Selection to Excel">📥 XLS</button>
+            <button class="ht-btn document" title="Export Selection to Word">📄 DOC</button>
         `;
         document.body.appendChild(toolbar);
 
@@ -5533,66 +5575,133 @@ function hideHighlightToolbar() {
     sessionState.highlightToolbarVisible = false;
 }
 
-/**
- * Export highlighted text as XLS (CSV that Excel opens natively).
- * Parses tables, bullet lists, and key-value lines into rows/columns.
- */
-function exportSelectionAsXLS(text) {
-    if (!text) return;
+function downloadClientFile(content, filename, mimeType) {
+    const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
 
+function extractSelectionRows(text) {
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const rows = [];
 
     for (const line of lines) {
-        // Table row: pipes or tabs
         if (line.includes('|')) {
             const cells = line.split('|').map(c => c.trim()).filter(Boolean);
-            // Skip separator rows (----)
-            if (cells.every(c => /^[-:]+$/.test(c))) continue;
-            rows.push(cells);
-        }
-        // Key-value: "Label: Value" or "Label — Value"
-        else if (/^(.+?):\s+(.+)$/.test(line)) {
+            if (cells.length && !cells.every(c => /^[-:]+$/.test(c))) rows.push(cells);
+        } else if (/^(.+?):\s+(.+)$/.test(line)) {
             const m = line.match(/^(.+?):\s+(.+)$/);
             rows.push([m[1].trim(), m[2].trim()]);
-        }
-        // Bullet: "• Item" or "- Item"
-        else if (/^[•\-\*]\s+/.test(line)) {
+        } else if (/^[•\-\*]\s+/.test(line)) {
             rows.push([line.replace(/^[•\-\*]\s+/, '')]);
-        }
-        // Numbered: "1. Item" or "1) Item"
-        else if (/^\d+[.)]\s+/.test(line)) {
+        } else if (/^\d+[.)]\s+/.test(line)) {
             const m = line.match(/^\d+[.)]\s+(.+)$/);
             rows.push([m ? m[1] : line]);
-        }
-        // Plain line
-        else {
+        } else {
             rows.push([line]);
         }
     }
+
+    return rows;
+}
+
+/**
+ * Export highlighted text as an Excel-readable workbook.
+ * Uses HTML table markup with an .xls extension for broad Office compatibility.
+ */
+function exportSelectionAsXLS(text) {
+    if (!text) return;
+
+    const rows = extractSelectionRows(text);
 
     if (rows.length === 0) {
         showProcessingToast("No tabular data found in selection.");
         return;
     }
 
-    // Build CSV content
-    const csv = rows.map(row =>
-        row.map(cell => `"${String(cell).replace(/"/g, '""')}"`)
-            .join(',')
-    ).join('\r\n');
+    const tableRows = rows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(String(cell))}</td>`).join('')}</tr>`).join('');
+    const workbookHtml = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office"
+              xmlns:x="urn:schemas-microsoft-com:office:excel"
+              xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="utf-8">
+                <!--[if gte mso 9]><xml>
+                    <x:ExcelWorkbook>
+                        <x:ExcelWorksheets>
+                            <x:ExcelWorksheet>
+                                <x:Name>Selection</x:Name>
+                                <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+                            </x:ExcelWorksheet>
+                        </x:ExcelWorksheets>
+                    </x:ExcelWorkbook>
+                </xml><![endif]-->
+                <style>
+                    td { border: 1px solid #D5DAE0; padding: 6px; vertical-align: top; }
+                </style>
+            </head>
+            <body>
+                <table>${tableRows}</table>
+            </body>
+        </html>
+    `;
 
-    // Download as .csv (Excel-compatible)
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `korum_export_${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadClientFile(
+        '\ufeff' + workbookHtml,
+        `korum_selection_${formatTimestampForFilename()}.xls`,
+        'application/vnd.ms-excel'
+    );
 
     logTelemetry(`XLS EXPORT: ${rows.length} rows`, "success");
-    showProcessingToast(`Exported ${rows.length} rows to CSV.`);
+    showProcessingToast(`Exported ${rows.length} rows to Excel.`);
+}
+
+function exportSelectionAsDoc(text, provider = activeActionContext.provider) {
+    if (!text) return;
+
+    const providerLabel = provider ? (getWorkspaceProviderRecord(provider)?.label || getProviderName(provider)) : 'Selected Text';
+    const paragraphs = text
+        .split(/\n{2,}/)
+        .map(block => block.trim())
+        .filter(Boolean)
+        .map(block => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`)
+        .join('');
+    const docHtml = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office"
+              xmlns:w="urn:schemas-microsoft-com:office:word"
+              xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="utf-8">
+                <title>Korum Selection Export</title>
+                <style>
+                    body { font-family: Calibri, Arial, sans-serif; margin: 32px; color: #1F2933; }
+                    h1 { font-size: 20pt; margin-bottom: 8px; }
+                    .meta { font-size: 10pt; color: #52606D; margin-bottom: 18px; }
+                    p { font-size: 11pt; line-height: 1.45; margin: 0 0 10px; }
+                </style>
+            </head>
+            <body>
+                <h1>Korum Selection Export</h1>
+                <div class="meta">Source: ${escapeHtml(providerLabel)} | Exported: ${escapeHtml(new Date().toLocaleString())}</div>
+                ${paragraphs}
+            </body>
+        </html>
+    `;
+
+    downloadClientFile(
+        '\ufeff' + docHtml,
+        `korum_selection_${formatTimestampForFilename()}.doc`,
+        'application/msword'
+    );
+
+    logTelemetry(`DOC EXPORT: ${providerLabel}`, "success");
+    showProcessingToast("Selection exported to Word.");
 }
 
 /**
@@ -5617,7 +5726,7 @@ function runHighlightAction(action) {
             exportSelectionAsXLS(text);
             break;
         case 'document':
-            saveReport();
+            exportSelectionAsDoc(text, provider);
             break;
     }
     
@@ -5744,8 +5853,9 @@ const sentinelChat = {
                     affected: 'Current mission thread',
                     nextMove: 'Interrogate or verify'
                 });
+                updateFollowupSpotlight(data.response, 'Latest Follow-Up Answer');
                 setEvaluationStepState('evalRevisionStep', 'live');
-                addCommsActivity('Follow-up answered', data.response.slice(0, 120) + (data.response.length > 120 ? '...' : ''), 'ready');
+                addCommsActivity('Follow-up answered', data.response, 'ready');
 
                 // Advance mission flow to Follow Up (step 6)
                 setMissionStep(5, 'complete');
@@ -5879,6 +5989,9 @@ function addCommsActivity(title, detail, kind = 'ready') {
 
     const item = document.createElement('div');
     item.className = 'activity-item';
+    item.tabIndex = 0;
+    item.setAttribute('role', 'button');
+    item.setAttribute('aria-label', `${title}. Open full activity details.`);
     item.innerHTML = `
         <span class="activity-dot ${kind === 'live' ? 'is-live' : kind === 'alert' ? 'is-alert' : 'is-ready'}"></span>
         <div>
@@ -5886,6 +5999,13 @@ function addCommsActivity(title, detail, kind = 'ready') {
             <span>${summarizeMissionText(detail, 160)}</span>
         </div>
     `;
+    item.addEventListener('click', () => openCommsActivityModal(title, detail));
+    item.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openCommsActivityModal(title, detail);
+        }
+    });
     list.prepend(item);
 
     while (list.children.length > 6) {
@@ -5905,6 +6025,51 @@ function resetCommsActivity() {
             </div>
         </div>
     `;
+}
+
+function openCommsActivityModal(title, detail) {
+    const existing = document.getElementById('comms-activity-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'comms-activity-modal';
+    modal.className = 'card-modal-overlay';
+    modal.innerHTML = `
+        <div class="card-modal activity-modal">
+            <div class="card-modal-header">
+                <div>
+                    <div class="card-modal-provider">Mission Activity</div>
+                    <div class="card-modal-model">${escapeHtml(title)}</div>
+                </div>
+                <button class="modal-close-btn" aria-label="Close activity details">×</button>
+            </div>
+            <div class="modal-card-content">
+                <div class="activity-modal-body">${escapeHtml(detail).replace(/\n/g, '<br>')}</div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal || event.target.closest('.modal-close-btn')) {
+            modal.remove();
+        }
+    });
+
+    document.body.appendChild(modal);
+}
+
+function updateFollowupSpotlight(detail, label = 'Latest Follow-Up Answer') {
+    const body = document.getElementById('followupSpotlightBody');
+    const title = document.getElementById('followupSpotlightLabel');
+    const openBtn = document.getElementById('followupSpotlightOpen');
+    if (!body) return;
+
+    const fullText = String(detail || '').trim() || 'Follow-up answers will surface here.';
+    body.textContent = fullText;
+    if (title) title.textContent = label;
+    if (openBtn) {
+        openBtn.onclick = () => openCommsActivityModal(label, fullText);
+    }
 }
 
 function updateRevisionSummary({
@@ -6571,7 +6736,7 @@ async function handleDocExport(format) {
 
         // Inject research dock snippets
         if (typeof ResearchDock !== 'undefined' && ResearchDock.snippets && ResearchDock.snippets.length > 0) {
-            intelligenceObj.docked_snippets = ResearchDock.snippets;
+            intelligenceObj.docked_snippets = ResearchDock.getReportArtifacts();
         }
         
         logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis} | Snippets: ${intelligenceObj.docked_snippets?.length || 0}`, "process");
