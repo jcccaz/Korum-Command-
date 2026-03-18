@@ -1018,10 +1018,62 @@ class WordExporter:
                 run.font.bold = True
 
                 response_text = _clean_tags(_as_text(result.get("response", "")))
-                for para in response_text.split("\n\n"):
-                    para = para.strip()
-                    if para:
-                        doc.add_paragraph(para)
+                # Parse markdown tables vs plain paragraphs (same logic as synthesis sections)
+                _lines = response_text.split("\n")
+                _in_tbl = False
+                _tbl_lines = []
+                _cur_para = []
+
+                def _flush_member_para(pl):
+                    pt = " ".join(l.strip() for l in pl if l.strip())
+                    if pt:
+                        doc.add_paragraph(pt)
+
+                def _flush_member_table(tl):
+                    rows = []
+                    for l in tl:
+                        if "|" in l:
+                            cells = [c.strip() for c in l.split("|")]
+                            if not cells[0]: cells = cells[1:]
+                            if cells and not cells[-1]: cells = cells[:-1]
+                            if all(c.replace("-", "").replace(":", "").replace(" ", "") == "" for c in cells):
+                                continue
+                            rows.append(cells)
+                    if rows:
+                        cols = max(len(r) for r in rows)
+                        tbl = doc.add_table(rows=len(rows), cols=cols)
+                        tbl.autofit = True
+                        for i, r_cells in enumerate(rows):
+                            for j, c_text in enumerate(r_cells):
+                                if j < len(tbl.rows[i].cells):
+                                    tbl.rows[i].cells[j].text = c_text
+                        WordExporter._style_header_row(tbl.rows[0])
+                        for i in range(1, len(tbl.rows)):
+                            WordExporter._style_data_row(tbl.rows[i], i - 1)
+                        doc.add_paragraph()
+
+                for _line in _lines:
+                    if "|" in _line:
+                        if not _in_tbl:
+                            _flush_member_para(_cur_para)
+                            _cur_para = []
+                            _in_tbl = True
+                        _tbl_lines.append(_line)
+                    else:
+                        if _in_tbl:
+                            _flush_member_table(_tbl_lines)
+                            _tbl_lines = []
+                            _in_tbl = False
+                        if not _line.strip():
+                            _flush_member_para(_cur_para)
+                            _cur_para = []
+                        else:
+                            _cur_para.append(_line)
+                if _in_tbl:
+                    _flush_member_table(_tbl_lines)
+                if _cur_para:
+                    _flush_member_para(_cur_para)
+
                 WordExporter._add_section_divider(doc)
 
         # ═══════════════════════════════════════════════════════════════
