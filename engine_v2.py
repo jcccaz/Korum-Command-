@@ -27,15 +27,15 @@ WORKFLOW_DNA = {
         "risk_bias": "Conservative (Minimize immediate damage)",
         "time_horizon": "0–72 hours",
         "posture": "Tactical Commander",
-        "output_structure": ["Situation Brief", "Threat Vector Table", "Immediate Action Steps", "Resource Allocation Matrix", "Escalation Protocol"]
+        "output_structure": ["Situation", "Threat", "Immediate Action", "Resource Allocation", "Escalation Path"]
     },
-    "DEEP_INTELLIGENCE": {
-        "goal": "Deep understanding and evidence-based exploration with strategic foresight.",
-        "tone": "Cold, professional, and foresight-oriented.",
-        "risk_bias": "Analytically skeptical",
-        "time_horizon": "Strategic (1-5 years)",
-        "posture": "Chief Intelligence Officer",
-        "output_structure": ["Intake Baseline", "Evidence & Sentiment Table", "Counter-Thesis Analysis", "Confidence Scoring Matrix", "Strategic Roadmap"]
+    "RESEARCH": {
+        "goal": "Deep understanding and evidence-based exploration.",
+        "tone": "Neutral, academic, and comprehensive.",
+        "risk_bias": "Balanced",
+        "time_horizon": "Long-term strategic",
+        "posture": "Objective Scientist",
+        "output_structure": ["Hypotheses", "Evidence", "Counterarguments", "Confidence Score", "Further Research Paths"]
     },
     "FINANCE": {
         "goal": "Economic viability and downside protection.",
@@ -43,7 +43,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Downside-aware",
         "time_horizon": "Scenario-based",
         "posture": "CFO / Auditor",
-        "output_structure": ["Cost Baseline", "Revenue Impact Table", "Sensitivity Matrix", "Worst-case Scenario", "Executive ROI Table"]
+        "output_structure": ["Cost", "Revenue Impact", "Sensitivity Table", "Worst-case Scenario", "ROI Summary"]
     },
     "LEGAL": {
         "goal": "Exposure reduction and regulatory compliance.",
@@ -51,7 +51,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Zero-risk / Protective",
         "time_horizon": "Indefinite",
         "posture": "General Counsel",
-        "output_structure": ["Regulatory Exposure Matrix", "Contractual Impact Table", "Risk Mitigation Roadmap", "Final Legal Posture"]
+        "output_structure": ["Regulatory Exposure", "Contractual Impact", "Risk Mitigation", "Recommended Posture"]
     },
     "QUANTUM_SECURITY": {
         "goal": "Assess cryptographic vulnerabilities, enforce Zero Trust architecture, and map to strict government compliance (NIST 800-207, FedRAMP, CMMC).",
@@ -59,7 +59,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Zero-trust / Absolute Security",
         "time_horizon": "Long-term (Post-Quantum Readiness)",
         "posture": "Chief Information Security Officer (CISO) & Cryptographer",
-        "output_structure": ["Threat Vector Map", "Vulnerability Metrics Table", "Zero Trust Controls Matrix", "Compliance Roadmap (NIST/FedRAMP)", "Mitigation Architecture"]
+        "output_structure": ["Threat Landscape", "Cryptographic Vulnerabilities", "Zero Trust Controls", "Compliance Mapping (NIST/FedRAMP)", "Mitigation Architecture"]
     },
     "MEDICAL": {
         "goal": "Evidence-based clinical assessment with patient safety as the absolute priority.",
@@ -67,7 +67,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Conservative (Do No Harm)",
         "time_horizon": "Immediate clinical + long-term outcomes",
         "posture": "Chief Medical Officer & Clinical Review Board",
-        "output_structure": ["Clinical Assessment", "Evidence Table", "Differential Diagnosis Matrix", "Treatment Protocol Table", "Benefit-Risk Analysis"]
+        "output_structure": ["Clinical Assessment", "Evidence Review", "Differential Diagnosis", "Treatment Options", "Risk-Benefit Analysis"]
     },
     "CYBER": {
         "goal": "Identify active threats, map attack surfaces, and provide actionable defense recommendations.",
@@ -75,7 +75,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Assume breach / Adversarial",
         "time_horizon": "0-72 hours tactical + ongoing hardening",
         "posture": "Cyber Command / Red Team Lead",
-        "output_structure": ["Active Threat Intel", "Attack Surface Table", "IOC & Malware Metrics", "Mitigation Playbook Table", "Detection Rule Matrix"]
+        "output_structure": ["Threat Intelligence", "Attack Surface Analysis", "Active Indicators (IOCs)", "Mitigation Playbook", "Detection Rules"]
     },
     "DEFENSE": {
         "goal": "Strategic defense analysis with geopolitical awareness and operational security.",
@@ -83,7 +83,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Threat-forward / Worst-case planning",
         "time_horizon": "Multi-domain (tactical to strategic)",
         "posture": "Defense Intelligence Analyst",
-        "output_structure": ["Battlefield Assessment", "Disposition Table", "Threat Analysis Matrix", "COA Action Table", "Intelligence Gaps"]
+        "output_structure": ["Situation Assessment", "Force Disposition", "Threat Analysis", "Courses of Action", "Intelligence Gaps"]
     },
     "STARTUP": {
         "goal": "Validate business viability, identify product-market fit, and assess go-to-market readiness.",
@@ -91,7 +91,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Calculated risk / Move fast with data",
         "time_horizon": "0-18 months runway",
         "posture": "Startup Advisor / VC Partner",
-        "output_structure": ["Market Opportunity Table", "Unit Economics Metrics", "Competitor Matrix", "GTM Strategy Table", "Funding & Runway Roadmap"]
+        "output_structure": ["Market Opportunity", "Unit Economics", "Competitive Landscape", "Go-to-Market Strategy", "Funding & Runway"]
     },
     "AUDIT": {
         "goal": "Identify control failures, compliance gaps, and evidence discrepancies against applicable frameworks.",
@@ -99,7 +99,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Skeptical / Trust but verify",
         "time_horizon": "Point-in-time assessment + remediation timeline",
         "posture": "Lead Auditor (SOC2 / ISO 27001 / NIST)",
-        "output_structure": ["Scope & Methodology", "Control Findings Table", "Compliance Gap Matrix", "Evidence Assessment Table", "Remediation Roadmap"]
+        "output_structure": ["Scope & Methodology", "Control Findings", "Compliance Gap Analysis", "Evidence Assessment", "Remediation Priorities"]
     },
     "CREATIVE": {
         "goal": "Generate innovative concepts, narratives, and strategic messaging — then draft the actual deliverable.",
@@ -107,7 +107,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Risk-tolerant / Push boundaries",
         "time_horizon": "Campaign-based",
         "posture": "Creative Director & Brand Strategist",
-        "output_structure": ["Concept Brief", "Target Audience Matrix", "Messaging Framework Table", "Draft Deliverable Content", "Campaign Roadmap"]
+        "output_structure": ["Creative Concept", "Target Audience", "Messaging Framework", "Draft Deliverable", "Execution Plan"]
     },
     "SCIENCE": {
         "goal": "Evaluate hypotheses with methodological rigor and reproducibility standards.",
@@ -115,7 +115,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Evidence-weighted / Null hypothesis default",
         "time_horizon": "Study-dependent",
         "posture": "Principal Investigator & Peer Reviewer",
-        "output_structure": ["Hypothesis Verdict", "Methodology Metrics", "Data Analysis Table", "Evidence Grading Matrix", "Conclusions & Roadmap"]
+        "output_structure": ["Hypothesis Evaluation", "Methodology Assessment", "Data Analysis", "Literature Context", "Conclusions & Limitations"]
     },
     "TECH": {
         "goal": "Evaluate technical architecture, scalability, and engineering trade-offs.",
@@ -123,7 +123,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Reliability-first",
         "time_horizon": "Build cycle (sprint to quarterly)",
         "posture": "CTO / Principal Engineer",
-        "output_structure": ["Architecture Snapshot", "Tech Trade-off Matrix", "Scalability Metrics Table", "Decision Log Table", "Strategic Debt Roadmap"]
+        "output_structure": ["Architecture Assessment", "Technical Trade-offs", "Scalability Analysis", "Implementation Plan", "Technical Debt & Risks"]
     },
     "INTEL": {
         "goal": "Produce finished intelligence products with source evaluation and confidence grading.",
@@ -131,7 +131,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Analytic confidence calibration",
         "time_horizon": "Current intelligence + strategic forecast",
         "posture": "Senior Intelligence Analyst",
-        "output_structure": ["Key Judgments", "Source Attribution Table", "Confidence Grading Matrix", "Warning & Indicators Table", "Intelligence Gaps"]
+        "output_structure": ["Key Judgments", "Source Evaluation", "Analytic Confidence", "Alternative Hypotheses", "Intelligence Gaps"]
     },
     "SYSTEM": {
         "goal": "Diagnose system behavior, optimize performance, and ensure operational integrity.",
@@ -139,13 +139,15 @@ WORKFLOW_DNA = {
         "risk_bias": "Stability-first",
         "time_horizon": "Immediate resolution + preventive measures",
         "posture": "Systems Engineer / SRE Lead",
-        "output_structure": ["System Status Table", "Root Cause Analysis", "Performance Metrics Table", "Resolution Step Roadmap", "Monitoring Matrix"]
+        "output_structure": ["System Status", "Root Cause Analysis", "Performance Metrics", "Resolution Steps", "Monitoring Recommendations"]
     },
     # --- ALIASES TO BRIDGE UI NAMES ---
-    "RESEARCH": { "alias": "DEEP_INTELLIGENCE" },
-    "CREATIVE_COUNCIL": { "alias": "CREATIVE" }, "STARTUP_LAUNCH": { "alias": "STARTUP" },
-    "CODE_AUDIT": { "alias": "AUDIT" }, "CYBER_COMMAND": { "alias": "CYBER" },
-    "DEFENSE_COUNCIL": { "alias": "DEFENSE" }, "INTEL_BRIEF": { "alias": "INTEL" },
+    "CREATIVE_COUNCIL": { "alias": "CREATIVE" },
+    "STARTUP_LAUNCH": { "alias": "STARTUP" },
+    "CODE_AUDIT": { "alias": "AUDIT" },
+    "CYBER_COMMAND": { "alias": "CYBER" },
+    "DEFENSE_COUNCIL": { "alias": "DEFENSE" },
+    "INTEL_BRIEF": { "alias": "INTEL" },
     "SCIENCE_PANEL": { "alias": "SCIENCE" },
     "SOCIAL_POST": {
         "goal": "Draft high-impact technical narratives that positions the author as a builder-authority and stops the scroll.",
@@ -153,15 +155,15 @@ WORKFLOW_DNA = {
         "risk_bias": "Trust-focused (Build in public)",
         "time_horizon": "Immediate impact",
         "posture": "Founder-Builder & Storyteller",
-        "output_structure": ["Audience Matrix", "Core Hook Analysis", "Primary Social Draft", "Alternate Narrative Table", "Engagement Roadmap"]
+        "output_structure": ["Target Audience", "Core Hook", "Main Draft", "Alternate Versions", "Engagement Logic"]
     },
     "EOM_STATEMENT": {
-        "goal": "Generate a comprehensive, forensic-grade End of Month financial review with specific attention to cash flow and burn.",
-        "tone": "Forensic, executive-clinical, and zero-embellishment.",
-        "risk_bias": "Trust but verify / Forensic skeptical",
-        "time_horizon": "Monthly (30-day lookback)",
-        "posture": "CFO & Forensic Auditor",
-        "output_structure": ["Executive P&L Table", "Revenue Stream Metrics", "Burn & Runway Analytics", "Risk & Variance Table", "Critical Action Roadmap"]
+        "goal": "Generate a professional, structured End-of-Month (EOM) financial report with zero fluff.",
+        "tone": "Formal, precise, and accounting-standard aligned.",
+        "risk_bias": "Conservative (Downside-aware)",
+        "time_horizon": "Monthly / Trailing 12-month",
+        "posture": "Chief Financial Officer (CFO)",
+        "output_structure": ["P&L Statement", "Balance Sheet Snapshot", "Cash Flow & Burn Rate", "Runway & Forecast", "Financial Priorities"]
     },
     "PORTFOLIO_BUILDER": {
         "goal": "Build a complete, actionable investment portfolio with specific tickers, allocations, entry ranges, and price targets. No disclaimers. No hedging. Picks with numbers.",
@@ -169,7 +171,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Risk-calibrated — position size to the conviction level, not to comfort.",
         "time_horizon": "12-month primary / 3-year thesis",
         "posture": "Hedge Fund Portfolio Manager & Investment Committee",
-        "output_structure": ["Macro Setup", "Screened Candidates Table", "Red Team Challenge", "Portfolio Architecture Table", "Final Portfolio Table"]
+        "output_structure": ["Macro Setup", "Screened Candidates", "Red Team Challenge", "Portfolio Architecture", "Final Portfolio — Ready to Execute"]
     }
 }
 
@@ -210,10 +212,8 @@ PHASE_DIRECTIVES = {
     4: {
         "title": "VALIDATION — Standards & Confidence Assessment",
         "instruction": (
-            "You are the VALIDATION ANALYST. Stress-test the analysis instead of praising it. "
-            "Identify the hidden structural weakness, quantify the downside where possible, and state what breaks first if the core assumption is wrong. "
-            "Map the analysis to relevant standards only after you have challenged it. "
-            "Output a hard final judgment, the top residual risk, the first-failure scenario, and the confidence gates that would change the verdict."
+            "You are the VALIDATION ANALYST. Assess the quality of the entire analysis and map it to relevant standards. "
+            "Provide a final confidence assessment and flag residual risks."
         )
     }
 }
@@ -869,43 +869,6 @@ def _strip_phantom_tokens(text):
     return _FAKE_FALCON_RE.sub('[value not provided]', text)
 
 
-def _score_truth_bomb(text):
-    lower = (text or "").lower()
-    score = 0
-
-    if re.search(r'[$€£]|\b\d+(?:\.\d+)?%|\b\d+(?:\.\d+)?x\b|\b\d+(?:\.\d+)?\b', text or ""):
-        score += 3
-    if any(token in lower for token in (
-        "hidden risk", "structural weakness", "fragility", "bottleneck", "single point",
-        "dependency", "concentration", "liquidity", "counterparty", "failure mode",
-        "downside", "exposure"
-    )):
-        score += 4
-    if any(token in lower for token in (
-        "what breaks first", "breaks first", "first failure", "fails first", "snap point", "tripwire"
-    )):
-        score += 5
-    if any(token in lower for token in ("if ", "when ", "once ", "unless ")):
-        score += 2
-    if any(token in lower for token in (
-        "strong financial health", "strong early-stage profitability", "recommended actions include",
-        "confidence in the findings", "moderate-to-high", "demonstrates strong"
-    )):
-        score -= 6
-    if len((text or "").strip()) < 80:
-        score -= 2
-
-    return score
-
-
-def _select_best_truth_bomb(truth_bombs):
-    cleaned = [tb.strip() for tb in truth_bombs if tb and tb.strip()]
-    if not cleaned:
-        return None
-    ranked = sorted(cleaned, key=lambda tb: (_score_truth_bomb(tb), len(tb)), reverse=True)
-    return ranked[0]
-
-
 def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None, ledger_mission_id=None, ghost_map=None, residual_report=None):
     # 1. Setup IDs
     import uuid
@@ -1492,17 +1455,9 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     - [DECISION_CANDIDATE] ...recommendation text... [/DECISION_CANDIDATE]
     - [RISK_VECTOR] ...risk description... [/RISK_VECTOR]
     - [METRIC_ANCHOR] ...metric value... [/METRIC_ANCHOR]
-    - [TRUTH_BOMB] ...the uncomfortable finding that challenges the current assumption: hidden risk or structural weakness, quantified impact where possible, and what breaks first... [/TRUTH_BOMB]
+    - [TRUTH_BOMB] ...critically verified fact... [/TRUTH_BOMB]
 
     Do not let these tags disrupt your narrative flow; they are for the backend extractor.
-
-    ## TRUTH BOMB STANDARD
-    When you emit a [TRUTH_BOMB], follow these rules:
-    1. Do NOT summarize metrics that are already obvious from the baseline.
-    2. Identify at least one hidden risk, structural weakness, or dependency trap.
-    3. Quantify the impact where possible using actual figures, ranges, percentages, or timing.
-    4. Include a "what breaks first" scenario when the downside is material.
-    5. Use direct, high-conviction language. Challenge the assumption; do not restate it.
 
     ## STRICT OUTPUT RULE
     ONLY use the four system tags listed above ([DECISION_CANDIDATE], [RISK_VECTOR], [METRIC_ANCHOR], [TRUTH_BOMB]).
@@ -1548,7 +1503,7 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
     Now includes divergence analysis for calibrated synthesis.
     """
     # Retrieve Workflow DNA for structure
-    dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["DEEP_INTELLIGENCE"])
+    dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
     if "alias" in dna:
         dna = WORKFLOW_DNA.get(dna["alias"], dna)
 
@@ -1581,14 +1536,7 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
             for pos in topic.get('positions', []):
                 history_text += f"  - {pos.get('provider', '').upper()}: {pos.get('position', '')}\n"
 
-    # Dynamic schema building based on DNA
-    schema_sections = {}
-    for section in dna["output_structure"]:
-        key = section.lower().replace(" ", "_")
-        if "table" in key or "metrics" in key or "roadmap" in key:
-            schema_sections[key] = "THE ACTUAL MARKDOWN TABLE from the council discussion. DO NOT summarize into paragraphs. If no table is found, build one from the mentioned data."
-        else:
-            schema_sections[key] = "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations."
+    schema_sections = {section.lower().replace(" ", "_"): "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations." for section in dna["output_structure"]}
 
     prompt = f"""
     You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a comprehensive, high-fidelity "Intelligence Object".
@@ -1600,22 +1548,20 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
 
     ## CRITICAL RULES:
     1. EXCLUSIVITY: Only use the provided COUNCIL DISCUSSION.
-    2. VERBATIM DRAFTS: If there is a section titled "Main Draft", "Draft Deliverable", or "Final Draft", you MUST extract the actual content from the 'CONTENT CREATOR' or 'WRITER' phase verbatim. DO NOT summarize it.
-    3. DATA INTEGRITY (TABLES): If the mission is {context.workflow} and involves financial or technical tables (e.g. P&L, Burn Rate, Roadmap), you MUST extract or reconstruct the actual Markdown table. DO NOT convert tables into paragraphs. If a table was generated in ANY phase, it must appear in the corresponding section of this report.
-    4. DEPTH: For all narrative sections, provide 3-5 detailed paragraphs. Pull specific findings, data points, and recommendations.
-    5. NO CONVERSATIONAL FLUFF: Output only the result.
-    6. THE COUNCIL CONTRIBUTORS table must use the actual Phase Titles and Roles from the history.
-    7. If [TRUTH_BOMB] tags exist, treat them as contrarian failure-mode findings, not generic success summaries. Preserve the sharpest one.
+    2. VERBATIM DRAFTS: If there is a section titled "Main Draft", "Draft Deliverable", or "Final Draft", you MUST extract the actual content from the 'CONTENT CREATOR' or 'WRITER' phase verbatim. DO NOT summarize it. DO NOT add "In this post..." or other meta-commentary. Just provide the ready-to-publish content.
+    3. DEPTH: For all OTHER sections, provide 3-5 detailed paragraphs. Pull specific findings, data points, and recommendations.
+    4. NO CONVERSATIONAL FLUFF: Output only the result.
+    5. THE COUNCIL CONTRIBUTORS table must use the actual Phase Titles and Roles from the history.
 
     COUNCIL DISCUSSION:
     {history_text}
 
     Return ONLY a single valid JSON object with this schema:
     {{
-        "meta": {{
+      "meta": {{
         "title": "Concise, Descriptive Report Title",
         "generated_at": "{datetime.now().isoformat()}",
-        "summary": "4-6 sentence executive overview: key finding, primary risk, recommended action, confidence level, and if supported by the discussion the hidden structural weakness plus what breaks first",
+        "summary": "4-6 sentence executive overview: key finding, primary risk, recommended action, and confidence level",
         "final_document": "ASSEMBLY WORKFLOWS ONLY: If this is an EOM_STATEMENT, FINANCE, AUDIT, CODE_AUDIT, LEGAL, or PORTFOLIO_BUILDER mission, place the COMPLETE final deliverable here in full Markdown — every table, every section, every figure. For all other workflows, set this to null.",
         "composite_truth_score": 85,
         "models_used": [],
@@ -1711,37 +1657,43 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
         data["council_contributors"] = contributors
         print(f"[SYNTHESIS] Injected {len(contributors)} council_contributors: {[c['phase'] for c in contributors]}")
 
+        # DETERMINISTIC final_document injection for assembly workflows.
+        # The LLM synthesizer is unreliable for this — pull the CFO/final phase
+        # response directly from pipeline history instead of trusting the JSON field.
+        SYNTHESIS_ASSEMBLY_WORKFLOWS = {"EOM_STATEMENT", "FINANCE", "AUDIT", "CODE_AUDIT", "LEGAL", "PORTFOLIO_BUILDER"}
+        if context.workflow in SYNTHESIS_ASSEMBLY_WORKFLOWS and context.history:
+            final_phase_response = context.history[-1].get("response", "").strip()
+            if final_phase_response:
+                # Strip raw intelligence tags so the display layer renders cleanly
+                import re as _re2
+                clean_doc = _re2.sub(r'\[DECISION_CANDIDATE\]([\s\S]*?)\[/DECISION_CANDIDATE\]', r'\1', final_phase_response)
+                clean_doc = _re2.sub(r'\[RISK_VECTOR\]([\s\S]*?)\[/RISK_VECTOR\]', r'\1', clean_doc)
+                clean_doc = _re2.sub(r'\[METRIC_ANCHOR\]([\s\S]*?)\[/METRIC_ANCHOR\]', r'\1', clean_doc)
+                clean_doc = _re2.sub(r'\[TRUTH_BOMB\]([\s\S]*?)\[/TRUTH_BOMB\]', r'\1', clean_doc)
+                clean_doc = _re2.sub(r'\[/?(?:DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', clean_doc)
+                if "meta" not in data:
+                    data["meta"] = {}
+                data["meta"]["final_document"] = clean_doc
+                print(f"[SYNTHESIS] Injected final_document from phase history ({len(clean_doc)} chars)")
+
         # NEW: Post-processing safety parse for tags (in case LLM misses some)
         import re
         decisions = re.findall(r'\[DECISION_CANDIDATE\](.*?)\[/DECISION_CANDIDATE\]', history_text, re.DOTALL)
         risks = re.findall(r'\[RISK_VECTOR\](.*?)\[/RISK_VECTOR\]', history_text, re.DOTALL)
         metrics = re.findall(r'\[METRIC_ANCHOR\](.*?)\[/METRIC_ANCHOR\]', history_text, re.DOTALL)
-        truth_bombs = re.findall(r'\[TRUTH_BOMB\](.*?)\[/TRUTH_BOMB\]', history_text, re.DOTALL)
         
-        # Merge safety-extracted tags
-        if not data.get("intelligence_tags"): 
-            data["intelligence_tags"] = {"decisions": [], "risks": [], "metrics": [], "truth_bombs": []}
-        elif "truth_bombs" not in data["intelligence_tags"]:
-            data["intelligence_tags"]["truth_bombs"] = []
+        # Merge safety-extracted tags if they aren't already in the JSON
+        if not data.get("intelligence_tags"): data["intelligence_tags"] = {"decisions": [], "risks": [], "metrics": []}
         
         for d in decisions: 
-            if d.strip() and d.strip() not in data["intelligence_tags"]["decisions"]: 
+            if d.strip() not in data["intelligence_tags"]["decisions"]: 
                 data["intelligence_tags"]["decisions"].append(d.strip())
         for r in risks:
-            if r.strip() and r.strip() not in data["intelligence_tags"]["risks"]:
+            if r.strip() not in data["intelligence_tags"]["risks"]:
                 data["intelligence_tags"]["risks"].append(r.strip())
         for m in metrics:
-            if m.strip() and m.strip() not in data["intelligence_tags"]["metrics"]:
+            if m.strip() not in data["intelligence_tags"]["metrics"]:
                 data["intelligence_tags"]["metrics"].append(m.strip())
-        for t in truth_bombs:
-            if t.strip() and t.strip() not in data["intelligence_tags"]["truth_bombs"]:
-                data["intelligence_tags"]["truth_bombs"].append(t.strip())
-
-        # If we have Truth Bombs, inject the strongest one into the summary if not present
-        best_truth_bomb = _select_best_truth_bomb(data["intelligence_tags"]["truth_bombs"])
-        if best_truth_bomb and "TRUTH BOMB" not in data.get("meta", {}).get("summary", ""):
-            tb_prefix = " [TRUTH BOMB CRITICAL]: " + best_truth_bomb[:220] + "... "
-            data["meta"]["summary"] = tb_prefix + data["meta"].get("summary", "")
 
         return data
     except Exception as e:
