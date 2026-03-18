@@ -1098,30 +1098,30 @@ class ExcelExporter:
         ws_meta = wb.active
         ws_meta.title = "Summary"
         ws_meta.append(["Field", "Value"])
-        ws_meta.append(["Title", _as_text(meta.get("title", ""))])
-        ws_meta.append(["Generated At", _as_text(meta.get("generated_at", ""))])
-        ws_meta.append(["Truth Score", _as_text(meta.get("composite_truth_score", ""))])
+        ws_meta.append(["Title", _sanitize_for_csv(meta.get("title", ""))])
+        ws_meta.append(["Generated At", _sanitize_for_csv(meta.get("generated_at", ""))])
+        ws_meta.append(["Truth Score", _sanitize_for_csv(meta.get("composite_truth_score", ""))])
         ws_meta.append(
             [
                 "Models Used",
-                ", ".join(meta.get("models_used", [])) if isinstance(meta.get("models_used"), list) else _as_text(meta.get("models_used", "")),
+                _sanitize_for_csv(", ".join(meta.get("models_used", [])) if isinstance(meta.get("models_used"), list) else _as_text(meta.get("models_used", ""))),
             ]
         )
-        ws_meta.append(["Summary", _as_text(meta.get("summary", ""))])
+        ws_meta.append(["Summary", _sanitize_for_csv(meta.get("summary", ""))])
 
         # ── SECTIONS SHEET ──
         ws_sections = wb.create_sheet("Sections")
         ws_sections.append(["Section", "Content"])
         for section_id, content in sections.items():
-            ws_sections.append([section_id.replace("_", " ").title(), _as_text(content)])
+            ws_sections.append([section_id.replace("_", " ").title(), _sanitize_for_csv(content)])
 
         # ── KEY METRICS & PIE CHART ──
         ws_metrics = wb.create_sheet("Key Metrics")
         ws_metrics.append(["Metric", "Value", "Context"])
         chart_data_rows = 0
         for metric in structured.get("key_metrics", []):
-            val_str = _as_text(metric.get("value", ""))
-            ws_metrics.append([_as_text(metric.get("metric", "")), val_str, _as_text(metric.get("context", ""))])
+            val_str = _sanitize_for_csv(metric.get("value", ""))
+            ws_metrics.append([_sanitize_for_csv(metric.get("metric", "")), val_str, _sanitize_for_csv(metric.get("context", ""))])
             chart_data_rows += 1
 
         # Embed Pie Chart if we have metrics (try to parse numeric values)
@@ -1141,7 +1141,7 @@ class ExcelExporter:
         ws_actions = wb.create_sheet("Action Items")
         ws_actions.append(["Task", "Priority", "Timeline"])
         for item in structured.get("action_items", []):
-            ws_actions.append([_as_text(item.get("task", "")), _as_text(item.get("priority", "")), _as_text(item.get("timeline", ""))])
+            ws_actions.append([_sanitize_for_csv(item.get("task", "")), _sanitize_for_csv(item.get("priority", "")), _sanitize_for_csv(item.get("timeline", ""))])
 
         # ── RISKS (WITH COLOR) ──
         ws_risks = wb.create_sheet("Risks")
@@ -1150,9 +1150,9 @@ class ExcelExporter:
         red_font = Font(color="990000", bold=True)
         
         for risk in structured.get("risks", []):
-            severity = _as_text(risk.get("severity", "")).lower()
+            severity = _sanitize_for_csv(risk.get("severity", "")).lower()
             row_idx = ws_risks.max_row + 1
-            ws_risks.append([_as_text(risk.get("risk", "")), severity, _as_text(risk.get("mitigation", ""))])
+            ws_risks.append([_sanitize_for_csv(risk.get("risk", "")), severity, _sanitize_for_csv(risk.get("mitigation", ""))])
             if "high" in severity or "critical" in severity or "truth bomb" in severity:
                 for cell in ws_risks[row_idx]:
                     cell.fill = red_fill
@@ -1164,14 +1164,14 @@ class ExcelExporter:
             ws_int.append(["Timestamp", "Target", "Attacker", "Defender", "Verdict", "Score Delta", "Challenge", "Rebuttal"])
             for entry in interrogations:
                 ws_int.append([
-                    entry.get('timestamp', ''),
-                    entry.get('target', ''),
-                    f"{entry.get('attacker', '').upper()} ({entry.get('attacker_model', '')})",
-                    f"{entry.get('defender', '').upper()} ({entry.get('defender_model', '')})",
-                    entry.get('verdict', ''),
+                    _sanitize_for_csv(entry.get('timestamp', '')),
+                    _sanitize_for_csv(entry.get('target', '')),
+                    _sanitize_for_csv(f"{entry.get('attacker', '').upper()} ({entry.get('attacker_model', '')})"),
+                    _sanitize_for_csv(f"{entry.get('defender', '').upper()} ({entry.get('defender_model', '')})"),
+                    _sanitize_for_csv(entry.get('verdict', '')),
                     entry.get('score_delta', 0),
-                    entry.get('attacker_response', ''),
-                    entry.get('defender_response', '')
+                    _sanitize_for_csv(entry.get('attacker_response', '')),
+                    _sanitize_for_csv(entry.get('defender_response', ''))
                 ])
 
         if verifications:
@@ -1179,11 +1179,11 @@ class ExcelExporter:
             ws_ver.append(["Timestamp", "Claim", "Verdict", "Score Delta", "Evidence"])
             for entry in verifications:
                 ws_ver.append([
-                    entry.get('timestamp', ''),
-                    entry.get('claim', ''),
-                    entry.get('verdict', ''),
+                    _sanitize_for_csv(entry.get('timestamp', '')),
+                    _sanitize_for_csv(entry.get('claim', '')),
+                    _sanitize_for_csv(entry.get('verdict', '')),
                     entry.get('score_delta', 0),
-                    entry.get('verification', '')
+                    _sanitize_for_csv(entry.get('verification', ''))
                 ])
 
         filename = f"korum_intelligence_{_timestamp()}.xlsx"
