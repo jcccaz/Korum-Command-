@@ -133,6 +133,19 @@
     background: linear-gradient(180deg, rgba(18, 18, 18, 0.96), rgba(12, 12, 12, 0.98));
 }
 
+/* Pinned Live Revision Feed — sits directly below tactical input */
+.comms-activity-feed.comms-activity-pinned {
+    margin-top: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid rgba(245, 168, 0, 0.2);
+    background: transparent;
+    padding: 10px 14px;
+    flex-shrink: 0;
+}
+
 .comms-activity-header {
     display: flex;
     flex-direction: column;
