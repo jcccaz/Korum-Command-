@@ -1567,6 +1567,8 @@ const QUERY_PATTERNS = {
     "Legal Review": ["legal", "law", "regulation", "compliance", "contract", "liability", "patent", "trademark", "lawsuit", "attorney"],
     "Medical Council": ["medical", "health", "clinical", "patient", "diagnosis", "treatment", "pharmaceutical", "disease", "therapy", "doctor"],
     "Finance Desk": ["finance", "investment", "revenue", "profit", "accounting", "tax", "budget", "portfolio", "stock", "dividend", "roi", "hedge fund", "arbitrage", "equity"],
+    "EOM Statement": ["end of month", "eom", "monthly close", "month-end", "burn rate", "runway", "cash flow statement", "p&l", "profit and loss", "balance sheet", "variance analysis"],
+    "Portfolio Builder": ["portfolio builder", "portfolio allocation", "position sizing", "entry price", "price target", "watchlist", "12-month thesis", "investment committee", "asset allocation"],
     "Science Panel": ["science", "physics", "chemistry", "biology", "experiment", "hypothesis", "quantum", "molecular", "genetic", "laboratory"],
     "Startup Launch": ["startup", "launch", "business plan", "mvp", "funding", "venture", "pitch", "scalable", "bootstrap", "market fit"],
     "Defense Council": ["drone", "uav", "uas", "military", "dod", "defense", "pentagon", "nato", "warfare", "missile", "isr", "reconnaissance", "counter-uas", "autonomous weapon", "force projection", "combat", "battalion", "tactical", "operational", "classified", "clearance", "fedramp"],
@@ -1575,6 +1577,45 @@ const QUERY_PATTERNS = {
     "Intel Brief": ["intelligence", "osint", "sigint", "humint", "geopolitical", "adversary", "threat assessment", "espionage", "counterintelligence", "national security", "classified", "briefing", "surveillance", "reconnaissance", "entity", "encrypted communication", "shell organization", "financial transfer", "logistics movement", "satellite monitoring", "coordinated operation", "deception", "false flag", "operational chain", "threat scenario", "intrusion group", "redacted"],
     "System Core": ["general", "help", "question", "advice"]
 };
+
+const WORKFLOW_SUGGESTION_META = {
+    "War Room": { workflowValue: "WAR_ROOM", configKey: "War Room" },
+    "Deep Research": { workflowValue: "RESEARCH", configKey: "Deep Research" },
+    "Creative Council": { workflowValue: "CREATIVE_COUNCIL", configKey: "Creative Council" },
+    "Code Audit": { workflowValue: "CODE_AUDIT", configKey: "CODE_AUDIT" },
+    "System Core": { workflowValue: "SYSTEM", configKey: "System Core" },
+    "Legal Review": { workflowValue: "LEGAL", configKey: "Legal Review" },
+    "Medical Council": { workflowValue: "MEDICAL", configKey: "Medical Council" },
+    "Finance Desk": { workflowValue: "FINANCE", configKey: "Finance Desk" },
+    "EOM Statement": { workflowValue: "EOM_STATEMENT", configKey: "EOM_STATEMENT" },
+    "Portfolio Builder": { workflowValue: "PORTFOLIO_BUILDER", configKey: "PORTFOLIO_BUILDER" },
+    "Science Panel": { workflowValue: "SCIENCE_PANEL", configKey: "SCIENCE_PANEL" },
+    "Startup Launch": { workflowValue: "STARTUP_LAUNCH", configKey: "STARTUP_LAUNCH" },
+    "Tech Council": { workflowValue: "TECH", configKey: "Tech Council" },
+    "Defense Council": { workflowValue: "DEFENSE_COUNCIL", configKey: "DEFENSE_COUNCIL" },
+    "Cyber Command": { workflowValue: "CYBER_COMMAND", configKey: "CYBER_COMMAND" },
+    "Quantum Security": { workflowValue: "QUANTUM_SECURITY", configKey: "Quantum Security" },
+    "Intel Brief": { workflowValue: "INTEL_BRIEF", configKey: "INTEL_BRIEF" }
+};
+
+function getWorkflowSuggestionMeta(workflowLabel) {
+    return WORKFLOW_SUGGESTION_META[workflowLabel] || {
+        workflowValue: "RESEARCH",
+        configKey: workflowLabel
+    };
+}
+
+function applySuggestedWorkflow(workflowLabel) {
+    const workflowSelect = document.getElementById('intake-workflow');
+    if (!workflowSelect) return;
+
+    const workflowMeta = getWorkflowSuggestionMeta(workflowLabel);
+    const matchingOption = Array.from(workflowSelect.options).find(option => option.value === workflowMeta.workflowValue);
+    if (!matchingOption) return;
+
+    workflowSelect.value = workflowMeta.workflowValue;
+    workflowSelect.dispatchEvent(new Event('change', { bubbles: true }));
+}
 
 
 function setMissionStep(step, status) {
@@ -1673,12 +1714,14 @@ function setupActionBindings() {
         if (query.length > 20) {
             suggestionTimeout = setTimeout(() => {
                 const suggestedWorkflow = analyzeQuery(query);
-                const suggestedRoles = PROTOCOL_CONFIGS[suggestedWorkflow];
+                const workflowMeta = getWorkflowSuggestionMeta(suggestedWorkflow);
+                const suggestedRoles = PROTOCOL_CONFIGS[workflowMeta.configKey];
                 const detCat = document.getElementById('detectedCategory');
                 const sugWf = document.getElementById('suggestedWorkflow');
                 if (detCat) detCat.textContent = suggestedWorkflow;
                 if (sugWf) sugWf.textContent = suggestedWorkflow;
                 if (suggestionBox) suggestionBox.classList.remove('hidden');
+                applySuggestedWorkflow(suggestedWorkflow);
                 if (suggestedRoles) {
                     const rsOai = document.getElementById('roleSelectOpenAI');
                     const rsAnt = document.getElementById('roleSelectAnthropic');
