@@ -172,20 +172,21 @@ def _convert_mermaid_to_table(text):
     return text
 
 
-def _clean_tags(text):
-    """Strip intelligence tags, markdown artifacts, and convert Mermaid charts to tables."""
+def _clean_tags(text, strip_markdown=False):
+    """Strip intelligence system tags and convert Mermaid charts to readable tables."""
     import re
-    # Convert Mermaid charts to readable tables first
+    # Convert Mermaid charts to readable plain-text tables first
     text = _convert_mermaid_to_table(text)
-    # Remove paired tags, keeping inner content
+    # Remove paired system tags, keeping the inner content
     text = re.sub(r'\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', text)
-    # Remove markdown bold markers
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-    # Remove markdown headings
-    text = re.sub(r'#{1,4}\s*', '', text)
-    # Clean up extra whitespace and dashes used as bullets
-    text = re.sub(r'\s*-\s*\*\*', '\n\n', text)
-    text = re.sub(r'\s*-\s{2,}', '\n\n- ', text)
+
+    if strip_markdown:
+        # Remove markdown bold/italic markers
+        text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+        text = re.sub(r'\*(.*?)\*', r'\1', text)
+        # Remove markdown headings
+        text = re.sub(r'#{1,4}\s*', '', text)
+
     # Collapse excessive whitespace
     text = re.sub(r'[ \t]{2,}', ' ', text)
     return text.strip()
@@ -362,12 +363,22 @@ class WordExporter:
         run.font.bold = True
         run.font.name = "Calibri"
         run.font.letter_spacing = Pt(1.5)
+        # Get theme from doc properties or default
+        theme = getattr(doc, '_korum_theme', 'STEEL')
+        PALETTES = {
+            'STEEL':  {'primary': (0x00, 0xE5, 0xFF), 'secondary': (0xFF, 0xB0, 0x20)}, # Cyan / Gold
+            'EMERALD':{'primary': (0x00, 0xFF, 0x9D), 'secondary': (0xFF, 0xFF, 0xFF)}, # Jade / White
+            'AMBER':  {'primary': (0xFF, 0xB0, 0x20), 'secondary': (0xFF, 0x44, 0x44)}, # Gold / Red
+            'SLATE':  {'primary': (0xCC, 0xCC, 0xCC), 'secondary': (0x00, 0xE5, 0xFF)}  # Silver / Cyan
+        }
+        palette = PALETTES.get(theme, PALETTES['STEEL'])
+        
         if level == 1:
             run.font.size = Pt(13)
-            run.font.color.rgb = RGBColor(0x00, 0xE5, 0xFF)
+            run.font.color.rgb = RGBColor(*palette['primary'])
         elif level == 2:
             run.font.size = Pt(11)
-            run.font.color.rgb = RGBColor(0x00, 0xFF, 0x9D)
+            run.font.color.rgb = RGBColor(*palette['secondary'])
         else:
             run.font.size = Pt(10)
             run.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
@@ -382,8 +393,10 @@ class WordExporter:
         meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         card_results = intelligence_object.get("_card_results", {})
         mission_ctx = intelligence_object.get("_mission_context") or {}
-
+        
         doc = Document()
+        # SET STRATEGIC THEME (STEEL, EMERALD, AMBER, SLATE)
+        doc._korum_theme = meta.get("theme", "STEEL")
 
         # --- Global Styles ---
         style = doc.styles["Normal"]
@@ -637,6 +650,13 @@ class WordExporter:
             WordExporter._add_branded_heading(doc, "Audit & Verification Trail")
 
             if interrogations:
+                # Use theme accents for adversarial headers
+                theme_pal = {
+                    'STEEL':   (0x00, 0xE5, 0xFF), 'EMERALD': (0x00, 0xFF, 0x9D),
+                    'AMBER':   (0xFF, 0xB0, 0x20), 'SLATE':   (0xCC, 0xCC, 0xCC)
+                }
+                theme_c = RGBColor(*theme_pal.get(doc._korum_theme, (0, 229, 255)))
+
                 doc.add_paragraph("The following adversarial cross-examinations were performed by the council to challenge and validate the synthesis results.")
                 for idx, entry in enumerate(interrogations):
                     table = doc.add_table(rows=1, cols=2)
@@ -644,7 +664,7 @@ class WordExporter:
                     hdr = table.rows[0].cells
                     hdr[0].text = f"INTERROGATION #{idx+1}"
                     hdr[1].text = entry.get('verdict', 'CONTESTED')
-                    WordExporter._style_header_row(table.rows[0], bg_hex="1A0A0A", text_color=RGBColor(0xFF, 0x44, 0x44))
+                    WordExporter._style_header_row(table.rows[0], bg_hex="121212", text_color=theme_c)
 
                     row = table.add_row().cells
                     row[0].text = "ATTACKER"
@@ -667,6 +687,12 @@ class WordExporter:
                     doc.add_paragraph() # Spacer
 
             if verifications:
+                theme_pal = {
+                    'STEEL':   (0xFF, 0xB0, 0x20), 'EMERALD': (0x00, 0xFF, 0x9D),
+                    'AMBER':   (0xCC, 0xCC, 0xCC), 'SLATE':   (0x00, 0xE5, 0xFF)
+                }
+                theme_c = RGBColor(*theme_pal.get(doc._korum_theme, (255, 176, 32)))
+
                 doc.add_paragraph("Authoritative source verification results via external intelligence nodes.")
                 for idx, entry in enumerate(verifications):
                     table = doc.add_table(rows=1, cols=2)
@@ -674,7 +700,7 @@ class WordExporter:
                     hdr = table.rows[0].cells
                     hdr[0].text = f"SOURCE CHECK #{idx+1}"
                     hdr[1].text = entry.get('verdict', 'UNRESOLVED')
-                    WordExporter._style_header_row(table.rows[0], bg_hex="0A1628", text_color=RGBColor(0x00, 0xE5, 0xFF))
+                    WordExporter._style_header_row(table.rows[0], bg_hex="121212", text_color=theme_c)
 
                     row = table.add_row().cells
                     row[0].text = "CLAIM"
@@ -1283,20 +1309,47 @@ class WordExporter:
 class PPTXExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
-        from pptx.util import Pt as PptxPt
+        from pptx.util import Pt as PptxPt, Inches as PptxInches
+        from pptx.dml.color import RGBColor as PptxRGBColor
 
         meta, sections, _, interrogations, verifications = _extract_parts(intelligence_object)
+        
+        # Select strategic theme
+        THEMES = {
+            'STEEL':   (0, 229, 255), # Cyan
+            'EMERALD': (0, 255, 157), # Jade
+            'AMBER':   (255, 176, 32),# Gold
+            'SLATE':   (204, 204, 204) # Silver
+        }
+        theme_id = meta.get("theme", "STEEL")
+        theme_rgb = THEMES.get(theme_id, THEMES['STEEL'])
+
         prs = PPTXPresentation()
 
+        # --- TITLE SLIDE ---
         title_slide = prs.slides.add_slide(prs.slide_layouts[0])
-        title_slide.shapes.title.text = _sanitize_for_pptx(_as_text(meta.get("title", "Intelligence Report")))
+        title_shape = title_slide.shapes.title
+        title_shape.text = _sanitize_for_pptx(_as_text(meta.get("title", "Intelligence Report")))
+        
+        # Branding Logo
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum_wordmark.png")
+        if os.path.exists(logo_path):
+            title_slide.shapes.add_picture(logo_path, PptxInches(3.4), PptxInches(1.2), width=PptxInches(3.2))
+
+        # Subtitle
         subtitle = title_slide.placeholders[1] if len(title_slide.placeholders) > 1 else None
         if subtitle:
-            subtitle.text = _sanitize_for_pptx(f"KORUM-OS | {_as_text(meta.get('generated_at', ''))}")
+            subtitle.text = _sanitize_for_pptx(f"KORUM-OS STRATEGIC BRIEF | {meta.get('generated_at', datetime.now().strftime('%B %Y'))}")
 
+        # --- CONTENT SLIDES ---
         for section_id, content in sections.items():
             slide = prs.slides.add_slide(prs.slide_layouts[1])
-            slide.shapes.title.text = section_id.replace("_", " ").title()
+            slide_title = slide.shapes.title
+            slide_title.text = section_id.replace("_", " ").title()
+            
+            # Apply Theme Color to Title
+            title_run = slide_title.text_frame.paragraphs[0].runs[0]
+            title_run.font.color.rgb = PptxRGBColor(*theme_rgb)
             if len(slide.placeholders) > 1:
                 tf = slide.placeholders[1].text_frame
                 text = _sanitize_for_pptx(_as_text(content))
@@ -1319,21 +1372,51 @@ class ExcelExporter:
     @staticmethod
     def generate(intelligence_object, output_dir=None):
         from openpyxl.chart import PieChart, Reference
-        from openpyxl.styles import PatternFill, Font
+        from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 
         meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
+        
+        # Select strategic theme
+        THEMES = {
+            'STEEL':   "00E5FF", # Cyan
+            'EMERALD': "00FF9D", # Jade
+            'AMBER':   "FFB020", # Gold
+            'SLATE':   "8B949E"  # Silver
+        }
+        theme_id = meta.get("theme", "STEEL")
+        theme_hex = THEMES.get(theme_id, THEMES['STEEL'])
+
         wb = Workbook()
+
+        # Formatting objects
+        header_fill = PatternFill(start_color=theme_hex, end_color=theme_hex, fill_type="solid")
+        header_font = Font(bold=True, color="000000" if theme_id == 'EMERALD' else "FFFFFF")
+        title_font = Font(bold=True, size=14, color=theme_hex)
 
         # ── SUMMARY SHEET ──
         ws_meta = wb.active
-        ws_meta.title = "Summary"
-        ws_meta.append(["Field", "Value"])
-        ws_meta.append(["Title", _sanitize_for_csv(meta.get("title", ""))])
+        ws_meta.title = "Collection Summary"
+        
+        # Title Row
+        ws_meta.append(["KORUM-OS STRATEGIC INTELLIGENCE GATHERING"])
+        ws_meta["A1"].font = title_font
+        ws_meta.merge_cells("A1:B1")
+
+        ws_meta.append([]) # Spacer
+
+        ws_meta.append(["Field", "Asset Value"])
+        # Style Header Row (Row 3)
+        for cell in ws_meta[3]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center")
+
+        ws_meta.append(["Title", _sanitize_for_csv(meta.get("title", "Untitled Asset"))])
         ws_meta.append(["Generated At", _sanitize_for_csv(meta.get("generated_at", ""))])
-        ws_meta.append(["Truth Score", _sanitize_for_csv(meta.get("composite_truth_score", ""))])
+        ws_meta.append(["Truth Score", _sanitize_for_csv(meta.get("composite_truth_score", "N/A"))])
         ws_meta.append(
             [
-                "Models Used",
+                "Source Nodes",
                 _sanitize_for_csv(", ".join(meta.get("models_used", [])) if isinstance(meta.get("models_used"), list) else _as_text(meta.get("models_used", ""))),
             ]
         )
@@ -1559,16 +1642,23 @@ class PDFExporter:
 
         styles = getSampleStyleSheet()
 
-        # --- DARK THEME PALETTE (matches KorumOS web UI) ---
+        # --- DARK THEME PALETTE (Strategic Themes) ---
+        THEMES = {
+            'STEEL':   {"primary": "#00E5FF", "secondary": "#FFB020"}, # Cyan / Gold
+            'EMERALD': {"primary": "#00FF9D", "secondary": "#E6EDF3"}, # Jade / White
+            'AMBER':   {"primary": "#FFB020", "secondary": "#FF4444"}, # Amber / Red
+            'SLATE':   {"primary": "#8B949E", "secondary": "#00E5FF"}  # Silver / Cyan
+        }
+        theme_id = meta.get("theme", "STEEL")
+        p = THEMES.get(theme_id, THEMES['STEEL'])
+        
         BG_DARK = "#0D1117"
         BG_CARD = "#161B22"
         BG_SURFACE = "#1C2333"
+        ACCENT_PRIMARY = p['primary']
+        ACCENT_SECONDARY = p['secondary']
         TEXT_PRIMARY = "#E6EDF3"
         TEXT_SECONDARY = "#8B949E"
-        ACCENT_CYAN = "#00E5FF"
-        ACCENT_GREEN = "#00FF9D"
-        ACCENT_GOLD = "#FFB020"
-        ACCENT_RED = "#FF4444"
         BORDER = "#30363D"
 
         # Define high-end dark-theme styles
@@ -1576,7 +1666,7 @@ class PDFExporter:
             name='BannerText',
             parent=styles['Normal'],
             fontSize=8,
-            textColor=colors.HexColor(ACCENT_CYAN),
+            textColor=colors.HexColor(ACCENT_PRIMARY),
             alignment=1,
             leading=10,
             fontName='Helvetica-Bold'
@@ -1595,7 +1685,7 @@ class PDFExporter:
             name='BrandedHeading1',
             parent=styles['Heading1'],
             fontSize=16,
-            textColor=colors.HexColor(ACCENT_CYAN),
+            textColor=colors.HexColor(ACCENT_PRIMARY),
             spaceAfter=8,
             spaceBefore=12,
             fontName='Helvetica-Bold'
@@ -1779,7 +1869,7 @@ class PDFExporter:
         # --- STRUCTURED DATA TABLES (Metrics, Actions, Risks) ---
         metrics = structured.get("key_metrics", [])
         tbl_cell = ParagraphStyle('TblCell', parent=styles['SectionBody'], fontSize=8, leading=10, wordWrap='CJK')
-        tbl_hdr = ParagraphStyle('TblHdr', parent=tbl_cell, textColor=colors.HexColor("#00E5FF"), fontName='Helvetica-Bold')
+        tbl_hdr = ParagraphStyle('TblHdr', parent=tbl_cell, textColor=colors.HexColor(ACCENT_PRIMARY), fontName='Helvetica-Bold')
         if metrics:
             story.append(Paragraph("Key Intelligence Metrics", styles['BrandedHeading1']))
             m_data = [[Paragraph("METRIC", tbl_hdr), Paragraph("VALUE", tbl_hdr), Paragraph("CONTEXT", tbl_hdr)]]
@@ -1789,8 +1879,8 @@ class PDFExporter:
                                Paragraph(_as_text(m.get("context")), tbl_cell)])
             t = Table(m_data, colWidths=[150, 100, 262], repeatRows=1)
             t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00E5FF")),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(BG_DARK)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_PRIMARY)),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
@@ -1807,8 +1897,8 @@ class PDFExporter:
                 tb_data = [[Paragraph(tb, ParagraphStyle('TruthBombBody', parent=styles['SectionBody'], textColor=colors.HexColor("#FFFFFF")))]]
                 tb_table = Table(tb_data, colWidths=[512])
                 tb_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#330000")),
-                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor("#FF0000")),
+                    ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#121212")),
+                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor(ACCENT_SECONDARY)),
                     ('TOPPADDING', (0, 0), (-1, -1), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
                     ('LEFTPADDING', (0, 0), (-1, -1), 10),
@@ -1821,7 +1911,7 @@ class PDFExporter:
         risks = structured.get("risks", [])
         if risks:
             story.append(Paragraph("Risk Assessment", styles['BrandedHeading1']))
-            risk_hdr = ParagraphStyle('RiskHdr', parent=tbl_cell, textColor=colors.HexColor("#FF4444"), fontName='Helvetica-Bold')
+            risk_hdr = ParagraphStyle('RiskHdr', parent=tbl_cell, textColor=colors.HexColor(ACCENT_SECONDARY), fontName='Helvetica-Bold')
             r_data = [[Paragraph("RISK", risk_hdr), Paragraph("SEVERITY", risk_hdr), Paragraph("MITIGATION", risk_hdr)]]
             sev_box = {"CRITICAL": "#FF4444", "HIGH": "#FF8844", "MEDIUM": "#FFCC00", "LOW": "#00AA55"}
             for r in risks:
@@ -1830,8 +1920,8 @@ class PDFExporter:
                                Paragraph(_as_text(r.get("mitigation")), tbl_cell)])
             t = Table(r_data, colWidths=[180, 80, 252], repeatRows=1)
             t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A0A0A")),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_RED)),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A1A1A")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_SECONDARY)),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor(BG_CARD), colors.HexColor("#1A1015")])
@@ -1848,8 +1938,8 @@ class PDFExporter:
             f_data.append(["FIPS 206", "FN-DSA (FALCON)", "NIST Draft Mar 2026"])
             t = Table(f_data, colWidths=[150, 200, 162])
             t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0A1628")),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_CYAN)),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(BG_DARK)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_PRIMARY)),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
                 ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor(TEXT_PRIMARY)),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
@@ -1879,9 +1969,9 @@ class PDFExporter:
 
                     t = Table(i_data, colWidths=[100, 412])
                     t.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A0A0A")),
-                        ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor(ACCENT_RED)),
-                        ('TEXTCOLOR', (1, 0), (1, 0), colors.HexColor(ACCENT_RED)),
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#121212")),
+                        ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor(ACCENT_PRIMARY)),
+                        ('TEXTCOLOR', (1, 0), (1, 0), colors.HexColor(ACCENT_PRIMARY)),
                         ('FONTSIZE', (0, 0), (-1, -1), 8),
                         ('TEXTCOLOR', (0, 1), (0, -1), colors.HexColor(TEXT_SECONDARY)),
                         ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor(TEXT_PRIMARY)),
@@ -1905,8 +1995,8 @@ class PDFExporter:
                     ]
                     t = Table(v_data, colWidths=[100, 412])
                     t.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0A1628")),
-                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_CYAN)),
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#121212")),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_PRIMARY)),
                         ('FONTSIZE', (0, 0), (-1, -1), 8),
                         ('TEXTCOLOR', (0, 1), (0, -1), colors.HexColor(TEXT_SECONDARY)),
                         ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor(TEXT_PRIMARY)),
@@ -1935,7 +2025,7 @@ class PDFExporter:
             score_table = Table(score_data, colWidths=[170, 170, 172], repeatRows=1)
             score_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(BG_DARK)),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_CYAN)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_PRIMARY)),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
                 ('TEXTCOLOR', (0, 1), (-1, 1), colors.HexColor(TEXT_PRIMARY)),
@@ -2021,7 +2111,7 @@ class PDFExporter:
         if contributors:
             story.append(Paragraph("Council Contributors", styles['BrandedHeading1']))
             cell_style = ParagraphStyle('CellText', parent=styles['SectionBody'], fontSize=8, leading=10, wordWrap='CJK')
-            hdr_style = ParagraphStyle('CellHdr', parent=cell_style, textColor=colors.HexColor("#00E5FF"), fontName='Helvetica-Bold')
+            hdr_style = ParagraphStyle('CellHdr', parent=cell_style, textColor=colors.HexColor(ACCENT_PRIMARY), fontName='Helvetica-Bold')
             c_data = [[Paragraph("PHASE", hdr_style), Paragraph("PROVIDER", hdr_style),
                         Paragraph("ROLE", hdr_style), Paragraph("CONTRIBUTION", hdr_style)]]
             for c in contributors:
@@ -2034,7 +2124,7 @@ class PDFExporter:
             ct = Table(c_data, colWidths=[80, 70, 70, 292], repeatRows=1)
             ct.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(BG_DARK)),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_CYAN)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_PRIMARY)),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, -1), 8),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
@@ -2068,7 +2158,7 @@ class PDFExporter:
                 exhibit_table = Table(exhibit_data, colWidths=[100, 412])
                 exhibit_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(BG_CARD)),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_GREEN)),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_PRIMARY)),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, -1), 8),
                     ('TEXTCOLOR', (0, 1), (0, -1), colors.HexColor(TEXT_SECONDARY)),
@@ -2109,7 +2199,7 @@ class PDFExporter:
         attest_t = Table(attest_data, colWidths=[512])
         attest_t.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(BG_SURFACE)),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor(ACCENT_CYAN)),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor(ACCENT_PRIMARY)),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
@@ -2143,10 +2233,21 @@ class ResearchPaperExporter:
         )
         base_styles = getSampleStyleSheet()
 
+        # --- STRATEGIC PALETTE SELECTION ---
+        THEMES = {
+            'STEEL':   {"primary": "#00E5FF", "secondary": "#FFB020"}, # Cyan / Gold
+            'EMERALD': {"primary": "#00FF9D", "secondary": "#0A3D2D"}, # Jade / Dark Green
+            'AMBER':   {"primary": "#FFB020", "secondary": "#FF4444"}, # Amber / Red
+            'SLATE':   {"primary": "#333A45", "secondary": "#00E5FF"}  # Slate / Cyan
+        }
+        theme_id = meta.get("theme", "STEEL")
+        p = THEMES.get(theme_id, THEMES['STEEL'])
+
         # Custom styles for research paper feel
         title_style = ParagraphStyle(
             'PaperTitle', parent=base_styles['Title'],
             fontSize=20, leading=24, alignment=TA_CENTER,
+            textColor=colors.HexColor(p['primary']),
             spaceAfter=6
         )
         subtitle_style = ParagraphStyle(
@@ -2163,7 +2264,7 @@ class ResearchPaperExporter:
         heading_style = ParagraphStyle(
             'PaperHeading', parent=base_styles['Heading2'],
             fontSize=14, leading=18, spaceBefore=18, spaceAfter=8,
-            textColor=colors.Color(0.15, 0.15, 0.15)
+            textColor=colors.HexColor(p['primary'])
         )
         body_style = ParagraphStyle(
             'PaperBody', parent=base_styles['BodyText'],
@@ -2176,6 +2277,15 @@ class ResearchPaperExporter:
         )
 
         story = []
+
+        # --- KORUM BRANDING LOGO ---
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum_wordmark.png")
+        if os.path.exists(logo_path):
+            from reportlab.platypus import Image as RLImage
+            logo_img = RLImage(logo_path, width=180, height=35)
+            logo_img.hAlign = 'CENTER'
+            story.append(logo_img)
+            story.append(Spacer(1, 12))
 
         # --- TITLE ---
         title_text = _as_text(meta.get("title", "Research Report"))

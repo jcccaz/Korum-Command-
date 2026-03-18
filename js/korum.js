@@ -918,7 +918,7 @@ const ResearchDock = {
         if (!content || content.trim().length < 3) return null;
 
         const typeInfo = this.detectType(content);
-        const isReportReadyArtifact = source === 'visualization' || typeInfo.type === 'mermaid';
+        const isReportReadyArtifact = source === 'visualization' || typeInfo.type === 'mermaid' || typeInfo.type === 'table' || typeInfo.type === 'csv';
         const snippet = {
             id: `snip-${Date.now()}`,
             content: content.trim(),
@@ -1119,6 +1119,12 @@ const ResearchDock = {
             return;
         }
 
+        // Professional Exports (Word, Excel, PPT) go to backend engine
+        if (['docx', 'xlsx', 'pptx'].includes(format)) {
+            handleDocExport(format);
+            return;
+        }
+
         let output = '';
         const timestamp = new Date().toISOString().split('T')[0];
 
@@ -1139,7 +1145,6 @@ const ResearchDock = {
                 output += `---\n\n`;
             });
         } else if (format === 'csv') {
-            // Special logic for CSV export: Find all tables/csv snippets and join them
             const tables = this.snippets.filter(s => s.type === 'table' || s.type === 'csv');
             if (tables.length === 0) {
                 showProcessingToast("No tabular data found to export as CSV");
@@ -1213,7 +1218,7 @@ const ResearchDock = {
                         <span class="snippet-label">${s.label}</span>
                         ${s.includeInReport ? `<span class="snippet-status-pill">IN REPORT</span>` : ''}
                         <div class="snippet-actions">
-                            <button onclick="ResearchDock.toggleReportInclusion('${s.id}')" title="${s.includeInReport ? 'Remove from final report' : 'Include in final report'}">${s.includeInReport ? '📄' : '➕'}</button>
+                            <button class="dock-toggle-inclusion ${s.includeInReport ? 'active' : ''}" onclick="ResearchDock.toggleReportInclusion('${s.id}')" title="${s.includeInReport ? 'Remove from final report' : 'Include in final report'}">${s.includeInReport ? '✅' : '🔘'}</button>
                             <button onclick="ResearchDock.copy('${s.id}')" title="Copy">📋</button>
                             ${['data', 'csv', 'table'].includes(s.type) ? `
                                 <button onclick="ResearchDock.generateChart('${s.id}', 'pie')" title="Pie Chart">🥧</button>
@@ -1963,6 +1968,9 @@ function setupActionBindings() {
         btn.addEventListener('click', () => {
             const action = btn.dataset.dockAction;
             if (action === 'export-markdown') ResearchDock.exportAll('markdown');
+            if (action === 'export-docx') ResearchDock.exportAll('docx');
+            if (action === 'export-xlsx') ResearchDock.exportAll('xlsx');
+            if (action === 'export-pptx') ResearchDock.exportAll('pptx');
             if (action === 'export-csv') ResearchDock.exportAll('csv');
             if (action === 'clear') ResearchDock.clear();
         });
@@ -6842,12 +6850,15 @@ async function handleDocExport(format) {
     const select = document.getElementById('exportDoc');
     const formatNames = {
         'paper-docx': 'Research Paper (Word)', paper: 'Research Paper', pdf: 'Board Brief', docx: 'Executive Memo', xlsx: 'Intelligence Workbook',
-        csv: 'Flat Data', json: 'Raw Intelligence', md: 'Markdown Brief', txt: 'Text Report'
+        pptx: 'Strategy Presentation', csv: 'Flat Data', json: 'Raw Intelligence', md: 'Markdown Brief', txt: 'Text Report'
     };
 
-    if (!lastCouncilData || !lastCouncilData.synthesis) {
-        showProcessingToast("Execute protocol first to generate intelligence data.");
-        logTelemetry("Deployment failed: No synthesis data", "error");
+    const hasSynthesis = (lastCouncilData && lastCouncilData.synthesis);
+    const hasDock = (ResearchDock.snippets && ResearchDock.snippets.length > 0);
+
+    if (!hasSynthesis && !hasDock) {
+        showProcessingToast("No mission intelligence or research exhibits to export.");
+        logTelemetry("Deployment failed: No data", "error");
         if (select) select.selectedIndex = 0;
         return;
     }
