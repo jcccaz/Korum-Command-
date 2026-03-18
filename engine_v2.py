@@ -164,6 +164,14 @@ WORKFLOW_DNA = {
         "time_horizon": "Monthly / Trailing 12-month",
         "posture": "Chief Financial Officer (CFO)",
         "output_structure": ["P&L Statement", "Balance Sheet Snapshot", "Cash Flow & Burn Rate", "Runway & Forecast", "Financial Priorities"]
+    },
+    "PORTFOLIO_BUILDER": {
+        "goal": "Build a complete, actionable investment portfolio with specific tickers, allocations, entry ranges, and price targets. No disclaimers. No hedging. Picks with numbers.",
+        "tone": "Aggressive, data-driven, hedge fund floor. Direct calls only.",
+        "risk_bias": "Risk-calibrated — position size to the conviction level, not to comfort.",
+        "time_horizon": "12-month primary / 3-year thesis",
+        "posture": "Hedge Fund Portfolio Manager & Investment Committee",
+        "output_structure": ["Macro Setup", "Screened Candidates", "Red Team Challenge", "Portfolio Architecture", "Final Portfolio — Ready to Execute"]
     }
 }
 
@@ -546,6 +554,64 @@ SOCIAL_POST_PHASE_DIRECTIVES = {
     }
 }
 
+PORTFOLIO_BUILDER_PHASE_DIRECTIVES = {
+    0: {
+        "title": "MACRO SETUP — Market Environment",
+        "instruction": (
+            "You are the MACRO STRATEGIST. Read the current market environment cold. Output:\n"
+            "  1) **MACRO SIGNAL** — Risk-on or Risk-off? One word, then one sentence rationale\n"
+            "  2) **SECTOR ROTATION TABLE** — Markdown table: [Sector, Momentum (Hot/Neutral/Cold), Macro Tailwind/Headwind]\n"
+            "  3) **RATE & INFLATION POSTURE** — Current Fed stance and what it means for equities vs bonds vs commodities\n"
+            "  4) **TOP 3 MACRO RISKS** — The events that would blow up any portfolio in the next 90 days\n"
+            "Do NOT pick stocks yet. Set the battlefield."
+        )
+    },
+    1: {
+        "title": "STOCK SCREENER — Candidate Selection",
+        "instruction": (
+            "You are the QUANT ANALYST. Screen and surface specific investment candidates based on the user's query and macro setup. Output:\n"
+            "  1) **EQUITY CANDIDATES TABLE** — Markdown table: [Ticker, Company, Sector, P/E, Revenue Growth %, Moat, Catalyst]\n"
+            "  2) **ETF/INDEX CANDIDATES** — If diversification is warranted, name specific ETF tickers with expense ratios\n"
+            "  3) **CONTRARIAN PICKS** — 1-2 out-of-consensus names with a specific reason they're undervalued\n"
+            "STRICT RULE: Real tickers only. No 'companies like X' — name the actual ticker."
+        )
+    },
+    2: {
+        "title": "RED TEAM — Kill the Picks",
+        "instruction": (
+            "You are the SHORT SELLER. Your job is to find the fatal flaw in every candidate from the screener. Output:\n"
+            "  1) **BEAR CASE TABLE** — Markdown table: [Ticker, Bear Case Thesis, Probability (H/M/L), Kill Switch Event]\n"
+            "  2) **VALUATION TRAPS** — Which picks look cheap but aren't? Name them and explain why\n"
+            "  3) **SECTOR LANDMINES** — Upcoming earnings, macro events, or regulatory moves that could crater a position\n"
+            "  4) **SURVIVORS** — After the red team, which picks still stand? List only those with a survivable bear case."
+        )
+    },
+    3: {
+        "title": "PORTFOLIO ARCHITECTURE — Position Sizing",
+        "instruction": (
+            "You are the RISK MANAGER. Design the portfolio structure around the surviving picks. Output:\n"
+            "  1) **ALLOCATION TABLE** — Markdown table: [Ticker, Allocation %, Rationale, Max Drawdown Tolerance]\n"
+            "  2) **CORRELATION MAP** — Flag any picks that move together (correlated risk) and adjust weightings\n"
+            "  3) **HEDGES** — If the macro setup warrants it, name a specific hedge (put, inverse ETF, commodity) with sizing\n"
+            "  4) **REBALANCE TRIGGERS** — The specific price or event that forces a position review\n"
+            "STRICT RULE: Allocations must sum to 100%. Show your math."
+        )
+    },
+    4: {
+        "title": "INVESTMENT COMMITTEE VERDICT — Final Portfolio",
+        "instruction": (
+            "You are the CHIEF INVESTMENT OFFICER. Compile the complete, ready-to-execute portfolio. Structure as:\n"
+            "  1) **PORTFOLIO SUMMARY** — Total positions, cash %, expected 12-month return range, max drawdown estimate\n"
+            "  2) **FINAL PORTFOLIO TABLE** — Markdown table: [Ticker, Name, Allocation %, Entry Price Range, 12-Month Target, Stop Loss, Conviction (1-10)]\n"
+            "  3) **THESIS IN ONE LINE** — For each position, one sentence on why it wins\n"
+            "  4) **EXIT STRATEGY** — For each position, the specific event or price that triggers a full exit\n"
+            "  5) **WATCHLIST** — 2-3 names that didn't make the cut but should be monitored with entry conditions\n"
+            "STRICT RULE: Every number must come from prior phase analysis. No generic diversification advice. "
+            "Give the portfolio like you have skin in the game."
+        )
+    }
+}
+
 WORKFLOW_PHASE_OVERRIDES = {
     "FINANCE": FINANCE_PHASE_DIRECTIVES,
     "WAR_ROOM": WAR_ROOM_PHASE_DIRECTIVES,
@@ -571,6 +637,7 @@ WORKFLOW_PHASE_OVERRIDES = {
     "SCIENCE_PANEL": SCIENCE_PHASE_DIRECTIVES,
     "SOCIAL_POST": SOCIAL_POST_PHASE_DIRECTIVES,
     "EOM_STATEMENT": EOM_STATEMENT_PHASE_DIRECTIVES,
+    "PORTFOLIO_BUILDER": PORTFOLIO_BUILDER_PHASE_DIRECTIVES,
 }
 
 class CouncilContext:
@@ -1339,7 +1406,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         mimir_block = _build_mimir_block(context.ghost_map, context.residual_report)
 
     # Document-assembly workflows: final phase MUST compile everything, not just add unique content
-    DOCUMENT_ASSEMBLY_WORKFLOWS = {"EOM_STATEMENT", "FINANCE", "AUDIT", "CODE_AUDIT", "LEGAL"}
+    DOCUMENT_ASSEMBLY_WORKFLOWS = {"EOM_STATEMENT", "FINANCE", "AUDIT", "CODE_AUDIT", "LEGAL", "PORTFOLIO_BUILDER"}
     is_final_phase = (position == total_steps - 1)
     is_assembly_workflow = context.workflow in DOCUMENT_ASSEMBLY_WORKFLOWS
 
