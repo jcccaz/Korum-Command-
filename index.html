@@ -416,10 +416,13 @@
                         </button>
                     </div>
 
-                    <div class="followup-spotlight" id="followupSpotlight">
+                    <div class="followup-spotlight" id="followupSpotlight" style="display:none;">
                         <div class="followup-spotlight-header">
                             <span class="followup-spotlight-label" id="followupSpotlightLabel">Latest Follow-Up Answer</span>
-                            <button class="followup-spotlight-open" id="followupSpotlightOpen" type="button">Open Full</button>
+                            <div style="display:flex; gap:8px;">
+                                <button class="followup-spotlight-dock" id="followupSpotlightDock" type="button" title="Dock this answer to research">📌 DOCK</button>
+                                <button class="followup-spotlight-open" id="followupSpotlightOpen" type="button">Open Full</button>
+                            </div>
                         </div>
                         <div class="followup-spotlight-body" id="followupSpotlightBody">Follow-up answers will surface here.</div>
                     </div>

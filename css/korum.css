@@ -716,19 +716,33 @@ body {
     color: rgba(245, 168, 0, 0.84);
 }
 
-.followup-spotlight-open {
+.followup-spotlight-open, .followup-spotlight-dock {
     border: 1px solid rgba(245, 168, 0, 0.25);
     background: rgba(245, 168, 0, 0.08);
     color: #F5A800;
     border-radius: 999px;
-    padding: 5px 10px;
+    padding: 5px 12px;
     font-size: 10px;
     font-weight: 700;
     cursor: pointer;
+    transition: all 0.2s;
 }
 
-.followup-spotlight-open:hover {
-    background: rgba(245, 168, 0, 0.14);
+.followup-spotlight-dock {
+    border-color: rgba(0, 255, 157, 0.25);
+    background: rgba(0, 255, 157, 0.08);
+    color: var(--accent-green);
+}
+
+.followup-spotlight-open:hover, .followup-spotlight-dock:hover {
+    filter: brightness(1.2);
+    box-shadow: 0 0 10px rgba(245, 168, 0, 0.1);
+}
+
+.followup-spotlight-dock:disabled {
+    opacity: 0.6;
+    cursor: default;
+    filter: none;
 }
 
 .followup-spotlight-body {

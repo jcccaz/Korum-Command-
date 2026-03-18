@@ -6041,13 +6041,30 @@ function openCommsActivityModal(title, detail) {
                     <div class="card-modal-provider">Mission Activity</div>
                     <div class="card-modal-model">${escapeHtml(title)}</div>
                 </div>
-                <button class="modal-close-btn" aria-label="Close activity details">×</button>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button class="modal-action-btn" id="activity-modal-dock" style="padding:4px 10px; font-size:10px; background:rgba(0,255,157,0.1); border-color:rgba(0,255,157,0.3); color:#00FF9D;">
+                        📌 DOCK AS EXHIBIT
+                    </button>
+                    <button class="modal-close-btn" aria-label="Close activity details">×</button>
+                </div>
             </div>
             <div class="modal-card-content">
                 <div class="activity-modal-body">${escapeHtml(detail).replace(/\n/g, '<br>')}</div>
             </div>
         </div>
     `;
+
+    modal.querySelector('#activity-modal-dock').onclick = () => {
+        const snippet = ResearchDock.add(detail, 'follow-up');
+        if (snippet) {
+            snippet.label = title;
+            snippet.includeInReport = true;
+            ResearchDock.render();
+            ResearchDock.save();
+            showProcessingToast("Follow-up answer curated for report.");
+            modal.remove();
+        }
+    };
 
     modal.addEventListener('click', (event) => {
         if (event.target === modal || event.target.closest('.modal-close-btn')) {
@@ -6059,16 +6076,44 @@ function openCommsActivityModal(title, detail) {
 }
 
 function updateFollowupSpotlight(detail, label = 'Latest Follow-Up Answer') {
+    const spotlight = document.getElementById('followupSpotlight');
     const body = document.getElementById('followupSpotlightBody');
     const title = document.getElementById('followupSpotlightLabel');
     const openBtn = document.getElementById('followupSpotlightOpen');
-    if (!body) return;
+    const dockBtn = document.getElementById('followupSpotlightDock');
+    
+    if (!spotlight || !body) return;
 
-    const fullText = String(detail || '').trim() || 'Follow-up answers will surface here.';
+    const fullText = String(detail || '').trim();
+    if (!fullText) {
+        spotlight.style.display = 'none';
+        return;
+    }
+
+    spotlight.style.display = 'flex';
     body.textContent = fullText;
     if (title) title.textContent = label;
+    
     if (openBtn) {
         openBtn.onclick = () => openCommsActivityModal(label, fullText);
+    }
+    
+    if (dockBtn) {
+        dockBtn.onclick = (e) => {
+            e.stopPropagation();
+            const snippet = ResearchDock.add(fullText, 'follow-up');
+            if (snippet) {
+                snippet.label = label;
+                snippet.includeInReport = true;
+                ResearchDock.render();
+                ResearchDock.save();
+                showProcessingToast("Answer curated for final report.");
+                dockBtn.innerHTML = '📌 DOCKED';
+                dockBtn.disabled = true;
+            }
+        };
+        dockBtn.innerHTML = '📌 DOCK';
+        dockBtn.disabled = false;
     }
 }
 
