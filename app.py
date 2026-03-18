@@ -2117,6 +2117,8 @@ def ask_council():
             if isinstance(syn, dict) and isinstance(syn.get('meta'), dict):
                 if syn['meta'].get('summary'):
                     syn['meta']['summary'] = falcon_rehydrate(syn['meta']['summary'], _falcon_placeholder_map)
+                if syn['meta'].get('final_document'):
+                    syn['meta']['final_document'] = falcon_rehydrate(syn['meta']['final_document'], _falcon_placeholder_map)
 
             divergence = v2_response.get('divergence', {})
             if isinstance(divergence, dict) and divergence.get('divergence_summary'):
@@ -2632,10 +2634,12 @@ def reasoning_chain():
             for provider_key, provider_result in res_map.items():
                 if isinstance(provider_result, dict) and provider_result.get('response'):
                     provider_result['response'] = falcon_rehydrate(provider_result['response'], _falcon_placeholder_map)
-            # Rehydrate synthesis summary
+            # Rehydrate synthesis summary and final_document
             syn = results.get('synthesis', {})
             if isinstance(syn, dict) and syn.get('meta', {}).get('summary'):
                 syn['meta']['summary'] = falcon_rehydrate(syn['meta']['summary'], _falcon_placeholder_map)
+            if isinstance(syn, dict) and syn.get('meta', {}).get('final_document'):
+                syn['meta']['final_document'] = falcon_rehydrate(syn['meta']['final_document'], _falcon_placeholder_map)
 
         pipeline_result = {
             "constraints": res_map.get('anthropic', {}).get('response', "Extraction Failed"),

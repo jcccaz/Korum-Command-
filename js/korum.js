@@ -1781,6 +1781,8 @@ function setupActionBindings() {
                 if (config.mistral) document.getElementById('roleLabel-mistral').innerText = config.mistral.toUpperCase();
                 customRolesActive = false;
             }
+            // NEW: Progress Evaluation Track
+            setEvaluationStepState('evalRoleStep', 'live');
             logTelemetry(`Protocol Switched: ${role.toUpperCase()}`, "process");
         });
     });
@@ -1793,6 +1795,14 @@ function setupActionBindings() {
 
     queryInput?.addEventListener('input', (e) => {
         const query = e.target.value.trim();
+        
+        // NEW: Sync Evaluation Track
+        if (query.length > 0) {
+            setEvaluationStepState('evalCouncilStep', 'live');
+        } else {
+            setEvaluationStepState('evalCouncilStep', null);
+        }
+
         clearTimeout(suggestionTimeout);
         if (query.length > 20) {
             suggestionTimeout = setTimeout(() => {
@@ -1823,6 +1833,10 @@ function setupActionBindings() {
         }
     });
 
+    document.getElementById('intake-workflow')?.addEventListener('change', () => {
+        setEvaluationStepState('evalRoleStep', 'live');
+    });
+
     queryInput?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -1838,6 +1852,8 @@ function setupActionBindings() {
         if (suggestionBox) suggestionBox.classList.add('hidden');
         if (roleCustomization) roleCustomization.classList.add('hidden');
         customRolesActive = false;
+        // NEW: Progress Evaluation Track
+        setEvaluationStepState('evalRoleStep', 'live');
     });
 
     document.getElementById('customizeBtn')?.addEventListener('click', () => {
@@ -2090,6 +2106,7 @@ function setupActionBindings() {
         if (rosterCard) {
             e.stopPropagation();
             selectWorkspaceProvider(rosterCard.dataset.provider);
+            openProviderModal(rosterCard.dataset.provider);
             return;
         }
 
@@ -2371,7 +2388,8 @@ function renderChainResults(result) {
             workflow: backendMeta.workflow || sessionState.missionContext?.workflow || 'RESEARCH',
             models_used: backendMeta.models_used || [],
             composite_truth_score: backendMeta.composite_truth_score || 85,
-            generated_at: backendMeta.generated_at || new Date().toISOString()
+            generated_at: backendMeta.generated_at || new Date().toISOString(),
+            final_document: backendMeta.final_document || null
         },
         sections: backendSynthesis.sections || {
             executive_summary: result.final_artifact || '',
@@ -3683,6 +3701,7 @@ window.executeVerify = async function (claimText, providerName) {
                 </div>
                 <div class="ph-right">
                     <div class="metric-pill" style="color:#4CAF7D">COMPLETE</div>
+                    <button class="modal-action-btn verify-dock-btn" style="padding:4px 10px; font-size:10px; background:rgba(0,255,157,0.1); border:1px solid rgba(0,255,157,0.3); border-radius:4px; color:#00FF9D; cursor:pointer;">DOCK AS EXHIBIT</button>
                     <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.agent-card').querySelector('.agent-response').innerText, 'Verification copied')" title="Copy">📋</div>
                 </div>
             </div>
@@ -3692,6 +3711,27 @@ window.executeVerify = async function (claimText, providerName) {
             </div>
             <div class="agent-response">${verifiedHtml}</div>
         `;
+
+        // Wire dock button for verification exhibit
+        const verdictTag = result.verdict ? ` [${result.verdict.replace('_', ' ')}]` : '';
+        const dockContent = `SOURCE VERIFICATION${verdictTag}\nClaim: "${claim.length > 200 ? claim.substring(0, 200) + '...' : claim}"\n\n${result.verification}`;
+        const dockBtn = verifyCard.querySelector('.verify-dock-btn');
+        if (dockBtn) {
+            dockBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const snippet = ResearchDock.add(dockContent, 'verification');
+                if (snippet) {
+                    snippet.label = `Verification${verdictTag}`;
+                    snippet.includeInReport = true;
+                    ResearchDock.render();
+                    ResearchDock.save();
+                    dockBtn.textContent = 'DOCKED';
+                    dockBtn.disabled = true;
+                    dockBtn.style.opacity = '0.5';
+                    showProcessingToast("Verification docked as exhibit for report.");
+                }
+            });
+        }
 
         sentinelChat.appendMessage(`Source verification complete for: "${claim.slice(0, 50)}..."`, 'sentinel');
         logTelemetry("🔎 Verification complete", "success");
@@ -4330,6 +4370,7 @@ function lockMissionContext() {
     localStorage.setItem('korum-mission-context', JSON.stringify(sessionState.missionContext));
 
     closeIntakeModal();
+    setEvaluationStepState('evalRoleStep', 'live');
     logTelemetry(`Mission Locked for Client: ${client}`, "success");
     showProcessingToast("Mission Profile Locked. Convening Council...");
 
