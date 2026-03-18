@@ -4695,8 +4695,11 @@ function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
     else if (truthScore <= 1) truthScore = Math.round(truthScore * 100);
     const truthColor = truthScore > 80 ? '#4CAF7D' : truthScore > 50 ? '#FFB020' : '#FF4444';
 
-    // Summary text: prefer synthesis, fallback to consensus
-    const summaryText = meta.summary || data.consensus || 'Council analysis complete.';
+    // For assembly workflows (EOM, FINANCE, AUDIT, LEGAL, PORTFOLIO_BUILDER),
+    // render the full compiled document instead of the 4-sentence summary.
+    const finalDocument = meta.final_document && meta.final_document !== 'null' ? meta.final_document : null;
+    const summaryText = finalDocument || meta.summary || data.consensus || 'Council analysis complete.';
+    const isFullDocument = !!finalDocument;
 
     // Workflow
     const workflow = meta.workflow || roleName || 'COUNCIL';
@@ -4769,19 +4772,24 @@ function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
         </div>`;
     }
 
+    // Full-document style: larger text, full-width, no metrics strip clutter
+    const bodyStyle = isFullDocument
+        ? 'color:#CCC; font-size:0.72rem; line-height:1.8;'
+        : 'color:#CCC; font-size:0.65rem; line-height:1.6;';
+
     card.innerHTML = `
         <div class="consensus-title" style="color:#F5A800;">
-            <span style="font-size:14px;">&#x1F4CB;</span> EXECUTIVE SUMMARY · ${workflow.toUpperCase()}
-            <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.consensus-card').querySelector('.consensus-body').innerText, 'Executive summary copied')" title="Copy" style="display:inline-block;margin-left:10px;cursor:pointer;">&#x1F4CB;</div>
+            <span style="font-size:14px;">&#x1F4CB;</span> ${isFullDocument ? 'FINAL DELIVERABLE' : 'EXECUTIVE SUMMARY'} · ${workflow.toUpperCase()}
+            <div class="tool-action" onclick="event.stopPropagation(); copyTextToClipboard(this.closest('.consensus-card').querySelector('.consensus-body').innerText, '${isFullDocument ? 'Document' : 'Executive summary'} copied')" title="Copy" style="display:inline-block;margin-left:10px;cursor:pointer;">&#x1F4CB;</div>
         </div>
         <div class="consensus-body">
             ${metricsHtml}
-            <div style="color:#CCC; font-size:0.65rem; line-height:1.6;">${formatText(summaryText)}</div>
+            <div style="${bodyStyle}">${formatText(summaryText)}</div>
             <div style="color:#555; font-size:0.5rem; margin-top:8px; letter-spacing:0.08em;">
                 COUNCIL: ${respondingProviders.join(' · ')}
             </div>
-            ${actionsHtml}
-            ${risksHtml}
+            ${isFullDocument ? '' : actionsHtml}
+            ${isFullDocument ? '' : risksHtml}
         </div>
     `;
 
