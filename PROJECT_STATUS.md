@@ -1,15 +1,29 @@
 # KorumOS Project Status
-**Date:** March 16, 2026  
+**Date:** March 17, 2026  
 **Branch:** `main`  
-**Current Version:** 2.1 (Command Center / Revision-Aware UI)
+**Current Version:** 2.2 (Financial Integrity & Portfolio Builder)
 
 ## Current Snapshot
 
-KorumOS is no longer sitting on the February intelligence-export state. `main` now contains a substantial command-center redesign, a live mission-stage workflow, revision-aware Global Comms, and stronger interrogation / verification plumbing. The repo is also carrying active local UI work that has not been committed yet.
+KorumOS has been upgraded with a specialized **Financial Intelligence Engine** and a new **Portfolio Builder** workflow. The system now enforces high-fidelity data preservation (especially tables) and features a "Truth Bomb" detection system that visually flags analytical discrepancies in final reports.
 
 ## Shipped on `main`
 
-### 1. Command Center Redesign
+### 1. Financial & Portfolio Intelligence
+- **EOM Statement Workflow:** Refined DNA for C-Suite financial reporting.
+- **Portfolio Builder Workflow:** Added Hedge Fund / Investment Committee personas for aggressive asset allocation and macro-trend analysis.
+- **Table Preservation Logic:** The synthesizer now detects and protects Markdown tables (P&L, Balance Sheet, Allocation maps) from being summarized into paragraphs.
+- **Truth Bomb Protocol:** 
+  - Automated extraction of `[TRUTH_BOMB]` tags across the multi-agent council.
+  - High-impact visual rendering: PDF reports now feature **Red Alert Boxes** for critically verified discrepancies.
+  - Summary injection: Truth Bombs are automatically prioritized in the executive summary.
+
+### 2. Enhanced Exporters
+- **Excel Charting:** The Excel exporter now automatically generates **Pie Charts** for "Key Metrics" data.
+- **Conditional Formatting:** High-risk items and Truth Bombs are now automatically highlighted in **Red Bold** within exported spreadsheets.
+- **PDF Dark Mode Refinement:** Tables and truth-alert boxes now align with the KorumOS "Black/Cyan" high-end aesthetic.
+
+### 3. Command Center Redesign
 - Introduced the new mission flow strip:
   - `Input`
   - `Constraints`
