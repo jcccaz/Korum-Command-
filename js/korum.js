@@ -6325,6 +6325,13 @@ function updateStageFromAnswer({
     setEvaluationStepState('evalVerifyStep', 'live');
 }
 
+function setCommsContextActive(active) {
+    const commsPanel = document.getElementById('commsChatPanel');
+    if (commsPanel) {
+        commsPanel.classList.toggle('context-active', active);
+    }
+}
+
 function initializeMissionSurface() {
     buildEvaluationStrip();
     resetEvaluationStrip();

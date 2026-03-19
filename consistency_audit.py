@@ -1,8 +1,9 @@
-
 import os
 import sys
 import json
-from engine_v2 import execute_council_v2, ClassificationContext
+import time
+from engine_v2 import execute_council_v2, CouncilContext
+from app import app
 
 # KORUM PRODUCTION STABILIZATION - CONSISTENCY AUDIT (Section 11)
 # -------------------------------------------------------------------
@@ -19,47 +20,42 @@ def run_audit():
     
     results = []
     
-    for i in range(1, 4):
-        print(f"\n[AUDIT] PASS {i}/3 Initiated...")
-        
-        # Setup Deterministic Context
-        context = ClassificationContext(
-            query=QUERY,
-            workflow="QUANTUM_SECURITY"
-        )
-        context.classification = {
-            "intent": "analysis",
-            "outputType": "report",
-            "workflow": "QUANTUM_SECURITY"
-        }
-        
-        # Test models (Assumes Environment Keys are Set)
-        # Using a subset of active models to verify role handoff
-        active_models = ["openai", "anthropic", "google", "mistral"]
-        active_personas = {
-            "openai": "analyst",
-            "anthropic": "critic",
-            "google": "strategist",
-            "mistral": "finalizer"  # Should be moved to Hidden Finalizer
-        }
+    with app.app_context():
+        for i in range(1, 4):
+            print(f"\n[AUDIT] PASS {i}/3 Initiated...")
+            
+            # Setup Deterministic Context
+            # Note: execute_council_v2 handles context internally, so we just pass params
+            active_models = ["openai", "google", "mistral"]
+            active_personas = {
+                "openai": "ciso",
+                "google": "security_auditor",
+                "mistral": "compliance"
+            }
 
-        try:
-            output = execute_council_v2(
-                QUERY,
-                active_personas,
-                workflow="QUANTUM_SECURITY",
-                active_models=active_models
-            )
-            results.append(output)
-            print(f"[AUDIT] Pass {i} Completed successfully.")
-        except Exception as e:
-            print(f"[AUDIT ERROR] Pass {i} Failed: {e}")
-            return
+            try:
+                # Use a fresh run_id per pass but same session_id to test continuity
+                run_id = f"audit_pass_{i}_{int(time.time())}"
+                output = execute_council_v2(
+                    QUERY,
+                    active_personas,
+                    workflow="QUANTUM_SECURITY",
+                    active_models=active_models,
+                    run_id=run_id,
+                    session_id="audit_session_001"
+                )
+                results.append(output)
+                print(f"[AUDIT] Pass {i} Completed successfully.")
+            except Exception as e:
+                print(f"[AUDIT ERROR] Pass {i} Failed: {e}")
+                import traceback
+                traceback.print_exc()
+                return
 
     # ──── COMPARISON ENGINE ────
-    print("\n" + "=" * 70)
-    print("ANALYSIS OF RESULTS")
-    print("=" * 70)
+    if not results:
+        print("❌ NO RESULTS TO ANALYZE.")
+        return
 
     # 1. Structural Identity (Section Consistency)
     section_sets = []

@@ -1,0 +1,36 @@
+2026-03-18 22:08:31 [WARNING] korumos: [REDIS] REDIS_URL not set ù using default Flask sessions (non-persistent)
+Traceback (most recent call last):
+  File "C:\Users\carlo\Projects\KorumOS\consistency_audit.py", line 40, in run_audit
+            workflow="QUANTUM_SECURITY",
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    except Exception as e:
+    ^^^^^
+  File "C:\Users\carlo\Projects\KorumOS\engine_v2.py", line 1218, in execute_council_v2
+    {history_text}
+     ^^^^^^^^^^^^
+NameError: name 'history_text' is not defined
+[FALCON] Loaded dictionary: 660 domain stopwords
+======================================================================
+KORUM OS: SYSTEM CONSISTENCY AUDIT
+OBJECTIVE: Verify Deterministic Output and Decision Enforcement
+======================================================================
+
+[AUDIT] PASS 1/3 Initiated...
+[PLANNER] LOCK ACTIVE: Using deterministic pipeline for QUANTUM_SECURITY
+[COUNCIL] Efficiency Plan: ['openai-ciso', 'anthropic-cryptographer', 'google-security_auditor', 'mistral-threat_intel', 'mistral-compliance']
+[COUNCIL] Step 1: OPENAI as CISO
+[COST DEBUG] openai: cost=0.005940000000000001, latency=7362, running_total=0.005940000000000001
+[COUNCIL] Step 2: ANTHROPIC as CRYPTOGRAPHER
+[COST DEBUG] anthropic: cost=0.026163, latency=30660, running_total=0.032103
+[COUNCIL] Step 3: GOOGLE as SECURITY_AUDITOR
+[COST DEBUG] google: cost=0.0007647999999999999, latency=12180, running_total=0.0328678
+[COUNCIL] Step 4: MISTRAL (SHADOW EXECUTION) as THREAT_INTEL
+[COST DEBUG] mistral: cost=0.0013134, latency=8766, running_total=0.0341812
+[COUNCIL] Step 5: MISTRAL (SHADOW EXECUTION) as INTEGRATOR (COMPLIANCE)
+[COST DEBUG] mistral: cost=0.0017488, latency=10548, running_total=0.035930000000000004
+[COUNCIL] Audit Initiated: Verifying 3 responses...
+[COUNCIL] Divergence Analysis...
+[DIVERGENCE] Consensus: 70/100 | Divergence: 30/100 | Variance: False
+[COUNCIL] Hidden Finalizer Pass: Mistral unifying report tone...
+[AUDIT ERROR] Pass 1 Failed: name 'history_text' is not defined

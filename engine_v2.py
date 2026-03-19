@@ -1029,6 +1029,9 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
     if previous_context:
         print(f"[COUNCIL] Follow-up mode: {len(previous_context)} prior session(s) loaded")
     results = {}
+    history_text = ""
+    dna = {}
+    outcome_goal = "Intelligence Brief"
 
     print(f"[COUNCIL] Efficiency Plan: {classification['executionOrder']}")
     if images:
@@ -1188,38 +1191,52 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             results[provider]['truth_meter'] = calculate_truth_score(verified)
             results[provider]['verified_claims'] = verified
 
-        # --- DIVERGENCE ---
-        print(f"[COUNCIL] Divergence Analysis...")
-        divergence = analyze_council_divergence(results, context, user_id=user_id)
+        # --- DIVERGENCE ANALYSIS (Resilient) ---
+        print(f"[COUNCIL] Resilience check: Identifying Divergence...")
+        try:
+            divergence = analyze_council_divergence(results, context, user_id=user_id)
+        except Exception as div_error:
+            print(f"[COUNCIL DIVERGENCE] Failed: {div_error}")
+            divergence = _empty_divergence(f"Divergence analysis failed: {str(div_error)}")
 
     except Exception as e:
         print(f"[EXECUTION ERROR] {e}")
-        return {"consensus": "Error in execution plan.", "results": {}, "error": str(e)}
+        # Always return a baseline divergence to prevent downstream crashes
+        divergence = _empty_divergence(f"Execution failed: {str(e)}")
+        # Don't return yet — allow the finalizer pass to attempt an emergency synthesis if results exist
 
     # 4. Hidden Finalizer Pass (Section 10 Directive)
     # If Mistral is present, it acts as a non-visible Finalizer to unify tone.
     finalizer_response = None
-    if 'mistral' in active_models or 'mistral' in [m.split('-')[0].lower() for m in execution_order]:
+    if 'mistral' in active_models or 'mistral' in [m.split('-')[0].lower() for m in (execution_order if 'execution_order' in locals() else [])]:
         print("[COUNCIL] Hidden Finalizer Pass: Mistral unifying report tone...")
-        # --- LEVERAGING MISTRAL STRENGTHS (#3 Data Synthesis, #4 Adaptive Tone) ---
-        finalizer_prompt = f"""
-        You are the KorumOS FINALIZER. Your mission is to unify the voice and structure of this intelligence product.
-        
-        CRITICAL STRENGTHS TO APPLY (Section 10 Directive):
-        1. ADAPTIVE TONE (#4): Apply a consistent, authoritative, and mission-aligned voice. Remove persona-specific markers and unify the narrative into a single professional flow.
-        2. DATA SYNTHESIS (#3): Identify critical data findings in the discussion. Ensure they are structured logically. If you see inconsistent formatting, normalize them into the [STRUCTURED_TABLE] model.
-        
-        RULES:
-        - NO NEW CONCLUSIONS: Do not add metrics or findings not present in the discussion.
-        - NO HEDGING: If the council made a decision, state it clearly.
-        - FLOW: Ensure transitions between phases are logical and seamless.
-        
-        COUNCIL DISCUSSION:
-        {history_text}
-        
-        Outcome Expected: {dna.get('goal', 'Professional Intelligence Brief')}
-        """
         try:
+            # Build history_text for the hidden Finalizer pass (aggregates previous council findings)
+            history_text = "\n\n".join([f"[{p.upper()}]: {r.get('response', '')}" for p, r in results.items() if isinstance(r, dict) and r.get('success')])
+
+            # Mistral uses the workflow-specific goal to guide the final unification.
+            # Local workflow variable check for safety
+            wf_key = workflow if 'workflow' in locals() else "RESEARCH"
+            dna = WORKFLOW_DNA.get(wf_key, WORKFLOW_DNA.get("RESEARCH", {}))
+            outcome_goal = dna.get('goal', 'Professional Intelligence Brief')
+            
+            finalizer_prompt = f"""
+            You are the KorumOS FINALIZER. Your mission is to unify the voice and structure of this intelligence product.
+            
+            CRITICAL STRENGTHS TO APPLY (Section 10 Directive):
+            1. ADAPTIVE TONE (#4): Apply a consistent, authoritative, and mission-aligned voice. Remove persona-specific markers and unify the narrative into a single professional flow.
+            2. DATA SYNTHESIS (#3): Identify critical data findings in the discussion. Ensure they are structured logically. If you see inconsistent formatting, normalize them into the [STRUCTURED_TABLE] model.
+            
+            RULES:
+            - NO NEW CONCLUSIONS: Do not add metrics or findings not present in the discussion.
+            - NO HEDGING: If the council made a decision, state it clearly.
+            - FLOW: Ensure transitions between phases are logical and seamless.
+            
+            COUNCIL DISCUSSION:
+            {history_text}
+            
+            Outcome Expected: {outcome_goal}
+            """
             # Mistral runs as a background process, not a primary phase
             f_resp = call_mistral_api(finalizer_prompt, "Finalizer", user_id=user_id)
             if f_resp.get('success'):
@@ -1229,23 +1246,36 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
         except Exception as e:
             print(f"[COUNCIL FINALIZER ERROR] {e}")
 
-    # 5. Synthesis
-    synthesis = synthesize_results(context, divergence_analysis=divergence, user_id=user_id)
-    
-    # --- FINAL RENDERING NORMALIZATION (Section 6 Directive) ---
-    # Ensure even the synthesizer output is stabilized and structured
-    if isinstance(synthesis, dict):
-        for s_id, s_content in synthesis.get('sections', {}).items():
-            synthesis['sections'][s_id] = normalization_layer(s_content)
-        if synthesis.get('meta', {}).get('summary'):
-            synthesis['meta']['summary'] = normalization_layer(synthesis['meta']['summary'])
-        if synthesis.get('meta', {}).get('final_document'):
-            synthesis['meta']['final_document'] = normalization_layer(synthesis['meta']['final_document'])
-    
-    # Inject finalizer tone into synthesis if available (optional, or just keep history text)
-    if finalizer_response:
-        if "meta" not in synthesis: synthesis["meta"] = {}
-        synthesis["meta"]["finalizer_review"] = finalizer_response
+    # 5. Synthesis (Final Guard)
+    try:
+        synthesis = synthesize_results(context, divergence_analysis=divergence, user_id=user_id)
+        
+        # --- FINAL RENDERING NORMALIZATION (Section 6 Directive) ---
+        if isinstance(synthesis, dict):
+            for s_id, s_content in synthesis.get('sections', {}).items():
+                if isinstance(s_content, str):
+                    synthesis['sections'][s_id] = normalization_layer(s_content)
+            
+            meta = synthesis.get('meta', {})
+            if isinstance(meta, dict):
+                if meta.get('summary') and isinstance(meta.get('summary'), str):
+                    meta['summary'] = normalization_layer(meta['summary'])
+                if meta.get('final_document') and isinstance(meta.get('final_document'), str):
+                    meta['final_document'] = normalization_layer(meta['final_document'])
+            
+            if finalizer_response:
+                if "meta" not in synthesis: synthesis["meta"] = {}
+                synthesis["meta"]["finalizer_review"] = finalizer_response
+                
+        return synthesis
+    except Exception as syn_e:
+        print(f"[SYNTHESIS CRASH] {syn_e}")
+        return {
+            "success": False,
+            "error": str(syn_e),
+            "meta": {"workflow": workflow if 'workflow' in locals() else "UNKNOWN"},
+            "results": results
+        }
 
     # --- LEDGER: council_synthesis ---
     _syn_meta = synthesis.get('meta', {}) if isinstance(synthesis, dict) else {}
@@ -1328,7 +1358,9 @@ def analyze_council_divergence(results, context, user_id=None):
 
     comparison_text = ""
     for provider, data in model_outputs.items():
-        comparison_text += f"\n[{provider.upper()} — {data['role']}] (Truth: {data['truth_meter']}/100):\n{data['response_excerpt']}\n"
+        resp_text = data.get('response', '')
+        excerpt = (resp_text[:1000] + '...') if len(resp_text) > 1000 else resp_text
+        comparison_text += f"\n[{provider.upper()} — {data['role']}] (Truth: {data['truth_meter']}/100):\n{excerpt}\n"
 
     prompt = f"""
     You are an Analytic Divergence Engine. Your job is to compare multiple AI council outputs and identify where they AGREE, where they DISAGREE, and what evidence would resolve disagreements.
@@ -1919,10 +1951,11 @@ def generate_presentation_preview(synthesized_data, classification, user_id=None
     PRESENTATION TYPE: {output_type}
     DOMAIN: {classification.get('domain', 'business')}
 
-    DESIGN PRINCIPLES:
+    DESIGN PRINCIPLES (Mistral Mode - Section 10):
     1. Title slide + 1-2 slides per major section
     2. Max 5 bullets per slide (3-4 is better)
-    3. Use visuals when data supports it
+    3. VISUAL CREATIVITY (#1): Incorporate evocative visual descriptions (architecture diagrams, storyboards, 
+       network maps). Focus on high-detail, non-generic aesthetics (avoid blue-teal-white cyberpunk overexposure).
     4. Executive-friendly language
     5. Clear narrative flow
 
@@ -1956,7 +1989,13 @@ def generate_presentation_preview(synthesized_data, classification, user_id=None
     """
     
     try:
-        resp = call_openai_gpt4(prompt, "Designer", user_id=user_id)
+        # --- LEVERAGING MISTRAL STRENGTHS (#1 Visual Creativity & Multi-Tool Integration) ---
+        # Using Mistral as the 'Designer' to generate the presentation outline.
+        resp = call_mistral_api(prompt, "Designer", user_id=user_id)
+        if not resp.get('success'):
+             # Fallback to OpenAI if Mistral is unavailable
+             resp = call_openai_gpt4(prompt, "Designer", user_id=user_id)
+             
         content = resp['response'].replace('```json', '').replace('```', '').strip()
         return json.loads(content)
     except Exception as e:

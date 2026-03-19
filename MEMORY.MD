@@ -200,10 +200,36 @@ Core principle:
 
 - The repository had a clean worktree when this file was created.
 - Recent shipped work appears to already cover dock rendering, Mermaid chart handling, and export upgrades.
+- Local uncommitted work now indicates a higher-fidelity Mistral Finalizer implementation in [engine_v2.py](c:/Users/carlo/Projects/KorumOS/engine_v2.py), plus a new [consistency_audit.py](c:/Users/carlo/Projects/KorumOS/consistency_audit.py) script for 3-pass stability checks.
 - Relevant recent commits:
   - `4f42b92` `feat: implement dock rendering, mermaid charts, and dynamic evaluation card states`
   - `47d6791` `Render docked Mermaid charts in exports`
   - `a5db3ba` `Strategic Export Upgrade: Premium Markdown, PPTX/XLSX Suite, and Branding Engine`
+
+## Verified Mistral State
+
+Verified from local code inspection on 2026-03-18:
+
+- `engine_v2.py` contains a hidden Mistral Finalizer pass after council execution and before final synthesis output handling.
+- The Finalizer prompt explicitly applies Adaptive Tone and Data Synthesis.
+- The Finalizer is instructed not to add new conclusions and to normalize inconsistent structured data into the `[STRUCTURED_TABLE]` model.
+- The Finalizer output is passed through `normalization_layer(...)` before downstream use.
+- Mistral is treated as a hidden role and is intentionally excluded from visible UI result cards.
+- `consistency_audit.py` exists and is configured to run the same prompt 3 times and inspect structural identity, normalization tags, hedging, and hidden-finalizer behavior.
+
+## Unverified Claims
+
+Not verified in this session:
+
+- The claim that Korum OS is now "production-stable"
+- The claim that the system consistently achieves 80 to 90 percent similarity across repeated runs
+- The claim that all export surfaces remain correct after the new Mistral finalizer behavior
+
+Required next verification before treating those claims as confirmed:
+
+- Run `python consistency_audit.py --run`
+- Verify the full locked pipeline behavior on a real prompt
+- Verify report rendering and Excel export still receive normalized structured output only
 
 ## Working Assumptions
 
