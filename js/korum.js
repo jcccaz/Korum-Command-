@@ -6425,6 +6425,7 @@ window.onload = async function () {
 function getProviderName(key) { const names = { openai: "Strategic Core", anthropic: "Architect", google: "Critic", perplexity: "Intel", mistral: "Analyst", local: "Oracle", red_team: "Red Team" }; return names[key] || key; }
 function formatText(text) {
     if (!text) return "";
+    if (typeof text !== 'string') text = String(text);
 
     // 1. Render [STRUCTURED_TABLE] blocks as HTML tables
     let processed = text.replace(/\[STRUCTURED_TABLE\]([\s\S]*?)\[\/STRUCTURED_TABLE\]/g, (match, jsonStr) => {
