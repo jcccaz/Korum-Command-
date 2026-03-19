@@ -2648,15 +2648,16 @@ def reasoning_chain():
             "standard_solution": res_map.get('openai', {}).get('response', "Generation Failed"),
             "failure_analysis": res_map.get('google', {}).get('response', "Analysis Failed"),
             "exploit_poc": res_map.get('red_team', {}).get('response') if hacker_mode else None,
-            "final_artifact": results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
+            "final_artifact": results.get('synthesis', {}).get('meta', {}).get('final_document') or results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
             "results": res_map,
             "synthesis": results.get('synthesis'),
             "metrics": {
-                "deconstruct": {"cost": 0.0, "time": 0.0},
-                "build": {"cost": 0.0, "time": 0.0},
-                "stress": {"cost": 0.0, "time": 0.0},
-                "synthesize": {"cost": 0.0, "time": 0.0}
-            }
+                "deconstruct": {"cost": res_map.get('anthropic', {}).get('usage', {}).get('cost', 0.0), "time": res_map.get('anthropic', {}).get('usage', {}).get('latency', 0) / 1000},
+                "build": {"cost": res_map.get('openai', {}).get('usage', {}).get('cost', 0.0), "time": res_map.get('openai', {}).get('usage', {}).get('latency', 0) / 1000},
+                "stress": {"cost": res_map.get('google', {}).get('usage', {}).get('cost', 0.0), "time": res_map.get('google', {}).get('usage', {}).get('latency', 0) / 1000},
+                "synthesize": {"cost": results.get('metrics', {}).get('run_cost', 0.0), "time": results.get('metrics', {}).get('latency_ms', 0) / 1000}
+            },
+            "execution_metrics": results.get('metrics', {})
         }
 
         response_data = {

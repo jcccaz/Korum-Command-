@@ -6418,8 +6418,26 @@ window.onload = async function () {
 function getProviderName(key) { const names = { openai: "Strategic Core", anthropic: "Architect", google: "Critic", perplexity: "Intel", mistral: "Analyst", local: "Oracle", red_team: "Red Team" }; return names[key] || key; }
 function formatText(text) {
     if (!text) return "";
-    // Convert intelligence tags into styled inline highlights
-    const cleanText = text
+
+    // 1. Render [STRUCTURED_TABLE] blocks as HTML tables
+    let processed = text.replace(/\[STRUCTURED_TABLE\]([\s\S]*?)\[\/STRUCTURED_TABLE\]/g, (match, jsonStr) => {
+        try {
+            const data = JSON.parse(jsonStr.trim());
+            if (!Array.isArray(data) || data.length === 0) return '';
+            const headers = Object.keys(data[0]);
+            const thRow = headers.map(h => `<th style="padding:6px 10px; text-align:left; border-bottom:2px solid #F5A800; color:#F5A800; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">${h}</th>`).join('');
+            const rows = data.map(row =>
+                `<tr>${headers.map(h => `<td style="padding:5px 10px; border-bottom:1px solid rgba(255,255,255,0.06); font-size:11px; color:#CCC;">${row[h] || ''}</td>`).join('')}</tr>`
+            ).join('');
+            return `<div style="overflow-x:auto; margin:10px 0;"><table style="width:100%; border-collapse:collapse; background:rgba(0,0,0,0.3); border-radius:6px;">`
+                + `<thead><tr>${thRow}</tr></thead><tbody>${rows}</tbody></table></div>`;
+        } catch (e) {
+            return `<pre style="color:#FF6B6B; font-size:10px;">[Table parse error]</pre>`;
+        }
+    });
+
+    // 2. Convert intelligence tags into styled inline highlights
+    processed = processed
         .replace(/\[DECISION_CANDIDATE\]([\s\S]*?)\[\/DECISION_CANDIDATE\]/g, '<span class="intel-tag tag-decision" title="DECISION CANDIDATE">$1</span>')
         .replace(/\[RISK_VECTOR\]([\s\S]*?)\[\/RISK_VECTOR\]/g, '<span class="intel-tag tag-risk" title="RISK VECTOR">$1</span>')
         .replace(/\[METRIC_ANCHOR\]([\s\S]*?)\[\/METRIC_ANCHOR\]/g, '<span class="intel-tag tag-metric" title="KEY METRIC">$1</span>')
@@ -6427,7 +6445,8 @@ function formatText(text) {
         // Fallback: strip any unpaired/malformed tags
         .replace(/\[\/?(DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]/g, "");
 
-    return cleanText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // 3. Standard markdown formatting
+    return processed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/### (.*?)\n/g, '<h4 style="color:#FFF; margin:10px 0;">$1</h4>')
         .replace(/- (.*?)\n/g, '• $1<br>')
         .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:#00DCFF; text-decoration:underline;">$1</a>')

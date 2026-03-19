@@ -455,6 +455,14 @@ class WordExporter:
             branding_prefix = "KORUM-OS INTERNAL"
             is_client_branded = False
 
+        # --- KORUM BRANDING LOGO ---
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum_wordmark.png")
+        if os.path.exists(logo_path):
+            logo_para = doc.add_paragraph()
+            logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            logo_para.add_run().add_picture(logo_path, width=Inches(2.5))
+            logo_para.paragraph_format.space_after = Pt(8)
+
         # Classification Banner
         banner = doc.add_table(rows=1, cols=1)
         banner.autofit = True
@@ -1785,6 +1793,15 @@ class PDFExporter:
         else:
             branding_prefix = "KORUM-OS INTERNAL"
             is_client_branded = False
+
+        # --- KORUM BRANDING LOGO ---
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum_wordmark.png")
+        if os.path.exists(logo_path):
+            from reportlab.platypus import Image as RLImage
+            logo_img = RLImage(logo_path, width=180, height=35)
+            logo_img.hAlign = 'CENTER'
+            story.append(logo_img)
+            story.append(Spacer(1, 8))
 
         # --- CLASSIFICATION BANNER ---
         banner_data = [[f"{branding_prefix}  ·  MULTI-AGENT INTELLIGENCE  ·  {workflow}"]]
