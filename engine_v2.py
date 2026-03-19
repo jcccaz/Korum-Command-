@@ -1581,6 +1581,16 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         3. CONFIDENCE: High/Medium/Low with rationale.
     """
 
+    # --- DATA INTEGRITY (Section 8a Directive) ---
+    data_integrity = """
+    ## DATA INTEGRITY (Section 8a Directive)
+    - Do NOT introduce external standards, regulations, or compliance references unless explicitly provided in the dataset or prompt.
+    - Do NOT fabricate legal, tax, or accounting requirements.
+    - All conclusions must be directly supported by the provided data.
+    - Do NOT cite regulations, frameworks, or laws that are not present in the input.
+    - If no data supports a claim, state that explicitly — do NOT invent supporting evidence.
+    """
+
     # Select workflow-specific directives if available, else generic
     active_phase_directives = WORKFLOW_PHASE_OVERRIDES.get(context.workflow, PHASE_DIRECTIVES)
 
@@ -1604,6 +1614,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         phase = active_phase_directives.get(position, active_phase_directives.get(min(position, 4)))
         prompt += f"\nYOUR SPECIFIC FOCUS: {phase['title']}\n{phase['instruction']}"
         prompt += decision_enforcement # Section 8
+        prompt += data_integrity # Section 8a
         if context.ghost_map or context.residual_report:
             prompt += "\n" + _build_mimir_block(context.ghost_map, context.residual_report)
         prompt += "\nProvide comprehensive, well-sourced research and data. Focus on facts, metrics, and technical details."
@@ -1688,6 +1699,8 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     say "unknown" or "not provided" — do NOT fabricate redaction-style placeholder tokens.
     
     {decision_enforcement}
+
+    {data_integrity}
     """
 
     # Inject prior session context for follow-up queries
