@@ -1724,6 +1724,7 @@ class PDFExporter:
         ACCENT_PRIMARY = p['primary']
         ACCENT_SECONDARY = p['secondary']
         TEXT_PRIMARY = "#E6EDF3"
+        TEXT_SECONDARY = "#8B949E"
         BORDER = "#232931"
 
         # Define high-end dark-theme styles
@@ -2343,7 +2344,7 @@ class ResearchPaperExporter:
         from reportlab.lib.styles import ParagraphStyle
         from reportlab.lib.units import inch
 
-        meta, sections, structured = _extract_parts(intelligence_object)
+        meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         tags = (intelligence_object or {}).get("intelligence_tags", {}) or {}
         filename = f"korum_research_{_timestamp()}.pdf"
         filepath = _output_path(filename, output_dir)
@@ -2577,7 +2578,7 @@ class ResearchPaperWordExporter:
         import re
         from docx.shared import Inches, RGBColor
 
-        meta, sections, structured = _extract_parts(intelligence_object)
+        meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         tags = (intelligence_object or {}).get("intelligence_tags", {}) or {}
 
         wdoc = Document()
