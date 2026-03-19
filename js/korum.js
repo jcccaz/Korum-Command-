@@ -2344,54 +2344,101 @@ async function executeReasoningChain(query) {
     setMissionStep(2, 'complete');
     setMissionStep(3, 'processing');
 
-    let response;
+    // --- Step 1: Start the job (returns immediately with job_id) ---
+    let startResponse;
     try {
-        response = await authFetch('/api/v2/reasoning_chain', {
+        startResponse = await authFetch('/api/v2/reasoning_chain', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        }, 300000);  // 5 min — V2 sequential pipeline needs more than default 120s
+        });
     } catch (fetchErr) {
-        // Transport-level failure: connection reset, network error, timeout
-        const msg = fetchErr.message || '';
-        if (msg.includes('timed out')) {
-            throw new Error('TIMEOUT: The council pipeline exceeded 5 minutes. Check server logs for which phase stalled.');
-        }
-        throw new Error(`CONNECTION LOST: Server dropped the connection during processing. This usually means the backend crashed or the response was too large. (${msg})`);
+        throw new Error(`CONNECTION LOST: Could not reach server to start pipeline. (${fetchErr.message})`);
     }
 
-    if (!response.ok) {
-        let errDetail = `HTTP ${response.status}`;
-        try { const errBody = await response.json(); errDetail = errBody.error || errDetail; } catch (_) {}
+    if (!startResponse.ok) {
+        let errDetail = `HTTP ${startResponse.status}`;
+        try { const errBody = await startResponse.json(); errDetail = errBody.error || errDetail; } catch (_) {}
         throw new Error(`SERVER ERROR: ${errDetail}`);
     }
 
-    let data;
-    try {
-        data = await response.json();
-    } catch (parseErr) {
-        throw new Error('PARSE ERROR: Server returned a response but it was not valid JSON. The response may have been truncated.');
+    const startData = await startResponse.json();
+    if (!startData.success || !startData.job_id) {
+        throw new Error(startData.error || "Failed to start pipeline job");
     }
 
-    if (data.success) {
-        renderChainResults(data.pipeline_result);
-        setMissionStep(2, 'complete');
-        setMissionStep(3, 'complete');
-        setMissionStep(4, 'complete');
-        setMissionStep(5, 'active');
-        if (data.execution_metrics) {
-            renderExecutionDashboard(data.execution_metrics);
+    const jobId = startData.job_id;
+    logTelemetry(`Pipeline job started: ${jobId.substring(0, 8)}`, "system");
+
+    // --- Step 2: Poll for result ---
+    const POLL_INTERVAL_MS = 3000;
+    const MAX_POLLS = 100;  // 5 minutes max
+    const PHASE_LABELS = {
+        starting: "INITIALIZING...",
+        falcon: "FALCON PREPROCESSING...",
+        council: "COUNCIL EXECUTING...",
+        synthesis: "SYNTHESIZING...",
+        finalizing: "ASSEMBLING RESULT..."
+    };
+
+    for (let poll = 0; poll < MAX_POLLS; poll++) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+        let pollResponse;
+        try {
+            pollResponse = await authFetch(`/api/v2/reasoning_chain/status/${jobId}`);
+        } catch (pollErr) {
+            // Network blip during poll — retry silently
+            logTelemetry(`Poll ${poll + 1} network error, retrying...`, "warning");
+            continue;
         }
-        // Clear vault docs after successful V2 chain
-        if (vaultDocIds.length > 0) {
-            VaultUploader.clear();
-            pendingFiles = [];
-            renderFilePreview();
+
+        if (!pollResponse.ok) {
+            // 500 = pipeline error, 404 = job expired
+            let errDetail = `HTTP ${pollResponse.status}`;
+            try { const errBody = await pollResponse.json(); errDetail = errBody.error || errDetail; } catch (_) {}
+            throw new Error(`SERVER ERROR: ${errDetail}`);
         }
-    } else {
-        throw new Error(data.error || "Pipeline Failed");
+
+        const pollData = await pollResponse.json();
+
+        // Still processing — update phase display
+        if (pollData.status === "processing") {
+            const phaseLabel = PHASE_LABELS[pollData.phase] || `PROCESSING (${pollData.phase})...`;
+            const activeName = document.getElementById("activeAgentName");
+            if (activeName) activeName.innerText = phaseLabel;
+            logTelemetry(`Pipeline phase: ${pollData.phase} (poll ${poll + 1})`, "process");
+            continue;
+        }
+
+        // Complete — pollData IS the full response_data (success, pipeline_result, etc.)
+        if (pollData.success && pollData.pipeline_result) {
+            renderChainResults(pollData.pipeline_result);
+            setMissionStep(2, 'complete');
+            setMissionStep(3, 'complete');
+            setMissionStep(4, 'complete');
+            setMissionStep(5, 'active');
+            if (pollData.pipeline_result.execution_metrics) {
+                renderExecutionDashboard(pollData.pipeline_result.execution_metrics);
+            }
+            // Clear vault docs after successful V2 chain
+            if (vaultDocIds.length > 0) {
+                VaultUploader.clear();
+                pendingFiles = [];
+                renderFilePreview();
+            }
+            resetUI();
+            return;
+        }
+
+        // Error from pipeline
+        if (!pollData.success) {
+            throw new Error(pollData.error || "Pipeline Failed");
+        }
     }
-    resetUI();
+
+    // Exhausted polls
+    throw new Error('TIMEOUT: The council pipeline exceeded 5 minutes. Check server logs for which phase stalled.');
 }
 
 function renderChainResults(result) {

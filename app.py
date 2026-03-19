@@ -9,6 +9,8 @@ import time
 import logging
 import secrets
 import copy
+import threading
+import uuid
 from datetime import datetime
 from functools import wraps
 import requests
@@ -80,6 +82,70 @@ if REDIS_URL:
         redis_client = None
 else:
     logger.warning("[REDIS] REDIS_URL not set — using default Flask sessions (non-persistent)")
+
+# --- Council Job Store (async polling) ---
+# In-memory fallback when Redis unavailable. Safe with --workers 1 (current config).
+_council_jobs = {}  # {job_id: {"status": ..., "phase": ..., "result": ...}}
+
+COUNCIL_JOB_TTL = 600  # 10 minutes — Redis key expiry for completed jobs
+
+def _job_set_status(job_id, status, phase=None, error=None):
+    """Update job status in Redis (or in-memory fallback)."""
+    data = {"status": status}
+    if phase:
+        data["phase"] = phase
+    if error:
+        data["error"] = error
+    payload = json.dumps(data)
+    if redis_client:
+        try:
+            redis_client.setex(f"council:job:{job_id}", COUNCIL_JOB_TTL, payload)
+            return
+        except Exception as e:
+            logger.warning(f"[JOB] Redis write failed, using memory: {e}")
+    _council_jobs[job_id] = data
+
+def _job_set_result(job_id, response_data):
+    """Store completed job result in Redis (or in-memory fallback)."""
+    result_json = json.dumps(response_data)
+    _job_set_status(job_id, "complete", phase="done")
+    if redis_client:
+        try:
+            redis_client.setex(f"council:result:{job_id}", COUNCIL_JOB_TTL, result_json)
+            return
+        except Exception as e:
+            logger.warning(f"[JOB] Redis result write failed, using memory: {e}")
+    _council_jobs.setdefault(job_id, {})["result"] = response_data
+
+def _job_get(job_id):
+    """Read job status + result. Returns (status_dict, result_json_or_None)."""
+    if redis_client:
+        try:
+            status_raw = redis_client.get(f"council:job:{job_id}")
+            if status_raw:
+                status = json.loads(status_raw)
+                result_raw = None
+                if status.get("status") == "complete":
+                    result_raw = redis_client.get(f"council:result:{job_id}")
+                return status, result_raw
+            # Fall through to memory check
+        except Exception as e:
+            logger.warning(f"[JOB] Redis read failed, checking memory: {e}")
+    # In-memory fallback
+    job = _council_jobs.get(job_id)
+    if job:
+        result = job.get("result")
+        return job, json.dumps(result) if result else None
+    return None, None
+
+def _job_cleanup(job_id):
+    """Remove job keys after result is delivered."""
+    if redis_client:
+        try:
+            redis_client.delete(f"council:job:{job_id}", f"council:result:{job_id}")
+        except Exception:
+            pass
+    _council_jobs.pop(job_id, None)
 
 # Auth can be disabled for local dev via env var
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
@@ -2523,20 +2589,191 @@ def verify_claim():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+def _run_council_job(job_id, query, personas, workflow, active_models, user_id,
+                     hacker_mode, use_falcon, falcon_level, falcon_meta,
+                     _falcon_placeholder_map, _ghost_map_summary, _residual_report,
+                     _vault_doc_ids_used):
+    """Background thread: runs the full council pipeline and stores result in Redis."""
+    import sys
+    import traceback
+    with app.app_context():
+        try:
+            from llm_core import call_google_gemini
+
+            # --- Phase: Council Execution ---
+            _job_set_status(job_id, "processing", phase="council")
+            print(f"[JOB {job_id[:8]}] Council execution starting...")
+            sys.stdout.flush()
+
+            results = execute_council_v2(query, personas, workflow=workflow,
+                                         active_models=active_models, user_id=user_id,
+                                         ghost_map=_ghost_map_summary, residual_report=_residual_report)
+
+            # Red Team injection if requested
+            if hacker_mode:
+                print("🛡️ RED TEAM INJECTION (Chain)")
+                exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(results['results'])}\n\nMISSION: RED TEAM THIS."
+                results['results']['red_team'] = call_google_gemini(exploit_prompt, "HACKER", user_id=user_id)
+
+            # --- Phase: Response Assembly ---
+            _job_set_status(job_id, "processing", phase="finalizing")
+            print(f"[JOB {job_id[:8]}] Assembling response...")
+            sys.stdout.flush()
+
+            res_map = results.get('results', {})
+
+            # --- FALCON REHYDRATION ---
+            if use_falcon and _falcon_placeholder_map:
+                for provider_key, provider_result in res_map.items():
+                    if isinstance(provider_result, dict) and provider_result.get('response'):
+                        provider_result['response'] = falcon_rehydrate(provider_result['response'], _falcon_placeholder_map)
+                syn = results.get('synthesis', {})
+                if isinstance(syn, dict) and syn.get('meta', {}).get('summary'):
+                    syn['meta']['summary'] = falcon_rehydrate(syn['meta']['summary'], _falcon_placeholder_map)
+                if isinstance(syn, dict) and syn.get('meta', {}).get('final_document'):
+                    syn['meta']['final_document'] = falcon_rehydrate(syn['meta']['final_document'], _falcon_placeholder_map)
+
+            # --- Payload slimming helpers ---
+            def _trim_text(value, max_chars=320):
+                if not isinstance(value, str):
+                    return value
+                value = value.strip()
+                if len(value) <= max_chars:
+                    return value
+                return value[:max_chars].rstrip() + "..."
+
+            def _slim_verified_claims(claims, limit=12):
+                slim_claims = []
+                for claim in (claims or [])[:limit]:
+                    if not isinstance(claim, dict):
+                        continue
+                    slim_claims.append({
+                        "claim": _trim_text(claim.get("claim", ""), 240),
+                        "status": claim.get("status", "UNVERIFIED"),
+                        "score": claim.get("score", 50),
+                        "type": claim.get("type", "claim"),
+                        "anchors": list(claim.get("anchors", [])[:4]),
+                        "violations": [_trim_text(v, 200) for v in claim.get("violations", [])[:3]]
+                    })
+                return slim_claims
+
+            def _slim_result_map(raw_results):
+                slim_results = {}
+                for provider_key, provider_result in (raw_results or {}).items():
+                    if not isinstance(provider_result, dict):
+                        continue
+                    slim_entry = {
+                        "success": bool(provider_result.get("success", False)),
+                        "truth_meter": provider_result.get("truth_meter", 50),
+                        "contribution_score": provider_result.get("contribution_score", 0),
+                    }
+                    model_name = provider_result.get("model")
+                    if isinstance(model_name, str) and model_name.strip():
+                        slim_entry["model"] = model_name.strip()
+                    usage = provider_result.get("usage")
+                    if isinstance(usage, dict):
+                        slim_entry["usage"] = {
+                            "cost": usage.get("cost", 0),
+                            "latency": usage.get("latency", 0),
+                            "input": usage.get("input", 0),
+                            "output": usage.get("output", 0),
+                        }
+                    verified_claims = provider_result.get("verified_claims")
+                    if isinstance(verified_claims, list) and verified_claims:
+                        slim_entry["verified_claims"] = _slim_verified_claims(verified_claims)
+                    slim_results[provider_key] = slim_entry
+                return slim_results
+
+            def _prepare_frontend_synthesis(raw_synthesis):
+                if not isinstance(raw_synthesis, dict):
+                    return raw_synthesis
+                synthesis_copy = copy.deepcopy(raw_synthesis)
+                meta = synthesis_copy.get("meta")
+                if isinstance(meta, dict) and "finalizer_review" in meta:
+                    meta.pop("finalizer_review", None)
+                    print("[V2 CHAIN] Removed hidden finalizer_review from frontend payload.")
+                return synthesis_copy
+
+            frontend_results = _slim_result_map(res_map)
+            frontend_synthesis = _prepare_frontend_synthesis(results.get('synthesis'))
+
+            def _f_metric(provider_key):
+                return res_map.get(provider_key, {}).get('usage', {})
+
+            pipeline_result = {
+                "constraints": res_map.get('anthropic', {}).get('response', "Extraction Failed"),
+                "standard_solution": res_map.get('openai', {}).get('response', "Generation Failed"),
+                "failure_analysis": res_map.get('google', {}).get('response', "Analysis Failed"),
+                "scout_intel": res_map.get('perplexity', {}).get('response') if res_map.get('perplexity', {}).get('success') else None,
+                "exploit_poc": res_map.get('red_team', {}).get('response') if hacker_mode else None,
+                "final_artifact": results.get('synthesis', {}).get('meta', {}).get('final_document') or results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
+                "results": frontend_results,
+                "synthesis": frontend_synthesis,
+                "metrics": {
+                    "deconstruct": {"cost": _f_metric('anthropic').get('cost', 0.0), "time": _f_metric('anthropic').get('latency', 0) / 1000},
+                    "build": {"cost": _f_metric('openai').get('cost', 0.0), "time": _f_metric('openai').get('latency', 0) / 1000},
+                    "stress": {"cost": _f_metric('google').get('cost', 0.0), "time": _f_metric('google').get('latency', 0) / 1000},
+                    "scout": {"cost": _f_metric('perplexity').get('cost', 0.0), "time": _f_metric('perplexity').get('latency', 0) / 1000},
+                    "synthesize": {"cost": results.get('metrics', {}).get('run_cost', 0.0), "time": results.get('metrics', {}).get('latency_ms', 0) / 1000}
+                },
+                "execution_metrics": results.get('metrics', {})
+            }
+
+            response_data = {
+                "success": True,
+                "pipeline_result": pipeline_result
+            }
+
+            # Attach Falcon metadata if active
+            if use_falcon and falcon_meta:
+                response_data["falcon"] = {
+                    "enabled": True,
+                    "level": falcon_level,
+                    "redacted_entity_count": falcon_meta['total_redactions'],
+                    "high_risk_items_count": falcon_meta['high_risk_items_count'],
+                    "categories": falcon_meta['categories_found'],
+                    "counts": falcon_meta['counts_by_category'],
+                    "exposure_risk": falcon_meta['exposure_risk'],
+                }
+
+            # --- GOLDFISH: Purge extracted text after council consumption ---
+            if _vault_doc_ids_used:
+                from vault import get_vault_document as _gvd
+                for _vid in _vault_doc_ids_used:
+                    _vd = _gvd(_vid)
+                    if _vd:
+                        _vd.extracted_text = None
+                        _vd.status = 'consumed'
+                db.session.commit()
+                print(f"🐟 GOLDFISH: Purged extracted text from {len(_vault_doc_ids_used)} vault doc(s)")
+
+            # --- Store result ---
+            _resp_bytes = len(json.dumps(response_data).encode('utf-8'))
+            print(f"[JOB {job_id[:8]}] Pipeline complete — {_resp_bytes:,} bytes ({_resp_bytes / 1024:.1f} KB)")
+            sys.stdout.flush()
+            _job_set_result(job_id, response_data)
+
+        except Exception as e:
+            traceback.print_exc()
+            print(f"❌ [JOB {job_id[:8]}] Pipeline failed: {e}")
+            sys.stdout.flush()
+            _job_set_status(job_id, "error", error=str(e))
+
+
 @app.route('/api/v2/reasoning_chain', methods=['POST'])
 @auth_required
 @limiter.limit("30 per minute")
 def reasoning_chain():
     """
-    V2 Orchestration Route: Uses the real Sequential Council Engine.
-    Maps results to the frontend's expected 'Pipeline Result' format.
+    V2 Orchestration Route — Async Job Pattern.
+    Starts the council pipeline in a background thread, returns a job_id immediately.
+    Frontend polls /api/v2/reasoning_chain/status/<job_id> for results.
     """
-    from llm_core import call_google_gemini
     data = request.json
     query = data.get('query')
     hacker_mode = data.get('hacker_mode', False)
     workflow = data.get('workflow', 'RESEARCH')
-    
+
     if not query:
         return jsonify({"success": False, "error": "Query required"}), 400
 
@@ -2561,9 +2798,6 @@ def reasoning_chain():
                 doc_texts.append(f"[Vault Document: {vdoc_id[:8]}]\n{vdoc.extracted_text}")
                 _vault_doc_ids_used.append(vdoc_id)
         if doc_texts:
-            # Guard: cap total attached document text to 12,000 chars to prevent
-            # chain timeouts on large documents. The council gets the most relevant
-            # context without blowing the per-model token budget.
             MAX_DOC_CHARS = 12000
             combined = "\n\n".join(doc_texts)
             if len(combined) > MAX_DOC_CHARS:
@@ -2578,8 +2812,6 @@ def reasoning_chain():
     falcon_custom_terms = data.get('falcon_custom_terms', []) or None
     falcon_meta = None
     _falcon_placeholder_map = {}
-
-    # Ghost Map + Residual Report — populated when Falcon runs
     _ghost_map_summary = {}
     _residual_report = {}
 
@@ -2595,17 +2827,13 @@ def reasoning_chain():
         if falcon_meta.get('counts_by_category'):
             print(f"🦅 FALCON CATEGORIES: {falcon_meta['counts_by_category']}")
 
-        # Build Ghost Map + PII Diff for MIMIR council injection
         from falcon import build_ghost_map_summary, detect_residual_pii
         _ghost_map_summary = build_ghost_map_summary(falcon_res)
         _residual_report = detect_residual_pii(query, falcon_res)
         print(f"🔍 PII DIFF: {_residual_report.get('residual_count', 0)} residual(s) — {'CLEAN' if _residual_report.get('pii_diff_clean') else 'ALERT'}")
 
-    # Log AFTER Falcon so raw PII never hits logs
-    print(f"⚡ V2 REASONING CHAIN [{workflow}]")
+    print(f"⚡ V2 REASONING CHAIN [{workflow}] — async job")
 
-    # 1. Execute using the real engine
-    # Use frontend-provided roles if available, otherwise default
     personas = data.get('council_roles', {
         "openai": "Strategist",
         "anthropic": "Architect",
@@ -2614,195 +2842,53 @@ def reasoning_chain():
         "mistral": "Analyst"
     })
     active_models = data.get('active_models', list(personas.keys()))
+    user_id = current_user.id if hasattr(current_user, 'id') else None
 
-    try:
-        user_id = current_user.id if hasattr(current_user, 'id') else None
-        results = execute_council_v2(query, personas, workflow=workflow, active_models=active_models, user_id=user_id, ghost_map=_ghost_map_summary, residual_report=_residual_report)
-        
-        # 2. Add Red Team separately if requested (to maintain logic in app.py for now)
-        if hacker_mode:
-            print("🛡️ RED TEAM INJECTION (Chain)")
-            exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(results['results'])}\n\nMISSION: RED TEAM THIS."
-            results['results']['red_team'] = call_google_gemini(exploit_prompt, "HACKER", user_id=user_id)
+    # --- Spawn background thread ---
+    job_id = str(uuid.uuid4())
+    _job_set_status(job_id, "processing", phase="starting")
 
-        # 3. Map real results to the legacy keys expected by the frontend 'renderChainResults'
-        # Note: This is a bridge for current UI compatibility. 
-        # Future UI will consume 'synthesis' directly.
-        
-        # We look for results by provider to map to the 'Phases'
-        res_map = results.get('results', {})
-        
-        # --- FALCON REHYDRATION: Restore redacted entities in responses ---
-        if use_falcon and _falcon_placeholder_map:
-            for provider_key, provider_result in res_map.items():
-                if isinstance(provider_result, dict) and provider_result.get('response'):
-                    provider_result['response'] = falcon_rehydrate(provider_result['response'], _falcon_placeholder_map)
-            # Rehydrate synthesis summary and final_document
-            syn = results.get('synthesis', {})
-            if isinstance(syn, dict) and syn.get('meta', {}).get('summary'):
-                syn['meta']['summary'] = falcon_rehydrate(syn['meta']['summary'], _falcon_placeholder_map)
-            if isinstance(syn, dict) and syn.get('meta', {}).get('final_document'):
-                syn['meta']['final_document'] = falcon_rehydrate(syn['meta']['final_document'], _falcon_placeholder_map)
+    thread = threading.Thread(
+        target=_run_council_job,
+        args=(job_id, query, personas, workflow, active_models, user_id,
+              hacker_mode, use_falcon, falcon_level, falcon_meta,
+              _falcon_placeholder_map, _ghost_map_summary, _residual_report,
+              _vault_doc_ids_used),
+        daemon=True
+    )
+    thread.start()
+    print(f"[JOB {job_id[:8]}] Thread spawned for V2 chain")
 
-        def _trim_text(value, max_chars=320):
-            if not isinstance(value, str):
-                return value
-            value = value.strip()
-            if len(value) <= max_chars:
-                return value
-            return value[:max_chars].rstrip() + "..."
+    return jsonify({"success": True, "job_id": job_id})
 
-        def _slim_verified_claims(claims, limit=12):
-            slim_claims = []
-            for claim in (claims or [])[:limit]:
-                if not isinstance(claim, dict):
-                    continue
-                slim_claims.append({
-                    "claim": _trim_text(claim.get("claim", ""), 240),
-                    "status": claim.get("status", "UNVERIFIED"),
-                    "score": claim.get("score", 50),
-                    "type": claim.get("type", "claim"),
-                    "anchors": list(claim.get("anchors", [])[:4]),
-                    "violations": [_trim_text(v, 200) for v in claim.get("violations", [])[:3]]
-                })
-            return slim_claims
 
-        def _slim_result_map(raw_results):
-            slim_results = {}
-            for provider_key, provider_result in (raw_results or {}).items():
-                if not isinstance(provider_result, dict):
-                    continue
-                slim_entry = {
-                    "success": bool(provider_result.get("success", False)),
-                    "truth_meter": provider_result.get("truth_meter", 50),
-                    "contribution_score": provider_result.get("contribution_score", 0),
-                }
-                model_name = provider_result.get("model")
-                if isinstance(model_name, str) and model_name.strip():
-                    slim_entry["model"] = model_name.strip()
-                usage = provider_result.get("usage")
-                if isinstance(usage, dict):
-                    slim_entry["usage"] = {
-                        "cost": usage.get("cost", 0),
-                        "latency": usage.get("latency", 0),
-                        "input": usage.get("input", 0),
-                        "output": usage.get("output", 0),
-                    }
-                verified_claims = provider_result.get("verified_claims")
-                if isinstance(verified_claims, list) and verified_claims:
-                    slim_entry["verified_claims"] = _slim_verified_claims(verified_claims)
-                slim_results[provider_key] = slim_entry
-            return slim_results
+@app.route('/api/v2/reasoning_chain/status/<job_id>', methods=['GET'])
+@auth_required
+def reasoning_chain_status(job_id):
+    """Poll endpoint for async V2 pipeline jobs."""
+    status, result_raw = _job_get(job_id)
 
-        def _prepare_frontend_synthesis(raw_synthesis):
-            if not isinstance(raw_synthesis, dict):
-                return raw_synthesis
-            synthesis_copy = copy.deepcopy(raw_synthesis)
-            meta = synthesis_copy.get("meta")
-            if isinstance(meta, dict) and "finalizer_review" in meta:
-                meta.pop("finalizer_review", None)
-                print("[V2 CHAIN] Removed hidden finalizer_review from frontend payload.")
-            return synthesis_copy
+    if not status:
+        return jsonify({"success": False, "error": "Job not found"}), 404
 
-        frontend_results = _slim_result_map(res_map)
-        frontend_synthesis = _prepare_frontend_synthesis(results.get('synthesis'))
+    job_status = status.get("status", "unknown")
 
-        # Helper to safely get metrics
-        def _f_metric(provider_key):
-            return res_map.get(provider_key, {}).get('usage', {})
+    if job_status == "complete" and result_raw:
+        # Deliver result and clean up
+        result_data = json.loads(result_raw) if isinstance(result_raw, (str, bytes)) else result_raw
+        _job_cleanup(job_id)
+        return jsonify(result_data)
 
-        pipeline_result = {
-            "constraints": res_map.get('anthropic', {}).get('response', "Extraction Failed"),
-            "standard_solution": res_map.get('openai', {}).get('response', "Generation Failed"),
-            "failure_analysis": res_map.get('google', {}).get('response', "Analysis Failed"),
-            "scout_intel": res_map.get('perplexity', {}).get('response') if res_map.get('perplexity', {}).get('success') else None,
-            "exploit_poc": res_map.get('red_team', {}).get('response') if hacker_mode else None,
-            "final_artifact": results.get('synthesis', {}).get('meta', {}).get('final_document') or results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
-            "results": frontend_results,
-            "synthesis": frontend_synthesis,
-            "metrics": {
-                "deconstruct": {"cost": _f_metric('anthropic').get('cost', 0.0), "time": _f_metric('anthropic').get('latency', 0) / 1000},
-                "build": {"cost": _f_metric('openai').get('cost', 0.0), "time": _f_metric('openai').get('latency', 0) / 1000},
-                "stress": {"cost": _f_metric('google').get('cost', 0.0), "time": _f_metric('google').get('latency', 0) / 1000},
-                "scout": {"cost": _f_metric('perplexity').get('cost', 0.0), "time": _f_metric('perplexity').get('latency', 0) / 1000},
-                "synthesize": {"cost": results.get('metrics', {}).get('run_cost', 0.0), "time": results.get('metrics', {}).get('latency_ms', 0) / 1000}
-            },
-            "execution_metrics": results.get('metrics', {})
-        }
+    if job_status == "error":
+        _job_cleanup(job_id)
+        return jsonify({"success": False, "error": status.get("error", "Pipeline failed")}), 500
 
-        response_data = {
-            "success": True,
-            "pipeline_result": pipeline_result
-        }
-
-        # Attach Falcon metadata if active
-        if use_falcon and falcon_meta:
-            response_data["falcon"] = {
-                "enabled": True,
-                "level": falcon_level,
-                "redacted_entity_count": falcon_meta['total_redactions'],
-                "high_risk_items_count": falcon_meta['high_risk_items_count'],
-                "categories": falcon_meta['categories_found'],
-                "counts": falcon_meta['counts_by_category'],
-                "exposure_risk": falcon_meta['exposure_risk'],
-            }
-
-        # --- GOLDFISH: Purge extracted text after council consumption ---
-        if _vault_doc_ids_used:
-            from vault import get_vault_document as _gvd
-            for _vid in _vault_doc_ids_used:
-                _vd = _gvd(_vid)
-                if _vd:
-                    _vd.extracted_text = None
-                    _vd.status = 'consumed'
-            db.session.commit()
-            print(f"🐟 GOLDFISH: Purged extracted text from {len(_vault_doc_ids_used)} vault doc(s)")
-
-        # --- DIAGNOSTIC: Log component sizes before serialization ---
-        import sys
-        _pr = pipeline_result
-        _component_sizes = {
-            "constraints": len((_pr.get("constraints") or "").encode("utf-8")),
-            "standard_solution": len((_pr.get("standard_solution") or "").encode("utf-8")),
-            "failure_analysis": len((_pr.get("failure_analysis") or "").encode("utf-8")),
-            "scout_intel": len((_pr.get("scout_intel") or "").encode("utf-8")),
-            "final_artifact": len((_pr.get("final_artifact") or "").encode("utf-8")),
-            "synthesis": len(json.dumps(_pr.get("synthesis") or {}).encode("utf-8")),
-            "results": len(json.dumps(_pr.get("results") or {}).encode("utf-8")),
-        }
-        _total_est = sum(_component_sizes.values())
-        print(f"[V2 DIAG] Payload component sizes: {_component_sizes}")
-        print(f"[V2 DIAG] Estimated total payload: {_total_est:,} bytes ({_total_est / 1024:.1f} KB)")
-        sys.stdout.flush()
-
-        # --- Serialize ---
-        print("[V2 DIAG] Starting json.dumps...")
-        sys.stdout.flush()
-        try:
-            response_json = json.dumps(response_data)
-        except (TypeError, ValueError) as json_err:
-            print(f"❌ [V2 DIAG] json.dumps FAILED: {json_err}")
-            sys.stdout.flush()
-            return jsonify({"success": False, "error": f"Response serialization failed: {json_err}"}), 500
-
-        _resp_bytes = len(response_json.encode('utf-8'))
-        print(f"[V2 DIAG] json.dumps OK — {_resp_bytes:,} bytes ({_resp_bytes / 1024:.1f} KB)")
-        sys.stdout.flush()
-
-        # --- Send ---
-        print("[V2 DIAG] Sending response...")
-        sys.stdout.flush()
-        resp = app.response_class(response=response_json, status=200, mimetype='application/json')
-        print("[V2 DIAG] Response object created, returning to client.")
-        sys.stdout.flush()
-        return resp
-
-    except Exception as e:
-        import traceback
-        print(f"❌ V2 Chain Error: {e}")
-        traceback.print_exc()
-        sys.stdout.flush()
-        return jsonify({"success": False, "error": str(e)}), 500
+    # Still processing
+    return jsonify({
+        "success": True,
+        "status": "processing",
+        "phase": status.get("phase", "unknown")
+    })
 
 @app.route('/api/enhance_prompt', methods=['POST'])
 @auth_required
