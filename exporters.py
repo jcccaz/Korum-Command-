@@ -661,7 +661,12 @@ class WordExporter:
                 # Now insert the [STRUCTURED_TABLE] that goes between parts
                 if i < len(json_tables):
                     try:
-                        table_data = json.loads(json_tables[i])
+                        raw_json = json_tables[i].strip()
+                        # Resilience: if empty or just tags, skip
+                        if not raw_json or len(raw_json) < 5:
+                            continue
+                            
+                        table_data = json.loads(raw_json)
                         if table_data and isinstance(table_data, list):
                             headers = list(table_data[0].keys())
                             table = doc.add_table(rows=len(table_data) + 1, cols=len(headers))
@@ -669,7 +674,7 @@ class WordExporter:
                             
                             # Header
                             for col_idx, h in enumerate(headers):
-                                table.rows[0].cells[col_idx].text = h.title()
+                                table.rows[0].cells[col_idx].text = h.upper()
                             WordExporter._style_header_row(table.rows[0])
                             
                             # Data
@@ -1706,22 +1711,20 @@ class PDFExporter:
 
         # --- DARK THEME PALETTE (Strategic Themes) ---
         THEMES = {
-            'STEEL':   {"primary": "#00E5FF", "secondary": "#FFB020"}, # Cyan / Gold
-            'EMERALD': {"primary": "#00FF9D", "secondary": "#E6EDF3"}, # Jade / White
+            'STEEL':   {"primary": "#E6EDF3", "secondary": "#0080FF"}, # Platinum / Cobalt Blue
+            'EMERALD': {"primary": "#00FF9D", "secondary": "#8B949E"}, # Jade / Steel Grey
             'AMBER':   {"primary": "#FFB020", "secondary": "#FF4444"}, # Amber / Red
-            'SLATE':   {"primary": "#8B949E", "secondary": "#00E5FF"}  # Silver / Cyan
         }
-        theme_id = meta.get("theme", "STEEL")
+        theme_id = meta.get("theme", "STEEL").upper()
         p = THEMES.get(theme_id, THEMES['STEEL'])
         
-        BG_DARK = "#090B10" # Deeper Obsidian
-        BG_CARD = "#12161F" # Dark Slate Card
+        BG_DARK = "#05070A" # Obsidian Black
+        BG_CARD = "#0D1117"
         BG_SURFACE = "#161B22"
         ACCENT_PRIMARY = p['primary']
         ACCENT_SECONDARY = p['secondary']
         TEXT_PRIMARY = "#E6EDF3"
-        TEXT_SECONDARY = "#8B949E"
-        BORDER = "#232931" # Subtle, authoritative borders
+        BORDER = "#232931"
 
         # Define high-end dark-theme styles
         styles.add(ParagraphStyle(

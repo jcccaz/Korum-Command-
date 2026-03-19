@@ -2643,20 +2643,26 @@ def reasoning_chain():
             if isinstance(syn, dict) and syn.get('meta', {}).get('final_document'):
                 syn['meta']['final_document'] = falcon_rehydrate(syn['meta']['final_document'], _falcon_placeholder_map)
 
+        # Helper to safely get metrics
+        def _f_metric(provider_key):
+            return res_map.get(provider_key, {}).get('usage', {})
+
         pipeline_result = {
             "constraints": res_map.get('anthropic', {}).get('response', "Extraction Failed"),
             "standard_solution": res_map.get('openai', {}).get('response', "Generation Failed"),
             "failure_analysis": res_map.get('google', {}).get('response', "Analysis Failed"),
-            "scout_intel": res_map.get('perplexity', {}).get('response') if res_map.get('perplexity', {}).get('success') else None,
-            "exploit_poc": res_map.get('red_team', {}).get('response') if hacker_mode else None,
+            "scout_intel": {
+                "perplexity": res_map.get('perplexity', {}).get('response') if res_map.get('perplexity', {}).get('success') else None,
+                "red_team": res_map.get('red_team', {}).get('response') if hacker_mode else None,
+            },
             "final_artifact": results.get('synthesis', {}).get('meta', {}).get('final_document') or results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
             "results": res_map,
             "synthesis": results.get('synthesis'),
             "metrics": {
-                "deconstruct": {"cost": res_map.get('anthropic', {}).get('usage', {}).get('cost', 0.0), "time": res_map.get('anthropic', {}).get('usage', {}).get('latency', 0) / 1000},
-                "build": {"cost": res_map.get('openai', {}).get('usage', {}).get('cost', 0.0), "time": res_map.get('openai', {}).get('usage', {}).get('latency', 0) / 1000},
-                "stress": {"cost": res_map.get('google', {}).get('usage', {}).get('cost', 0.0), "time": res_map.get('google', {}).get('usage', {}).get('latency', 0) / 1000},
-                "scout": {"cost": res_map.get('perplexity', {}).get('usage', {}).get('cost', 0.0), "time": res_map.get('perplexity', {}).get('usage', {}).get('latency', 0) / 1000},
+                "deconstruct": {"cost": _f_metric('anthropic').get('cost', 0.0), "time": _f_metric('anthropic').get('latency', 0) / 1000},
+                "build": {"cost": _f_metric('openai').get('cost', 0.0), "time": _f_metric('openai').get('latency', 0) / 1000},
+                "stress": {"cost": _f_metric('google').get('cost', 0.0), "time": _f_metric('google').get('latency', 0) / 1000},
+                "scout": {"cost": _f_metric('perplexity').get('cost', 0.0), "time": _f_metric('perplexity').get('latency', 0) / 1000},
                 "synthesize": {"cost": results.get('metrics', {}).get('run_cost', 0.0), "time": results.get('metrics', {}).get('latency_ms', 0) / 1000}
             },
             "execution_metrics": results.get('metrics', {})
