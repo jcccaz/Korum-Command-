@@ -935,6 +935,60 @@ def _strip_phantom_tokens(text):
     return _FAKE_FALCON_RE.sub('[value not provided]', text)
 
 
+def normalization_layer(text):
+    """
+    KorumOS Normalization Layer (Section 5 Directive)
+    - Converts ALL markdown tables -> structured JSON objects
+    - Removes raw markdown/text artifacts
+    - Ensures render layer never receives raw AI output
+    """
+    if not text:
+        return ""
+        
+    import re
+    import json
+
+    # 1. Convert markdown tables to structured JSON blocks
+    # Pattern: | col | col | \n |---|---| \n | val | val |
+    table_pattern = re.compile(r'(\|.*\|[\r\n]+\|[-:| ]+\|[\r\n]+(?:\|.*\|[\r\n]*)+)', re.MULTILINE)
+    
+    def table_replacer(match):
+        table_text = match.group(0).strip()
+        rows = [r.strip() for r in table_text.split('\n') if r.strip()]
+        if len(rows) < 3: 
+            return table_text
+        
+        # Extract headers and data
+        header_row = [h.strip().replace('|', '') for h in rows[0].split('|') if h.strip()]
+        data_rows = []
+        for r in rows[2:]:
+            cols = [c.strip() for c in r.split('|') if c.strip()]
+            if len(cols) == len(header_row):
+                data_rows.append(dict(zip(header_row, cols)))
+            elif len(cols) > 0:
+                # Pad or truncate if alignment is off
+                padded = (cols + [""] * len(header_row))[:len(header_row)]
+                data_rows.append(dict(zip(header_row, padded)))
+        
+        # Return structured block for frontend/exporter parsing
+        return f"\n[STRUCTURED_TABLE]{json.dumps(data_rows)}[/STRUCTURED_TABLE]\n"
+
+    # Run table normalization
+    normalized = table_pattern.sub(table_replacer, text)
+    
+    # 2. Cleanup raw markdown leaks (Sections 6, 12)
+    # Strip triple backticks except for specific allowed code blocks (if any)
+    # We strip them to normalize the output into clean text.
+    normalized = re.sub(r'```[a-z]*', '', normalized)
+    normalized = normalized.replace('```', '')
+    
+    # 3. Strip bold/italic markers from report bodies for total uniform professionalism
+    # (Optional, but often requested for "no markdown leakage")
+    # Let's keep them for now but ensure structural tags are clean.
+    
+    return normalized.strip()
+
+
 def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None, ledger_mission_id=None, ghost_map=None, residual_report=None):
     # 1. Setup IDs
     import uuid
@@ -1000,6 +1054,10 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             except:
                 pass
         for model in active_models:
+            if model.lower() == 'mistral':
+                # Mistral is reserved for 'Shadow' roles in the council and the Finalizer pass.
+                # We do NOT skip it here so it can be added to the execution_order if assigned a role.
+                pass 
             if model.lower() not in assigned_providers:
                 role = active_personas.get(model, 'analyst')
                 execution_order.append(f"{model}-{role}")
@@ -1019,7 +1077,13 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             if i == total_steps - 1:
                 role = f"Integrator ({role})"
 
-            print(f"[COUNCIL] Step {i+1}: {provider.upper()} as {role.upper()}")
+            # --- SHADOW EXECUTION LOGIC (Section 10) ---
+            # Mistral performs its assigned role but remains hidden from the UI cards.
+            is_hidden = (provider == 'mistral')
+            if is_hidden:
+                print(f"[COUNCIL] Step {i+1}: {provider.upper()} (SHADOW EXECUTION) as {role.upper()}")
+            else:
+                print(f"[COUNCIL] Step {i+1}: {provider.upper()} as {role.upper()}")
 
             prompt = build_council_prompt(context, provider, role, i, total_steps)
             response_obj = {"success": False, "response": "Provider unknown"}
@@ -1081,14 +1145,24 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             if not ghost_map:
                 response_text = _strip_phantom_tokens(response_text)
 
+            # --- KORUM NORMALIZATION LAYER (Section 5 Directive) ---
+            response_text = normalization_layer(response_text)
+
             context.add_entry(provider, role, response_text, usage=usage)
             
+            # --- SHADOW FILTER ---
+            # If hidden (Mistral), do NOT add to the results dict returned to UI.
+            if is_hidden:
+                continue
+
             results[provider] = {
                 "success": response_obj.get('success', False),
                 "response": response_text,
                 "model": response_obj.get('model', 'unknown') if isinstance(response_obj, dict) else 'unknown',
                 "role": role.upper(),
                 "usage": usage,
+                "interrogations": [], # Placeholder for future features
+                "verifications": [], # Placeholder for future features
                 "error": response_obj.get('error') if not response_obj.get('success') else None
             }
 
@@ -1122,8 +1196,56 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
         print(f"[EXECUTION ERROR] {e}")
         return {"consensus": "Error in execution plan.", "results": {}, "error": str(e)}
 
-    # 4. Synthesis
+    # 4. Hidden Finalizer Pass (Section 10 Directive)
+    # If Mistral is present, it acts as a non-visible Finalizer to unify tone.
+    finalizer_response = None
+    if 'mistral' in active_models or 'mistral' in [m.split('-')[0].lower() for m in execution_order]:
+        print("[COUNCIL] Hidden Finalizer Pass: Mistral unifying report tone...")
+        # --- LEVERAGING MISTRAL STRENGTHS (#3 Data Synthesis, #4 Adaptive Tone) ---
+        finalizer_prompt = f"""
+        You are the KorumOS FINALIZER. Your mission is to unify the voice and structure of this intelligence product.
+        
+        CRITICAL STRENGTHS TO APPLY (Section 10 Directive):
+        1. ADAPTIVE TONE (#4): Apply a consistent, authoritative, and mission-aligned voice. Remove persona-specific markers and unify the narrative into a single professional flow.
+        2. DATA SYNTHESIS (#3): Identify critical data findings in the discussion. Ensure they are structured logically. If you see inconsistent formatting, normalize them into the [STRUCTURED_TABLE] model.
+        
+        RULES:
+        - NO NEW CONCLUSIONS: Do not add metrics or findings not present in the discussion.
+        - NO HEDGING: If the council made a decision, state it clearly.
+        - FLOW: Ensure transitions between phases are logical and seamless.
+        
+        COUNCIL DISCUSSION:
+        {history_text}
+        
+        Outcome Expected: {dna.get('goal', 'Professional Intelligence Brief')}
+        """
+        try:
+            # Mistral runs as a background process, not a primary phase
+            f_resp = call_mistral_api(finalizer_prompt, "Finalizer", user_id=user_id)
+            if f_resp.get('success'):
+                # Normalize the finalizer's work to catch any lingering MD
+                finalizer_response = normalization_layer(f_resp.get('response', ''))
+                print("[COUNCIL] Finalizer pass complete (Tone + Synthesis optimized).")
+        except Exception as e:
+            print(f"[COUNCIL FINALIZER ERROR] {e}")
+
+    # 5. Synthesis
     synthesis = synthesize_results(context, divergence_analysis=divergence, user_id=user_id)
+    
+    # --- FINAL RENDERING NORMALIZATION (Section 6 Directive) ---
+    # Ensure even the synthesizer output is stabilized and structured
+    if isinstance(synthesis, dict):
+        for s_id, s_content in synthesis.get('sections', {}).items():
+            synthesis['sections'][s_id] = normalization_layer(s_content)
+        if synthesis.get('meta', {}).get('summary'):
+            synthesis['meta']['summary'] = normalization_layer(synthesis['meta']['summary'])
+        if synthesis.get('meta', {}).get('final_document'):
+            synthesis['meta']['final_document'] = normalization_layer(synthesis['meta']['final_document'])
+    
+    # Inject finalizer tone into synthesis if available (optional, or just keep history text)
+    if finalizer_response:
+        if "meta" not in synthesis: synthesis["meta"] = {}
+        synthesis["meta"]["finalizer_review"] = finalizer_response
 
     # --- LEDGER: council_synthesis ---
     _syn_meta = synthesis.get('meta', {}) if isinstance(synthesis, dict) else {}
@@ -1426,6 +1548,17 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     if "alias" in dna:
         dna = WORKFLOW_DNA.get(dna["alias"], dna)
 
+    # --- DECISION ENFORCEMENT (Section 8 Directive) ---
+    decision_enforcement = """
+    ## DECISION ENFORCEMENT (Section 8 Directive)
+    - DO NOT use hedging language: "might", "could", "possibly", "it depends".
+    - BE DECISIVE. No 50/50 answers. No generic output.
+    - Every finding or recommendation MUST include:
+        1. DECISION: A clear yes/no/proceed/halt choice.
+        2. ACTION: The immediate next step to take.
+        3. CONFIDENCE: High/Medium/Low with rationale.
+    """
+
     # Select workflow-specific directives if available, else generic
     active_phase_directives = WORKFLOW_PHASE_OVERRIDES.get(context.workflow, PHASE_DIRECTIVES)
 
@@ -1448,6 +1581,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         # Give Perplexity the phase-specific focus even in research mode
         phase = active_phase_directives.get(position, active_phase_directives.get(min(position, 4)))
         prompt += f"\nYOUR SPECIFIC FOCUS: {phase['title']}\n{phase['instruction']}"
+        prompt += decision_enforcement # Section 8
         if context.ghost_map or context.residual_report:
             prompt += "\n" + _build_mimir_block(context.ghost_map, context.residual_report)
         prompt += "\nProvide comprehensive, well-sourced research and data. Focus on facts, metrics, and technical details."
@@ -1530,6 +1664,8 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     NEVER invent bracket-notation placeholders such as [CURRENCY_AMOUNT_XXXX], [ENTITY_TYPE_HASH], or any
     similar token. Always use real values, names, and figures from the source material. If a value is unknown,
     say "unknown" or "not provided" — do NOT fabricate redaction-style placeholder tokens.
+    
+    {decision_enforcement}
     """
 
     # Inject prior session context for follow-up queries
@@ -1618,6 +1754,7 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
     3. DEPTH: For all OTHER sections, provide 3-5 detailed paragraphs. Pull specific findings, data points, and recommendations.
     4. NO CONVERSATIONAL FLUFF: Output only the result.
     5. THE COUNCIL CONTRIBUTORS table must use the actual Phase Titles and Roles from the history.
+    6. NORMALIZATION PROTECTION (Section 5): The council discussion uses [STRUCTURED_TABLE]...[/STRUCTURED_TABLE] tags for high-fidelity data. You MUST PRESERVE THESE TAGS EXACTLY. Do NOT convert them back to Markdown or summarize their contents.
 
     COUNCIL DISCUSSION:
     {history_text}
