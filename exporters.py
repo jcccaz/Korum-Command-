@@ -456,12 +456,16 @@ class WordExporter:
             is_client_branded = False
 
         # --- KORUM BRANDING LOGO ---
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum_wordmark.png")
+        # Using the authoritative metal bird logo provided in assets
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "Screenshot 2026-03-18 154250.png")
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum_wordmark.png")
+
         if os.path.exists(logo_path):
             logo_para = doc.add_paragraph()
             logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            logo_para.add_run().add_picture(logo_path, width=Inches(2.5))
-            logo_para.paragraph_format.space_after = Pt(8)
+            logo_para.add_run().add_picture(logo_path, width=Inches(2.8)) # Large authoritative bird logo
+            logo_para.paragraph_format.space_after = Pt(10)
 
         # Classification Banner
         banner = doc.add_table(rows=1, cols=1)
@@ -1710,14 +1714,14 @@ class PDFExporter:
         theme_id = meta.get("theme", "STEEL")
         p = THEMES.get(theme_id, THEMES['STEEL'])
         
-        BG_DARK = "#0D1117"
-        BG_CARD = "#161B22"
-        BG_SURFACE = "#1C2333"
+        BG_DARK = "#090B10" # Deeper Obsidian
+        BG_CARD = "#12161F" # Dark Slate Card
+        BG_SURFACE = "#161B22"
         ACCENT_PRIMARY = p['primary']
         ACCENT_SECONDARY = p['secondary']
         TEXT_PRIMARY = "#E6EDF3"
         TEXT_SECONDARY = "#8B949E"
-        BORDER = "#30363D"
+        BORDER = "#232931" # Subtle, authoritative borders
 
         # Define high-end dark-theme styles
         styles.add(ParagraphStyle(
@@ -1795,10 +1799,15 @@ class PDFExporter:
             is_client_branded = False
 
         # --- KORUM BRANDING LOGO ---
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum_wordmark.png")
+        # Using the authoritative metal bird logo provided in assets
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "Screenshot 2026-03-18 154250.png")
+        if not os.path.exists(logo_path):
+            # Fallback to general korum_wordmark if screenshot is missing (though user confirms it exists)
+            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum_wordmark.png")
+            
         if os.path.exists(logo_path):
             from reportlab.platypus import Image as RLImage
-            logo_img = RLImage(logo_path, width=180, height=35)
+            logo_img = RLImage(logo_path, width=220, height=45) # Enlarged for impact
             logo_img.hAlign = 'CENTER'
             story.append(logo_img)
             story.append(Spacer(1, 8))
@@ -1874,9 +1883,12 @@ class PDFExporter:
             story.append(Paragraph(section_id.replace("_", " ").title(), styles['BrandedHeading1']))
             text = _clean_tags(_as_text(content))
             
+            # --- PDF LINE PARSER (Markdown + Structured Tables) ---
             lines = text.split("\n")
             in_table = False
             table_lines = []
+            structured_block = []
+            in_structured = False
             current_para = []
 
             def flush_para_pdf(para_lines, s):
@@ -1898,7 +1910,6 @@ class PDFExporter:
                 
                 if rows:
                     col_count = max(len(r) for r in rows)
-                    # Simple heuristic for column widths
                     cw = [512 / col_count] * col_count
                     t = Table(rows, colWidths=cw, repeatRows=1)
                     t.setStyle(TableStyle([
@@ -1912,8 +1923,48 @@ class PDFExporter:
                     s.append(t)
                     s.append(Spacer(1, 10))
 
+            def flush_structured_pdf(block, s):
+                content = "".join(block).replace("[STRUCTURED_TABLE]", "").replace("[/STRUCTURED_TABLE]", "").strip()
+                try:
+                    data = json.loads(content)
+                    if isinstance(data, list) and data:
+                        headers = list(data[0].keys())
+                        # Multi-line header paragraphs
+                        rows = [[Paragraph(f"<b>{h.upper()}</b>", tbl_hdr) for h in headers]]
+                        for item in data:
+                            rows.append([Paragraph(_as_text(item.get(h, "")), tbl_cell) for h in headers])
+                        
+                        col_count = len(headers)
+                        cw = [512 / col_count] * col_count
+                        t = Table(rows, colWidths=cw, repeatRows=1)
+                        t.setStyle(TableStyle([
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D1117")),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(ACCENT_PRIMARY)),
+                            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(BORDER)),
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor(BG_CARD), colors.HexColor(BG_SURFACE)])
+                        ]))
+                        s.append(t)
+                        s.append(Spacer(1, 10))
+                except Exception as e:
+                    print(f"Error parsing structured table in PDF: {e}")
+                    # Fallback: just render as text
+                    s.append(Paragraph(content, styles['SectionBody']))
+
             for line in lines:
-                if "|" in line:
+                if "[STRUCTURED_TABLE]" in line:
+                    flush_para_pdf(current_para, story)
+                    current_para = []
+                    in_structured = True
+                    structured_block = [line]
+                elif "[/STRUCTURED_TABLE]" in line:
+                    structured_block.append(line)
+                    flush_structured_pdf(structured_block, story)
+                    structured_block = []
+                    in_structured = False
+                elif in_structured:
+                    structured_block.append(line)
+                elif "|" in line:
                     if not in_table:
                         flush_para_pdf(current_para, story)
                         current_para = []
@@ -1930,7 +1981,8 @@ class PDFExporter:
                     else:
                         current_para.append(line)
             
-            if in_table: flush_table_pdf(table_lines, story)
+            if in_structured: flush_structured_pdf(structured_block, story)
+            elif in_table: flush_table_pdf(table_lines, story)
             else: flush_para_pdf(current_para, story)
 
         # --- STRUCTURED DATA TABLES (Metrics, Actions, Risks) ---
