@@ -2651,10 +2651,8 @@ def reasoning_chain():
             "constraints": res_map.get('anthropic', {}).get('response', "Extraction Failed"),
             "standard_solution": res_map.get('openai', {}).get('response', "Generation Failed"),
             "failure_analysis": res_map.get('google', {}).get('response', "Analysis Failed"),
-            "scout_intel": {
-                "perplexity": res_map.get('perplexity', {}).get('response') if res_map.get('perplexity', {}).get('success') else None,
-                "red_team": res_map.get('red_team', {}).get('response') if hacker_mode else None,
-            },
+            "scout_intel": res_map.get('perplexity', {}).get('response') if res_map.get('perplexity', {}).get('success') else None,
+            "exploit_poc": res_map.get('red_team', {}).get('response') if hacker_mode else None,
             "final_artifact": results.get('synthesis', {}).get('meta', {}).get('final_document') or results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
             "results": res_map,
             "synthesis": results.get('synthesis'),

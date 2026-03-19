@@ -1747,7 +1747,11 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
         
         history_text += f"\n### PHASE {i}: {phase_title}\n"
         history_text += f"AGENT: {entry['ai'].upper()} as {entry['persona'].upper()}\n"
-        history_text += f"RESPONSE:\n{entry['response']}\n"
+        # Cap each phase response to ~4000 chars to prevent synthesis prompt overflow
+        phase_response = entry.get('response', '') or ''
+        if len(phase_response) > 4000:
+            phase_response = phase_response[:4000] + "\n[... TRUNCATED FOR SYNTHESIS ...]"
+        history_text += f"RESPONSE:\n{phase_response}\n"
 
     # Inject divergence context if available
     if divergence_analysis and divergence_analysis.get('contested_topics'):
