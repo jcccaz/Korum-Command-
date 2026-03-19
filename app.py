@@ -184,7 +184,9 @@ def auth_required(f):
 def enforce_https():
     if os.getenv("FLASK_ENV") == "production":
         # Only enforce HTTPS if we are not on localhost (Railway/etc)
-        if request.headers.get("X-Forwarded-Proto", "http") == "http" and "localhost" not in request.host and "127.0.0.1" not in request.host:
+        # Check for both IPv4, IPv6, and hostname localhost to prevent local dev loops
+        is_local = any(h in request.host for h in ["localhost", "127.0.0.1", "::1"])
+        if request.headers.get("X-Forwarded-Proto", "http") == "http" and not is_local:
             url = request.url.replace("http://", "https://", 1)
             return jsonify({"error": "HTTPS required", "redirect": url}), 301
 

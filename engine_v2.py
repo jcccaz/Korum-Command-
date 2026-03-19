@@ -175,6 +175,33 @@ WORKFLOW_DNA = {
     }
 }
 
+# --- DETERMINISTIC PIPELINE REGISTRY (Locked Production Paths) ---
+# Maps workflows to a fixed list of [provider-role] steps.
+# This ensures that for any given workflow, the same AI roles and providers
+# are triggered in the same sequence every time.
+# Format: [Phase 0, Phase 1, Phase 2, Phase 3, Phase 4]
+WORKFLOW_STEPS = {
+    "WAR_ROOM": ["openai-commander", "anthropic-tactician", "google-analyst", "perplexity-scout", "mistral-integrator"],
+    "RESEARCH": ["openai-analyst", "anthropic-architect", "google-critic", "perplexity-scout", "mistral-validator"],
+    "FINANCE": ["openai-cfo", "anthropic-auditor", "google-quant", "perplexity-researcher", "mistral-compliance"],
+    "LEGAL": ["openai-counsel", "anthropic-analyst", "google-critic", "perplexity-researcher", "mistral-validator"],
+    "QUANTUM_SECURITY": ["openai-ciso", "anthropic-cryptographer", "google-security_auditor", "perplexity-threat_intel", "mistral-compliance"],
+    "MEDICAL": ["openai-physician", "anthropic-specialist", "google-researcher", "perplexity-clinical_scout", "mistral-compliance"],
+    "CYBER": ["openai-threat_analyst", "anthropic-architect", "google-red_team", "perplexity-threat_intel", "mistral-incident_lead"],
+    "DEFENSE": ["openai-intelligence_officer", "anthropic-strategist", "google-adversarial_analyst", "perplexity-field_scout", "mistral-commander"],
+    "STARTUP": ["openai-founder", "anthropic-advisor", "google-critic", "perplexity-market_scout", "mistral-strategist"],
+    "AUDIT": ["openai-auditor", "anthropic-compliance_lead", "google-skeptic", "perplexity-fact_checker", "mistral-validator"],
+    "CREATIVE": ["openai-creative_director", "anthropic-brand_strategist", "google-critic", "perplexity-cultural_scout", "mistral-copywriter"],
+    "SCIENCE": ["openai-principal_investigator", "anthropic-methodologist", "google-peer_reviewer", "perplexity-literature_scout", "mistral-statistician"],
+    "TECH": ["openai-cto", "anthropic-architect", "google-failure_analyst", "perplexity-tech_scout", "mistral-lead_engineer"],
+    "INTEL": ["openai-collection_manager", "anthropic-analyst", "google-counterintel", "perplexity-osint_scout", "mistral-intelligence_officer"],
+    "SYSTEM": ["openai-sre_lead", "anthropic-architect", "google-diagnostic_analyst", "perplexity-metrics_scout", "mistral-operations_lead"],
+    "SOCIAL_POST": ["openai-narrative_strategist", "anthropic-voice_analyst", "google-editor", "perplexity-trend_scout", "mistral-content_lead"],
+    "EOM_STATEMENT": ["openai-forensic_accountant", "anthropic-financial_analyst", "google-cfo", "perplexity-variance_analyst", "mistral-auditor"],
+    "PORTFOLIO_BUILDER": ["openai-macro_strategist", "anthropic-quant_analyst", "google-short_seller", "perplexity-risk_manager", "mistral-cio"],
+}
+
+
 # --- PHASE DIRECTIVES (Global Registry) ---
 # Directives are domain-adaptive: the structure stays constant but the
 # language flexes to match the actual query topic.
@@ -663,11 +690,49 @@ class CouncilContext:
             "timestamp": datetime.now().isoformat()
         })
 
-# --- PHASE 1: CLASSIFICATION (The Planner) ---
-def classify_query_v2(query, active_personas, active_models=None, previous_context=None, user_id=None):
-    if active_models is None:
-        active_models = ["openai", "anthropic", "google", "perplexity", "mistral"] # Default to cloud
+def classify_query_deterministic(workflow, active_models=None):
+    """Returns a locked, deterministic execution order for a workflow."""
+    if not active_models:
+        active_models = ["openai", "anthropic", "google", "perplexity", "mistral"]
+    
+    base_order = WORKFLOW_STEPS.get(workflow, WORKFLOW_STEPS["RESEARCH"])
+    locked_order = []
+    
+    # Map requested providers to active ones
+    for step in base_order:
+        provider, role = step.split('-', 1)
+        if provider in active_models:
+            locked_order.append(step)
+        else:
+            # Fallback logic: if a primary model is missing, use another available model to fill the role.
+            # This maintains the 5-phase structure even with limited models.
+            # Use available models in rotation to ensure diversity where possible.
+            fallback_idx = base_order.index(step) % len(active_models)
+            fallback_provider = active_models[fallback_idx]
+            locked_order.append(f"{fallback_provider}-{role}")
+            
+    return locked_order
 
+# --- PHASE 1: CLASSIFICATION (The Planner) ---
+def classify_query_v2(query, active_personas, active_models=None, previous_context=None, user_id=None, workflow="RESEARCH"):
+    if active_models is None:
+        active_models = ["openai", "anthropic", "google", "perplexity", "mistral"]
+
+    # --- PRODUCTION LOCK: Deterministic Path ---
+    # If the workflow is explicitly identified, return the locked pipeline immediately.
+    # This bypasses LLM planning for all standard workflows, ensuring perfect consistency.
+    if workflow in WORKFLOW_STEPS:
+        print(f"[PLANNER] LOCK ACTIVE: Using deterministic pipeline for {workflow}")
+        return {
+            "domain": workflow.lower(),
+            "intent": "analyze",
+            "complexity": "complex",
+            "outputType": "report",
+            "executionOrder": classify_query_deterministic(workflow, active_models),
+            "reasoning": f"Locked deterministic pipeline for production stability ({workflow})."
+        }
+
+    # --- DYNAMIC PATH: LLM-Based Classification (Fallback) ---
     available_list = ""
     for p in active_models:
         available_list += f"\n    - {p.capitalize()}: {active_personas.get(p, 'Analyst')}"
@@ -761,6 +826,7 @@ def classify_query_v2(query, active_personas, active_models=None, previous_conte
         "reasoning": "PRIMARY MODELS OFFLINE. Using Mixed Emergency Council.",
         "outputType": "report"
     }
+
 
 # --- PHASE 2: SEQUENTIAL EXECUTION (The Runner) ---
 # --- PHASE 8: AI ACCOUNTABILITY (The Enforcer) ---
@@ -892,7 +958,7 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             print(f"[LEDGER] Warning: {event_type} write failed: {e}")
 
     # 2. Plan
-    classification = classify_query_v2(query, active_personas, active_models=active_models, previous_context=previous_context, user_id=user_id)
+    classification = classify_query_v2(query, active_personas, active_models=active_models, previous_context=previous_context, user_id=user_id, workflow=workflow)
     context = CouncilContext(query, classification, workflow=workflow, session_id=session_id, run_id=run_id, previous_context=previous_context, user_id=user_id, ghost_map=ghost_map, residual_report=residual_report)
 
     # --- LEDGER: mission_created (context established for council execution) ---

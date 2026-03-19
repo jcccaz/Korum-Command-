@@ -1,0 +1,6 @@
+
+--- TEST: DETERMINISTIC CLASSIFICATION ---
+[PLANNER] LOCK ACTIVE: Using deterministic pipeline for FINANCE
+[PLANNER] LOCK ACTIVE: Using deterministic pipeline for FINANCE
+FINANCE Plan 1: ['openai-cfo', 'anthropic-auditor', 'google-quant', 'perplexity-researcher', 'mistral-compliance']
+FINANCE Plan 2: ['openai-cfo', 'anthropic-auditor', 'google-quant', 'perplexity-researcher', 'mistral-compliance']
