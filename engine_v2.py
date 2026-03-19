@@ -175,6 +175,36 @@ WORKFLOW_DNA = {
     }
 }
 
+# --- FINAL ARBITER: METRIC VOCABULARY (Section 8a Enforcement) ---
+# Maps common financial labels to canonical metric names.
+# The arbiter uses this to recognise the same concept across providers.
+METRIC_ALIASES = {
+    "revenue":    ["revenue", "total revenue", "gross revenue", "top-line", "top line", "sales", "total sales", "net sales"],
+    "costs":      ["costs", "total costs", "expenses", "total expenses", "operating costs", "opex", "cogs",
+                   "cost of goods sold", "operating expenses", "total operating costs"],
+    "profit":     ["profit", "net profit", "net income", "earnings", "operating profit", "ebitda",
+                   "gross profit", "operating income", "net earnings", "bottom line", "bottom-line"],
+    "margin":     ["margin", "profit margin", "net margin", "gross margin", "operating margin"],
+    "roi":        ["roi", "return on investment"],
+    "growth":     ["growth", "growth rate", "yoy growth", "year-over-year growth", "cagr", "revenue growth"],
+    "market_cap": ["market cap", "market capitalization", "valuation"],
+    "debt":       ["debt", "total debt", "liabilities", "total liabilities"],
+    "assets":     ["assets", "total assets"],
+    "equity":     ["equity", "total equity", "shareholders equity", "net worth", "book value"],
+    "cash_flow":  ["cash flow", "free cash flow", "fcf", "operating cash flow"],
+    "burn_rate":  ["burn rate", "monthly burn", "cash burn", "net burn"],
+    "runway":     ["runway", "cash runway", "months of runway"],
+}
+
+# Arithmetic identities the arbiter validates.
+# Format: (result_metric, operator, operand_a, operand_b)
+MATH_IDENTITIES = [
+    ("profit",  "subtract",    "revenue", "costs"),      # profit = revenue - costs
+    ("margin",  "divide_pct",  "profit",  "revenue"),    # margin = profit / revenue * 100
+    ("roi",     "divide_pct",  "profit",  "costs"),      # roi    = profit / costs   * 100
+    ("equity",  "subtract",    "assets",  "debt"),       # equity = assets - debt
+]
+
 # --- DETERMINISTIC PIPELINE REGISTRY (Locked Production Paths) ---
 # Maps workflows to a fixed list of [provider-role] steps.
 # This ensures that for any given workflow, the same AI roles and providers
@@ -922,6 +952,286 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
+# ===================================================================
+# FINAL ARBITER ENGINE — Mathematical Consistency Validation
+# Section 8a enforcement: deterministic, zero-LLM, regex-based.
+# ===================================================================
+
+def _resolve_canonical(label):
+    """Map a raw label string to a canonical metric name via METRIC_ALIASES."""
+    label_lower = label.lower().strip()
+    # Require the label to be at least 2 chars to avoid noise
+    if len(label_lower) < 2:
+        return None
+    for canonical, aliases in METRIC_ALIASES.items():
+        for alias in aliases:
+            if alias == label_lower or label_lower.endswith(alias) or alias.endswith(label_lower):
+                return canonical
+    return None
+
+
+# Regex: captures metric labels followed by monetary/percentage values.
+# Matches: "Revenue of $2.5M", "Net Profit: $700K", "ROI: 38.9%", "Total Costs — $1.8 million"
+_METRIC_PATTERN = re.compile(
+    r'(?P<label>[A-Za-z][A-Za-z\s\-/]{1,40}?)\s*'    # metric label (1-40 chars, starts with letter)
+    r'[:\-—=]+\s*'                                      # separator (colon, dash, equals)
+    r'(?P<sign>[-−])?'                                   # optional negative
+    r'\s*(?P<currency>\$|USD\s?)?'                       # optional currency
+    r'(?P<number>[\d,]+(?:\.\d+)?)'                      # the number (decimal only if digits follow dot)
+    r'\s*(?P<scale>(?:billion|million|thousand|[KkMmBb])(?:n)?|%)?',  # scale/unit (word boundary safe)
+    re.IGNORECASE
+)
+
+# Secondary pattern: "of $X", "is $X" style
+_METRIC_PATTERN_OF = re.compile(
+    r'(?P<label>[A-Za-z][A-Za-z\s\-/]{1,40}?)\s+'      # metric label
+    r'(?:of|is|was|at|equals?|totals?|reached)\s+'       # connector word
+    r'(?P<sign>[-−])?'
+    r'\s*(?P<currency>\$|USD\s?)?'
+    r'(?P<number>[\d,]+(?:\.\d+)?)'                      # the number (decimal only if digits follow dot)
+    r'\s*(?P<scale>(?:billion|million|thousand|[KkMmBb])(?:n)?|%)?',  # scale/unit
+    re.IGNORECASE
+)
+
+
+def extract_metrics(text, provider_name):
+    """
+    Extract numerical metric claims from provider text using regex.
+    Zero LLM cost, deterministic. Returns list of extraction dicts.
+    """
+    extractions = []
+    seen = set()  # dedup: (canonical, value) per provider
+
+    for pattern in (_METRIC_PATTERN, _METRIC_PATTERN_OF):
+        for match in pattern.finditer(text):
+            label = match.group('label').strip()
+            canonical = _resolve_canonical(label)
+            if not canonical:
+                continue
+
+            try:
+                raw_number = float(match.group('number').replace(',', ''))
+            except ValueError:
+                continue
+
+            scale = (match.group('scale') or '').lower()
+
+            # Apply scale multiplier
+            if scale.startswith('k') or scale.startswith('thousand'):
+                raw_number *= 1_000
+            elif scale.startswith('m') or scale.startswith('million'):
+                raw_number *= 1_000_000
+            elif scale.startswith('b') or scale.startswith('billion'):
+                raw_number *= 1_000_000_000
+            elif scale.startswith('t') and not scale.startswith('thousand'):
+                raw_number *= 1_000_000_000_000
+
+            if match.group('sign') in ('-', '−'):
+                raw_number = -raw_number
+
+            unit = "%" if scale == "%" else ("$" if match.group('currency') else "units")
+
+            # Dedup within same provider
+            dedup_key = (canonical, round(raw_number, 2))
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+
+            # Context snippet
+            start = max(0, match.start() - 50)
+            end = min(len(text), match.end() + 50)
+
+            extractions.append({
+                "provider": provider_name,
+                "metric_name": canonical,
+                "raw_label": label,
+                "value": raw_number,
+                "unit": unit,
+                "context_snippet": text[start:end].strip(),
+            })
+
+    return extractions
+
+
+def validate_math_identities(resolved_metrics):
+    """
+    Check arithmetic relationships between resolved metrics.
+    Returns list of violation dicts. Zero LLM cost.
+    """
+    violations = []
+    for (result_metric, op, operand_a, operand_b) in MATH_IDENTITIES:
+        if result_metric not in resolved_metrics:
+            continue
+        if operand_a not in resolved_metrics or operand_b not in resolved_metrics:
+            continue
+
+        a = resolved_metrics[operand_a]
+        b = resolved_metrics[operand_b]
+        stated = resolved_metrics[result_metric]
+
+        if op == "subtract":
+            computed = a - b
+        elif op == "divide_pct":
+            computed = (a / b * 100) if b != 0 else None
+        elif op == "add":
+            computed = a + b
+        else:
+            continue
+
+        if computed is None:
+            continue
+
+        # Tolerance: 2% of the expected value or $1000 (for dollar amounts), 2 points (for %)
+        if op == "divide_pct":
+            tolerance = max(abs(stated) * 0.02, 2.0)
+        else:
+            tolerance = max(abs(stated) * 0.02, 1000)
+
+        delta = abs(computed - stated)
+        if delta > tolerance:
+            violations.append({
+                "identity": f"{operand_a} {op} {operand_b} = {result_metric}",
+                "expected": round(stated, 2),
+                "computed": round(computed, 2),
+                "delta": round(delta, 2),
+                "corrected_values": {result_metric: round(computed, 2)},
+            })
+
+    return violations
+
+
+def final_arbiter(results, divergence=None):
+    """
+    FINAL ARBITER ENGINE — Mathematical consistency validation layer.
+    Runs AFTER divergence analysis, BEFORE synthesis.
+
+    1. Extracts numerical metrics from all provider outputs (regex, no LLM)
+    2. Detects cross-provider conflicts on the same metric (>5% spread)
+    3. Validates arithmetic identities (revenue - costs = profit, etc.)
+    4. Produces a resolution report + narrative directive for synthesis
+
+    Returns ArbiterReport dict. Non-destructive — never mutates provider data.
+    """
+    all_extractions = []
+
+    # Phase 1: Extract metrics from each provider
+    for provider, result in results.items():
+        if not isinstance(result, dict) or not result.get('success'):
+            continue
+        text = result.get('response', '')
+        if not text:
+            continue
+        extractions = extract_metrics(text, provider)
+        all_extractions.extend(extractions)
+
+    if not all_extractions:
+        return {
+            "status": "CLEAN",
+            "metric_inventory": {},
+            "conflicts": [],
+            "math_violations": [],
+            "resolved_metrics": {},
+            "narrative_directive": "",
+        }
+
+    # Phase 2: Group by canonical metric name
+    metric_inventory = {}
+    for ext in all_extractions:
+        name = ext['metric_name']
+        if name not in metric_inventory:
+            metric_inventory[name] = []
+        metric_inventory[name].append(ext)
+
+    # Phase 3: Detect conflicts and resolve
+    conflicts = []
+    resolved_metrics = {}
+
+    for metric_name, entries in metric_inventory.items():
+        # First occurrence per provider
+        provider_values = {}
+        for e in entries:
+            if e['provider'] not in provider_values:
+                provider_values[e['provider']] = e['value']
+
+        values = list(provider_values.values())
+        if len(values) == 0:
+            continue
+
+        if len(values) == 1:
+            resolved_metrics[metric_name] = values[0]
+            continue
+
+        spread = max(values) - min(values)
+        mean_val = sum(values) / len(values)
+        spread_pct = (spread / abs(mean_val) * 100) if mean_val != 0 else 0
+
+        if spread_pct > 5:
+            # Conflict: pick provider with highest truth_meter
+            best_provider = max(
+                provider_values.keys(),
+                key=lambda p: results.get(p, {}).get('truth_meter', 0)
+            )
+            conflicts.append({
+                "metric": metric_name,
+                "providers": provider_values,
+                "spread": round(spread, 2),
+                "spread_pct": round(spread_pct, 1),
+                "resolution": "HIGHEST_TRUTH",
+                "resolved_value": provider_values[best_provider],
+            })
+            resolved_metrics[metric_name] = provider_values[best_provider]
+        else:
+            # Within tolerance — use mean
+            resolved_metrics[metric_name] = round(mean_val, 2)
+
+    # Phase 4: Validate arithmetic identities
+    math_violations = validate_math_identities(resolved_metrics)
+
+    # Override resolved values with computed (math wins)
+    for v in math_violations:
+        for metric_name, corrected_val in v['corrected_values'].items():
+            resolved_metrics[metric_name] = corrected_val
+            for c in conflicts:
+                if c['metric'] == metric_name:
+                    c['resolution'] = "MATH_DERIVED"
+                    c['resolved_value'] = corrected_val
+
+    # Phase 5: Build narrative directive for synthesis
+    status = "CLEAN"
+    directive_parts = []
+
+    if conflicts:
+        status = "CONFLICTS_DETECTED"
+        directive_parts.append("⚠ NUMERICAL CONFLICTS DETECTED — use ONLY these resolved values:")
+        for c in conflicts:
+            prov_str = ", ".join(f"{p}={v}" for p, v in c['providers'].items())
+            directive_parts.append(
+                f"  • {c['metric'].upper()}: USE {c['resolved_value']} "
+                f"(providers disagreed: {prov_str} — resolved via {c['resolution']})"
+            )
+
+    if math_violations:
+        status = "MATH_VIOLATIONS"
+        directive_parts.append("⚠ ARITHMETIC VIOLATIONS CORRECTED:")
+        for v in math_violations:
+            directive_parts.append(
+                f"  • {v['identity']}: stated={v['expected']}, computed={v['computed']}. "
+                f"USE the computed value."
+            )
+
+    if not conflicts and not math_violations:
+        directive_parts.append("All numerical metrics are consistent across providers. No corrections needed.")
+
+    return {
+        "status": status,
+        "metric_inventory": {k: len(v) for k, v in metric_inventory.items()},  # counts only (keep payload small)
+        "conflicts": conflicts,
+        "math_violations": math_violations,
+        "resolved_metrics": resolved_metrics,
+        "narrative_directive": "\n".join(directive_parts),
+    }
+
+
 # Falcon-token sanitizer — strips hallucinated redaction placeholders when Falcon is OFF.
 # Matches patterns like [CURRENCY_AMOUNT_A1B2C3], [ORG_5D0176], [PERSON_622F9F], etc.
 # Does NOT touch legitimate system tags ([METRIC_ANCHOR], [RISK_VECTOR], etc.).
@@ -1205,6 +1515,21 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
         divergence = _empty_divergence(f"Execution failed: {str(e)}")
         # Don't return yet — allow the finalizer pass to attempt an emergency synthesis if results exist
 
+    # 3b. FINAL ARBITER — Mathematical Consistency (Section 8a)
+    print("[COUNCIL] Final Arbiter: Validating numerical consistency...")
+    try:
+        arbiter_report = final_arbiter(results, divergence)
+        if arbiter_report['status'] != "CLEAN":
+            print(f"[ARBITER] Status: {arbiter_report['status']} | "
+                  f"Conflicts: {len(arbiter_report['conflicts'])} | "
+                  f"Math violations: {len(arbiter_report['math_violations'])}")
+        else:
+            print(f"[ARBITER] Status: CLEAN — no numerical inconsistencies detected.")
+    except Exception as arb_error:
+        print(f"[ARBITER ERROR] Non-blocking: {arb_error}")
+        arbiter_report = {"status": "ERROR", "narrative_directive": "", "conflicts": [],
+                          "math_violations": [], "resolved_metrics": {}, "metric_inventory": {}}
+
     # 4. Hidden Finalizer Pass (Section 10 Directive)
     # If Mistral is present, it acts as a non-visible Finalizer to unify tone.
     finalizer_response = None
@@ -1248,7 +1573,7 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
 
     # 5. Synthesis (Final Guard)
     try:
-        synthesis = synthesize_results(context, divergence_analysis=divergence, user_id=user_id)
+        synthesis = synthesize_results(context, divergence_analysis=divergence, arbiter_report=arbiter_report, user_id=user_id)
 
         # --- FINAL RENDERING NORMALIZATION (Section 6 Directive) ---
         if isinstance(synthesis, dict):
@@ -1316,6 +1641,7 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
         "classification": classification,
         "synthesis": synthesis,
         "divergence": divergence,
+        "arbiter": arbiter_report,
         "metrics": {
             "run_id": run_id,
             "session_id": session_id,
@@ -1734,7 +2060,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     return prompt
 
 # --- PHASE 4: SYNTHESIS (The Extractor) ---
-def synthesize_results(context, divergence_analysis=None, user_id=None):
+def synthesize_results(context, divergence_analysis=None, arbiter_report=None, user_id=None):
     """
     Extracts structured data (JSON) from the conversation history.
     Now includes divergence analysis for calibrated synthesis.
@@ -1776,6 +2102,17 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
             history_text += f"\nCONTESTED: {topic.get('topic', '')} (Severity: {topic.get('severity', 'unknown')})\n"
             for pos in topic.get('positions', []):
                 history_text += f"  - {pos.get('provider', '').upper()}: {pos.get('position', '')}\n"
+
+    # Inject arbiter corrections if available (Section 8a — mathematical consistency)
+    if arbiter_report and arbiter_report.get('narrative_directive'):
+        history_text += "\n\n[FINAL ARBITER — NUMERICAL CONSISTENCY LAYER]:\n"
+        history_text += f"Status: {arbiter_report.get('status', 'N/A')}\n"
+        history_text += arbiter_report['narrative_directive'] + "\n"
+        history_text += (
+            "\nCRITICAL: The above numerical values have been mathematically validated. "
+            "You MUST use the resolved values in your synthesis. Do NOT use conflicting "
+            "values from individual providers if they contradict the arbiter's resolved figures.\n"
+        )
 
     schema_sections = {section.lower().replace(" ", "_"): "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations." for section in dna["output_structure"]}
 
