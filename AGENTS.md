@@ -6,6 +6,7 @@ This repository uses a strict execution protocol for coding tasks.
 
 - Do one job at a time.
 - If a request contains multiple implementation jobs, split them into separate tasks and complete only one unless the user explicitly authorizes bundling.
+- **KORUM-OS Boundary**: When discussing KORUM-OS, stick strictly to the established color palettes and UI guidelines. Do not suggest layout changes unless specifically asked for a redesign. Avoid "over-eager" visual overhauls.
 - Treat these as separate jobs, not one combined change:
   - wire dock button
   - render docked chart

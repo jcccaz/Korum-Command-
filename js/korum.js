@@ -1936,6 +1936,7 @@ function setupActionBindings() {
         // Clear stored data
         lastCouncilData = null;
         lastQueryText = '';
+        if (typeof ResearchDock !== 'undefined' && ResearchDock.clear) ResearchDock.clear();
         initializeMissionSurface();
         logTelemetry("Session Reset — Ready for new query", "system");
     });
@@ -2234,6 +2235,11 @@ async function triggerCouncil(query) {
 
     // Store original query for display
     sessionState.originalQuery = query;
+
+    // Clear previous Artifact Dock state
+    if (typeof ResearchDock !== 'undefined' && ResearchDock.clear) {
+        ResearchDock.clear();
+    }
 
     // Use Context Injection
     const contextQuery = injectMissionContext(query);
