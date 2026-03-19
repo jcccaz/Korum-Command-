@@ -1830,13 +1830,28 @@ def synthesize_results(context, divergence_analysis=None, user_id=None):
     try:
         # Extract models from context
         models_used = [f"{entry['ai']} ({entry['persona']})" for entry in context.history]
-        
+        print(f"[SYNTHESIS] Prompt size: {len(prompt)} chars (~{len(prompt)//4} tokens). Calling GPT-4o...")
         resp = call_openai_gpt4(prompt, "Synthesizer", user_id=user_id)
         if not resp.get('success'):
             print(f"[SYNTHESIS] OpenAI failed: {resp.get('response', 'Unknown error')}")
             return {"executive_summary": "Synthesis unavailable", "meta": {"models_used": [], "truth_score": 0}}
         content = resp['response'].replace('```json', '').replace('```', '').strip()
-        data = json.loads(content)
+        print(f"[SYNTHESIS] GPT-4o responded ({len(content)} chars). Parsing JSON...")
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as je:
+            print(f"[SYNTHESIS] JSON parse failed: {je}. Attempting repair...")
+            # Try to find the last valid closing brace
+            last_brace = content.rfind('}')
+            if last_brace > 0:
+                try:
+                    data = json.loads(content[:last_brace + 1])
+                    print("[SYNTHESIS] JSON repaired via truncation.")
+                except json.JSONDecodeError:
+                    print("[SYNTHESIS] Repair failed. Returning fallback.")
+                    return {"meta": {"models_used": models_used, "summary": "Synthesis JSON was malformed", "workflow": context.workflow}, "sections": {}, "structured_data": {}}
+            else:
+                return {"meta": {"models_used": models_used, "summary": "Synthesis returned no valid JSON", "workflow": context.workflow}, "sections": {}, "structured_data": {}}
         
         # Inject metadata if missing or simplified
         if "meta" not in data:
