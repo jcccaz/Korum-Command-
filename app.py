@@ -8,6 +8,7 @@ import json
 import time
 import logging
 import secrets
+import copy
 from datetime import datetime
 from functools import wraps
 import requests
@@ -2643,6 +2644,69 @@ def reasoning_chain():
             if isinstance(syn, dict) and syn.get('meta', {}).get('final_document'):
                 syn['meta']['final_document'] = falcon_rehydrate(syn['meta']['final_document'], _falcon_placeholder_map)
 
+        def _trim_text(value, max_chars=320):
+            if not isinstance(value, str):
+                return value
+            value = value.strip()
+            if len(value) <= max_chars:
+                return value
+            return value[:max_chars].rstrip() + "..."
+
+        def _slim_verified_claims(claims, limit=12):
+            slim_claims = []
+            for claim in (claims or [])[:limit]:
+                if not isinstance(claim, dict):
+                    continue
+                slim_claims.append({
+                    "claim": _trim_text(claim.get("claim", ""), 240),
+                    "status": claim.get("status", "UNVERIFIED"),
+                    "score": claim.get("score", 50),
+                    "type": claim.get("type", "claim"),
+                    "anchors": list(claim.get("anchors", [])[:4]),
+                    "violations": [_trim_text(v, 200) for v in claim.get("violations", [])[:3]]
+                })
+            return slim_claims
+
+        def _slim_result_map(raw_results):
+            slim_results = {}
+            for provider_key, provider_result in (raw_results or {}).items():
+                if not isinstance(provider_result, dict):
+                    continue
+                slim_entry = {
+                    "success": bool(provider_result.get("success", False)),
+                    "truth_meter": provider_result.get("truth_meter", 50),
+                    "contribution_score": provider_result.get("contribution_score", 0),
+                }
+                model_name = provider_result.get("model")
+                if isinstance(model_name, str) and model_name.strip():
+                    slim_entry["model"] = model_name.strip()
+                usage = provider_result.get("usage")
+                if isinstance(usage, dict):
+                    slim_entry["usage"] = {
+                        "cost": usage.get("cost", 0),
+                        "latency": usage.get("latency", 0),
+                        "input": usage.get("input", 0),
+                        "output": usage.get("output", 0),
+                    }
+                verified_claims = provider_result.get("verified_claims")
+                if isinstance(verified_claims, list) and verified_claims:
+                    slim_entry["verified_claims"] = _slim_verified_claims(verified_claims)
+                slim_results[provider_key] = slim_entry
+            return slim_results
+
+        def _prepare_frontend_synthesis(raw_synthesis):
+            if not isinstance(raw_synthesis, dict):
+                return raw_synthesis
+            synthesis_copy = copy.deepcopy(raw_synthesis)
+            meta = synthesis_copy.get("meta")
+            if isinstance(meta, dict) and "finalizer_review" in meta:
+                meta.pop("finalizer_review", None)
+                print("[V2 CHAIN] Removed hidden finalizer_review from frontend payload.")
+            return synthesis_copy
+
+        frontend_results = _slim_result_map(res_map)
+        frontend_synthesis = _prepare_frontend_synthesis(results.get('synthesis'))
+
         # Helper to safely get metrics
         def _f_metric(provider_key):
             return res_map.get(provider_key, {}).get('usage', {})
@@ -2654,8 +2718,8 @@ def reasoning_chain():
             "scout_intel": res_map.get('perplexity', {}).get('response') if res_map.get('perplexity', {}).get('success') else None,
             "exploit_poc": res_map.get('red_team', {}).get('response') if hacker_mode else None,
             "final_artifact": results.get('synthesis', {}).get('meta', {}).get('final_document') or results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
-            "results": res_map,
-            "synthesis": results.get('synthesis'),
+            "results": frontend_results,
+            "synthesis": frontend_synthesis,
             "metrics": {
                 "deconstruct": {"cost": _f_metric('anthropic').get('cost', 0.0), "time": _f_metric('anthropic').get('latency', 0) / 1000},
                 "build": {"cost": _f_metric('openai').get('cost', 0.0), "time": _f_metric('openai').get('latency', 0) / 1000},
@@ -2694,7 +2758,9 @@ def reasoning_chain():
             db.session.commit()
             print(f"🐟 GOLDFISH: Purged extracted text from {len(_vault_doc_ids_used)} vault doc(s)")
 
-        return jsonify(response_data)
+        response_json = json.dumps(response_data)
+        print(f"[V2 CHAIN] Frontend response size: {len(response_json.encode('utf-8'))} bytes")
+        return app.response_class(response=response_json, status=200, mimetype='application/json')
 
     except Exception as e:
         print(f"❌ V2 Chain Error: {e}")
