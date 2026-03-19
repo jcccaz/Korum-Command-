@@ -2758,12 +2758,50 @@ def reasoning_chain():
             db.session.commit()
             print(f"🐟 GOLDFISH: Purged extracted text from {len(_vault_doc_ids_used)} vault doc(s)")
 
-        response_json = json.dumps(response_data)
-        print(f"[V2 CHAIN] Frontend response size: {len(response_json.encode('utf-8'))} bytes")
-        return app.response_class(response=response_json, status=200, mimetype='application/json')
+        # --- DIAGNOSTIC: Log component sizes before serialization ---
+        import sys
+        _pr = pipeline_result
+        _component_sizes = {
+            "constraints": len((_pr.get("constraints") or "").encode("utf-8")),
+            "standard_solution": len((_pr.get("standard_solution") or "").encode("utf-8")),
+            "failure_analysis": len((_pr.get("failure_analysis") or "").encode("utf-8")),
+            "scout_intel": len((_pr.get("scout_intel") or "").encode("utf-8")),
+            "final_artifact": len((_pr.get("final_artifact") or "").encode("utf-8")),
+            "synthesis": len(json.dumps(_pr.get("synthesis") or {}).encode("utf-8")),
+            "results": len(json.dumps(_pr.get("results") or {}).encode("utf-8")),
+        }
+        _total_est = sum(_component_sizes.values())
+        print(f"[V2 DIAG] Payload component sizes: {_component_sizes}")
+        print(f"[V2 DIAG] Estimated total payload: {_total_est:,} bytes ({_total_est / 1024:.1f} KB)")
+        sys.stdout.flush()
+
+        # --- Serialize ---
+        print("[V2 DIAG] Starting json.dumps...")
+        sys.stdout.flush()
+        try:
+            response_json = json.dumps(response_data)
+        except (TypeError, ValueError) as json_err:
+            print(f"❌ [V2 DIAG] json.dumps FAILED: {json_err}")
+            sys.stdout.flush()
+            return jsonify({"success": False, "error": f"Response serialization failed: {json_err}"}), 500
+
+        _resp_bytes = len(response_json.encode('utf-8'))
+        print(f"[V2 DIAG] json.dumps OK — {_resp_bytes:,} bytes ({_resp_bytes / 1024:.1f} KB)")
+        sys.stdout.flush()
+
+        # --- Send ---
+        print("[V2 DIAG] Sending response...")
+        sys.stdout.flush()
+        resp = app.response_class(response=response_json, status=200, mimetype='application/json')
+        print("[V2 DIAG] Response object created, returning to client.")
+        sys.stdout.flush()
+        return resp
 
     except Exception as e:
+        import traceback
         print(f"❌ V2 Chain Error: {e}")
+        traceback.print_exc()
+        sys.stdout.flush()
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/enhance_prompt', methods=['POST'])

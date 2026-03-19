@@ -2344,14 +2344,34 @@ async function executeReasoningChain(query) {
     setMissionStep(2, 'complete');
     setMissionStep(3, 'processing');
 
-    const response = await authFetch('/api/v2/reasoning_chain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }, 300000);  // 5 min — V2 sequential pipeline needs more than default 120s
+    let response;
+    try {
+        response = await authFetch('/api/v2/reasoning_chain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }, 300000);  // 5 min — V2 sequential pipeline needs more than default 120s
+    } catch (fetchErr) {
+        // Transport-level failure: connection reset, network error, timeout
+        const msg = fetchErr.message || '';
+        if (msg.includes('timed out')) {
+            throw new Error('TIMEOUT: The council pipeline exceeded 5 minutes. Check server logs for which phase stalled.');
+        }
+        throw new Error(`CONNECTION LOST: Server dropped the connection during processing. This usually means the backend crashed or the response was too large. (${msg})`);
+    }
 
-    if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
-    const data = await response.json();
+    if (!response.ok) {
+        let errDetail = `HTTP ${response.status}`;
+        try { const errBody = await response.json(); errDetail = errBody.error || errDetail; } catch (_) {}
+        throw new Error(`SERVER ERROR: ${errDetail}`);
+    }
+
+    let data;
+    try {
+        data = await response.json();
+    } catch (parseErr) {
+        throw new Error('PARSE ERROR: Server returned a response but it was not valid JSON. The response may have been truncated.');
+    }
 
     if (data.success) {
         renderChainResults(data.pipeline_result);
@@ -6471,9 +6491,26 @@ function formatText(text) {
 }
 function showErrorCard(msg) {
     logTelemetry(`System error: ${msg}`, "error");
-    const safeMsg = "The council encountered an issue processing your query. Please try again or adjust your input.";
+    // Classify the error for the operator
+    let errorType = 'SYSTEM ERROR';
+    let displayMsg = msg || 'Unknown error';
+    if (msg.startsWith('TIMEOUT:')) {
+        errorType = 'TIMEOUT';
+        displayMsg = msg.substring(9);
+    } else if (msg.startsWith('CONNECTION LOST:')) {
+        errorType = 'CONNECTION LOST';
+        displayMsg = msg.substring(17);
+    } else if (msg.startsWith('PARSE ERROR:')) {
+        errorType = 'RESPONSE CORRUPT';
+        displayMsg = msg.substring(13);
+    } else if (msg.startsWith('SERVER ERROR:')) {
+        errorType = 'SERVER ERROR';
+        displayMsg = msg.substring(14);
+    }
+    // Escape HTML to prevent injection
+    const safeDisplay = displayMsg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const container = document.getElementById('pane-council') || document.querySelector(".results-content");
-    container.innerHTML = `<div class="consensus-card" style="border-color: red;"><div class="consensus-title" style="color:red;">SYSTEM ERROR</div><div class="consensus-body">${safeMsg}</div></div>`;
+    container.innerHTML = `<div class="consensus-card" style="border-color: red;"><div class="consensus-title" style="color:red;">${errorType}</div><div class="consensus-body">${safeDisplay}</div></div>`;
     document.querySelector(".results-container").classList.add("visible");
     switchDockTab('council');
 }
