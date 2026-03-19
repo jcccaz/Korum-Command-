@@ -1249,32 +1249,30 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
     # 5. Synthesis (Final Guard)
     try:
         synthesis = synthesize_results(context, divergence_analysis=divergence, user_id=user_id)
-        
+
         # --- FINAL RENDERING NORMALIZATION (Section 6 Directive) ---
         if isinstance(synthesis, dict):
             for s_id, s_content in synthesis.get('sections', {}).items():
                 if isinstance(s_content, str):
                     synthesis['sections'][s_id] = normalization_layer(s_content)
-            
+
             meta = synthesis.get('meta', {})
             if isinstance(meta, dict):
                 if meta.get('summary') and isinstance(meta.get('summary'), str):
                     meta['summary'] = normalization_layer(meta['summary'])
                 if meta.get('final_document') and isinstance(meta.get('final_document'), str):
                     meta['final_document'] = normalization_layer(meta['final_document'])
-            
+
             if finalizer_response:
                 if "meta" not in synthesis: synthesis["meta"] = {}
                 synthesis["meta"]["finalizer_review"] = finalizer_response
-                
-        return synthesis
+
     except Exception as syn_e:
         print(f"[SYNTHESIS CRASH] {syn_e}")
-        return {
+        synthesis = {
             "success": False,
             "error": str(syn_e),
             "meta": {"workflow": workflow if 'workflow' in locals() else "UNKNOWN"},
-            "results": results
         }
 
     # --- LEDGER: council_synthesis ---
@@ -1289,22 +1287,14 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
     })
 
     # --- CONTRIBUTION SCORING ---
-    # Derived from: token share + used in synthesis + truth score
     total_out_tokens = sum(r['usage'].get('output', 0) for r in results.values() if 'usage' in r)
     for p, r in results.items():
-        if not r.get('success'): 
+        if not r.get('success'):
             r['contribution_score'] = 0
             continue
-        
-        # Token share (40%)
         token_share = (r['usage'].get('output', 0) / total_out_tokens * 100) if total_out_tokens > 0 else 0
-        
-        # Truth score (40%)
         truth_contribution = r.get('truth_meter', 50)
-        
-        # Used in synthesis/verif (20%) - simplified for now: if they had verified claims
         verif_bonus = 20 if r.get('verified_claims') else 0
-        
         r['contribution_score'] = int((token_share * 0.4) + (truth_contribution * 0.4) + verif_bonus)
         r['contribution_score'] = max(0, min(100, r['contribution_score']))
 
