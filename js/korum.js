@@ -2501,6 +2501,7 @@ function renderChainResults(result) {
         { label: 'DECONSTRUCTION', content: result.constraints, metric: result.metrics?.deconstruct, provider: 'anthropic' },
         { label: 'ARCHITECTURE', content: result.standard_solution, metric: result.metrics?.build, provider: 'openai' },
         { label: 'STRESS TEST', content: result.failure_analysis, metric: result.metrics?.stress, provider: 'google' },
+        { label: 'SCOUT RECON', content: result.scout_intel, metric: result.metrics?.scout, provider: 'perplexity' },
         { label: 'EXECUTION', content: result.final_artifact, metric: result.metrics?.synthesize, provider: 'openai' }
     ];
     phases.forEach(p => {
@@ -2530,14 +2531,14 @@ function renderChainResults(result) {
     // Helper to create phase cards
     const createCard = (title, model, content, phase, metricData) => {
         const card = document.createElement("div");
-        card.className = `agent-card ${model.toLowerCase().includes('gpt') ? 'openai' : model.toLowerCase().includes('claude') ? 'anthropic' : 'google'}`;
+        card.className = `agent-card ${model.toLowerCase().includes('gpt') ? 'openai' : model.toLowerCase().includes('claude') ? 'anthropic' : model.toLowerCase().includes('perplexity') || model.toLowerCase().includes('sonar') ? 'perplexity' : 'google'}`;
         card.dataset.name = title;
         card.dataset.meta = `<div class="agent-meta"><span>${phase}</span><span>${model}</span></div>`;
         card.dataset.rawContent = encodeURIComponent(content);
 
         const formattedRaw = formatV2Content(content, phase);
 
-        const modelToProvider = { 'claude': 'anthropic', 'gpt': 'openai', 'gemini': 'google', 'mistral': 'mistral', 'oracle': 'local' };
+        const modelToProvider = { 'claude': 'anthropic', 'gpt': 'openai', 'gemini': 'google', 'perplexity': 'perplexity', 'sonar': 'perplexity', 'mistral': 'mistral', 'oracle': 'local' };
         const providerKey = Object.keys(modelToProvider).find(k => model.toLowerCase().includes(k));
         const res = result.results ? result.results[modelToProvider[providerKey]] : null;
         const verifiedClaims = res?.verified_claims || [];
@@ -2599,8 +2600,13 @@ function renderChainResults(result) {
         grid.appendChild(createCard("PHASE 3.5: RED TEAM", "Gemini Flash", result.exploit_poc, "EXPLOIT GENERATION", result.metrics?.hacker));
     }
 
-    // 4. Execution (GPT-4o) - formerly Synthesis
-    grid.appendChild(createCard("PHASE 4: EXECUTION", "GPT-4o General", result.final_artifact, "EXECUTIVE DIRECTIVE", result.metrics?.synthesize));
+    // 4. Scout Intel (Perplexity)
+    if (result.scout_intel) {
+        grid.appendChild(createCard("PHASE 4: SCOUT RECON", "Perplexity Sonar", result.scout_intel, "LIVE INTELLIGENCE", result.metrics?.scout));
+    }
+
+    // 5. Execution (GPT-4o) - formerly Synthesis
+    grid.appendChild(createCard("PHASE 5: EXECUTION", "GPT-4o General", result.final_artifact, "EXECUTIVE DIRECTIVE", result.metrics?.synthesize));
 
     councilPane.appendChild(grid);
     document.querySelector(".results-container").classList.add("visible");
@@ -2635,6 +2641,7 @@ function renderChainResults(result) {
     if (result.constraints) sessionState.lastResponses['anthropic'] = result.constraints;
     if (result.standard_solution) sessionState.lastResponses['openai'] = result.standard_solution;
     if (result.failure_analysis) sessionState.lastResponses['google'] = result.failure_analysis;
+    if (result.scout_intel) sessionState.lastResponses['perplexity'] = result.scout_intel;
     if (result.final_artifact) sessionState.lastResponses['openai_exec'] = result.final_artifact;
 
     logTelemetry("Pipeline Execution Complete.", "system");
