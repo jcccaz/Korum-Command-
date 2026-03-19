@@ -579,67 +579,95 @@ class WordExporter:
             WordExporter._add_branded_heading(doc, section_id.replace("_", " ").title())
             
             text = _clean_tags(_as_text(content))
-            # New: Detect and render markdown tables vs paragraphs
-            lines = text.split("\n")
-            in_table = False
-            table_lines = []
+            # --- Render Layer (Section 6) ---
+            # Detect and render [STRUCTURED_TABLE] JSON (Normalization Layer)
+            # as well as residual Markdown tables (for legacy/backfill support)
             
-            def flush_para(para_lines):
-                p_text = " ".join(l.strip() for l in para_lines if l.strip())
-                if p_text:
-                    doc.add_paragraph(p_text)
+            # 1. First, handle [STRUCTURED_TABLE] blocks
+            json_tables = re.findall(r'\[STRUCTURED_TABLE\](.*?)\[/STRUCTURED_TABLE\]', text, re.DOTALL)
+            remaining_text = re.sub(r'\[STRUCTURED_TABLE\].*?\[/STRUCTURED_TABLE\]', '@@TABLE_PLACEHOLDER@@', text, flags=re.DOTALL)
             
-            def flush_table(t_lines):
-                rows = []
-                for l in t_lines:
-                    if "|" in l:
-                        # Split by pipe, remove empty outer columns if they exist
-                        cells = [c.strip() for c in l.split("|")]
-                        if not cells[0]: cells = cells[1:]
-                        if not cells[-1]: cells = cells[:-1]
-                        # Skip separators
-                        if all(c.replace("-", "").replace(":", "").replace(" ", "") == "" for c in cells):
-                            continue
-                        rows.append(cells)
+            parts = remaining_text.split('@@TABLE_PLACEHOLDER@@')
+            for i, part in enumerate(parts):
+                # Process regular text part (split by lines for internal markdown table check)
+                lines = part.split("\n")
+                in_md_table = False
+                md_table_lines = []
                 
-                if rows:
-                    cols = max(len(r) for r in rows)
-                    table = doc.add_table(rows=len(rows), cols=cols)
-                    table.autofit = True
-                    for i, r_cells in enumerate(rows):
-                        for j, c_text in enumerate(r_cells):
-                            if j < len(table.rows[i].cells):
-                                table.rows[i].cells[j].text = c_text
+                def flush_para(para_lines):
+                    p_text = " ".join(l.strip() for l in para_lines if l.strip())
+                    if p_text:
+                        doc.add_paragraph(p_text)
+                
+                def flush_md_table(t_lines):
+                    rows = []
+                    for l in t_lines:
+                        if "|" in l:
+                            cells = [c.strip() for c in l.split("|")]
+                            if not cells[0]: cells = cells[1:]
+                            if not cells[-1]: cells = cells[:-1]
+                            if all(c.replace("-", "").replace(":", "").replace(" ", "") == "" for c in cells):
+                                continue
+                            rows.append(cells)
                     
-                    WordExporter._style_header_row(table.rows[0])
-                    for i in range(1, len(table.rows)):
-                        WordExporter._style_data_row(table.rows[i], i-1)
-                    doc.add_paragraph() # Spacer after table
-            
-            current_para = []
-            for line in lines:
-                if "|" in line:
-                    if not in_table:
-                        # Flush previous paragraph
-                        flush_para(current_para)
-                        current_para = []
-                        in_table = True
-                    table_lines.append(line)
-                else:
-                    if in_table:
-                        # Flush table
-                        flush_table(table_lines)
-                        table_lines = []
-                        in_table = False
-                    if not line.strip():
-                        flush_para(current_para)
-                        current_para = []
+                    if rows:
+                        cols = max(len(r) for r in rows)
+                        table = doc.add_table(rows=len(rows), cols=cols)
+                        table.autofit = True
+                        for r_idx, r_cells in enumerate(rows):
+                            for c_idx, c_text in enumerate(r_cells):
+                                if c_idx < len(table.rows[r_idx].cells):
+                                    table.rows[r_idx].cells[c_idx].text = c_text
+                        
+                        WordExporter._style_header_row(table.rows[0])
+                        for r_idx in range(1, len(table.rows)):
+                            WordExporter._style_data_row(table.rows[r_idx], r_idx-1)
+                        doc.add_paragraph()
+                
+                current_para = []
+                for line in lines:
+                    if "|" in line:
+                        if not in_md_table:
+                            flush_para(current_para)
+                            current_para = []
+                            in_md_table = True
+                        md_table_lines.append(line)
                     else:
-                        current_para.append(line)
-            
-            # Final flush
-            if in_table: flush_table(table_lines)
-            else: flush_para(current_para)
+                        if in_md_table:
+                            flush_md_table(md_table_lines)
+                            md_table_lines = []
+                            in_md_table = False
+                        if not line.strip():
+                            flush_para(current_para)
+                            current_para = []
+                        else:
+                            current_para.append(line)
+                
+                if in_md_table: flush_md_table(md_table_lines)
+                else: flush_para(current_para)
+
+                # Now insert the [STRUCTURED_TABLE] that goes between parts
+                if i < len(json_tables):
+                    try:
+                        table_data = json.loads(json_tables[i])
+                        if table_data and isinstance(table_data, list):
+                            headers = list(table_data[0].keys())
+                            table = doc.add_table(rows=len(table_data) + 1, cols=len(headers))
+                            table.autofit = True
+                            
+                            # Header
+                            for col_idx, h in enumerate(headers):
+                                table.rows[0].cells[col_idx].text = h.title()
+                            WordExporter._style_header_row(table.rows[0])
+                            
+                            # Data
+                            for row_idx, row_dict in enumerate(table_data):
+                                for col_idx, h in enumerate(headers):
+                                    table.rows[row_idx + 1].cells[col_idx].text = str(row_dict.get(h, ""))
+                                WordExporter._style_data_row(table.rows[row_idx + 1], row_idx)
+                            doc.add_paragraph()
+                    except Exception as e:
+                        print(f"[DOCX EXPORT ERROR] Failed to parse structured table: {e}")
             
             WordExporter._add_section_divider(doc)
 
@@ -1420,13 +1448,35 @@ class ExcelExporter:
                 _sanitize_for_csv(", ".join(meta.get("models_used", [])) if isinstance(meta.get("models_used"), list) else _as_text(meta.get("models_used", ""))),
             ]
         )
-        ws_meta.append(["Summary", _sanitize_for_csv(meta.get("summary", ""))])
+        ws_meta.append(["Status", "SUCCESS"])
 
-        # ── SECTIONS SHEET ──
-        ws_sections = wb.create_sheet("Sections")
-        ws_sections.append(["Section", "Content"])
+        # ── STRUCTURED TABLES EXTRACTED FROM SECTIONS ──
+        # Section 7: No narrative or mixed content in Excel. Extract ONLY tables.
         for section_id, content in sections.items():
-            ws_sections.append([section_id.replace("_", " ").title(), _sanitize_for_csv(content)])
+            content_str = _as_text(content)
+            # Find [STRUCTURED_TABLE]{...}[/STRUCTURED_TABLE] blocks
+            table_matches = re.findall(r'\[STRUCTURED_TABLE\](.*?)\[/STRUCTURED_TABLE\]', content_str, re.DOTALL)
+            
+            for i, table_json in enumerate(table_matches):
+                try:
+                    table_data = json.loads(table_json)
+                    sheet_name = f"{section_id[:20]}_{i+1}"
+                    ws_new = wb.create_sheet(sheet_name)
+                    
+                    if table_data and isinstance(table_data, list):
+                        headers = list(table_data[0].keys())
+                        ws_new.append(headers)
+                        # Style header
+                        for cell in ws_new[1]:
+                            cell.fill = header_fill
+                            cell.font = header_font
+                        
+                        for row_dict in table_data:
+                            ws_new.append([_sanitize_for_csv(row_dict.get(h, "")) for h in headers])
+                except Exception as e:
+                    print(f"[EXCEL EXPORT ERROR] Failed to parse structured table: {e}")
+
+        # Removed redundant 'Sections' sheet as per Section 7 (No narrative)
 
         # ── KEY METRICS & PIE CHART ──
         ws_metrics = wb.create_sheet("Key Metrics")
