@@ -2670,14 +2670,33 @@ def _run_council_job(job_id, query, personas, workflow, active_models, user_id,
                     model_name = provider_result.get("model")
                     if isinstance(model_name, str) and model_name.strip():
                         slim_entry["model"] = model_name.strip()
+                    role_name = provider_result.get("role")
+                    if isinstance(role_name, str) and role_name.strip():
+                        slim_entry["role"] = role_name.strip()
+                    response_text = provider_result.get("response")
+                    if isinstance(response_text, str) and response_text.strip():
+                        # Preserve the answer body for report library recall without
+                        # sending the entire raw provider payload back to the client.
+                        slim_entry["response"] = _trim_text(response_text, 12000)
+                    error_text = provider_result.get("error")
+                    if isinstance(error_text, str) and error_text.strip():
+                        slim_entry["error"] = _trim_text(error_text, 500)
                     usage = provider_result.get("usage")
                     if isinstance(usage, dict):
+                        slim_entry["cost"] = usage.get("cost", 0)
+                        slim_entry["time"] = usage.get("latency", 0) / 1000
                         slim_entry["usage"] = {
                             "cost": usage.get("cost", 0),
                             "latency": usage.get("latency", 0),
                             "input": usage.get("input", 0),
                             "output": usage.get("output", 0),
                         }
+                    citations = provider_result.get("citations")
+                    if isinstance(citations, list) and citations:
+                        slim_entry["citations"] = [
+                            c for c in citations[:8]
+                            if isinstance(c, str) and c.strip()
+                        ]
                     verified_claims = provider_result.get("verified_claims")
                     if isinstance(verified_claims, list) and verified_claims:
                         slim_entry["verified_claims"] = _slim_verified_claims(verified_claims)
@@ -2707,6 +2726,9 @@ def _run_council_job(job_id, query, personas, workflow, active_models, user_id,
                 "scout_intel": res_map.get('perplexity', {}).get('response') if res_map.get('perplexity', {}).get('success') else None,
                 "exploit_poc": res_map.get('red_team', {}).get('response') if hacker_mode else None,
                 "final_artifact": results.get('synthesis', {}).get('meta', {}).get('final_document') or results.get('synthesis', {}).get('meta', {}).get('summary', "Synthesis Failed"),
+                "consensus": results.get('consensus', ''),
+                "classification": results.get('classification', {}),
+                "divergence": results.get('divergence', {}),
                 "results": frontend_results,
                 "synthesis": frontend_synthesis,
                 "metrics": {
@@ -2726,6 +2748,15 @@ def _run_council_job(job_id, query, personas, workflow, active_models, user_id,
 
             # Attach Falcon metadata if active
             if use_falcon and falcon_meta:
+                pipeline_result["falcon"] = {
+                    "enabled": True,
+                    "level": falcon_level,
+                    "redacted_entity_count": falcon_meta['total_redactions'],
+                    "high_risk_items_count": falcon_meta['high_risk_items_count'],
+                    "categories": falcon_meta['categories_found'],
+                    "counts": falcon_meta['counts_by_category'],
+                    "exposure_risk": falcon_meta['exposure_risk'],
+                }
                 response_data["falcon"] = {
                     "enabled": True,
                     "level": falcon_level,

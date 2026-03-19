@@ -2519,6 +2519,10 @@ function renderChainResults(result) {
     lastCouncilData = {
         synthesis: synthesisData,
         results: result.results || {},
+        consensus: result.consensus || "",
+        classification: result.classification || {},
+        divergence: result.divergence || {},
+        falcon: result.falcon || null,
         roleName: 'V2 Reasoning Chain',
         pipeline_result: result
     };
