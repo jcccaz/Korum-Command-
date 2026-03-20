@@ -2583,6 +2583,18 @@ body.activated .sphere-container {
     background: linear-gradient(135deg, #F2F1EF 0%, #A65E46 58%, #636E72 100%);
 }
 
+.export-theme-swatch.iron-dispatch {
+    background: linear-gradient(135deg, #f8f2ea 0%, #e0d2c5 52%, #b44c3d 100%);
+}
+
+.export-theme-swatch.deep-water {
+    background: linear-gradient(135deg, #f4f7fa 0%, #d2dce7 48%, #263d73 100%);
+}
+
+.export-theme-swatch.bone-field {
+    background: linear-gradient(135deg, #f6f0e3 0%, #d8d0bf 52%, #395e46 100%);
+}
+
 .export-theme-copy {
     display: flex;
     flex-direction: column;

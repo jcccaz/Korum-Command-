@@ -575,7 +575,7 @@ def deploy_intelligence():
         if not exporter:
             return jsonify({"error": f"Format {format_type} not supported"}), 501
 
-        theme = data.get('theme', 'NEON_DESERT')
+        theme = data.get('theme', 'BONE_FIELD')
         if 'meta' not in intelligence_object:
             intelligence_object['meta'] = {}
         intelligence_object['meta']['theme'] = theme

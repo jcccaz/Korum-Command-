@@ -6972,7 +6972,19 @@ function renderExportToolbar(container, _data) {
 
     const toolbar = document.createElement("div");
     toolbar.className = "export-command-center";
-    const selectedTheme = _data?.synthesis?.meta?.theme || _data?.meta?.theme || 'NEON_DESERT';
+    const normalizeExportTheme = (theme) => {
+        const map = {
+            ARCHITECT: 'IRON_DISPATCH',
+            STEEL_RUBY: 'IRON_DISPATCH',
+            CARBON_STEEL: 'DEEP_WATER',
+            NEON_DESERT: 'BONE_FIELD',
+            IRON_DISPATCH: 'IRON_DISPATCH',
+            DEEP_WATER: 'DEEP_WATER',
+            BONE_FIELD: 'BONE_FIELD'
+        };
+        return map[(theme || '').toUpperCase()] || 'BONE_FIELD';
+    };
+    const selectedTheme = normalizeExportTheme(_data?.synthesis?.meta?.theme || _data?.meta?.theme || 'BONE_FIELD');
 
     // Sub-task warning if active
     const subTaskStatus = sessionState.isSubTask ?
@@ -6989,32 +7001,32 @@ function renderExportToolbar(container, _data) {
                 <button class="ecc-back-btn" onclick="returnToMainMission()" style="background:rgba(245,168,0,0.12); border:1px solid rgba(245,168,0,0.4); color:#F5A800; padding:8px 12px; border-radius:6px; cursor:pointer; font-family:var(--font-head); font-size:11px; font-weight:700;">↩ RETURN TO MAIN MISSION</button>
             ` : ''}
             <div class="export-theme-picker" id="exportThemePicker" aria-label="Export theme preview">
-                <button type="button" class="export-theme-card" data-theme-value="NEON_DESERT">
-                    <span class="export-theme-swatch neon-desert"></span>
+                <button type="button" class="export-theme-card" data-theme-value="IRON_DISPATCH">
+                    <span class="export-theme-swatch iron-dispatch"></span>
                     <span class="export-theme-copy">
-                        <strong>Neon Desert</strong>
-                        <span>Amber command glow</span>
+                        <strong>Iron Dispatch</strong>
+                        <span>Cream stock with locomotive red structure</span>
                     </span>
                 </button>
-                <button type="button" class="export-theme-card" data-theme-value="CARBON_STEEL">
-                    <span class="export-theme-swatch carbon-steel"></span>
+                <button type="button" class="export-theme-card" data-theme-value="DEEP_WATER">
+                    <span class="export-theme-swatch deep-water"></span>
                     <span class="export-theme-copy">
-                        <strong>Carbon Steel</strong>
-                        <span>Neutral tactical slate</span>
+                        <strong>Deep Water</strong>
+                        <span>Navy paper with restrained teal accents</span>
                     </span>
                 </button>
-                <button type="button" class="export-theme-card" data-theme-value="ARCHITECT">
-                    <span class="export-theme-swatch architect"></span>
+                <button type="button" class="export-theme-card" data-theme-value="BONE_FIELD">
+                    <span class="export-theme-swatch bone-field"></span>
                     <span class="export-theme-copy">
-                        <strong>Architect</strong>
-                        <span>Warm executive profile</span>
+                        <strong>Bone &amp; Field</strong>
+                        <span>Khaki paper with field green structure</span>
                     </span>
                 </button>
             </div>
             <select id="themeSelect" style="margin-right:8px; background:#111; color:#fff; border:1px solid #333; font-size:10px; border-radius:4px;">
-                <option value="NEON_DESERT"${selectedTheme === 'NEON_DESERT' ? ' selected' : ''}>Neon Desert</option>
-                <option value="CARBON_STEEL"${selectedTheme === 'CARBON_STEEL' ? ' selected' : ''}>Carbon Steel</option>
-                <option value="ARCHITECT"${selectedTheme === 'ARCHITECT' ? ' selected' : ''}>Architect</option>
+                <option value="IRON_DISPATCH"${selectedTheme === 'IRON_DISPATCH' ? ' selected' : ''}>Iron Dispatch</option>
+                <option value="DEEP_WATER"${selectedTheme === 'DEEP_WATER' ? ' selected' : ''}>Deep Water</option>
+                <option value="BONE_FIELD"${selectedTheme === 'BONE_FIELD' ? ' selected' : ''}>Bone &amp; Field</option>
             </select>
             <select id="exportDoc" onchange="handleDocExport(this.value)">
                 <option value="" disabled selected>Export Report...</option>
@@ -7160,7 +7172,19 @@ async function handleDocExport(format, themeOverride = null) {
     try {
         const data = lastCouncilData || {};
         let intelligenceObj = data.synthesis ? { ...data.synthesis } : null;
-        const themeVal = themeOverride || themeSelect?.value || intelligenceObj?.meta?.theme || 'NEON_DESERT';
+        const normalizeExportTheme = (theme) => {
+            const map = {
+                ARCHITECT: 'IRON_DISPATCH',
+                STEEL_RUBY: 'IRON_DISPATCH',
+                CARBON_STEEL: 'DEEP_WATER',
+                NEON_DESERT: 'BONE_FIELD',
+                IRON_DISPATCH: 'IRON_DISPATCH',
+                DEEP_WATER: 'DEEP_WATER',
+                BONE_FIELD: 'BONE_FIELD'
+            };
+            return map[(theme || '').toUpperCase()] || 'BONE_FIELD';
+        };
+        const themeVal = normalizeExportTheme(themeOverride || themeSelect?.value || intelligenceObj?.meta?.theme || 'BONE_FIELD');
 
         // --- LEGACY FALLBACK: Support older final results without synthesis blocks ---
         if (!intelligenceObj) {
@@ -7251,7 +7275,7 @@ async function handleDocExport(format, themeOverride = null) {
 }
 
 async function exportThemeSet(format) {
-    const themeSet = ['NEON_DESERT', 'CARBON_STEEL', 'ARCHITECT'];
+    const themeSet = ['IRON_DISPATCH', 'DEEP_WATER', 'BONE_FIELD'];
     for (const theme of themeSet) {
         await handleDocExport(format, theme);
         await new Promise(resolve => setTimeout(resolve, 180));

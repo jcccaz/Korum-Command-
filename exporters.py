@@ -55,13 +55,301 @@ def _report_artifacts(o):
     apps = o.get("docked_snippets") or []
     return [a for a in apps if a.get('includeInReport') is True]
 
+
+def _normalize_theme(theme_id):
+    theme_key = _as_text(theme_id).upper() or "BONE_FIELD"
+    return theme_key if theme_key in THEME_COLORS else "BONE_FIELD"
+
+
+def _safe_paragraph(text, style):
+    return Paragraph(escape(_as_text(text)).replace("\n", "<br/>"), style)
+
+
+def _table_from_rows(headers, rows):
+    if not headers or not rows:
+        return None
+    clean_headers = [_as_text(h) for h in headers]
+    clean_rows = [[_as_text(cell) for cell in row] for row in rows if any(_as_text(cell) for cell in row)]
+    if not clean_rows:
+        return None
+    return {"headers": clean_headers, "rows": clean_rows}
+
+
+def _parse_structured_table_payload(raw_payload):
+    try:
+        data = json.loads(raw_payload.strip())
+    except Exception:
+        return None
+
+    headers = []
+    rows = []
+    if isinstance(data, dict):
+        if isinstance(data.get("headers"), list):
+            headers = [_as_text(h) for h in data.get("headers", [])]
+        if isinstance(data.get("rows"), list):
+            rows = data["rows"]
+        elif isinstance(data.get("data"), list):
+            rows = data["data"]
+        elif all(isinstance(v, (str, int, float)) for v in data.values()):
+            headers = ["Field", "Value"]
+            rows = [[k, v] for k, v in data.items()]
+    elif isinstance(data, list):
+        rows = data
+
+    if rows and isinstance(rows[0], dict):
+        if not headers:
+            headers = list(rows[0].keys())
+        matrix = [[row.get(h, "") for h in headers] for row in rows]
+        return _table_from_rows(headers, matrix)
+
+    if rows and isinstance(rows[0], (list, tuple)):
+        if not headers and len(rows) > 1:
+            headers = [_as_text(cell) for cell in rows[0]]
+            rows = rows[1:]
+        elif not headers:
+            headers = [f"Column {idx + 1}" for idx in range(len(rows[0]))]
+        return _table_from_rows(headers, rows)
+
+    return None
+
+
+def _parse_markdown_table_block(block):
+    lines = [line.strip() for line in block.splitlines() if line.strip()]
+    if len(lines) < 2 or not all(line.startswith("|") and line.endswith("|") for line in lines[:2]):
+        return None
+
+    separator = re.sub(r"[|\-:\s]", "", lines[1])
+    if separator:
+        return None
+
+    headers = [cell.strip() for cell in lines[0].strip("|").split("|")]
+    rows = [[cell.strip() for cell in line.strip("|").split("|")] for line in lines[2:]]
+    return _table_from_rows(headers, rows)
+
+
+def _parse_delimited_table_block(block):
+    lines = [line.strip() for line in block.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return None
+
+    delimiter = None
+    for candidate in ("\t", ","):
+        if all(candidate in line for line in lines[:2]):
+            delimiter = candidate
+            break
+    if not delimiter:
+        return None
+
+    parsed = [[cell.strip() for cell in line.split(delimiter)] for line in lines]
+    width = len(parsed[0])
+    if width < 2 or any(len(row) != width for row in parsed):
+        return None
+    return _table_from_rows(parsed[0], parsed[1:])
+
+
+def _parse_key_value_block(lines):
+    pairs = []
+    for line in lines:
+        match = re.match(r"^([^:]{2,120}):\s+(.+)$", line)
+        if not match:
+            return None
+        pairs.append([match.group(1).strip(), match.group(2).strip()])
+    if len(pairs) < 2:
+        return None
+    return _table_from_rows(["Metric", "Value"], pairs)
+
+
+def _extract_content_blocks(text):
+    raw_text = _as_text(text)
+    if not raw_text:
+        return []
+
+    blocks = []
+    last_end = 0
+    pattern = re.compile(r"\[STRUCTURED_TABLE\]([\s\S]*?)\[/STRUCTURED_TABLE\]", re.IGNORECASE)
+    for match in pattern.finditer(raw_text):
+        if match.start() > last_end:
+            blocks.extend(_extract_content_blocks(raw_text[last_end:match.start()]))
+        table_block = _parse_structured_table_payload(match.group(1))
+        if table_block:
+            blocks.append({"type": "table", **table_block})
+        last_end = match.end()
+
+    if last_end:
+        if last_end < len(raw_text):
+            blocks.extend(_extract_content_blocks(raw_text[last_end:]))
+        return blocks
+
+    for chunk in re.split(r"\n\s*\n", raw_text):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+
+        markdown_table = _parse_markdown_table_block(chunk)
+        if markdown_table:
+            blocks.append({"type": "table", **markdown_table})
+            continue
+
+        delimited_table = _parse_delimited_table_block(chunk)
+        if delimited_table:
+            blocks.append({"type": "table", **delimited_table})
+            continue
+
+        lines = [line.strip() for line in chunk.splitlines() if line.strip()]
+        if len(lines) >= 3 and ":" not in lines[0]:
+            kv_table = _parse_key_value_block(lines[1:])
+            if kv_table:
+                blocks.append({"type": "heading", "text": lines[0]})
+                blocks.append({"type": "table", **kv_table})
+                continue
+
+        kv_table = _parse_key_value_block(lines)
+        if kv_table:
+            blocks.append({"type": "table", **kv_table})
+            continue
+
+        blocks.append({"type": "paragraph", "text": chunk})
+
+    return blocks
+
+
+def _first_table_block(text):
+    for block in _extract_content_blocks(text):
+        if block.get("type") == "table":
+            return block
+    return None
+
+
+def _artifact_matches(label, section_title, provider_name):
+    text = _as_text(label).upper()
+    return section_title in text or provider_name in text
+
+
+def _pdf_col_widths(total_width, column_count):
+    if column_count <= 1:
+        return [total_width]
+    if column_count == 2:
+        return [total_width * 0.64, total_width * 0.36]
+    return [total_width / column_count] * column_count
+
+
+def _build_pdf_table(block, styles, total_width, palette):
+    headers = block.get("headers") or []
+    rows = block.get("rows") or []
+    if not headers or not rows:
+        return None
+
+    table_rows = [
+        [Paragraph(f"<b>{escape(_as_text(cell))}</b>", styles["ExecTableHead"]) for cell in headers]
+    ]
+    table_rows.extend(
+        [
+            [Paragraph(escape(_as_text(cell)).replace("\n", "<br/>"), styles["ExecTableCell"]) for cell in row]
+            for row in rows
+        ]
+    )
+    tbl = Table(table_rows, colWidths=_pdf_col_widths(total_width, len(headers)), repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(palette["shade_alt"])),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor(palette["accent_dark"])),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor(palette["line"])),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor(palette["line_strong"])),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor(palette["paper"]), colors.HexColor(palette["bg_shade"])]),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    return tbl
+
+
+def _render_pdf_blocks(blocks, styles, total_width, palette):
+    flowables = []
+    for block in blocks:
+        if block["type"] == "paragraph":
+            flowables.append(_safe_paragraph(block["text"], styles["ExecBody"]))
+            flowables.append(Spacer(1, 8))
+        elif block["type"] == "heading":
+            flowables.append(_safe_paragraph(block["text"], styles["ExecSectionSubhead"]))
+            flowables.append(Spacer(1, 5))
+        elif block["type"] == "table":
+            table = _build_pdf_table(block, styles, total_width, palette)
+            if table:
+                flowables.append(table)
+                flowables.append(Spacer(1, 10))
+    return flowables
+
+
+def _resolve_session_id(meta, intelligence_object):
+    mission_ctx = intelligence_object.get("_mission_context") or {}
+    return _as_text(
+        meta.get("session_id")
+        or meta.get("id")
+        or intelligence_object.get("session_id")
+        or intelligence_object.get("id")
+        or mission_ctx.get("session_id")
+        or "KO-INT-9999"
+    ).upper()
+
+
+def _normalize_truth_score(raw_score):
+    if raw_score is None or raw_score == "":
+        return 85
+    try:
+        score = float(raw_score)
+    except (TypeError, ValueError):
+        return 85
+    if score <= 1:
+        score *= 100
+    return int(round(score))
+
 # --- BRANDING CONFIG ---
 
+IRON_DISPATCH = {
+    "accent": "#b44c3d",
+    "accent_dark": "#45382d",
+    "text": "#332d28",
+    "label": "#7e746a",
+    "bg_shade": "#efe6dc",
+    "shade_alt": "#e0d2c5",
+    "paper": "#f8f2ea",
+    "line": "#d2c0b2",
+    "line_strong": "#b44c3d",
+}
+
+DEEP_WATER = {
+    "accent": "#16b7c8",
+    "accent_dark": "#263d73",
+    "text": "#1f2f44",
+    "label": "#708399",
+    "bg_shade": "#e7edf3",
+    "shade_alt": "#d2dce7",
+    "paper": "#f4f7fa",
+    "line": "#bfd0de",
+    "line_strong": "#16b7c8",
+}
+
+BONE_FIELD = {
+    "accent": "#395e46",
+    "accent_dark": "#234333",
+    "text": "#2f2b24",
+    "label": "#6f675a",
+    "bg_shade": "#ede6d8",
+    "shade_alt": "#d8d0bf",
+    "paper": "#f6f0e3",
+    "line": "#cbbfa9",
+    "line_strong": "#4c6e57",
+}
+
 THEME_COLORS = {
-    "ARCHITECT":    {"accent": "#1e3a8a", "text": "#334155", "label": "#64748b", "bg_shade": "#F8FAFC"},
-    "NEON_DESERT":  {"accent": "#2DD4BF", "text": "#0F172A", "label": "#94A3B8", "bg_shade": "#F1F5F9"}, # Fixed for paper
-    "CARBON_STEEL": {"accent": "#DC2626", "text": "#111827", "label": "#9CA3AF", "bg_shade": "#F1F5F9"},
-    "STEEL_RUBY":   {"accent": "#991B1B", "text": "#020617", "label": "#64748b", "bg_shade": "#F1F5F9"}
+    "IRON_DISPATCH": IRON_DISPATCH,
+    "DEEP_WATER": DEEP_WATER,
+    "BONE_FIELD": BONE_FIELD,
+    "ARCHITECT": IRON_DISPATCH,
+    "NEON_DESERT": BONE_FIELD,
+    "CARBON_STEEL": DEEP_WATER,
+    "STEEL_RUBY": IRON_DISPATCH,
 }
 
 # --- PDF BRANDING CANVAS ---
@@ -88,9 +376,9 @@ class ExecutiveMemoExporter:
                                 leftMargin=35, rightMargin=35, topMargin=40, bottomMargin=40)
         styles = getSampleStyleSheet()
         
-        # DNA: Color Palette - Specialist Dynamic Resolution
-        theme_id = _as_text(meta.get('theme', 'ARCHITECT')).upper()
-        tc = THEME_COLORS.get(theme_id) or THEME_COLORS["ARCHITECT"]
+        # DNA: Color Palette - locked to Bone & Field across legacy theme ids
+        theme_id = _normalize_theme(meta.get('theme', 'BONE_FIELD'))
+        tc = THEME_COLORS[theme_id]
         
         ACCENT_HEX = tc["accent"]
         TEXT_HEX = tc["text"]
@@ -100,13 +388,16 @@ class ExecutiveMemoExporter:
         # DNA: Styles - Curated for Executive Scan Patterns
         styles.add(ParagraphStyle('ExecLabel', fontSize=6.5, leading=8, textColor=colors.HexColor(LABEL_HEX), fontName='Helvetica-Bold', letterSpacing=0.5))
         styles.add(ParagraphStyle('ExecSig', fontSize=7, leading=10, textColor=colors.HexColor(LABEL_HEX), alignment=TA_RIGHT, fontName='Helvetica'))
-        styles.add(ParagraphStyle('ExecTitle', fontSize=26, leading=30, textColor=colors.HexColor(ACCENT_HEX), fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle('ExecImpact', fontSize=10, leading=14, textColor=colors.HexColor(ACCENT_HEX), fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle('ExecBody', fontSize=8.5, leading=12, textColor=colors.HexColor(TEXT_HEX), fontName='Helvetica'))
-        styles.add(ParagraphStyle('ExecAudit', fontSize=7, leading=9, textColor=colors.HexColor(LABEL_HEX), fontName='Helvetica'))
-        styles.add(ParagraphStyle('StatBig', fontSize=20, leading=24, textColor=colors.HexColor(ACCENT_HEX), fontName='Helvetica-Bold', alignment=TA_CENTER))
+        styles.add(ParagraphStyle('ExecTitle', fontSize=24, leading=28, textColor=colors.HexColor(tc["accent_dark"]), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('ExecImpact', fontSize=11, leading=16, textColor=colors.HexColor(tc["accent_dark"]), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('ExecBody', fontSize=8.5, leading=12.5, textColor=colors.HexColor(TEXT_HEX), fontName='Helvetica'))
+        styles.add(ParagraphStyle('ExecAudit', fontSize=7, leading=9.5, textColor=colors.HexColor(LABEL_HEX), fontName='Helvetica'))
+        styles.add(ParagraphStyle('ExecSectionSubhead', fontSize=8, leading=10, textColor=colors.HexColor(tc["accent_dark"]), fontName='Helvetica-BoldOblique'))
+        styles.add(ParagraphStyle('ExecTableHead', fontSize=7, leading=8, textColor=colors.HexColor(tc["accent_dark"]), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('ExecTableCell', fontSize=7.5, leading=9.5, textColor=colors.HexColor(TEXT_HEX), fontName='Helvetica'))
+        styles.add(ParagraphStyle('StatBig', fontSize=20, leading=24, textColor=colors.HexColor(tc["accent_dark"]), fontName='Helvetica-Bold', alignment=TA_CENTER))
         styles.add(ParagraphStyle('StatCaption', fontSize=6.5, leading=8, textColor=colors.HexColor(LABEL_HEX), fontName='Helvetica-Bold', alignment=TA_CENTER, letterSpacing=0.5))
-        styles.add(ParagraphStyle('PullQuoteInline', fontSize=8, leading=11, textColor=colors.white, fontName='Helvetica-Oblique'))
+        styles.add(ParagraphStyle('PullQuoteInline', fontSize=8, leading=11, textColor=colors.HexColor(TEXT_HEX), fontName='Helvetica-Oblique'))
         styles.add(ParagraphStyle('Cons', fontSize=9, leading=13, textColor=colors.white, fontName='Helvetica-Oblique'))
         styles.add(ParagraphStyle('ConsScore', fontSize=22, leading=24, textColor=colors.white, fontName='Helvetica-Bold', alignment=TA_RIGHT))
 
@@ -152,7 +443,14 @@ class ExecutiveMemoExporter:
                 artifacts.remove(art)
                 break
         
-        sidebar_content = [""]
+        sidebar_content = [
+            Paragraph("MISSION SNAPSHOT", styles['StatCaption']),
+            Spacer(1, 5),
+            Paragraph(
+                escape(f"{workflow_label} | {client_name} | SESSION {doc._session_id}").replace(" | ", "<br/>"),
+                styles['ExecAudit']
+            ),
+        ]
         if top_visual:
             sidebar_content = [
                 Paragraph(_artifact_label(top_visual), styles['StatCaption']),
@@ -168,17 +466,20 @@ class ExecutiveMemoExporter:
         # 3. --- KPI STRIP ---
         key_metrics = structured.get("key_metrics") or []
         if key_metrics:
-            stat_cells = []
+            value_row = []
+            label_row = []
             for km in key_metrics[:3]:
                 val = _as_text(km.get('value', '—'))
                 lab = _as_text(km.get('metric', '')).upper()
-                stat_cells.append([[Paragraph(val, styles['StatBig'])], [Paragraph(lab, styles['StatCaption'])]])
+                value_row.append(Paragraph(val, styles['StatBig']))
+                label_row.append(Paragraph(lab, styles['StatCaption']))
             
-            while len(stat_cells) < 3: stat_cells.append([[""], [""]])
-            s_tab_data = [[Table(cell, colWidths=[178], style=[('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0)]) for cell in stat_cells]]
-            s_tab = Table(s_tab_data, colWidths=[180, 180, 180], style=[
-                ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
-                ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
+            while len(value_row) < 3:
+                value_row.append(Paragraph("", styles['StatBig']))
+                label_row.append(Paragraph("", styles['StatCaption']))
+            s_tab = Table([value_row, label_row], colWidths=[180, 180, 180], style=[
+                ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor(tc["line"])),
+                ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor(tc["line"])),
                 ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SHADE_HEX)),
                 ('TOPPADDING', (0,0), (-1,-1), 12),
                 ('BOTTOMPADDING', (0,0), (-1,-1), 12),
@@ -198,57 +499,79 @@ class ExecutiveMemoExporter:
             
             node_id = f"{sec_title} &middot; NODE {idx+1:02d} &mdash; {prov_name}"
             
-            styled_body = escape(_as_text(content)).replace("\n", "<br/>")
-            text_p = Paragraph(styled_body, styles['ExecBody'])
-            
+            left_blocks = _extract_content_blocks(content)
+
             # Match sidebar artifact
             local_visual = None
             for art in artifacts:
                 label = _artifact_label(art)
-                if sec_title in label or prov_name in label:
+                if _artifact_matches(label, sec_title, prov_name):
                     local_visual = art
                     artifacts.remove(art)
                     break
             
             # Try pull-quote if no visual
             local_quote = None
+            prov_key = prov_name.lower()
+            prov_data = card_results.get(prov_key) or {}
             if not local_visual:
-                prov_key = prov_name.lower()
-                prov_data = card_results.get(prov_key) or {}
                 claims = prov_data.get("verified_claims") or []
-                if claims: local_quote = claims[0]
-            
-            right_col = [""]
+                if claims:
+                    local_quote = claims[0]
+
+            if not any(block.get("type") == "table" for block in left_blocks):
+                provider_table = _first_table_block(prov_data.get("response", ""))
+                if provider_table:
+                    left_blocks.append({"type": "heading", "text": "SOURCE TABLE"})
+                    left_blocks.append(provider_table)
+
+            narrative_blocks = [block for block in left_blocks if block.get("type") != "table"]
+            table_blocks = [block for block in left_blocks if block.get("type") == "table"]
+            left_col = _render_pdf_blocks(narrative_blocks, styles, 340, tc) or [Paragraph("", styles['ExecBody'])]
+
+            right_col = [
+                Paragraph("SECTION CONTEXT", styles['StatCaption']),
+                Spacer(1, 4),
+                Paragraph(f"{prov_name} // {sec_title}", styles['ExecAudit'])
+            ]
             if local_visual:
-                right_col = [
+                right_col.extend([
+                    Spacer(1, 6),
                     Paragraph(_artifact_label(local_visual), styles['StatCaption']),
                     Spacer(1, 4),
-                    Paragraph(escape(_as_text(local_visual.get('content',''))[:150]).replace("\n","<br/>"), styles['ExecAudit'])
-                ]
+                    Paragraph(escape(_as_text(local_visual.get('content',''))[:220]).replace("\n","<br/>"), styles['ExecAudit'])
+                ])
             elif local_quote:
                 q_text = escape(_as_text(local_quote.get('claim','')))
-                q_attrib = f"&mdash; {prov_name}"
-                right_col = [
-                    Table([[[Paragraph("")], [Paragraph(f"<i>&ldquo;{q_text}&rdquo;</i><br/><font size='7' color='#64748b'>{q_attrib}</font>", styles['PullQuoteInline'])]]], colWidths=[4, 146], style=[
-                        ('BACKGROUND', (0,0), (0,0), colors.HexColor(ACCENT_HEX)),
-                        ('LEFTPADDING', (0,0), (-1,-1), 0),
-                        ('RIGHTPADDING', (0,0), (-1,-1), 0),
-                        ('LEFTPADDING', (1,0), (1,0), 10),
-                    ])
-                ]
-            
+                right_col.extend([
+                    Spacer(1, 8),
+                    Paragraph(f"&ldquo;{q_text}&rdquo;", styles['PullQuoteInline']),
+                    Spacer(1, 4),
+                    Paragraph(prov_name, styles['ExecAudit'])
+                ])
+
             story.append(Paragraph(node_id, styles['ExecLabel']))
             story.append(Spacer(1, 6))
-            story.append(Table([[[Paragraph("", styles['ExecBody'])]]], colWidths=[540], rowHeights=[1], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#E2E8F0"))]))
+            story.append(Table([[[Paragraph("", styles['ExecBody'])]]], colWidths=[540], rowHeights=[1], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(tc["line"]))]))
             story.append(Spacer(1, 10))
             
-            sec_tab = Table([[[text_p], right_col]], colWidths=[380, 160])
+            sec_tab = Table([[left_col, right_col]], colWidths=[380, 160])
             sec_tab.setStyle(TableStyle([
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('LEFTPADDING', (0,0), (0,0), 0),
                 ('LEFTPADDING', (1,0), (1,0), 10),
                 ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                ('BACKGROUND', (1,0), (1,0), colors.HexColor(tc["paper"])),
+                ('BOX', (1,0), (1,0), 0.4, colors.HexColor(tc["line"])),
+                ('TOPPADDING', (1,0), (1,0), 8),
+                ('BOTTOMPADDING', (1,0), (1,0), 8),
             ]))
             story.append(sec_tab)
+            for table_block in table_blocks:
+                table_flowable = _build_pdf_table(table_block, styles, 540, tc)
+                if table_flowable:
+                    story.append(table_flowable)
+                    story.append(Spacer(1, 10))
             story.append(Spacer(1, 20))
 
         # 5. --- CONSENSUS FOOTER ---
@@ -256,13 +579,13 @@ class ExecutiveMemoExporter:
         truth_int = int(float(truth_raw if truth_raw is not None else 0.85) * 100)
         consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Council reached operational consensus."
         cons_data = [
-            [[Paragraph("COUNCIL CONSENSUS", styles['ExecLabel'])], [""]],
-            [[Paragraph(f"<i>{escape(consensus_summary)}</i>", styles['Cons'])], 
-             [Paragraph(f"<b>{truth_int}</b><br/><font size='7'>TRUTH SCORE / 100</font>", styles['ConsScore'])]]
+            [Paragraph("COUNCIL CONSENSUS", styles['ExecLabel']), Paragraph("", styles['Cons'])],
+            [Paragraph(f"<i>{escape(consensus_summary)}</i>", styles['Cons']),
+             Paragraph(f"<b>{truth_int}</b><br/><font size='7'>TRUTH SCORE / 100</font>", styles['ConsScore'])]
         ]
         cons_tab = Table(cons_data, colWidths=[410, 130])
         cons_tab.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(ACCENT_HEX)),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(tc["accent_dark"])),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('TOPPADDING', (0,0), (-1,-1), 12),
             ('BOTTOMPADDING', (0,0), (-1,-1), 12),
@@ -295,13 +618,76 @@ class WordExporter:
         cell._tc.get_or_add_tcPr().append(shading_elm)
 
     @staticmethod
+    def _set_run_style(run, *, size=None, bold=False, italic=False, color=None):
+        if size is not None:
+            run.font.size = Pt(size)
+        run.bold = bold
+        run.italic = italic
+        if color:
+            run.font.color.rgb = RGBColor.from_string(color.lstrip('#'))
+
+    @staticmethod
+    def _clear_cell(cell):
+        cell.text = ""
+
+    @staticmethod
+    def _add_paragraph(container, text="", *, size=9, bold=False, italic=False, color=None, align=None):
+        p = container.add_paragraph()
+        if align is not None:
+            p.alignment = align
+        run = p.add_run(_as_text(text))
+        WordExporter._set_run_style(run, size=size, bold=bold, italic=italic, color=color)
+        return p
+
+    @staticmethod
+    def _render_word_table(container, block, theme):
+        headers = block.get("headers") or []
+        rows = block.get("rows") or []
+        if not headers or not rows:
+            return None
+
+        table = container.add_table(rows=1, cols=len(headers))
+        table.style = "Table Grid"
+
+        for idx, header in enumerate(headers):
+            cell = table.rows[0].cells[idx]
+            WordExporter._set_cell_background(cell, theme["shade_alt"].lstrip('#'))
+            p = cell.paragraphs[0]
+            run = p.add_run(_as_text(header))
+            WordExporter._set_run_style(run, size=8, bold=True, color=theme["accent_dark"])
+
+        for row in rows:
+            cells = table.add_row().cells
+            for idx, value in enumerate(row):
+                p = cells[idx].paragraphs[0]
+                run = p.add_run(_as_text(value))
+                WordExporter._set_run_style(run, size=8.5, color=theme["text"])
+
+        return table
+
+    @staticmethod
+    def _render_word_blocks(container, blocks, theme):
+        for block in blocks:
+            if block["type"] == "paragraph":
+                WordExporter._add_paragraph(container, block["text"], size=9, color=theme["text"])
+            elif block["type"] == "heading":
+                WordExporter._add_paragraph(container, block["text"], size=8, bold=True, italic=True, color=theme["accent_dark"])
+            elif block["type"] == "table":
+                WordExporter._render_word_table(container, block, theme)
+
+    @staticmethod
+    def _add_spacing(doc, count=1):
+        for _ in range(count):
+            doc.add_paragraph()
+
+    @staticmethod
     def generate(intelligence_object, output_dir=None):
         meta, sections, structured, _, _ = _extract_parts(intelligence_object)
         doc = Document()
         
         # DNA: SHARED THEME - specialist dynamic resolution
-        theme_id = _as_text(meta.get('theme', 'ARCHITECT')).upper()
-        tc = THEME_COLORS.get(theme_id) or THEME_COLORS["ARCHITECT"]
+        theme_id = _normalize_theme(meta.get('theme', 'BONE_FIELD'))
+        tc = THEME_COLORS[theme_id]
         
         ACCENT_HEX = tc["accent"].lstrip('#')
         DIM_GRAY = tc["label"].lstrip('#')
@@ -313,6 +699,7 @@ class WordExporter:
         card_results = intelligence_object.get("_card_results") or {}
         contributors = intelligence_object.get("council_contributors") or []
         divergence = intelligence_object.get("divergence_analysis") or {}
+        session_id = _resolve_session_id(meta, intelligence_object)
 
         # 1. --- PREMIUM HEADER ---
         h_tab = doc.add_table(rows=1, cols=2)
@@ -327,7 +714,7 @@ class WordExporter:
         
         r_p = h_tab.rows[0].cells[1].paragraphs[0]
         r_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        r_run = r_p.add_run(f"KORUM-OS\n{client_name}\nSESSION {_as_text(meta.get('session_id') or 'KO-INT-9999').upper()}\nCOUNCIL: {len(contributors)} AGENTS")
+        r_run = r_p.add_run(f"KORUM-OS\n{client_name}\nSESSION {session_id}\nCOUNCIL: {len(contributors)} AGENTS")
         r_run.font.size = Pt(7)
         r_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
         
@@ -357,8 +744,15 @@ class WordExporter:
         s_run.bold = True
         s_run.font.size = Pt(11)
         s_run.font.color.rgb = s_rgb
+        meta_cell = sum_tab.rows[0].cells[1]
+        WordExporter._clear_cell(meta_cell)
+        WordExporter._set_cell_background(meta_cell, tc["bg_shade"].lstrip('#'))
+        WordExporter._add_paragraph(meta_cell, "MISSION SNAPSHOT", size=7, bold=True, color=DIM_GRAY)
+        WordExporter._add_paragraph(meta_cell, workflow := (_as_text(meta.get('workflow')).upper() or 'STRATEGIC_INTEL'), size=8, color=ACCENT_HEX)
+        WordExporter._add_paragraph(meta_cell, client_name, size=8, color=tc["text"])
+        WordExporter._add_paragraph(meta_cell, f"SESSION {session_id}", size=8, color=tc["text"])
         
-        doc.add_paragraph()
+        WordExporter._add_spacing(doc)
 
         # 3. --- KPI STRIP ---
         key_metrics = structured.get("key_metrics") or []
@@ -378,7 +772,7 @@ class WordExporter:
                 l_run = l_p.add_run(_as_text(km.get('metric', '')).upper())
                 l_run.font.size = Pt(7)
                 l_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
-            doc.add_paragraph()
+            WordExporter._add_spacing(doc)
 
         # 4. --- INTELLIGENCE NODES ---
         section_items = list(sections.items())
@@ -393,46 +787,60 @@ class WordExporter:
             n_run = n_p.add_run(f"{sec_title} · NODE {idx+1:02d} — {prov_name}")
             n_run.font.size = Pt(7)
             n_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
-            
-            # Sub-table Layout
-            n_tab = doc.add_table(rows=1, cols=2)
-            n_tab.columns[0].width = Inches(4.5)
-            n_tab.columns[1].width = Inches(2.0)
-            
-            # Left: Main Text
-            n_tab.rows[0].cells[0].add_paragraph(_as_text(content))
-            
-            # Right: Sidebar Shaded
-            r_cell = n_tab.rows[0].cells[1]
-            WordExporter._set_cell_background(r_cell, tc["bg_shade"].lstrip('#'))
-            
+
+            left_blocks = _extract_content_blocks(content)
+
             # Match artifact
             local_visual = None
             for art in artifacts:
                 label = _artifact_label(art)
-                if sec_title in label or prov_name in label:
+                if _artifact_matches(label, sec_title, prov_name):
                     local_visual = art
                     artifacts.remove(art)
                     break
-            
+
+            prov_key = prov_name.lower()
+            prov_data = card_results.get(prov_key) or {}
+            if not any(block.get("type") == "table" for block in left_blocks):
+                provider_table = _first_table_block(prov_data.get("response", ""))
+                if provider_table:
+                    left_blocks.append({"type": "heading", "text": "SOURCE TABLE"})
+                    left_blocks.append(provider_table)
+
+            narrative_blocks = [block for block in left_blocks if block.get("type") != "table"]
+            table_blocks = [block for block in left_blocks if block.get("type") == "table"]
+
+            n_tab = doc.add_table(rows=1, cols=2)
+            n_tab.columns[0].width = Inches(4.5)
+            n_tab.columns[1].width = Inches(2.0)
+
+            left_cell = n_tab.rows[0].cells[0]
+            right_cell = n_tab.rows[0].cells[1]
+            WordExporter._clear_cell(left_cell)
+            WordExporter._clear_cell(right_cell)
+            WordExporter._set_cell_background(right_cell, tc["bg_shade"].lstrip('#'))
+
+            WordExporter._render_word_blocks(left_cell, narrative_blocks, tc)
+
+            WordExporter._add_paragraph(right_cell, "SECTION CONTEXT", size=7, bold=True, color=DIM_GRAY)
+            WordExporter._add_paragraph(right_cell, f"{prov_name} // {sec_title}", size=8, color=tc["text"])
+
             if local_visual:
-                r_p = r_cell.paragraphs[0]
-                r_p.add_run(_artifact_label(local_visual)).bold = True
-                r_p.add_run("\n")
-                r_p.add_run(_as_text(local_visual.get('content',''))[:150]).font.size = Pt(7)
+                WordExporter._add_paragraph(right_cell, _artifact_label(local_visual), size=8, bold=True, color=ACCENT_HEX)
+                WordExporter._add_paragraph(right_cell, _as_text(local_visual.get('content', ''))[:220], size=7, color=DIM_GRAY)
             else:
-                prov_key = prov_name.lower()
-                prov_data = card_results.get(prov_key) or {}
                 claims = prov_data.get("verified_claims") or []
                 if claims:
-                    q_p = r_cell.paragraphs[0]
-                    q_p.add_run(f"\"{_as_text(claims[0].get('claim',''))}\"").italic = True
-                    q_p.add_run(f"\n— {prov_name}").font.size = Pt(7)
-            
-            doc.add_paragraph()
+                    WordExporter._add_paragraph(right_cell, f"\"{_as_text(claims[0].get('claim', ''))}\"", size=8, italic=True, color=tc["text"])
+                    WordExporter._add_paragraph(right_cell, prov_name, size=7, color=DIM_GRAY)
+
+            for table_block in table_blocks:
+                WordExporter._render_word_table(doc, table_block, tc)
+
+            WordExporter._add_spacing(doc)
 
         # 5. --- CONSENSUS FOOTER ---
-        truth_int = int(float(meta.get("composite_truth_score") or 0.85) * 100)
+        truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
         c_p = doc.add_paragraph()
         c_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         c_run = c_p.add_run(f"COUNCIL CONSENSUS: {truth_int}/100 TRUTH SCORE")
