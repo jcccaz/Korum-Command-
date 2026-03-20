@@ -1009,15 +1009,18 @@ def verify_claims(claims, council_history):
     Cross-references claims against other advisor outputs.
     Labels them [CONFIRMED], [SUSPECT], or [UNVERIFIED].
     NOW WITH PQC COMPLIANCE AUDIT (FIPS 203/204).
+
+    Each claim gets a 'contribution' field showing its +/- impact on truth score.
     """
     verified_results = []
-    
+
     for c in claims:
         claim_text = c['claim']
         status = "UNVERIFIED"
-        score = 50 
+        score = 50
         anchors = []
         violations = []
+        contribution = 0  # net +/- impact on truth score
 
         # --- QUANTUM DRIFT CHECK (FIPS 203/204/205/206) ---
         legacy_crypto = ["RSA", "ECC", "ECDSA", "Diffie-Hellman", "AES-128", "DSA", "3DES", "RC4", "MD5", "SHA-1"]
@@ -1029,6 +1032,7 @@ def verify_claims(claims, council_history):
         if has_legacy and not has_pqc:
             violations.append("Non-PQC Compliant: Legacy cryptography detected without FIPS 203/204/205/206 wrapper (Quantum Drift). Recommend ML-KEM (key encapsulation), SLH-DSA (long-term signing), or FALCON/FN-DSA as Integrity Anchor for constrained-bandwidth paths.")
             score -= 20
+            contribution -= 8  # PQC violation is a significant drag
 
         # Simple cross-provider agreement logic
         agreement_count = 0
@@ -1038,31 +1042,68 @@ def verify_claims(claims, council_history):
             if claim_text.lower() in content:
                 agreement_count += 1
                 anchors.append(entry['ai'])
-        
-        # Scoring Logic
+
+        # Scoring Logic — with claim-level contribution tracking
         if agreement_count >= 2:
             status = "CONFIRMED"
             score += 40
+            contribution += 5   # confirmed claims boost truth
         elif agreement_count == 1:
             status = "SUPPORTED"
             score += 25
-        
+            contribution += 2   # partial support — modest boost
+        else:
+            # UNVERIFIED — no cross-provider support
+            contribution -= 3   # unverified claims drag truth down
+
+        # Type-based weight adjustments
+        claim_type = c.get('type', 'unknown')
+        if claim_type == 'metric' and status == 'UNVERIFIED':
+            contribution -= 2   # unverified numbers are high risk
+        elif claim_type == 'absolute' and status != 'CONFIRMED':
+            contribution -= 3   # absolute statements need strong backing
+        elif claim_type == 'causal' and status == 'CONFIRMED':
+            contribution += 2   # confirmed causal claims add high value
+
         verified_results.append({
             "claim": claim_text,
             "status": status,
             "score": max(0, min(score, 100)),
-            "type": c['type'],
+            "type": claim_type,
             "anchors": anchors,
-            "violations": violations
+            "violations": violations,
+            "contribution": contribution
         })
-        
+
     return verified_results
 
+
 def calculate_truth_score(verified_claims):
-    """Calculates overall card confidence."""
-    if not verified_claims: return 100 # Benefit of doubt for empty responses? Or 50?
-    total = sum(c['score'] for c in verified_claims)
-    return int(total / len(verified_claims))
+    """
+    Calculates overall card confidence using claim-level contributions.
+
+    Returns int (0-100) truth score. The score is an aggregate:
+    - Baseline: 70 (neutral starting point — not guilty, not proven)
+    - Each claim's contribution is added/subtracted
+    - Clamped to 0-100 range
+
+    Also enriches each claim dict with 'contribution_pct' for display.
+    """
+    if not verified_claims:
+        return 70  # Neutral baseline — no claims to evaluate
+
+    baseline = 70
+    total_contribution = sum(c.get('contribution', 0) for c in verified_claims)
+    raw_score = baseline + total_contribution
+    final_score = max(0, min(100, raw_score))
+
+    # Enrich claims with contribution percentage for frontend display
+    for c in verified_claims:
+        c['contribution_pct'] = round(
+            (c.get('contribution', 0) / max(1, abs(total_contribution))) * 100
+        ) if total_contribution != 0 else 0
+
+    return final_score
 
 
 # ===================================================================

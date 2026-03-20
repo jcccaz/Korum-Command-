@@ -3043,6 +3043,45 @@ function buildWorkspaceInspectorPanels(data) {
     }
     if (divergenceHtml) panels.push(buildInspectorPanel('inspectorDivergence', 'Divergence', divergenceHtml));
 
+    // --- CLAIM CONTRIBUTIONS PANEL ---
+    const selectedProvider = sessionState.selectedCardProvider;
+    const providerResult = selectedProvider && data.results ? data.results[selectedProvider] : null;
+    const claims = providerResult?.verified_claims || [];
+    if (claims.length > 0) {
+        const claimRows = claims.map(c => {
+            const contrib = c.contribution || 0;
+            const sign = contrib > 0 ? '+' : '';
+            const color = contrib > 0 ? '#4CAF7D' : contrib < 0 ? '#FF4444' : '#888';
+            const statusColor = c.status === 'CONFIRMED' ? '#4CAF7D'
+                              : c.status === 'SUPPORTED' ? '#FFB020'
+                              : '#FF4444';
+            const typeLabel = (c.type || 'unknown').toUpperCase();
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:0.65rem; color:#ccc; line-height:1.4;">${escapeHtml(c.claim.length > 80 ? c.claim.slice(0, 80) + '...' : c.claim)}</div>
+                        <div style="display:flex; gap:6px; margin-top:3px;">
+                            <span style="font-size:0.55rem; color:${statusColor}; letter-spacing:0.08em;">${c.status}</span>
+                            <span style="font-size:0.55rem; color:#666; letter-spacing:0.08em;">${typeLabel}</span>
+                        </div>
+                    </div>
+                    <div style="font-size:0.7rem; font-weight:700; color:${color}; white-space:nowrap; margin-left:8px; padding-top:4px;">${sign}${contrib}</div>
+                </div>
+            `;
+        }).join('');
+        const totalContrib = claims.reduce((sum, c) => sum + (c.contribution || 0), 0);
+        const totalSign = totalContrib > 0 ? '+' : '';
+        const totalColor = totalContrib > 0 ? '#4CAF7D' : totalContrib < 0 ? '#FF4444' : '#888';
+        const claimsHtml = `
+            ${claimRows}
+            <div style="display:flex; justify-content:space-between; padding:8px 0 2px; border-top:1px solid rgba(255,255,255,0.1); margin-top:4px;">
+                <span style="font-size:0.6rem; color:#999; letter-spacing:0.1em;">NET CONTRIBUTION</span>
+                <span style="font-size:0.75rem; font-weight:700; color:${totalColor};">${totalSign}${totalContrib}</span>
+            </div>
+        `;
+        panels.push(buildInspectorPanel('inspectorClaims', 'Claim Contributions', claimsHtml));
+    }
+
     const placeholderMap = data.falcon?.placeholder_map || {};
     if (Object.keys(placeholderMap).length) {
         const falconHtml = `
