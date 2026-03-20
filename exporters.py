@@ -128,10 +128,18 @@ class PDFExporter:
 
         story = []
 
-        # --- LOGO HEADER ---
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "Screenshot 2026-03-18 154250.png")
+        # --- LOGO HEADER (Adaptive Branding) ---
+        is_dark_bg = True # Default for Neon/Steel
+        if theme_id == "ARCHITECT": is_dark_bg = False
+        
+        logo_filename = "main korum os logo light.png" if is_dark_bg else "main korum os logo dark.png"
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", logo_filename)
+        # Fallback to main version if specific ones are missing
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo.png")
+
         if os.path.exists(logo_path):
-            img = RLImage(logo_path, width=180, height=45)
+            img = RLImage(logo_path, width=200, height=50) # Increased size for higher impact
             img.hAlign = 'CENTER'
             story.append(img)
             story.append(Spacer(1, 15))
@@ -309,10 +317,15 @@ class WordExporter:
         sec.left_margin = Inches(1.0)
         sec.right_margin = Inches(1.0)
         
-        # Header: Logo
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "Screenshot 2026-03-18 154250.png")
+        # Header: Logo (Adaptive)
+        is_dark_bg = theme_id != "ARCHITECT"
+        logo_filename = "main korum os logo light.png" if is_dark_bg else "main korum os logo dark.png"
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", logo_filename)
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo.png")
+
         if os.path.exists(logo_path):
-            doc.add_picture(logo_path, width=Inches(2.0))
+            doc.add_picture(logo_path, width=Inches(2.5))
             doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
             doc.add_paragraph()
             

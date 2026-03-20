@@ -3770,6 +3770,7 @@ window.executeVerify = async function (claimText, providerName) {
                 claim: claim,
                 original_query: sessionState.originalQuery || '',
                 thread_id: sessionState.activeThreadId || null,
+                provider_name: providerName || sessionState.selectedCardProvider || '',
                 use_falcon: activeModes.falcon,
                 falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD',
                 falcon_custom_terms: window._falconCustomTerms || []
@@ -3940,6 +3941,7 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
                 target_response: targetResponse,
                 attacker_role: attackerRole,
                 defender_role: defenderRole,
+                target_provider: sessionState.targetCard || targetName || defenderRole,
                 thread_id: sessionState.activeThreadId || null,
                 use_falcon: activeModes.falcon,
                 falcon_level: document.getElementById('falcon-level-select')?.value || 'STANDARD',
@@ -5507,6 +5509,29 @@ function renderResults(data, roleName) {
     setTimeout(() => {
         if (window.mermaid) mermaid.run({ querySelector: '.mermaid', suppressErrors: true });
     }, 500);
+
+    // === SCORE MEDIATION — Apply bidirectional truth recalibration ===
+    // If the backend detected prior interrogation/verification penalties and the
+    // follow-up response addressed (or failed to address) them, apply score deltas.
+    if (data.score_mediation) {
+        setTimeout(() => {
+            for (const [provider, med] of Object.entries(data.score_mediation)) {
+                if (med.delta && med.delta !== 0) {
+                    updateTruthScore(provider, med.delta, med.reason || 'MEDIATION');
+
+                    // Log component breakdown to telemetry
+                    if (med.components) {
+                        for (const comp of med.components) {
+                            const icon = comp.type === 'RECOVERY' ? '📈' :
+                                         comp.type === 'OVERCONFIDENCE_PENALTY' ? '⚠️' : '📉';
+                            logTelemetry(`${icon} ${provider.toUpperCase()}: ${comp.reason}`, comp.type === 'RECOVERY' ? 'success' : 'warning');
+                        }
+                    }
+                }
+            }
+            addCommsActivity('Score Mediation', 'Truth scores recalibrated based on prior interrogation/verification history.', 'ready');
+        }, 800); // Delay so cards are fully rendered before score animation
+    }
 }
 
 // === ANALYTIC DIVERGENCE MODAL ===

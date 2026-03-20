@@ -2242,6 +2242,27 @@ def ask_council():
                 "exposure_risk": falcon_meta['exposure_risk'],
             }
 
+        # --- SCORE MEDIATION: Recalibrate truth scores on follow-ups ---
+        # If this thread has prior interrogation/verification events,
+        # compare current responses against them and produce score deltas.
+        if previous_context:
+            try:
+                prior_score_events = _thread_get_score_events(thread_id)
+                if prior_score_events:
+                    mediation_results = mediate_truth_scores(
+                        v2_response.get('results', {}),
+                        prior_score_events
+                    )
+                    if mediation_results:
+                        v2_response['score_mediation'] = mediation_results
+                        _med_summary = "; ".join(
+                            f"{p}: {m['delta']:+d} ({m['reason']})"
+                            for p, m in mediation_results.items()
+                        )
+                        print(f"[MEDIATION] {_med_summary}")
+            except Exception as med_err:
+                print(f"[MEDIATION] Warning: score mediation failed: {med_err}")
+
         return jsonify(v2_response)
 
     # V1 LEGACY PARALLEL EXECUTION (The Core 4)
