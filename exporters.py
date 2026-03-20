@@ -642,11 +642,13 @@ class PPTXExporter:
 
 class ResearchPaperExporter:
     @staticmethod
-    def generate(o, d=None): return PDFExporter.generate(o, d)
+    def generate(intelligence_object, output_dir=None):
+        return PDFExporter.generate(intelligence_object, output_dir=output_dir)
 
 class ResearchPaperWordExporter:
     @staticmethod
-    def generate(o, d=None): return WordExporter.generate(o, d)
+    def generate(intelligence_object, output_dir=None):
+        return WordExporter.generate(intelligence_object, output_dir=output_dir)
 
 
 # --- END OF EXPORTERS ---
