@@ -3078,13 +3078,21 @@ function buildWorkspaceInspectorPanels(data) {
                               : c.status === 'SUPPORTED' ? '#FFB020'
                               : '#FF4444';
             const typeLabel = (c.type || 'unknown').toUpperCase();
+            const confLabel = c.confidence || 'MEDIUM';
+            const confColor = confLabel === 'HIGH' ? '#4CAF7D' : confLabel === 'LOW' ? '#FF4444' : '#FFB020';
+            const lifecycle = c.lifecycle || 'original';
+            const lifecycleIcon = lifecycle === 'challenged' ? '⚠' : lifecycle === 'verified' ? '✓' : lifecycle === 'updated' ? '↻' : '○';
+            const violationCount = c.violations?.length || 0;
             return `
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
                     <div style="flex:1; min-width:0;">
                         <div style="font-size:0.65rem; color:#ccc; line-height:1.4;">${escapeHtml(c.claim.length > 80 ? c.claim.slice(0, 80) + '...' : c.claim)}</div>
-                        <div style="display:flex; gap:6px; margin-top:3px;">
+                        <div style="display:flex; gap:6px; margin-top:3px; flex-wrap:wrap;">
                             <span style="font-size:0.55rem; color:${statusColor}; letter-spacing:0.08em;">${c.status}</span>
                             <span style="font-size:0.55rem; color:#666; letter-spacing:0.08em;">${typeLabel}</span>
+                            <span style="font-size:0.55rem; color:${confColor}; letter-spacing:0.08em;">${confLabel}</span>
+                            <span style="font-size:0.55rem; color:#555;" title="Lifecycle: ${lifecycle}">${lifecycleIcon} ${lifecycle}</span>
+                            ${violationCount ? `<span style="font-size:0.55rem; color:#FF4444;">⚑ ${violationCount} flag${violationCount > 1 ? 's' : ''}</span>` : ''}
                         </div>
                     </div>
                     <div style="font-size:0.7rem; font-weight:700; color:${color}; white-space:nowrap; margin-left:8px; padding-top:4px;">${sign}${contrib}</div>
@@ -7553,7 +7561,8 @@ function highlightClaims(html, claims) {
         const escapedClaim = claimText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`(?![^<]*>)${escapedClaim}`, 'g'); // Regex to avoid matching inside HTML tags
 
-        const replacement = `<span class="claim ${status}" data-status="${status.toUpperCase()} (${score}%)" data-type="${type}" title="VERIFICATION: ${status.toUpperCase()}">${claimText}</span>`;
+        const conf = (c.confidence || 'MEDIUM').toUpperCase();
+        const replacement = `<span class="claim ${status}" data-status="${status.toUpperCase()} (${score}%) · ${conf}" data-type="${type}" title="VERIFICATION: ${status.toUpperCase()} | CONFIDENCE: ${conf}">${claimText}</span>`;
 
         highlighted = highlighted.replace(regex, replacement);
     });

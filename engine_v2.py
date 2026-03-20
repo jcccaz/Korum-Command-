@@ -554,10 +554,10 @@ CREATIVE_PHASE_DIRECTIVES = {
 }
 
 TECH_PHASE_DIRECTIVES = {
-    0: { "title": "ARCHITECTURE INTAKE", "instruction": "Map system components, data flows, and technical debt." },
-    1: { "title": "TRADE-OFF ANALYSIS", "instruction": "Compare tech stack options (gains/sacrifices) with version specifics." },
-    2: { "title": "FAILURE MODES", "instruction": "Break the system: Bottlenecks, SPOFs, and data integrity risks." },
-    3: { "title": "BUILD SEQUENCE", "instruction": "Phased implementation: MVP, Scale, and Harden cycles." },
+    0: { "title": "ARCHITECTURE INTAKE", "instruction": "Map system components, data flows, and technical debt. Be specific: name technologies, versions, protocols. No hand-waving." },
+    1: { "title": "TRADE-OFF ANALYSIS", "instruction": "Challenge the default tech choice. For every recommendation, state what you LOSE by choosing it. Name the cheaper, faster, or simpler alternative and explain why it was rejected. If the previous phase recommended something, find the weakness in that recommendation. No unanimous agreement — trade-offs always exist." },
+    2: { "title": "FAILURE MODES", "instruction": "Your job is to BREAK the proposed architecture. You are the adversary. Find the single point of failure that will cause a 3AM outage. Identify the bottleneck that collapses under 10x load. Name the dependency that will be deprecated in 18 months. Challenge any claim from prior phases that lacks evidence. If Phase 1 said 'scalable', prove where it stops scaling. Be specific: name the component, the failure mode, and the blast radius. Do NOT agree with prior phases unless you have independent evidence." },
+    3: { "title": "BUILD SEQUENCE", "instruction": "Phased implementation: MVP, Scale, and Harden cycles. Address every failure mode from Phase 2 — if you skip one, justify why." },
     4: { "title": "CTO DECISION BRIEF", "instruction": (
             "STRATEGIC RULE: Use [SIGNAL TAGS] (e.g. [CRITICAL], [VERIFIED], [ACTION REQUIRED]) to highlight key findings. "
             "Default to Amber [TAGS]. Use Red [CRITICAL] only for high-threat signals. "
@@ -1008,14 +1008,37 @@ def verify_claims(claims, council_history):
     """
     Cross-references claims against other advisor outputs.
     Labels them [CONFIRMED], [SUSPECT], or [UNVERIFIED].
-    NOW WITH PQC COMPLIANCE AUDIT (FIPS 203/204).
 
-    Each claim gets a 'contribution' field showing its +/- impact on truth score.
+    Each claim gets:
+    - 'contribution': +/- impact on truth score
+    - 'confidence': HIGH / MEDIUM / LOW per-claim label
+    - 'lifecycle': original → challenged → verified → updated
+    - 'violations': list of enforcement flags (PQC, probability, temporal)
     """
     verified_results = []
 
+    # Regex patterns for probability and temporal enforcement
+    _prob_pattern = re.compile(r'(\d{1,3})\s*%')
+    _prob_basis_signals = [
+        'based on', 'according to', 'data shows', 'model predicts', 'analysis indicates',
+        'historical', 'calculated', 'derived from', 'regression', 'forecast',
+        'survey', 'sample', 'study', 'report', 'source:', 'per '
+    ]
+    _temporal_vague = re.compile(
+        r'\b(recently|recent|increasing|increasingly|growing|declining|'
+        r'trending|surging|emerging|rising|falling|accelerating|'
+        r'more and more|on the rise|gaining traction)\b', re.IGNORECASE
+    )
+    _temporal_grounded = re.compile(
+        r'\b(20\d{2}|Q[1-4]|january|february|march|april|may|june|'
+        r'july|august|september|october|november|december|'
+        r'year-over-year|YoY|month-over-month|MoM|since \d{4}|'
+        r'last \d+ (years?|months?|quarters?|weeks?))\b', re.IGNORECASE
+    )
+
     for c in claims:
         claim_text = c['claim']
+        claim_lower = claim_text.lower()
         status = "UNVERIFIED"
         score = 50
         anchors = []
@@ -1026,20 +1049,40 @@ def verify_claims(claims, council_history):
         legacy_crypto = ["RSA", "ECC", "ECDSA", "Diffie-Hellman", "AES-128", "DSA", "3DES", "RC4", "MD5", "SHA-1"]
         pqc_wrappers = ["ML-KEM", "Kyber", "ML-DSA", "Dilithium", "SLH-DSA", "Sphincs+", "FALCON", "FN-DSA"]
 
-        has_legacy = any(lc.lower() in claim_text.lower() for lc in legacy_crypto)
-        has_pqc = any(pqc.lower() in claim_text.lower() for pqc in pqc_wrappers)
+        has_legacy = any(lc.lower() in claim_lower for lc in legacy_crypto)
+        has_pqc = any(pqc.lower() in claim_lower for pqc in pqc_wrappers)
 
         if has_legacy and not has_pqc:
             violations.append("Non-PQC Compliant: Legacy cryptography detected without FIPS 203/204/205/206 wrapper (Quantum Drift). Recommend ML-KEM (key encapsulation), SLH-DSA (long-term signing), or FALCON/FN-DSA as Integrity Anchor for constrained-bandwidth paths.")
             score -= 20
             contribution -= 8  # PQC violation is a significant drag
 
+        # --- PROBABILITY VALIDATION (Item 2) ---
+        # Any percentage claim must have a source, model, or reasoning basis
+        prob_matches = _prob_pattern.findall(claim_text)
+        if prob_matches:
+            has_basis = any(sig in claim_lower for sig in _prob_basis_signals)
+            if not has_basis:
+                violations.append(f"UNSUPPORTED PROBABILITY: '{prob_matches[0]}%' stated without source, model, or reasoning basis. Auto-downgraded.")
+                score -= 10
+                contribution -= 4
+
+        # --- TEMPORAL CLAIM ENFORCEMENT (Item 3) ---
+        # Block vague time-based language without evidence
+        temporal_vague_hits = _temporal_vague.findall(claim_text)
+        if temporal_vague_hits:
+            has_temporal_ground = bool(_temporal_grounded.search(claim_text))
+            if not has_temporal_ground:
+                violations.append(f"UNGROUNDED TEMPORAL CLAIM: '{temporal_vague_hits[0]}' used without time-bound evidence or data reference.")
+                score -= 5
+                contribution -= 2
+
         # Simple cross-provider agreement logic
         agreement_count = 0
         for entry in council_history:
             content = entry['response'].lower()
             # Basic semantic match: if the core claim text is present
-            if claim_text.lower() in content:
+            if claim_lower in content:
                 agreement_count += 1
                 anchors.append(entry['ai'])
 
@@ -1065,14 +1108,33 @@ def verify_claims(claims, council_history):
         elif claim_type == 'causal' and status == 'CONFIRMED':
             contribution += 2   # confirmed causal claims add high value
 
+        # --- CONFIDENCE LABELING (Item 7) ---
+        # Per-claim confidence based on final score
+        final_score = max(0, min(score, 100))
+        if final_score >= 75:
+            confidence = "HIGH"
+        elif final_score >= 50:
+            confidence = "MEDIUM"
+        else:
+            confidence = "LOW"
+
+        # --- CLAIM LIFECYCLE (Item 5) ---
+        # Track where this claim is in its lifecycle
+        # Default is 'original' — other states set by mediation/interrogation
+        lifecycle = "original"
+        if violations:
+            lifecycle = "challenged"
+
         verified_results.append({
             "claim": claim_text,
             "status": status,
-            "score": max(0, min(score, 100)),
+            "score": final_score,
             "type": claim_type,
             "anchors": anchors,
             "violations": violations,
-            "contribution": contribution
+            "contribution": contribution,
+            "confidence": confidence,
+            "lifecycle": lifecycle
         })
 
     return verified_results
@@ -2480,8 +2542,7 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
         )
 
     # --- TRUTH PROPAGATION: Inject claim integrity into synthesis context ---
-    # This ensures the synthesizer knows which claims are verified, which are suspect,
-    # and actively avoids propagating stale/unverified claims into downstream sections.
+    # Items 1, 5, 6, 7: confidence labels, lifecycle tracking, output alignment
     if results:
         confirmed_claims = []
         unverified_claims = []
@@ -2490,22 +2551,29 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
             if not isinstance(res, dict) or not res.get('verified_claims'):
                 continue
             for claim in res['verified_claims']:
-                entry = f"{provider.upper()}: \"{claim['claim'][:120]}\" (contribution: {claim.get('contribution', 0):+d})"
+                conf_label = claim.get('confidence', 'MEDIUM')
+                lifecycle = claim.get('lifecycle', 'original')
+                entry = (
+                    f"{provider.upper()}: \"{claim['claim'][:120]}\" "
+                    f"[{conf_label} confidence] "
+                    f"(contribution: {claim.get('contribution', 0):+d}, lifecycle: {lifecycle})"
+                )
                 if claim['status'] == 'CONFIRMED':
                     confirmed_claims.append(entry)
                 elif claim['status'] == 'SUPPORTED':
-                    confirmed_claims.append(entry)  # supported is trustworthy enough
+                    confirmed_claims.append(entry)
                 else:
                     unverified_claims.append(entry)
                 if claim.get('violations'):
-                    invalidated_claims.append(f"{provider.upper()}: \"{claim['claim'][:80]}\" — {claim['violations'][0][:100]}")
+                    for v in claim['violations']:
+                        invalidated_claims.append(f"{provider.upper()}: \"{claim['claim'][:80]}\" — {v[:120]}")
 
         if confirmed_claims or unverified_claims or invalidated_claims:
             history_text += "\n\n[TRUTH PROPAGATION — CLAIM INTEGRITY LAYER]:\n"
             history_text += "The following claims have been cross-verified across council members.\n"
             history_text += "You MUST respect these findings in ALL synthesis sections.\n\n"
             if confirmed_claims:
-                history_text += "VERIFIED CLAIMS (safe to include, cite with confidence):\n"
+                history_text += "VERIFIED CLAIMS (safe to include — attach confidence label in output):\n"
                 for c in confirmed_claims[:15]:
                     history_text += f"  ✓ {c}\n"
             if unverified_claims:
@@ -2517,12 +2585,23 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
                 history_text += "(e.g. 'preliminary data suggests', 'subject to confirmation', "
                 history_text += "'estimated range'). Do NOT present unverified claims as established fact.\n"
             if invalidated_claims:
-                history_text += "\nINVALIDATED CLAIMS (DO NOT include in synthesis):\n"
+                history_text += "\nINVALIDATED / CHALLENGED CLAIMS (REMOVE or REFRAME — never state as-is):\n"
                 for c in invalidated_claims[:10]:
                     history_text += f"  ✗ {c}\n"
-                history_text += "\nRULE: These claims have been flagged with violations. "
-                history_text += "Do NOT repeat them in any section. If the topic must be addressed, "
-                history_text += "note the limitation without restating the invalidated claim.\n"
+                history_text += "\nRULE: These claims have been flagged with violations "
+                history_text += "(unsupported probability, vague temporal language, PQC non-compliance, etc.). "
+                history_text += "Do NOT repeat them as-is. Either reframe with proper caveats or omit entirely. "
+                history_text += "If a probability was flagged, either remove the specific number or add the basis.\n"
+
+            # OUTPUT ALIGNMENT ENFORCEMENT (Item 6)
+            history_text += "\n[OUTPUT ALIGNMENT — MANDATORY]:\n"
+            history_text += "Your final narrative MUST reflect the claim validation status above.\n"
+            history_text += "For each major claim in your output, include its confidence level:\n"
+            history_text += "  - HIGH confidence claims: state directly\n"
+            history_text += "  - MEDIUM confidence claims: use 'indicates' or 'suggests'\n"
+            history_text += "  - LOW confidence claims: use 'preliminary' or 'unconfirmed'\n"
+            history_text += "The executive summary and recommendations sections are the FINAL WORD.\n"
+            history_text += "They must align with the truth score and verification outcomes — no contradictions.\n"
 
     schema_sections = {section.lower().replace(" ", "_"): "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations." for section in dna["output_structure"]}
 
