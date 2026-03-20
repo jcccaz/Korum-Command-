@@ -7022,6 +7022,7 @@ function renderExportToolbar(container, _data) {
                 <option value="paper">Research Paper (PDF)</option>
                 <option value="pdf">Board Brief (PDF)</option>
                 <option value="docx">Executive Memo (.docx)</option>
+                <option value="pdf-memo">Executive Memo (PDF)</option>
                 <option value="xlsx">Intelligence Workbook (.xlsx)</option>
                 <option value="csv">Flat Data (.csv)</option>
                 <option value="json">Raw Intelligence (.json)</option>
@@ -7135,7 +7136,8 @@ async function handleDocExport(format, themeOverride = null) {
     const select = document.getElementById('exportDoc');
     const themeSelect = document.getElementById('themeSelect');
     const formatNames = {
-        'paper-docx': 'Research Paper (Word)', paper: 'Research Paper', pdf: 'Board Brief', docx: 'Executive Memo', xlsx: 'Intelligence Workbook',
+        'paper-docx': 'Research Paper (Word)', paper: 'Research Paper', pdf: 'Board Brief', 'pdf-memo': 'Executive Memo (PDF)', 
+        docx: 'Executive Memo', xlsx: 'Intelligence Workbook',
         pptx: 'Strategy Presentation', csv: 'Flat Data', json: 'Raw Intelligence', md: 'Markdown Brief', txt: 'Text Report'
     };
 

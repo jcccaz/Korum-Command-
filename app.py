@@ -546,6 +546,7 @@ def deploy_intelligence():
         from exporters import (
             CSVExporter,
             ExcelExporter,
+            ExecutiveMemoExporter,
             JSONExporter,
             MarkdownExporter,
             PDFExporter,
@@ -565,6 +566,7 @@ def deploy_intelligence():
             'md': MarkdownExporter,
             'txt': TextExporter,
             'pdf': PDFExporter,
+            'pdf-memo': ExecutiveMemoExporter,
             'paper': ResearchPaperExporter,
             'paper-docx': ResearchPaperWordExporter,
         }
