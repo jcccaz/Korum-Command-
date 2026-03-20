@@ -1883,7 +1883,7 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
 
     # 5. Synthesis (Final Guard)
     try:
-        synthesis = synthesize_results(context, divergence_analysis=divergence, arbiter_report=arbiter_report, user_id=user_id)
+        synthesis = synthesize_results(context, divergence_analysis=divergence, arbiter_report=arbiter_report, results=results, user_id=user_id)
 
         # --- FINAL RENDERING NORMALIZATION (Section 6 Directive) ---
         if isinstance(synthesis, dict):
@@ -2370,10 +2370,12 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     return prompt
 
 # --- PHASE 4: SYNTHESIS (The Extractor) ---
-def synthesize_results(context, divergence_analysis=None, arbiter_report=None, user_id=None):
+def synthesize_results(context, divergence_analysis=None, arbiter_report=None, results=None, user_id=None):
     """
     Extracts structured data (JSON) from the conversation history.
     Now includes divergence analysis for calibrated synthesis.
+    Includes truth propagation: claim integrity is injected so synthesis
+    avoids stale/unverified claims in downstream sections.
     """
     # Retrieve Workflow DNA for structure
     dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
@@ -2423,6 +2425,51 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, u
             "You MUST use the resolved values in your synthesis. Do NOT use conflicting "
             "values from individual providers if they contradict the arbiter's resolved figures.\n"
         )
+
+    # --- TRUTH PROPAGATION: Inject claim integrity into synthesis context ---
+    # This ensures the synthesizer knows which claims are verified, which are suspect,
+    # and actively avoids propagating stale/unverified claims into downstream sections.
+    if results:
+        confirmed_claims = []
+        unverified_claims = []
+        invalidated_claims = []
+        for provider, res in results.items():
+            if not isinstance(res, dict) or not res.get('verified_claims'):
+                continue
+            for claim in res['verified_claims']:
+                entry = f"{provider.upper()}: \"{claim['claim'][:120]}\" (contribution: {claim.get('contribution', 0):+d})"
+                if claim['status'] == 'CONFIRMED':
+                    confirmed_claims.append(entry)
+                elif claim['status'] == 'SUPPORTED':
+                    confirmed_claims.append(entry)  # supported is trustworthy enough
+                else:
+                    unverified_claims.append(entry)
+                if claim.get('violations'):
+                    invalidated_claims.append(f"{provider.upper()}: \"{claim['claim'][:80]}\" — {claim['violations'][0][:100]}")
+
+        if confirmed_claims or unverified_claims or invalidated_claims:
+            history_text += "\n\n[TRUTH PROPAGATION — CLAIM INTEGRITY LAYER]:\n"
+            history_text += "The following claims have been cross-verified across council members.\n"
+            history_text += "You MUST respect these findings in ALL synthesis sections.\n\n"
+            if confirmed_claims:
+                history_text += "VERIFIED CLAIMS (safe to include, cite with confidence):\n"
+                for c in confirmed_claims[:15]:
+                    history_text += f"  ✓ {c}\n"
+            if unverified_claims:
+                history_text += "\nUNVERIFIED CLAIMS (hedge language required — do NOT state as fact):\n"
+                for c in unverified_claims[:15]:
+                    history_text += f"  ? {c}\n"
+                history_text += "\nRULE: Any unverified claim that appears in the executive summary, "
+                history_text += "risk matrix, or recommendations MUST use hedging language "
+                history_text += "(e.g. 'preliminary data suggests', 'subject to confirmation', "
+                history_text += "'estimated range'). Do NOT present unverified claims as established fact.\n"
+            if invalidated_claims:
+                history_text += "\nINVALIDATED CLAIMS (DO NOT include in synthesis):\n"
+                for c in invalidated_claims[:10]:
+                    history_text += f"  ✗ {c}\n"
+                history_text += "\nRULE: These claims have been flagged with violations. "
+                history_text += "Do NOT repeat them in any section. If the topic must be addressed, "
+                history_text += "note the limitation without restating the invalidated claim.\n"
 
     schema_sections = {section.lower().replace(" ", "_"): "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations." for section in dna["output_structure"]}
 
