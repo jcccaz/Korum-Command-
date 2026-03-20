@@ -219,21 +219,182 @@ class PDFExporter:
             t_row.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 25)]))
             story.append(t_row)
 
-        # 5. --- SUPPLEMENTAL DATA ---
+        # 5. --- TRUTH SCORE BAR ---
+        truth_raw = meta.get("composite_truth_score", 0)
+        try:
+            truth_int = int(float(truth_raw) * 100) if float(truth_raw) <= 1 else int(float(truth_raw))
+        except (ValueError, TypeError):
+            truth_int = 0
+        if truth_int > 0:
+            truth_color = '#4CAF7D' if truth_int > 80 else (GOLD if truth_int > 50 else '#FF3131')
+            bar_fill = max(int(540 * truth_int / 100), 1)
+            bar_empty = 540 - bar_fill
+            story.append(Spacer(1, 10))
+            story.append(Paragraph(f"COMPOSITE TRUTH SCORE: {truth_int}/100", styles['ExecLabel']))
+            story.append(Spacer(1, 5))
+            bar_data = [["", ""]]
+            bar = Table(bar_data, colWidths=[bar_fill, bar_empty], rowHeights=[8])
+            bar.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (0,0), colors.HexColor(truth_color)),
+                ('BACKGROUND', (1,0), (1,0), colors.HexColor("#1A1A1A")),
+                ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ]))
+            story.append(bar)
+            story.append(Spacer(1, 25))
+
+        # 6. --- KEY METRICS TABLE ---
+        key_metrics = structured.get("key_metrics") or []
+        if key_metrics:
+            story.append(Table([[Paragraph("KEY INTELLIGENCE METRICS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
+            story.append(Spacer(1, 10))
+            m_header = [[Paragraph("METRIC", styles['ExecLabel']), Paragraph("VALUE", styles['ExecLabel']), Paragraph("CONTEXT", styles['ExecLabel'])]]
+            m_rows = [[Paragraph(escape(_as_text(m.get('metric',''))), styles['ExecBody']),
+                        Paragraph(f"<b>{escape(_as_text(m.get('value','')))}</b>", styles['ExecBody']),
+                        Paragraph(escape(_as_text(m.get('context',''))), styles['ExecBody'])]
+                       for m in key_metrics[:12]]
+            m_table = Table(m_header + m_rows, colWidths=[160, 120, 260])
+            m_table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+            ]))
+            story.append(m_table)
+            story.append(Spacer(1, 25))
+
+        # 7. --- RISK MATRIX ---
+        risks = structured.get("risks") or []
+        if risks:
+            story.append(Table([[Paragraph("RISK MATRIX", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
+            story.append(Spacer(1, 10))
+            r_header = [[Paragraph("RISK", styles['ExecLabel']), Paragraph("SEVERITY", styles['ExecLabel']), Paragraph("MITIGATION", styles['ExecLabel'])]]
+            r_rows = []
+            for r in risks[:8]:
+                sev = _as_text(r.get('severity', 'MEDIUM')).upper()
+                sev_color = '#FF3131' if sev in ('CRITICAL', 'HIGH') else (GOLD if sev == 'MEDIUM' else ACCENT)
+                r_rows.append([
+                    Paragraph(escape(_as_text(r.get('risk',''))), styles['ExecBody']),
+                    Paragraph(f"<font color='{sev_color}'><b>{escape(sev)}</b></font>", styles['ExecBody']),
+                    Paragraph(escape(_as_text(r.get('mitigation',''))), styles['ExecBody']),
+                ])
+            r_table = Table(r_header + r_rows, colWidths=[200, 80, 260])
+            r_table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+            ]))
+            story.append(r_table)
+            story.append(Spacer(1, 25))
+
+        # 8. --- RECOMMENDED ACTIONS ---
+        actions = structured.get("action_items") or structured.get("actions") or []
+        if actions:
+            story.append(Table([[Paragraph("RECOMMENDED ACTIONS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
+            story.append(Spacer(1, 10))
+            a_header = [[Paragraph("ACTION", styles['ExecLabel']), Paragraph("PRIORITY", styles['ExecLabel']), Paragraph("TIMELINE", styles['ExecLabel'])]]
+            a_rows = []
+            for a in actions[:8]:
+                pri = _as_text(a.get('priority', '')).upper()
+                pri_color = '#FF3131' if pri == 'HIGH' else (GOLD if pri in ('MED', 'MEDIUM') else ACCENT)
+                a_rows.append([
+                    Paragraph(escape(_as_text(a.get('task', a.get('action', '')))), styles['ExecBody']),
+                    Paragraph(f"<font color='{pri_color}'><b>{escape(pri)}</b></font>", styles['ExecBody']),
+                    Paragraph(escape(_as_text(a.get('timeline', ''))), styles['ExecBody']),
+                ])
+            a_table = Table(a_header + a_rows, colWidths=[260, 80, 200])
+            a_table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+            ]))
+            story.append(a_table)
+            story.append(Spacer(1, 25))
+
+        # 9. --- COUNCIL CONTRIBUTORS ---
+        contributors = intelligence_object.get("council_contributors") or []
+        if contributors:
+            story.append(Table([[Paragraph("COUNCIL CONTRIBUTORS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
+            story.append(Spacer(1, 10))
+            c_header = [[Paragraph("PHASE", styles['ExecLabel']), Paragraph("PROVIDER", styles['ExecLabel']), Paragraph("ROLE", styles['ExecLabel']), Paragraph("CONTRIBUTION", styles['ExecLabel'])]]
+            c_rows = [[Paragraph(escape(_as_text(c.get('phase',''))), styles['ExecBody']),
+                        Paragraph(escape(_as_text(c.get('provider','')).upper()), styles['ExecBody']),
+                        Paragraph(escape(_as_text(c.get('role',''))), styles['ExecBody']),
+                        Paragraph(escape(_as_text(c.get('contribution_summary',''))), styles['ExecBody'])]
+                       for c in contributors[:10]]
+            c_table = Table(c_header + c_rows, colWidths=[100, 80, 90, 270])
+            c_table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                ('TOPPADDING', (0,0), (-1,-1), 3),
+            ]))
+            story.append(c_table)
+            story.append(Spacer(1, 25))
+
+        # 10. --- CONFIDENCE ASSESSMENT ---
+        confidence = intelligence_object.get("confidence_and_assumptions") or {}
+        if confidence:
+            story.append(Table([[Paragraph("CONFIDENCE ASSESSMENT", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
+            story.append(Spacer(1, 10))
+            conf_level = _as_text(confidence.get('overall_confidence', '')).upper()
+            conf_color = '#4CAF7D' if 'HIGH' in conf_level else (GOLD if 'MODERATE' in conf_level else '#FF3131')
+            story.append(Paragraph(f"OVERALL CONFIDENCE: <font color='{conf_color}'><b>{escape(conf_level)}</b></font>", styles['ExecBody']))
+            story.append(Spacer(1, 8))
+            assumptions = confidence.get('key_assumptions') or []
+            if assumptions:
+                story.append(Paragraph("KEY ASSUMPTIONS:", styles['ExecLabel']))
+                for assumption in assumptions[:5]:
+                    story.append(Paragraph(f"&bull; {escape(_as_text(assumption))}", styles['ExecBody']))
+            limitations = confidence.get('limitations') or []
+            if limitations:
+                story.append(Spacer(1, 6))
+                story.append(Paragraph("LIMITATIONS:", styles['ExecLabel']))
+                for lim in limitations[:4]:
+                    story.append(Paragraph(f"&bull; {escape(_as_text(lim))}", styles['ExecBody']))
+            story.append(Spacer(1, 25))
+
+        # 11. --- DIVERGENCE ANALYSIS ---
+        divergence = intelligence_object.get("divergence_analysis") or {}
+        if divergence and (divergence.get("divergence_score") or divergence.get("contested_topics")):
+            story.append(Table([[Paragraph("DIVERGENCE ANALYSIS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
+            story.append(Spacer(1, 10))
+            div_score = divergence.get("divergence_score", 0)
+            con_score = divergence.get("consensus_score", 0)
+            try:
+                div_score = int(float(div_score))
+                con_score = int(float(con_score))
+            except (ValueError, TypeError):
+                div_score, con_score = 0, 0
+            if div_score or con_score:
+                story.append(Paragraph(f"CONSENSUS: <b>{con_score}/100</b> &nbsp;&nbsp; DIVERGENCE: <b>{div_score}/100</b>", styles['ExecBody']))
+                story.append(Spacer(1, 8))
+            div_summary = divergence.get("divergence_summary")
+            if div_summary:
+                story.append(Paragraph(escape(_as_text(div_summary)), styles['ExecBody']))
+                story.append(Spacer(1, 8))
+            contested = divergence.get("contested_topics") or []
+            for topic in contested[:4]:
+                topic_name = topic.get("topic", topic) if isinstance(topic, dict) else _as_text(topic)
+                story.append(Paragraph(f"&bull; <b>{escape(_as_text(topic_name))}</b>", styles['ExecBody']))
+            story.append(Spacer(1, 25))
+
+        # 12. --- SUPPLEMENTAL DATA EXHIBITS ---
         artifacts = _report_artifacts(intelligence_object)
         if artifacts:
-            story.append(Spacer(1, 20))
             story.append(Table([[Paragraph("SUPPLEMENTAL DATA EXHIBITS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
-            story.append(Spacer(1, 20))
+            story.append(Spacer(1, 15))
             for art in artifacts:
-                row = [[Paragraph(f"EXHIBIT: {_artifact_label(art).upper()}", styles['ExecLabel']), Paragraph(escape(_as_text(art.get("content", ""))).replace("\n", "<br/>"), styles['ExecBody'])]]
+                row = [[Paragraph(f"EXHIBIT: {escape(_artifact_label(art).upper())}", styles['ExecLabel']), Paragraph(escape(_as_text(art.get("content", ""))).replace("\n", "<br/>"), styles['ExecBody'])]]
                 at_tab = Table(row, colWidths=[160, 380])
                 at_tab.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 20)]))
                 story.append(at_tab)
 
-        # 6. --- FOOTER AUTHENTICATION ---
+        # 13. --- FOOTER AUTHENTICATION ---
         story.append(Spacer(1, 40))
-        sig_data = [[Paragraph(f"Produced by Korum-OS Decision Intelligence // {datetime.now().strftime('%Y-%M-%d %H:%M')}", styles['ExecAudit'])]]
+        sig_data = [[Paragraph(f"Produced by Korum-OS Decision Intelligence // {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['ExecAudit'])]]
         sig_tab = Table(sig_data, colWidths=[540])
         sig_tab.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'RIGHT')]))
         story.append(sig_tab)
@@ -348,12 +509,162 @@ class WordExporter:
             r_cell.paragraphs[0].runs[0].font.size = Pt(10)
             doc.add_paragraph()
 
-        # 5. --- SIGNATURE FOOTER ---
+        # 5. --- TRUTH SCORE ---
+        truth_raw = meta.get("composite_truth_score", 0)
+        try:
+            truth_int = int(float(truth_raw) * 100) if float(truth_raw) <= 1 else int(float(truth_raw))
+        except (ValueError, TypeError):
+            truth_int = 0
+        if truth_int > 0:
+            ts_p = doc.add_paragraph()
+            ts_label = ts_p.add_run(f"COMPOSITE TRUTH SCORE: {truth_int}/100")
+            ts_label.bold = True
+            ts_label.font.size = Pt(10)
+            ts_label.font.color.rgb = p_rgb
+            doc.add_paragraph()
+
+        # 6. --- KEY METRICS TABLE ---
+        key_metrics = structured.get("key_metrics") or []
+        if key_metrics:
+            h_p = doc.add_paragraph("KEY INTELLIGENCE METRICS")
+            h_p.runs[0].bold = True
+            h_p.runs[0].font.color.rgb = p_rgb
+            h_p.runs[0].font.size = Pt(10)
+            m_tab = doc.add_table(rows=1 + len(key_metrics[:12]), cols=3)
+            m_tab.style = 'Table Grid'
+            m_tab.autofit = False
+            m_tab.columns[0].width = Inches(2.0)
+            m_tab.columns[1].width = Inches(1.5)
+            m_tab.columns[2].width = Inches(2.5)
+            for i, lbl in enumerate(["METRIC", "VALUE", "CONTEXT"]):
+                cell = m_tab.rows[0].cells[i]
+                cell.text = lbl
+                cell.paragraphs[0].runs[0].bold = True
+                cell.paragraphs[0].runs[0].font.size = Pt(8)
+                cell.paragraphs[0].runs[0].font.color.rgb = p_rgb
+            for ri, m in enumerate(key_metrics[:12]):
+                m_tab.rows[ri+1].cells[0].text = _as_text(m.get('metric', ''))
+                m_tab.rows[ri+1].cells[1].text = _as_text(m.get('value', ''))
+                m_tab.rows[ri+1].cells[2].text = _as_text(m.get('context', ''))
+            doc.add_paragraph()
+
+        # 7. --- RISK MATRIX ---
+        risks = structured.get("risks") or []
+        if risks:
+            h_p = doc.add_paragraph("RISK MATRIX")
+            h_p.runs[0].bold = True
+            h_p.runs[0].font.color.rgb = p_rgb
+            h_p.runs[0].font.size = Pt(10)
+            r_tab = doc.add_table(rows=1 + len(risks[:8]), cols=3)
+            r_tab.style = 'Table Grid'
+            r_tab.autofit = False
+            r_tab.columns[0].width = Inches(2.5)
+            r_tab.columns[1].width = Inches(1.0)
+            r_tab.columns[2].width = Inches(2.5)
+            for i, lbl in enumerate(["RISK", "SEVERITY", "MITIGATION"]):
+                cell = r_tab.rows[0].cells[i]
+                cell.text = lbl
+                cell.paragraphs[0].runs[0].bold = True
+                cell.paragraphs[0].runs[0].font.size = Pt(8)
+                cell.paragraphs[0].runs[0].font.color.rgb = p_rgb
+            for ri, r in enumerate(risks[:8]):
+                r_tab.rows[ri+1].cells[0].text = _as_text(r.get('risk', ''))
+                sev_cell = r_tab.rows[ri+1].cells[1]
+                sev_cell.text = _as_text(r.get('severity', '')).upper()
+                sev_cell.paragraphs[0].runs[0].bold = True
+                r_tab.rows[ri+1].cells[2].text = _as_text(r.get('mitigation', ''))
+            doc.add_paragraph()
+
+        # 8. --- RECOMMENDED ACTIONS ---
+        actions = structured.get("action_items") or structured.get("actions") or []
+        if actions:
+            h_p = doc.add_paragraph("RECOMMENDED ACTIONS")
+            h_p.runs[0].bold = True
+            h_p.runs[0].font.color.rgb = p_rgb
+            h_p.runs[0].font.size = Pt(10)
+            a_tab = doc.add_table(rows=1 + len(actions[:8]), cols=3)
+            a_tab.style = 'Table Grid'
+            a_tab.autofit = False
+            a_tab.columns[0].width = Inches(3.0)
+            a_tab.columns[1].width = Inches(1.0)
+            a_tab.columns[2].width = Inches(2.0)
+            for i, lbl in enumerate(["ACTION", "PRIORITY", "TIMELINE"]):
+                cell = a_tab.rows[0].cells[i]
+                cell.text = lbl
+                cell.paragraphs[0].runs[0].bold = True
+                cell.paragraphs[0].runs[0].font.size = Pt(8)
+                cell.paragraphs[0].runs[0].font.color.rgb = p_rgb
+            for ri, a in enumerate(actions[:8]):
+                a_tab.rows[ri+1].cells[0].text = _as_text(a.get('task', a.get('action', '')))
+                pri_cell = a_tab.rows[ri+1].cells[1]
+                pri_cell.text = _as_text(a.get('priority', '')).upper()
+                pri_cell.paragraphs[0].runs[0].bold = True
+                a_tab.rows[ri+1].cells[2].text = _as_text(a.get('timeline', ''))
+            doc.add_paragraph()
+
+        # 9. --- COUNCIL CONTRIBUTORS ---
+        contributors = intelligence_object.get("council_contributors") or []
+        if contributors:
+            h_p = doc.add_paragraph("COUNCIL CONTRIBUTORS")
+            h_p.runs[0].bold = True
+            h_p.runs[0].font.color.rgb = p_rgb
+            h_p.runs[0].font.size = Pt(10)
+            c_tab = doc.add_table(rows=1 + len(contributors[:10]), cols=4)
+            c_tab.style = 'Table Grid'
+            c_tab.autofit = False
+            c_tab.columns[0].width = Inches(1.2)
+            c_tab.columns[1].width = Inches(1.0)
+            c_tab.columns[2].width = Inches(1.0)
+            c_tab.columns[3].width = Inches(2.8)
+            for i, lbl in enumerate(["PHASE", "PROVIDER", "ROLE", "CONTRIBUTION"]):
+                cell = c_tab.rows[0].cells[i]
+                cell.text = lbl
+                cell.paragraphs[0].runs[0].bold = True
+                cell.paragraphs[0].runs[0].font.size = Pt(8)
+                cell.paragraphs[0].runs[0].font.color.rgb = p_rgb
+            for ri, c in enumerate(contributors[:10]):
+                c_tab.rows[ri+1].cells[0].text = _as_text(c.get('phase', ''))
+                c_tab.rows[ri+1].cells[1].text = _as_text(c.get('provider', '')).upper()
+                c_tab.rows[ri+1].cells[2].text = _as_text(c.get('role', ''))
+                c_tab.rows[ri+1].cells[3].text = _as_text(c.get('contribution_summary', ''))
+            doc.add_paragraph()
+
+        # 10. --- CONFIDENCE ASSESSMENT ---
+        confidence = intelligence_object.get("confidence_and_assumptions") or {}
+        if confidence:
+            h_p = doc.add_paragraph("CONFIDENCE ASSESSMENT")
+            h_p.runs[0].bold = True
+            h_p.runs[0].font.color.rgb = p_rgb
+            h_p.runs[0].font.size = Pt(10)
+            conf_level = _as_text(confidence.get('overall_confidence', '')).upper()
+            c_p = doc.add_paragraph()
+            c_run = c_p.add_run(f"OVERALL CONFIDENCE: {conf_level}")
+            c_run.bold = True
+            c_run.font.size = Pt(10)
+            assumptions = confidence.get('key_assumptions') or []
+            if assumptions:
+                a_p = doc.add_paragraph("KEY ASSUMPTIONS:")
+                a_p.runs[0].bold = True
+                a_p.runs[0].font.size = Pt(9)
+                a_p.runs[0].font.color.rgb = p_rgb
+                for assumption in assumptions[:5]:
+                    doc.add_paragraph(_as_text(assumption), style='List Bullet')
+            limitations = confidence.get('limitations') or []
+            if limitations:
+                l_p = doc.add_paragraph("LIMITATIONS:")
+                l_p.runs[0].bold = True
+                l_p.runs[0].font.size = Pt(9)
+                l_p.runs[0].font.color.rgb = p_rgb
+                for lim in limitations[:4]:
+                    doc.add_paragraph(_as_text(lim), style='List Bullet')
+            doc.add_paragraph()
+
+        # 11. --- SIGNATURE FOOTER ---
         section = doc.sections[0]
         footer = section.footer
         p = footer.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        f_run = p.add_run(f"Produced by Korum-OS Decision Intelligence // {datetime.now().strftime('%Y-%M-%d %H:%M')}")
+        f_run = p.add_run(f"Produced by Korum-OS Decision Intelligence // {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         f_run.font.name = 'Courier New'
         f_run.font.size = Pt(8)
 
