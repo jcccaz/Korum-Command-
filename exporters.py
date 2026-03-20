@@ -93,6 +93,18 @@ def _convert_mermaid_to_table(text):
     # (Helper logic for Mermaid integration)
     return text
 
+# --- AGENT ACCENT COLORS (fixed across all themes) ---
+AGENT_COLORS = {
+    'OPENAI': '#273C75',
+    'ANTHROPIC': '#8B3A00',
+    'GOOGLE': '#2A5C1A',
+    'PERPLEXITY': '#4A2A8A',
+    'MISTRAL': '#1A4A5C',
+}
+
+# Circled number glyphs for numbered prose lists
+_CIRCLED_NUMS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧']
+
 def _dark_page_bg(canvas, doc):
     canvas.saveState()
     # Get current theme background from doc if available, else default
@@ -109,12 +121,12 @@ def _sanitize_for_csv(value):
 
 class PDFExporter:
     """Executive-Grade Intelligence Dossier — Decision Intelligence Standard."""
-    
+
     @staticmethod
     def generate(intelligence_object, output_dir=None):
         meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
-        
-        # --- THE WOW PALETTE ---
+
+        # --- THEME PALETTES ---
         THEMES = {
             'NEON_DESERT': {"bg": "#0F172A", "accent": "#2DD4BF", "gold": "#FBBF24", "text": "#94A3B8", "dim": "#475569"},
             'CARBON_STEEL':{"bg": "#1A1A1A", "accent": "#D1D5DB", "gold": "#BC2F32", "text": "#D1D5DB", "dim": "#4B5563"},
@@ -122,20 +134,27 @@ class PDFExporter:
         }
         theme_id = meta.get("theme", "NEON_DESERT").upper()
         if theme_id not in THEMES: theme_id = "NEON_DESERT"
-        
+
         t = THEMES[theme_id]
         BG_PAGE, ACCENT, GOLD, TXT_MAIN, TXT_DIM = t['bg'], t['accent'], t['gold'], t['text'], t['dim']
+
+        # --- SEMANTIC COLORS (fixed across all themes — layout spec) ---
+        RACING_GREEN = "#1B4332"
+        FORENSIC_RED = "#8B1A1A"
+        MUTED_AMBER = "#C8922A"
+        INKWELL = "#273C75"
+        VERIFIED_BG = "#0D2818"
+        FLAGGED_BG = "#2A0A0A"
+        CONTEXTUAL_BG = "#0F1A3D"
 
         safe_title = _safe_filename_part(meta.get('title', 'Intelligence'))
         filename = f"KORUM-OS_DOSSIER_{safe_title}_{_timestamp()}.pdf"
         filepath = _output_path(filename, output_dir)
-        
-        # Tight margins for a modern edge-to-edge feel
+
         doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=35, bottomMargin=45, leftMargin=35, rightMargin=35)
         doc._bg_color = BG_PAGE
-        
+
         styles = getSampleStyleSheet()
-        # Premium Custom Styles (Unique IDs to avoid collisions)
         styles.add(ParagraphStyle('ExecTitle', parent=styles['Normal'], fontSize=38, textColor=colors.HexColor(ACCENT), leading=42, fontName='Helvetica-Bold', spaceAfter=20))
         styles.add(ParagraphStyle('ExecLabel', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor(GOLD), fontName='Helvetica-Bold', leading=10))
         styles.add(ParagraphStyle('ExecValue', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor(TXT_MAIN), fontName='Helvetica', leading=13))
@@ -143,16 +162,38 @@ class PDFExporter:
         styles.add(ParagraphStyle('ExecAudit', parent=styles['Normal'], fontSize=7, textColor=colors.HexColor(TXT_DIM), fontName='Courier-Bold'))
         styles.add(ParagraphStyle('ExecImpact', parent=styles['Normal'], fontSize=14, textColor=colors.HexColor(TXT_MAIN), leading=20, fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle('ExecSig', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor(ACCENT), alignment=2, fontName='Helvetica-Bold'))
+        # Layout spec styles
+        styles.add(ParagraphStyle('StatBig', parent=styles['Normal'], fontSize=26, textColor=colors.HexColor(ACCENT), fontName='Helvetica-Bold', alignment=1, leading=30))
+        styles.add(ParagraphStyle('StatCaption', parent=styles['Normal'], fontSize=7, textColor=colors.HexColor(TXT_DIM), fontName='Helvetica-Bold', alignment=1, leading=9))
+        styles.add(ParagraphStyle('PullQuote', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor(TXT_MAIN), fontName='Helvetica-Oblique', leading=14))
+        styles.add(ParagraphStyle('ProviderBadge', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor(TXT_MAIN), fontName='Helvetica-Bold', leading=10))
+        styles.add(ParagraphStyle('ConsensusBody', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor(TXT_MAIN), fontName='Helvetica-Oblique', leading=16, alignment=1))
 
         story = []
 
-        # 1. --- LOGO & STRATEGIC BRANDING ---
-        # All themes are dark — always use light logo
+        # --- Extract reusable data early ---
+        card_results = intelligence_object.get("_card_results") or {}
+        contributors = intelligence_object.get("council_contributors") or []
+        confidence = intelligence_object.get("confidence_and_assumptions") or {}
+        divergence = intelligence_object.get("divergence_analysis") or {}
+
+        # Mission context: client name, industry, etc.
+        mission_ctx = intelligence_object.get("_mission_context") or {}
+        client_name = _as_text(mission_ctx.get("client", "")).strip() or "DECISION COMMANDER ALPHA"
+
+        # Build contributor attribution map: section index → provider info
+        contrib_map = {}
+        for c in contributors:
+            phase_str = _as_text(c.get('phase', ''))
+            m = re.search(r'(\d+)', phase_str)
+            if m:
+                contrib_map[int(m.group(1)) - 1] = c
+
+        # 1. --- CONFIDENTIAL BANNER + LOGO ---
         logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo light.png")
         if not os.path.exists(logo_path):
             logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo.png")
 
-        # CONFIDENTIAL banner — top of every page
         conf_banner = Table([[Paragraph(f"<font color='{GOLD}'>CONFIDENTIAL</font> &mdash; PROPRIETARY INTELLIGENCE PRODUCT", styles['ExecAudit'])]], colWidths=[540])
         conf_banner.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('BOTTOMPADDING', (0,0), (-1,-1), 12)]))
         story.append(conf_banner)
@@ -171,10 +212,9 @@ class PDFExporter:
 
         # 2. --- DOSSIER IDENTIFIER & CONTEXT ---
         story.append(Paragraph(f"{escape(meta.get('title', 'Node_Command').upper())}", styles['ExecTitle']))
-        
-        # Metadata Asymmetry
+
         ctx_data = [
-            [Paragraph("PREPARED FOR:", styles['ExecLabel']), Paragraph("DECISION COMMANDER ALPHA", styles['ExecValue'])],
+            [Paragraph("PREPARED FOR:", styles['ExecLabel']), Paragraph(escape(client_name.upper()), styles['ExecValue'])],
             [Paragraph("MISSION DIRECTIVE:", styles['ExecLabel']), Paragraph(escape(meta.get('workflow', 'STRATEGIC_INTEL').upper()), styles['ExecValue'])],
             [Paragraph("AUTHENTICATION:", styles['ExecLabel']), Paragraph("KORUM-OS DECISION INTELLIGENCE", styles['ExecValue'])]
         ]
@@ -182,23 +222,69 @@ class PDFExporter:
         ctx_table.setStyle(TableStyle([('BOTTOMPADDING', (0,0), (-1,-1), 8), ('VALIGN', (0,0), (-1,-1), 'TOP')]))
         story.append(ctx_table)
         story.append(Spacer(1, 15))
-        
-        # The Deck Rule
+
         story.append(Table([[""]], colWidths=[540], rowHeights=[1], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(GOLD))]))
         story.append(Spacer(1, 25))
 
-        # 3. --- ORIGINAL DIRECTIVE BLOCK (The "Why") ---
-        original_query = meta.get("summary") or "INTEL SYNTHESIS REQUIRED"
+        # 3. --- STRATEGIC IMPACT SUMMARY (mixed case, bold first sentence) ---
+        original_query = meta.get("summary") or "Intel synthesis required."
         story.append(Paragraph("STRATEGIC IMPACT SUMMARY", styles['ExecLabel']))
         story.append(Spacer(1, 10))
-        story.append(Paragraph(escape(original_query).upper(), styles['ExecImpact']))
-        story.append(Spacer(1, 40))
+        # Split on first sentence boundary — bold the lead finding, regular weight for rest
+        _dot = original_query.find('. ')
+        if _dot > 0:
+            lead_sentence = escape(original_query[:_dot + 1])
+            rest_text = escape(original_query[_dot + 2:])
+            story.append(Paragraph(f"<b>{lead_sentence}</b> {rest_text}", styles['ExecImpact']))
+        else:
+            story.append(Paragraph(f"<b>{escape(original_query)}</b>", styles['ExecImpact']))
+        story.append(Spacer(1, 30))
 
-        # 4. --- INTELLIGENCE GRID (Flowing, Asymmetric Layout) ---
+        # 4. --- THREE-STAT STRIP (top KPIs as big inline numbers) ---
+        key_metrics = structured.get("key_metrics") or []
+        if len(key_metrics) >= 2:
+            stat_count = min(3, len(key_metrics))
+            stat_cells = []
+            stat_widths = [540 // stat_count] * stat_count
+            for km in key_metrics[:stat_count]:
+                val = _as_text(km.get('value', '—'))
+                label = _as_text(km.get('metric', '')).upper()
+                stat_cells.append(Paragraph(
+                    f"<font color='{ACCENT}' size='26'><b>{escape(val)}</b></font><br/>"
+                    f"<font color='{TXT_DIM}' size='7'>{escape(label)}</font>",
+                    styles['StatBig']))
+            stat_strip = Table([stat_cells], colWidths=stat_widths)
+            stat_strip.setStyle(TableStyle([
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('TOPPADDING', (0,0), (-1,-1), 12),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+            ]))
+            story.append(stat_strip)
+            story.append(Spacer(1, 8))
+            # Thin rule under stat strip
+            story.append(Table([["", "", ""]], colWidths=[170, 200, 170], rowHeights=[0.5],
+                style=[('BACKGROUND', (1,0), (1,0), colors.HexColor(TXT_DIM)),
+                       ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                       ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,-1), 0)]))
+            story.append(Spacer(1, 25))
+
+        # 5. --- INTELLIGENCE SECTIONS (Prose Flow w/ Inline Agent Attribution) ---
         section_items = list(sections.items())
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
-            node_id = f"NODE {idx+1:02d}"
+
+            # Agent attribution: "NODE 04 — ANTHROPIC · Auditor"
+            attrib = contrib_map.get(idx)
+            if attrib:
+                prov_name = _as_text(attrib.get('provider', '')).upper()
+                role_name = _as_text(attrib.get('role', ''))
+                node_id = f"NODE {idx+1:02d} &mdash; {escape(prov_name)} &middot; {escape(role_name)}"
+            else:
+                node_id = f"NODE {idx+1:02d}"
+
+            # Agent accent color for this section
+            agent_color = AGENT_COLORS.get(prov_name, GOLD) if attrib else GOLD
 
             # --- Text Processing (Escaping + Dynamic Highlighting) ---
             raw_text = _as_text(content)
@@ -207,11 +293,11 @@ class PDFExporter:
                 ph = f"___SG_{tag.replace(' ', '_')}___"
                 if f"[{tag}]" in raw_text:
                     raw_text = raw_text.replace(f"[{tag}]", ph).replace(f"[/{tag}]", "")
-                    tag_placeholders[ph] = f"<font color='#FF3131' size='11'><b>[{tag}]</b></font>" if tag == "CRITICAL" else f"<font color='{GOLD}'><b>[{tag}]</b></font>"
+                    tag_placeholders[ph] = f"<font color='{FORENSIC_RED}' size='11'><b>[{tag}]</b></font>" if tag == "CRITICAL" else f"<font color='{GOLD}'><b>[{tag}]</b></font>"
 
             bold_spans = []
-            for m in re.finditer(r'\*\*(.*?)\*\*', raw_text):
-                bold_spans.append((m.group(0), f"___B_{len(bold_spans)}___"))
+            for m_match in re.finditer(r'\*\*(.*?)\*\*', raw_text):
+                bold_spans.append((m_match.group(0), f"___B_{len(bold_spans)}___"))
             for orig, ph in bold_spans: raw_text = raw_text.replace(orig, ph, 1)
 
             styled = escape(raw_text)
@@ -219,52 +305,83 @@ class PDFExporter:
             for orig, ph in bold_spans: styled = styled.replace(ph, f"<b>{escape(orig[2:-2])}</b>")
             styled = styled.replace("\n", "<br/>")
 
-            # --- LAYOUT VARIATION (break the box monotony) ---
+            # --- LAYOUT: Lead section gets accent bar, all others flow as prose ---
             if idx == 0:
                 # LEAD ASSESSMENT — accent left bar, full-width, prominent
-                lead_content = Paragraph(f"<font color='{GOLD}' size='11'><b>{sec_title}</b></font><br/><font color='{TXT_DIM}' size='7'>{node_id} &mdash; LEAD ASSESSMENT</font><br/><br/>{styled}", styles['ExecBody'])
+                lead_content = Paragraph(f"<font color='{GOLD}' size='11'><b>{sec_title}</b></font><br/><font color='{TXT_DIM}' size='7'>{node_id}</font><br/><br/>{styled}", styles['ExecBody'])
                 lead_row = Table([["", lead_content]], colWidths=[5, 530])
                 lead_row.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (0,0), colors.HexColor(GOLD)),
+                    ('BACKGROUND', (0,0), (0,0), colors.HexColor(agent_color)),
                     ('VALIGN', (0,0), (-1,-1), 'TOP'),
                     ('LEFTPADDING', (1,0), (1,0), 18),
                     ('TOPPADDING', (0,0), (-1,-1), 12),
                     ('BOTTOMPADDING', (0,0), (-1,-1), 18),
                 ]))
                 story.append(lead_row)
-
-            elif idx % 3 == 1:
-                # FULL-WIDTH FLOWING — section header above, body below (no side column)
+            else:
+                # PROSE FLOW — section label + thin rule + flowing content
                 story.append(Paragraph(f"<font color='{GOLD}'><b>{sec_title}</b></font> &nbsp;<font color='{TXT_DIM}' size='7'>{node_id}</font>", styles['ExecBody']))
+                story.append(Spacer(1, 4))
+                # Thin rule under section label (agent-colored)
+                rule = Table([[""]], colWidths=[540], rowHeights=[0.5])
+                rule.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor(agent_color)),
+                    ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                    ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,-1), 0)]))
+                story.append(rule)
                 story.append(Spacer(1, 6))
                 story.append(Paragraph(styled, styles['ExecBody']))
 
-            elif idx % 3 == 2:
-                # TWO-COLUMN — compact metadata left, content right
-                row_data = [[Paragraph(f"{sec_title}<br/><font color='{TXT_DIM}' size='7'>{node_id}</font>", styles['ExecLabel']),
-                             Paragraph(styled, styles['ExecBody'])]]
-                t_row = Table(row_data, colWidths=[130, 410])
-                t_row.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 10)]))
-                story.append(t_row)
+            # --- INLINE PULL QUOTES (from verified_claims matching this provider) ---
+            if attrib:
+                prov_key = _as_text(attrib.get('provider', '')).lower()
+                prov_data = card_results.get(prov_key) or {}
+                claims = prov_data.get("verified_claims") or []
+                # Show up to 2 pull quotes per section
+                for claim in claims[:2]:
+                    claim_text = _as_text(claim.get('claim', ''))
+                    if not claim_text:
+                        continue
+                    status = _as_text(claim.get('status', '')).lower()
+                    if status == 'verified':
+                        pq_border = RACING_GREEN
+                        pq_bg = VERIFIED_BG
+                        pq_badge = f"<font color='{RACING_GREEN}'><b>VERIFIED</b></font>"
+                    elif status in ('challenged', 'unverified'):
+                        pq_border = FORENSIC_RED
+                        pq_bg = FLAGGED_BG
+                        pq_badge = f"<font color='{FORENSIC_RED}'><b>FLAGGED</b></font>"
+                    else:
+                        pq_border = MUTED_AMBER
+                        pq_bg = CONTEXTUAL_BG
+                        pq_badge = f"<font color='{MUTED_AMBER}'><b>CONDITIONAL</b></font>"
 
-            else:
-                # ACCENT-BAR VARIANT — thin accent line on left, indented block
-                bar_content = Paragraph(f"<font color='{ACCENT}' size='10'><b>{sec_title}</b></font> &nbsp;<font color='{TXT_DIM}' size='7'>{node_id}</font><br/><br/>{styled}", styles['ExecBody'])
-                bar_row = Table([["", bar_content]], colWidths=[3, 532])
-                bar_row.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (0,0), colors.HexColor(ACCENT)),
-                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                    ('LEFTPADDING', (1,0), (1,0), 14),
-                    ('TOPPADDING', (0,0), (-1,-1), 8),
-                    ('BOTTOMPADDING', (0,0), (-1,-1), 14),
-                ]))
-                story.append(bar_row)
+                    conf_val = claim.get('confidence', '')
+                    conf_str = f" &nbsp;&middot;&nbsp; <font size='7' color='{TXT_DIM}'>CONFIDENCE: {escape(_as_text(conf_val))}</font>" if conf_val else ""
+                    # Attribution line: — PROVIDER · Role · Phase
+                    phase_label = _as_text(attrib.get('phase', ''))
+                    attrib_line = f"<br/><font face='Courier' size='7' color='{TXT_DIM}'>&mdash; {escape(prov_name)} &middot; {escape(role_name)} &middot; {escape(phase_label)}</font>"
+                    pq_content = Paragraph(
+                        f"{pq_badge}{conf_str}<br/>"
+                        f"<i>&ldquo;{escape(claim_text)}&rdquo;</i>"
+                        f"{attrib_line}",
+                        styles['PullQuote'])
+                    pq_row = Table([["", pq_content]], colWidths=[4, 520])
+                    pq_row.setStyle(TableStyle([
+                        ('BACKGROUND', (0,0), (0,0), colors.HexColor(pq_border)),
+                        ('BACKGROUND', (1,0), (1,0), colors.HexColor(pq_bg)),
+                        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                        ('LEFTPADDING', (1,0), (1,0), 12),
+                        ('TOPPADDING', (0,0), (-1,-1), 8),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                        ('RIGHTPADDING', (1,0), (1,0), 12),
+                    ]))
+                    story.append(Spacer(1, 6))
+                    story.append(pq_row)
 
             # --- SECTION DIVIDERS (varied rhythm) ---
             if idx < len(section_items) - 1:
                 story.append(Spacer(1, 12))
                 if idx % 2 == 0:
-                    # Short centered accent rule
                     div_row = Table([["", "", ""]], colWidths=[170, 200, 170], rowHeights=[0.5])
                     div_row.setStyle(TableStyle([
                         ('BACKGROUND', (1,0), (1,0), colors.HexColor(TXT_DIM)),
@@ -273,36 +390,128 @@ class PDFExporter:
                     ]))
                     story.append(div_row)
                 else:
-                    # Dots / breathing room only
                     story.append(Paragraph(f"<font color='{TXT_DIM}' size='6'>&bull; &bull; &bull;</font>", ParagraphStyle('DivDots', parent=styles['Normal'], alignment=1, spaceAfter=0)))
                 story.append(Spacer(1, 14))
 
-        # 5. --- TRUTH SCORE BAR ---
+        # 6. --- TRUTH SCORE (computed here, rendered at bottom as anchor bar) ---
         truth_raw = meta.get("composite_truth_score", 0)
         try:
             truth_int = int(float(truth_raw) * 100) if float(truth_raw) <= 1 else int(float(truth_raw))
         except (ValueError, TypeError):
             truth_int = 0
-        if truth_int > 0:
-            truth_color = '#4CAF7D' if truth_int > 80 else (GOLD if truth_int > 50 else '#FF3131')
-            bar_fill = max(int(540 * truth_int / 100), 1)
-            bar_empty = 540 - bar_fill
+        truth_color = '#4CAF7D' if truth_int > 80 else (GOLD if truth_int > 50 else '#FF3131')
+
+        # --- AGENT TESTIMONY & VERIFICATION ZONE ---
+        if card_results:
             story.append(Spacer(1, 10))
-            story.append(Paragraph(f"COMPOSITE TRUTH SCORE: {truth_int}/100", styles['ExecLabel']))
-            story.append(Spacer(1, 5))
-            bar_data = [["", ""]]
-            bar = Table(bar_data, colWidths=[bar_fill, bar_empty], rowHeights=[8])
-            bar.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (0,0), colors.HexColor(truth_color)),
-                ('BACKGROUND', (1,0), (1,0), colors.HexColor("#1A1A1A")),
-                ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
-                ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            tv_break = Table([["", Paragraph(f"<font color='{ACCENT}' size='8'><b>AGENT TESTIMONY &amp; VERIFICATION</b></font>", styles['ExecBody']), ""]], colWidths=[80, 380, 80], rowHeights=[18])
+            tv_break.setStyle(TableStyle([
+                ('LINEABOVE', (0,0), (0,0), 0.5, colors.HexColor(TXT_DIM)),
+                ('LINEABOVE', (2,0), (2,0), 0.5, colors.HexColor(TXT_DIM)),
+                ('ALIGN', (1,0), (1,0), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ]))
-            story.append(bar)
-            story.append(Spacer(1, 25))
+            story.append(tv_break)
+            story.append(Spacer(1, 15))
+
+            # Per-provider testimony cards
+            for prov_name, prov_data in card_results.items():
+                if not isinstance(prov_data, dict):
+                    continue
+                model_name = _as_text(prov_data.get('model', 'unknown'))
+                role = _as_text(prov_data.get('role', 'ANALYST'))
+                truth_meter = prov_data.get('truth_meter', {})
+                prov_score = 0
+                if isinstance(truth_meter, dict):
+                    prov_score = truth_meter.get('score', 0)
+                    try: prov_score = int(float(prov_score))
+                    except (ValueError, TypeError): prov_score = 0
+
+                # Provider badge bar
+                score_color = '#4CAF7D' if prov_score > 80 else (MUTED_AMBER if prov_score > 50 else FORENSIC_RED)
+                badge_left = Paragraph(
+                    f"<font color='{ACCENT}' size='9'><b>{escape(prov_name.upper())}</b></font>"
+                    f" &nbsp;<font color='{TXT_DIM}' size='7'>{escape(model_name)} &middot; {escape(role)}</font>",
+                    styles['ProviderBadge'])
+                badge_right = Paragraph(
+                    f"<font color='{score_color}' size='14'><b>{prov_score}</b></font>"
+                    f"<font color='{TXT_DIM}' size='7'>/100</font>",
+                    ParagraphStyle('BadgeScore', parent=styles['Normal'], alignment=2, fontSize=9, textColor=colors.HexColor(TXT_MAIN)))
+                badge_row = Table([[badge_left, badge_right]], colWidths=[400, 135])
+                badge_row.setStyle(TableStyle([
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                    ('TOPPADDING', (0,0), (-1,-1), 6),
+                    ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(TXT_DIM)),
+                ]))
+                story.append(badge_row)
+
+                # Pull quotes from this provider's verified claims
+                claims = prov_data.get("verified_claims") or []
+                for claim in claims[:4]:
+                    claim_text = _as_text(claim.get('claim', ''))
+                    if not claim_text:
+                        continue
+                    status = _as_text(claim.get('status', '')).lower()
+                    if status == 'verified':
+                        pq_border, pq_bg = RACING_GREEN, VERIFIED_BG
+                        badge_txt = f"<font color='{RACING_GREEN}'><b>VERIFIED</b></font>"
+                    elif status in ('challenged', 'unverified'):
+                        pq_border, pq_bg = FORENSIC_RED, FLAGGED_BG
+                        badge_txt = f"<font color='{FORENSIC_RED}'><b>FLAGGED</b></font>"
+                    else:
+                        pq_border, pq_bg = MUTED_AMBER, CONTEXTUAL_BG
+                        badge_txt = f"<font color='{MUTED_AMBER}'><b>CONDITIONAL</b></font>"
+
+                    violations = claim.get('violations') or []
+                    viol_str = ""
+                    if violations:
+                        viol_str = f"<br/><font color='{FORENSIC_RED}' size='7'>FLAG: {escape(', '.join(_as_text(v) for v in violations[:2]))}</font>"
+
+                    pq_content = Paragraph(
+                        f"{badge_txt}"
+                        f"<br/><i>&ldquo;{escape(claim_text)}&rdquo;</i>"
+                        f"{viol_str}",
+                        styles['PullQuote'])
+                    pq_row = Table([["", pq_content]], colWidths=[4, 531])
+                    pq_row.setStyle(TableStyle([
+                        ('BACKGROUND', (0,0), (0,0), colors.HexColor(pq_border)),
+                        ('BACKGROUND', (1,0), (1,0), colors.HexColor(pq_bg)),
+                        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                        ('LEFTPADDING', (1,0), (1,0), 12),
+                        ('TOPPADDING', (0,0), (-1,-1), 6),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                        ('RIGHTPADDING', (1,0), (1,0), 12),
+                    ]))
+                    story.append(pq_row)
+                    story.append(Spacer(1, 3))
+
+                story.append(Spacer(1, 14))
+
+            # --- COUNCIL CONSENSUS BAR ---
+            if truth_int > 0:
+                consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Multi-model analysis complete. Council has reached operational consensus."
+                cons_content = Paragraph(
+                    f"<font color='{ACCENT}' size='9'><b>COUNCIL CONSENSUS</b></font> &nbsp;"
+                    f"<font color='{truth_color}' size='16'><b>{truth_int}</b></font>"
+                    f"<font color='{TXT_DIM}' size='8'>/100 TRUTH SCORE</font><br/><br/>"
+                    f"<i>{escape(consensus_summary)}</i>",
+                    styles['ConsensusBody'])
+                cons_bar = Table([[cons_content]], colWidths=[535])
+                cons_bar.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#0A0A0A")),
+                    ('TOPPADDING', (0,0), (-1,-1), 14),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 14),
+                    ('LEFTPADDING', (0,0), (-1,-1), 20),
+                    ('RIGHTPADDING', (0,0), (-1,-1), 20),
+                    ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+                ]))
+                story.append(cons_bar)
+                story.append(Spacer(1, 25))
 
         # --- OPERATIONAL DATA ZONE BREAK ---
-        has_data = (structured.get("key_metrics") or risks or structured.get("action_items") or structured.get("actions"))
+        risks = structured.get("risks") or []
+        has_data = (key_metrics or risks or structured.get("action_items") or structured.get("actions"))
         if has_data:
             story.append(Spacer(1, 15))
             zone_break = Table([["", Paragraph(f"<font color='{ACCENT}' size='8'><b>OPERATIONAL DATA</b></font>", styles['ExecBody']), ""]], colWidths=[80, 380, 80], rowHeights=[18])
@@ -315,16 +524,16 @@ class PDFExporter:
             story.append(zone_break)
             story.append(Spacer(1, 20))
 
-        # 6. --- KEY METRICS TABLE ---
-        key_metrics = structured.get("key_metrics") or []
-        if key_metrics:
+        # 7. --- KEY METRICS TABLE (remaining metrics after stat strip) ---
+        remaining_metrics = key_metrics[3:] if len(key_metrics) > 3 else (key_metrics if len(key_metrics) < 2 else [])
+        if remaining_metrics:
             story.append(Paragraph(f"<font color='{GOLD}'><b>KEY INTELLIGENCE METRICS</b></font>", styles['ExecBody']))
             story.append(Spacer(1, 8))
             m_header = [[Paragraph("METRIC", styles['ExecLabel']), Paragraph("VALUE", styles['ExecLabel']), Paragraph("CONTEXT", styles['ExecLabel'])]]
             m_rows = [[Paragraph(escape(_as_text(m.get('metric',''))), styles['ExecBody']),
                         Paragraph(f"<b>{escape(_as_text(m.get('value','')))}</b>", styles['ExecBody']),
                         Paragraph(escape(_as_text(m.get('context',''))), styles['ExecBody'])]
-                       for m in key_metrics[:12]]
+                       for m in remaining_metrics[:12]]
             m_table = Table(m_header + m_rows, colWidths=[160, 120, 260])
             m_table.setStyle(TableStyle([
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -336,70 +545,82 @@ class PDFExporter:
             story.append(m_table)
             story.append(Spacer(1, 25))
 
-        # 7. --- RISK MATRIX ---
-        risks = structured.get("risks") or []
+        # 8. --- RISK MATRIX (severity-dependent rendering) ---
         if risks:
-            # Accent-bar header (different from metrics — visual variety)
             risk_hdr = Table([["", Paragraph(f"<font color='{GOLD}'><b>RISK MATRIX</b></font>", styles['ExecBody'])]], colWidths=[5, 535])
             risk_hdr.setStyle(TableStyle([('BACKGROUND', (0,0), (0,0), colors.HexColor(GOLD)), ('LEFTPADDING', (1,0), (1,0), 12), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
             story.append(risk_hdr)
             story.append(Spacer(1, 8))
-            r_header = [[Paragraph("RISK", styles['ExecLabel']), Paragraph("SEVERITY", styles['ExecLabel']), Paragraph("MITIGATION", styles['ExecLabel'])]]
-            r_rows = []
-            for ri, r in enumerate(risks[:8]):
+
+            # Split risks by severity: CRITICAL/HIGH → flagged pull quotes, rest → slim table
+            high_risks = []
+            other_risks = []
+            for r in risks[:8]:
                 sev = _as_text(r.get('severity', 'MEDIUM')).upper()
-                sev_color = '#FF3131' if sev in ('CRITICAL', 'HIGH') else (GOLD if sev == 'MEDIUM' else ACCENT)
-                r_rows.append([
-                    Paragraph(escape(_as_text(r.get('risk',''))), styles['ExecBody']),
-                    Paragraph(f"<font color='{sev_color}'><b>{escape(sev)}</b></font>", styles['ExecBody']),
-                    Paragraph(escape(_as_text(r.get('mitigation',''))), styles['ExecBody']),
-                ])
-            r_table = Table(r_header + r_rows, colWidths=[200, 80, 260])
-            r_style = [
-                ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                ('BACKGROUND', (0,0), (-1,0), colors.HexColor(TXT_DIM)),
-                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-                ('TOPPADDING', (0,0), (-1,-1), 5),
-            ]
-            # Alternate row tinting for readability
-            for ri in range(len(r_rows)):
-                if ri % 2 == 1:
-                    r_style.append(('BACKGROUND', (0, ri+1), (-1, ri+1), colors.HexColor(BG_PAGE)))
-            r_table.setStyle(TableStyle(r_style))
-            story.append(r_table)
+                if sev in ('CRITICAL', 'HIGH'):
+                    high_risks.append(r)
+                else:
+                    other_risks.append(r)
+
+            # CRITICAL/HIGH risks as flagged pull quotes
+            for r in high_risks:
+                risk_text = _as_text(r.get('risk', ''))
+                mitigation = _as_text(r.get('mitigation', ''))
+                sev = _as_text(r.get('severity', '')).upper()
+                pq_content = Paragraph(
+                    f"<font color='{FORENSIC_RED}'><b>{escape(sev)}</b></font><br/>"
+                    f"<i>&ldquo;{escape(risk_text)}&rdquo;</i><br/>"
+                    f"<font size='8' color='{TXT_DIM}'>MITIGATION: {escape(mitigation)}</font>",
+                    styles['PullQuote'])
+                pq_row = Table([["", pq_content]], colWidths=[4, 531])
+                pq_row.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (0,0), colors.HexColor(FORENSIC_RED)),
+                    ('BACKGROUND', (1,0), (1,0), colors.HexColor(FLAGGED_BG)),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('LEFTPADDING', (1,0), (1,0), 12),
+                    ('TOPPADDING', (0,0), (-1,-1), 8),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                    ('RIGHTPADDING', (1,0), (1,0), 12),
+                ]))
+                story.append(pq_row)
+                story.append(Spacer(1, 4))
+
+            # MEDIUM/LOW risks as slim 2-column table (Risk · Mitigation only)
+            if other_risks:
+                if high_risks:
+                    story.append(Spacer(1, 6))
+                r_header = [[Paragraph("RISK", styles['ExecLabel']), Paragraph("MITIGATION", styles['ExecLabel'])]]
+                r_rows = [[Paragraph(escape(_as_text(r.get('risk',''))), styles['ExecBody']),
+                            Paragraph(escape(_as_text(r.get('mitigation',''))), styles['ExecBody'])]
+                           for r in other_risks]
+                r_table = Table(r_header + r_rows, colWidths=[260, 280])
+                r_table.setStyle(TableStyle([
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                    ('TOPPADDING', (0,0), (-1,-1), 5),
+                ]))
+                story.append(r_table)
             story.append(Spacer(1, 25))
 
-        # 8. --- RECOMMENDED ACTIONS ---
+        # 9. --- RECOMMENDED ACTIONS (numbered prose, not table) ---
         actions = structured.get("action_items") or structured.get("actions") or []
         if actions:
             story.append(Paragraph(f"<font color='{GOLD}'><b>RECOMMENDED ACTIONS</b></font>", styles['ExecBody']))
             story.append(Spacer(1, 8))
-            a_header = [[Paragraph("ACTION", styles['ExecLabel']), Paragraph("PRIORITY", styles['ExecLabel']), Paragraph("TIMELINE", styles['ExecLabel'])]]
-            a_rows = []
-            for a in actions[:8]:
+            for ai, a in enumerate(actions[:8]):
+                action_text = _as_text(a.get('task', a.get('action', '')))
                 pri = _as_text(a.get('priority', '')).upper()
-                pri_color = '#FF3131' if pri == 'HIGH' else (GOLD if pri in ('MED', 'MEDIUM') else ACCENT)
-                a_rows.append([
-                    Paragraph(escape(_as_text(a.get('task', a.get('action', '')))), styles['ExecBody']),
-                    Paragraph(f"<font color='{pri_color}'><b>{escape(pri)}</b></font>", styles['ExecBody']),
-                    Paragraph(escape(_as_text(a.get('timeline', ''))), styles['ExecBody']),
-                ])
-            a_table = Table(a_header + a_rows, colWidths=[260, 80, 200])
-            a_table.setStyle(TableStyle([
-                ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                ('BACKGROUND', (0,0), (-1,0), colors.HexColor(TXT_DIM)),
-                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-                ('TOPPADDING', (0,0), (-1,-1), 5),
-            ]))
-            story.append(a_table)
+                pri_color = FORENSIC_RED if pri == 'HIGH' else (MUTED_AMBER if pri in ('MED', 'MEDIUM') else ACCENT)
+                glyph = _CIRCLED_NUMS[ai] if ai < len(_CIRCLED_NUMS) else f"{ai+1}."
+                story.append(Paragraph(
+                    f"<font size='12'>{glyph}</font> &nbsp;{escape(action_text)}"
+                    f" &nbsp;<font color='{pri_color}' size='8'><b>{escape(pri)}</b></font>",
+                    styles['ExecBody']))
+                story.append(Spacer(1, 4))
             story.append(Spacer(1, 25))
 
         # --- COUNCIL INTELLIGENCE ZONE BREAK ---
-        contributors = intelligence_object.get("council_contributors") or []
-        confidence = intelligence_object.get("confidence_and_assumptions") or {}
-        divergence = intelligence_object.get("divergence_analysis") or {}
         if contributors or confidence or divergence:
             story.append(Spacer(1, 10))
             ci_break = Table([["", Paragraph(f"<font color='{ACCENT}' size='8'><b>COUNCIL INTELLIGENCE</b></font>", styles['ExecBody']), ""]], colWidths=[80, 380, 80], rowHeights=[18])
@@ -412,32 +633,68 @@ class PDFExporter:
             story.append(ci_break)
             story.append(Spacer(1, 20))
 
-        # 9. --- COUNCIL CONTRIBUTORS ---
+        # 10. --- COUNCIL CONTRIBUTORS (slim horizontal strip — Name · Role · Status) ---
         if contributors:
             story.append(Paragraph(f"<font color='{GOLD}'><b>COUNCIL CONTRIBUTORS</b></font>", styles['ExecBody']))
-            story.append(Spacer(1, 8))
-            c_header = [[Paragraph("PHASE", styles['ExecLabel']), Paragraph("PROVIDER", styles['ExecLabel']), Paragraph("ROLE", styles['ExecLabel']), Paragraph("CONTRIBUTION", styles['ExecLabel'])]]
-            c_rows = [[Paragraph(escape(_as_text(c.get('phase',''))), styles['ExecBody']),
-                        Paragraph(escape(_as_text(c.get('provider','')).upper()), styles['ExecBody']),
-                        Paragraph(escape(_as_text(c.get('role',''))), styles['ExecBody']),
-                        Paragraph(escape(_as_text(c.get('contribution_summary',''))), styles['ExecBody'])]
-                       for c in contributors[:10]]
-            c_table = Table(c_header + c_rows, colWidths=[100, 80, 90, 270])
-            c_table.setStyle(TableStyle([
-                ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                ('BACKGROUND', (0,0), (-1,0), colors.HexColor(TXT_DIM)),
-                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-                ('TOPPADDING', (0,0), (-1,-1), 4),
-            ]))
-            story.append(c_table)
-            story.append(Spacer(1, 25))
+            story.append(Spacer(1, 10))
+            # Build slim cells — up to 4 per row
+            slim_cells = []
+            for c in contributors[:8]:
+                prov = _as_text(c.get('provider', '')).upper()
+                role = _as_text(c.get('role', ''))
+                # Determine status stamp from truth score
+                prov_lower = _as_text(c.get('provider', '')).lower()
+                prov_cr = card_results.get(prov_lower) or {}
+                prov_tm = prov_cr.get('truth_meter', {})
+                prov_sc = 0
+                if isinstance(prov_tm, dict):
+                    try: prov_sc = int(float(prov_tm.get('score', 0)))
+                    except (ValueError, TypeError): prov_sc = 0
+                elif isinstance(prov_tm, (int, float)):
+                    prov_sc = int(prov_tm)
+                # Status stamp: ✓ Verified (>80), ◎ Conditional (50-80), ⚑ Flagged (<50)
+                if prov_sc > 80:
+                    stamp = f"<font color='{RACING_GREEN}'>&#x2713; Verified</font>"
+                elif prov_sc > 50:
+                    stamp = f"<font color='{MUTED_AMBER}'>&#x25CE; Conditional</font>"
+                else:
+                    stamp = f"<font color='{FORENSIC_RED}'>&#x2691; Flagged</font>"
+                agent_accent = AGENT_COLORS.get(prov, ACCENT)
+                cell_content = Paragraph(
+                    f"<font color='{ACCENT}' size='9'><b>{escape(prov)}</b></font><br/>"
+                    f"<font color='{TXT_DIM}' size='7'>{escape(role)}</font><br/>"
+                    f"<font size='7'>{stamp}</font>",
+                    styles['ProviderBadge'])
+                slim_cells.append((cell_content, agent_accent))
+            # Arrange in rows of 4
+            col_w = 540 // min(4, len(slim_cells)) if slim_cells else 135
+            for row_start in range(0, len(slim_cells), 4):
+                row_slice = slim_cells[row_start:row_start + 4]
+                row_data = [sc[0] for sc in row_slice]
+                # Pad to 4 columns if needed
+                while len(row_data) < 4 and len(slim_cells) >= 4:
+                    row_data.append("")
+                widths = [col_w] * len(row_data)
+                strip = Table([row_data], colWidths=widths)
+                strip_style = [
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('TOPPADDING', (0,0), (-1,-1), 8),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                    ('LEFTPADDING', (0,0), (-1,-1), 8),
+                    ('RIGHTPADDING', (0,0), (-1,-1), 4),
+                ]
+                # Left accent border per agent color
+                for ci, (_, accent_c) in enumerate(row_slice):
+                    strip_style.append(('LINEBEFORE', (ci,0), (ci,0), 2, colors.HexColor(accent_c)))
+                strip.setStyle(TableStyle(strip_style))
+                story.append(strip)
+                story.append(Spacer(1, 4))
+            story.append(Spacer(1, 20))
 
-        # 10. --- CONFIDENCE ASSESSMENT (accent-bar callout style) ---
+        # 11. --- CONFIDENCE ASSESSMENT (accent-bar callout) ---
         if confidence:
             conf_level = _as_text(confidence.get('overall_confidence', '')).upper()
-            conf_color = '#4CAF7D' if 'HIGH' in conf_level else (GOLD if 'MODERATE' in conf_level else '#FF3131')
-            # Build confidence content as a single flowing block
+            conf_color = '#4CAF7D' if 'HIGH' in conf_level else (MUTED_AMBER if 'MODERATE' in conf_level else FORENSIC_RED)
             conf_parts = [f"<font color='{GOLD}' size='10'><b>CONFIDENCE ASSESSMENT</b></font><br/><br/>"]
             conf_parts.append(f"OVERALL CONFIDENCE: <font color='{conf_color}'><b>{escape(conf_level)}</b></font><br/><br/>")
             assumptions = confidence.get('key_assumptions') or []
@@ -463,7 +720,7 @@ class PDFExporter:
             story.append(conf_row)
             story.append(Spacer(1, 25))
 
-        # 11. --- DIVERGENCE ANALYSIS (inline two-stat + contested list) ---
+        # 12. --- DIVERGENCE ANALYSIS ---
         if divergence and (divergence.get("divergence_score") or divergence.get("contested_topics")):
             story.append(Paragraph(f"<font color='{ACCENT}'><b>DIVERGENCE ANALYSIS</b></font>", styles['ExecBody']))
             story.append(Spacer(1, 8))
@@ -475,9 +732,8 @@ class PDFExporter:
             except (ValueError, TypeError):
                 div_score, con_score = 0, 0
             if div_score or con_score:
-                # Two-stat side-by-side
-                con_color = '#4CAF7D' if con_score > 70 else (GOLD if con_score > 40 else '#FF3131')
-                div_color = '#FF3131' if div_score > 60 else (GOLD if div_score > 30 else '#4CAF7D')
+                con_color = '#4CAF7D' if con_score > 70 else (MUTED_AMBER if con_score > 40 else FORENSIC_RED)
+                div_color = FORENSIC_RED if div_score > 60 else (MUTED_AMBER if div_score > 30 else '#4CAF7D')
                 stat_data = [[Paragraph(f"<font color='{con_color}' size='18'><b>{con_score}</b></font><br/><font color='{TXT_DIM}' size='7'>CONSENSUS</font>", ParagraphStyle('StatCenter', parent=styles['Normal'], alignment=1, textColor=colors.HexColor(TXT_MAIN))),
                               Paragraph(f"<font color='{div_color}' size='18'><b>{div_score}</b></font><br/><font color='{TXT_DIM}' size='7'>DIVERGENCE</font>", ParagraphStyle('StatCenter2', parent=styles['Normal'], alignment=1, textColor=colors.HexColor(TXT_MAIN)))]]
                 stat_tab = Table(stat_data, colWidths=[270, 270])
@@ -495,7 +751,7 @@ class PDFExporter:
                     story.append(Paragraph(f"&bull; <b>{escape(_as_text(topic_name))}</b>", styles['ExecBody']))
             story.append(Spacer(1, 25))
 
-        # 12. --- SUPPLEMENTAL DATA EXHIBITS ---
+        # 13. --- SUPPLEMENTAL DATA EXHIBITS ---
         artifacts = _report_artifacts(intelligence_object)
         if artifacts:
             story.append(Table([[Paragraph("SUPPLEMENTAL DATA EXHIBITS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
@@ -506,12 +762,31 @@ class PDFExporter:
                 at_tab.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 20)]))
                 story.append(at_tab)
 
-        # 13. --- SIGN-OFF & AUTHENTICATION ---
+        # 14. --- COMPOSITE TRUTH SCORE ANCHOR BAR ---
+        if truth_int > 0:
+            consensus_text = _as_text(divergence.get("divergence_summary", "")) or "Multi-model analysis complete. Council has reached operational consensus."
+            truth_left = Paragraph(f"<i>{escape(consensus_text)}</i>", styles['ConsensusBody'])
+            truth_right = Paragraph(
+                f"<font color='{truth_color}' size='28'><b>{truth_int}</b></font><br/>"
+                f"<font color='{TXT_DIM}' size='8'>TRUTH SCORE / 100</font>",
+                ParagraphStyle('TruthRight', parent=styles['Normal'], alignment=2, fontSize=9, textColor=colors.HexColor(TXT_MAIN)))
+            truth_bar = Table([[truth_left, truth_right]], colWidths=[380, 155])
+            truth_bar.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(INKWELL)),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('TOPPADDING', (0,0), (-1,-1), 16),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 16),
+                ('LEFTPADDING', (0,0), (0,0), 20),
+                ('RIGHTPADDING', (1,0), (1,0), 20),
+            ]))
+            story.append(Spacer(1, 20))
+            story.append(truth_bar)
+
+        # 15. --- SIGN-OFF & AUTHENTICATION ---
         story.append(Spacer(1, 30))
         story.append(Table([[""]], colWidths=[540], rowHeights=[1], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(GOLD))]))
         story.append(Spacer(1, 20))
 
-        # Sign-off block
         signoff_data = [
             [Paragraph("COMPLETED BY:", styles['ExecLabel']), Paragraph("KORUM-OS DECISION INTELLIGENCE ENGINE", styles['ExecValue'])],
             [Paragraph("AUTHORIZATION:", styles['ExecLabel']), Paragraph(f"AUTONOMOUS COUNCIL &mdash; {len(contributors)} CONTRIBUTING AGENTS", styles['ExecValue'])],
@@ -552,7 +827,11 @@ class WordExporter:
         t = THEMES[theme_id]
         p_rgb = RGBColor(*WordExporter._hex_to_rgb(t['gold']))
         s_rgb = RGBColor(*WordExporter._hex_to_rgb(t['accent']))
-        
+
+        # Mission context: client name for PREPARED FOR line
+        mission_ctx = intelligence_object.get("_mission_context") or {}
+        client_name = _as_text(mission_ctx.get("client", "")).strip() or "DECISION COMMANDER ALPHA"
+
         # 1. --- CONFIDENTIAL BANNER + LOGO ---
         conf_p = doc.add_paragraph()
         conf_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -594,7 +873,7 @@ class WordExporter:
         ctx_tab.columns[0].width = Inches(1.8)
         ctx_tab.columns[1].width = Inches(4.2)
 
-        labels = [("PREPARED FOR:", "DECISION COMMANDER ALPHA"),
+        labels = [("PREPARED FOR:", client_name.upper()),
                   ("MISSION DIRECTIVE:", meta.get('workflow', 'STRATEGIC_INTEL').upper()),
                   ("AUTHENTICATION:", "KORUM-OS DECISION INTELLIGENCE")]
 
@@ -613,102 +892,110 @@ class WordExporter:
 
         doc.add_paragraph("_" * 90)
 
-        # 3. --- STRATEGIC IMPACT ---
+        # 3. --- STRATEGIC IMPACT (mixed case, bold first sentence) ---
         sum_p = doc.add_paragraph("STRATEGIC IMPACT SUMMARY")
         sum_p.runs[0].bold = True
         sum_p.runs[0].font.size = Pt(9)
         sum_p.runs[0].font.color.rgb = p_rgb
 
-        impact_text = (meta.get("summary") or "INTEL SYNTHESIS REQUIRED").upper()
-        imp_p = doc.add_paragraph(impact_text)
-        imp_p.runs[0].bold = True
-        imp_p.runs[0].font.size = Pt(12)
+        impact_text = meta.get("summary") or "Intel synthesis required."
+        imp_p = doc.add_paragraph()
+        _dot = impact_text.find('. ')
+        if _dot > 0:
+            lead_run = imp_p.add_run(impact_text[:_dot + 1])
+            lead_run.bold = True
+            lead_run.font.size = Pt(12)
+            rest_run = imp_p.add_run(" " + impact_text[_dot + 2:])
+            rest_run.font.size = Pt(12)
+        else:
+            lead_run = imp_p.add_run(impact_text)
+            lead_run.bold = True
+            lead_run.font.size = Pt(12)
         doc.add_paragraph()
 
-        # 4. --- INTELLIGENCE SECTIONS (Varied Layout) ---
+        # --- Extract reusable data early ---
+        card_results = intelligence_object.get("_card_results") or {}
+        contributors = intelligence_object.get("council_contributors") or []
+        confidence = intelligence_object.get("confidence_and_assumptions") or {}
+        divergence = intelligence_object.get("divergence_analysis") or {}
+        key_metrics = structured.get("key_metrics") or []
+        risks = structured.get("risks") or []
+
+        # Build contributor attribution map: section index → provider info
+        contrib_map = {}
+        for c in contributors:
+            phase_str = _as_text(c.get('phase', ''))
+            m_match = re.search(r'(\d+)', phase_str)
+            if m_match:
+                contrib_map[int(m_match.group(1)) - 1] = c
+
+        # 4. --- THREE-STAT KPI STRIP ---
+        if len(key_metrics) >= 2:
+            stat_count = min(3, len(key_metrics))
+            stat_tab = doc.add_table(rows=2, cols=stat_count)
+            stat_tab.autofit = False
+            col_w = Inches(6.0 / stat_count)
+            for ci in range(stat_count):
+                stat_tab.columns[ci].width = col_w
+                km = key_metrics[ci]
+                val = _as_text(km.get('value', '—'))
+                label = _as_text(km.get('metric', '')).upper()
+                # Value row
+                v_cell = stat_tab.rows[0].cells[ci]
+                v_p = v_cell.paragraphs[0]
+                v_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                v_run = v_p.add_run(val)
+                v_run.bold = True
+                v_run.font.size = Pt(20)
+                v_run.font.color.rgb = s_rgb
+                # Label row
+                l_cell = stat_tab.rows[1].cells[ci]
+                l_p = l_cell.paragraphs[0]
+                l_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                l_run = l_p.add_run(label)
+                l_run.font.size = Pt(7)
+                l_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+                l_run.bold = True
+            doc.add_paragraph()
+
+        # 5. --- INTELLIGENCE SECTIONS (Varied Layout w/ Agent Attribution) ---
         section_items = list(sections.items())
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
             clean_text = _clean_tags(content, strip_markdown=True)
-            node_label = f"NODE {idx+1:02d}"
 
-            if idx == 0:
-                # LEAD ASSESSMENT — full-width, bold header, indented body
-                lead_p = doc.add_paragraph()
-                lead_title = lead_p.add_run(f"{sec_title}  —  LEAD ASSESSMENT")
-                lead_title.bold = True
-                lead_title.font.size = Pt(11)
-                lead_title.font.color.rgb = p_rgb
-                node_run = lead_p.add_run(f"  [{node_label}]")
-                node_run.font.size = Pt(7)
-                node_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
-                body_p = doc.add_paragraph(clean_text)
-                body_p.runs[0].font.size = Pt(10)
-                body_p.paragraph_format.left_indent = Inches(0.3)
-
-            elif idx % 3 == 1:
-                # FULL-WIDTH FLOWING — header above, body below
-                hdr_p = doc.add_paragraph()
-                hdr_run = hdr_p.add_run(sec_title)
-                hdr_run.bold = True
-                hdr_run.font.size = Pt(10)
-                hdr_run.font.color.rgb = p_rgb
-                n_run = hdr_p.add_run(f"  [{node_label}]")
-                n_run.font.size = Pt(7)
-                n_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
-                body_p = doc.add_paragraph(clean_text)
-                body_p.runs[0].font.size = Pt(10)
-
-            elif idx % 3 == 2:
-                # TWO-COLUMN — compact metadata left, content right
-                grid = doc.add_table(rows=1, cols=2)
-                grid.columns[0].width = Inches(1.3)
-                grid.columns[1].width = Inches(4.7)
-                l_cell = grid.rows[0].cells[0]
-                l_p = l_cell.paragraphs[0]
-                l_run = l_p.add_run(f"{sec_title}\n[{node_label}]")
-                l_run.bold = True
-                l_run.font.size = Pt(9)
-                l_run.font.color.rgb = p_rgb
-                r_cell = grid.rows[0].cells[1]
-                r_cell.text = clean_text
-                if r_cell.paragraphs[0].runs:
-                    r_cell.paragraphs[0].runs[0].font.size = Pt(10)
-
+            # Agent attribution: "NODE 04 — ANTHROPIC · Auditor"
+            attrib = contrib_map.get(idx)
+            if attrib:
+                prov_name = _as_text(attrib.get('provider', '')).upper()
+                role_name = _as_text(attrib.get('role', ''))
+                node_label = f"NODE {idx+1:02d} — {prov_name} · {role_name}"
             else:
-                # INDENTED BLOCK — accent header with body indented
-                hdr_p = doc.add_paragraph()
-                hdr_run = hdr_p.add_run(f"// {sec_title}")
-                hdr_run.bold = True
-                hdr_run.font.size = Pt(10)
-                hdr_run.font.color.rgb = s_rgb
-                n_run = hdr_p.add_run(f"  [{node_label}]")
-                n_run.font.size = Pt(7)
-                n_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
-                body_p = doc.add_paragraph(clean_text)
+                node_label = f"NODE {idx+1:02d}"
+
+            # Consistent prose flow — section label + body, no boxes/grids
+            hdr_p = doc.add_paragraph()
+            hdr_run = hdr_p.add_run(sec_title)
+            hdr_run.bold = True
+            hdr_run.font.size = Pt(11) if idx == 0 else Pt(10)
+            hdr_run.font.color.rgb = p_rgb
+            n_run = hdr_p.add_run(f"  {node_label}")
+            n_run.font.size = Pt(7)
+            n_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+            body_p = doc.add_paragraph(clean_text)
+            if body_p.runs:
                 body_p.runs[0].font.size = Pt(10)
-                body_p.paragraph_format.left_indent = Inches(0.2)
 
-            # Section dividers (varied)
+            # Consistent thin divider between sections
             if idx < len(section_items) - 1:
-                if idx % 2 == 0:
-                    doc.add_paragraph("—  —  —")
-                else:
-                    doc.add_paragraph()
+                doc.add_paragraph()
 
-        # 5. --- TRUTH SCORE ---
+        # 5. --- TRUTH SCORE (computed here, rendered at bottom as anchor bar) ---
         truth_raw = meta.get("composite_truth_score", 0)
         try:
             truth_int = int(float(truth_raw) * 100) if float(truth_raw) <= 1 else int(float(truth_raw))
         except (ValueError, TypeError):
             truth_int = 0
-        if truth_int > 0:
-            ts_p = doc.add_paragraph()
-            ts_label = ts_p.add_run(f"COMPOSITE TRUTH SCORE: {truth_int}/100")
-            ts_label.bold = True
-            ts_label.font.size = Pt(10)
-            ts_label.font.color.rgb = p_rgb
-            doc.add_paragraph()
 
         # 6. --- KEY METRICS TABLE ---
         key_metrics = structured.get("key_metrics") or []
@@ -735,85 +1022,128 @@ class WordExporter:
                 m_tab.rows[ri+1].cells[2].text = _as_text(m.get('context', ''))
             doc.add_paragraph()
 
-        # 7. --- RISK MATRIX ---
+        # 7. --- RISK MATRIX (severity-dependent rendering) ---
         risks = structured.get("risks") or []
         if risks:
             h_p = doc.add_paragraph("RISK MATRIX")
             h_p.runs[0].bold = True
             h_p.runs[0].font.color.rgb = p_rgb
             h_p.runs[0].font.size = Pt(10)
-            r_tab = doc.add_table(rows=1 + len(risks[:8]), cols=3)
-            r_tab.style = 'Table Grid'
-            r_tab.autofit = False
-            r_tab.columns[0].width = Inches(2.5)
-            r_tab.columns[1].width = Inches(1.0)
-            r_tab.columns[2].width = Inches(2.5)
-            for i, lbl in enumerate(["RISK", "SEVERITY", "MITIGATION"]):
-                cell = r_tab.rows[0].cells[i]
-                cell.text = lbl
-                cell.paragraphs[0].runs[0].bold = True
-                cell.paragraphs[0].runs[0].font.size = Pt(8)
-                cell.paragraphs[0].runs[0].font.color.rgb = p_rgb
-            for ri, r in enumerate(risks[:8]):
-                r_tab.rows[ri+1].cells[0].text = _as_text(r.get('risk', ''))
-                sev_cell = r_tab.rows[ri+1].cells[1]
-                sev_cell.text = _as_text(r.get('severity', '')).upper()
-                sev_cell.paragraphs[0].runs[0].bold = True
-                r_tab.rows[ri+1].cells[2].text = _as_text(r.get('mitigation', ''))
+
+            high_risks = []
+            other_risks = []
+            for r in risks[:8]:
+                sev = _as_text(r.get('severity', 'MEDIUM')).upper()
+                if sev in ('CRITICAL', 'HIGH'):
+                    high_risks.append(r)
+                else:
+                    other_risks.append(r)
+
+            # CRITICAL/HIGH as flagged paragraphs
+            for r in high_risks:
+                sev = _as_text(r.get('severity', '')).upper()
+                rp = doc.add_paragraph()
+                sev_run = rp.add_run(f"[{sev}] ")
+                sev_run.bold = True
+                sev_run.font.size = Pt(9)
+                sev_run.font.color.rgb = RGBColor(0x8B, 0x1A, 0x1A)
+                risk_run = rp.add_run(_as_text(r.get('risk', '')))
+                risk_run.font.size = Pt(10)
+                risk_run.italic = True
+                mit = _as_text(r.get('mitigation', ''))
+                if mit:
+                    mit_run = rp.add_run(f"  —  Mitigation: {mit}")
+                    mit_run.font.size = Pt(9)
+                    mit_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+                rp.paragraph_format.left_indent = Inches(0.2)
+
+            # MEDIUM/LOW as slim 2-column table (Risk · Mitigation only)
+            if other_risks:
+                r_tab = doc.add_table(rows=1 + len(other_risks), cols=2)
+                r_tab.style = 'Table Grid'
+                r_tab.autofit = False
+                r_tab.columns[0].width = Inches(3.0)
+                r_tab.columns[1].width = Inches(3.0)
+                for i, lbl in enumerate(["RISK", "MITIGATION"]):
+                    cell = r_tab.rows[0].cells[i]
+                    cell.text = lbl
+                    cell.paragraphs[0].runs[0].bold = True
+                    cell.paragraphs[0].runs[0].font.size = Pt(8)
+                    cell.paragraphs[0].runs[0].font.color.rgb = p_rgb
+                for ri, r in enumerate(other_risks):
+                    r_tab.rows[ri+1].cells[0].text = _as_text(r.get('risk', ''))
+                    r_tab.rows[ri+1].cells[1].text = _as_text(r.get('mitigation', ''))
             doc.add_paragraph()
 
-        # 8. --- RECOMMENDED ACTIONS ---
+        # 8. --- RECOMMENDED ACTIONS (numbered prose, not table) ---
         actions = structured.get("action_items") or structured.get("actions") or []
         if actions:
             h_p = doc.add_paragraph("RECOMMENDED ACTIONS")
             h_p.runs[0].bold = True
             h_p.runs[0].font.color.rgb = p_rgb
             h_p.runs[0].font.size = Pt(10)
-            a_tab = doc.add_table(rows=1 + len(actions[:8]), cols=3)
-            a_tab.style = 'Table Grid'
-            a_tab.autofit = False
-            a_tab.columns[0].width = Inches(3.0)
-            a_tab.columns[1].width = Inches(1.0)
-            a_tab.columns[2].width = Inches(2.0)
-            for i, lbl in enumerate(["ACTION", "PRIORITY", "TIMELINE"]):
-                cell = a_tab.rows[0].cells[i]
-                cell.text = lbl
-                cell.paragraphs[0].runs[0].bold = True
-                cell.paragraphs[0].runs[0].font.size = Pt(8)
-                cell.paragraphs[0].runs[0].font.color.rgb = p_rgb
-            for ri, a in enumerate(actions[:8]):
-                a_tab.rows[ri+1].cells[0].text = _as_text(a.get('task', a.get('action', '')))
-                pri_cell = a_tab.rows[ri+1].cells[1]
-                pri_cell.text = _as_text(a.get('priority', '')).upper()
-                pri_cell.paragraphs[0].runs[0].bold = True
-                a_tab.rows[ri+1].cells[2].text = _as_text(a.get('timeline', ''))
+            for ai, a in enumerate(actions[:8]):
+                action_text = _as_text(a.get('task', a.get('action', '')))
+                pri = _as_text(a.get('priority', '')).upper()
+                glyph = _CIRCLED_NUMS[ai] if ai < len(_CIRCLED_NUMS) else f"{ai+1}."
+                ap = doc.add_paragraph()
+                g_run = ap.add_run(f"{glyph} ")
+                g_run.font.size = Pt(11)
+                a_run = ap.add_run(action_text)
+                a_run.font.size = Pt(10)
+                if pri:
+                    pri_run = ap.add_run(f"  ({pri})")
+                    pri_run.bold = True
+                    pri_run.font.size = Pt(8)
+                    if pri == 'HIGH':
+                        pri_run.font.color.rgb = RGBColor(0x8B, 0x1A, 0x1A)
+                    elif pri in ('MED', 'MEDIUM'):
+                        pri_run.font.color.rgb = RGBColor(0xC8, 0x92, 0x2A)
             doc.add_paragraph()
 
-        # 9. --- COUNCIL CONTRIBUTORS ---
+        # 9. --- COUNCIL CONTRIBUTORS (slim horizontal strip — Name · Role · Status) ---
         contributors = intelligence_object.get("council_contributors") or []
         if contributors:
             h_p = doc.add_paragraph("COUNCIL CONTRIBUTORS")
             h_p.runs[0].bold = True
             h_p.runs[0].font.color.rgb = p_rgb
             h_p.runs[0].font.size = Pt(10)
-            c_tab = doc.add_table(rows=1 + len(contributors[:10]), cols=4)
-            c_tab.style = 'Table Grid'
-            c_tab.autofit = False
-            c_tab.columns[0].width = Inches(1.2)
-            c_tab.columns[1].width = Inches(1.0)
-            c_tab.columns[2].width = Inches(1.0)
-            c_tab.columns[3].width = Inches(2.8)
-            for i, lbl in enumerate(["PHASE", "PROVIDER", "ROLE", "CONTRIBUTION"]):
-                cell = c_tab.rows[0].cells[i]
-                cell.text = lbl
-                cell.paragraphs[0].runs[0].bold = True
-                cell.paragraphs[0].runs[0].font.size = Pt(8)
-                cell.paragraphs[0].runs[0].font.color.rgb = p_rgb
-            for ri, c in enumerate(contributors[:10]):
-                c_tab.rows[ri+1].cells[0].text = _as_text(c.get('phase', ''))
-                c_tab.rows[ri+1].cells[1].text = _as_text(c.get('provider', '')).upper()
-                c_tab.rows[ri+1].cells[2].text = _as_text(c.get('role', ''))
-                c_tab.rows[ri+1].cells[3].text = _as_text(c.get('contribution_summary', ''))
+            # Slim strip: up to 4 per row
+            for row_start in range(0, len(contributors[:8]), 4):
+                row_slice = contributors[row_start:row_start + 4]
+                c_tab = doc.add_table(rows=1, cols=len(row_slice))
+                c_tab.autofit = False
+                col_w = Inches(6.0 / len(row_slice))
+                for ci, c in enumerate(row_slice):
+                    c_tab.columns[ci].width = col_w
+                    prov = _as_text(c.get('provider', '')).upper()
+                    role = _as_text(c.get('role', ''))
+                    # Status stamp from truth score
+                    prov_lower = _as_text(c.get('provider', '')).lower()
+                    prov_cr = card_results.get(prov_lower) or {}
+                    prov_tm = prov_cr.get('truth_meter', {})
+                    prov_sc = 0
+                    if isinstance(prov_tm, dict):
+                        try: prov_sc = int(float(prov_tm.get('score', 0)))
+                        except (ValueError, TypeError): prov_sc = 0
+                    elif isinstance(prov_tm, (int, float)):
+                        prov_sc = int(prov_tm)
+                    if prov_sc > 80:
+                        stamp = "Verified"
+                    elif prov_sc > 50:
+                        stamp = "Conditional"
+                    else:
+                        stamp = "Flagged"
+                    cell = c_tab.rows[0].cells[ci]
+                    cp = cell.paragraphs[0]
+                    prov_run = cp.add_run(prov)
+                    prov_run.bold = True
+                    prov_run.font.size = Pt(9)
+                    prov_run.font.color.rgb = s_rgb
+                    cp.add_run("\n")
+                    role_run = cp.add_run(f"{role} · {stamp}")
+                    role_run.font.size = Pt(7)
+                    role_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
             doc.add_paragraph()
 
         # 10. --- CONFIDENCE ASSESSMENT ---
@@ -846,7 +1176,37 @@ class WordExporter:
                     doc.add_paragraph(_as_text(lim), style='List Bullet')
             doc.add_paragraph()
 
-        # 11. --- SIGN-OFF & AUTHENTICATION ---
+        # 11. --- COMPOSITE TRUTH SCORE ANCHOR BAR ---
+        if truth_int > 0:
+            consensus_text = _as_text(divergence.get("divergence_summary", "")) or "Multi-model analysis complete. Council has reached operational consensus."
+            ts_tab = doc.add_table(rows=1, cols=2)
+            ts_tab.autofit = False
+            ts_tab.columns[0].width = Inches(4.2)
+            ts_tab.columns[1].width = Inches(1.8)
+            # Left: consensus sentence (italic)
+            l_cell = ts_tab.rows[0].cells[0]
+            l_p = l_cell.paragraphs[0]
+            l_run = l_p.add_run(consensus_text)
+            l_run.italic = True
+            l_run.font.size = Pt(10)
+            # Right: large truth score numeral
+            r_cell = ts_tab.rows[0].cells[1]
+            r_p = r_cell.paragraphs[0]
+            r_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            score_run = r_p.add_run(str(truth_int))
+            score_run.bold = True
+            score_run.font.size = Pt(24)
+            score_run.font.color.rgb = s_rgb
+            label_run = r_p.add_run("\nTRUTH SCORE / 100")
+            label_run.font.size = Pt(7)
+            label_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+            # Apply Inkwell Blue background via XML shading
+            for cell in ts_tab.rows[0].cells:
+                shading = parse_xml(f'<w:shd {nsdecls("w")} w:fill="273C75"/>')
+                cell._tc.get_or_add_tcPr().append(shading)
+            doc.add_paragraph()
+
+        # 12. --- SIGN-OFF & AUTHENTICATION ---
         doc.add_paragraph("_" * 90)
 
         contributors = intelligence_object.get("council_contributors") or []
