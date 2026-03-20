@@ -591,7 +591,7 @@ def deploy_intelligence():
             'txt': 'text/plain',
         }
         mimetype = mime_types.get(format_type, 'application/octet-stream')
-        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filename), mimetype=mimetype)
+        return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath), mimetype=mimetype)
 
     except Exception as e:
         print(f"❌ Deployment Error: {e}")
@@ -1070,7 +1070,11 @@ def rename_thread(thread_id):
 
 
 def _thread_build_previous_context(thread_id):
-    """Build previous_context array from the last 2 council messages in a thread."""
+    """
+    Build previous_context array from the last 2 council messages in a thread.
+    Also includes a summary of interrogation/verification events so follow-up
+    phases see the full A→C intelligence loop (Full Loop Integrity).
+    """
     council_msgs = Message.query.filter_by(thread_id=thread_id, role='council') \
         .order_by(Message.created_at.desc()).limit(2).all()
     council_msgs.reverse()  # oldest first
@@ -1087,6 +1091,20 @@ def _thread_build_previous_context(thread_id):
             "contested_topics": meta.get("contested_topics", []),
             "divergence_summary": meta.get("divergence_summary", "")
         })
+
+    # --- FULL LOOP INTEGRITY: Append interrogation/verification summary ---
+    # So follow-up phases know what was challenged, what held, and what broke.
+    score_events = _thread_get_score_events(thread_id)
+    if score_events and context:
+        loop_summary_parts = []
+        for evt in score_events:
+            sign = '+' if evt['score_delta'] > 0 else ''
+            loop_summary_parts.append(
+                f"{evt['type'].upper()}: {evt['verdict']} ({sign}{evt['score_delta']}) targeting {evt['provider']}"
+            )
+        # Attach to the most recent context entry so the synthesis sees it
+        context[-1]["interrogation_history"] = "; ".join(loop_summary_parts)
+
     return context if context else None
 
 
@@ -2460,40 +2478,100 @@ def interrogate():
     def _interrogation_verdict(atk_text: str, def_text: str):
         atk = atk_text.lower()
         defn = def_text.lower()
+
+        # --- Component-level impact tracking ---
+        impact_components = []
+
+        # 1. Assumption failures
+        assumption_signals = [
+            'assumption', 'assumed', 'presuppose', 'taken for granted',
+            'failed to account', 'overlooked', 'did not consider'
+        ]
+        assumption_hits = sum(1 for w in assumption_signals if w in atk or w in defn)
+        if assumption_hits:
+            penalty = -(assumption_hits * 2)
+            impact_components.append({"type": "ASSUMPTION_FAILURE", "delta": penalty,
+                                      "detail": f"{assumption_hits} assumption challenge(s) detected"})
+
+        # 2. Missing data / evidence gaps
+        missing_data_signals = [
+            'no data', 'missing data', 'no evidence', 'lacks evidence', 'unsubstantiated',
+            'insufficient data', 'no source', 'unsupported', 'without evidence', 'gap in'
+        ]
+        missing_hits = sum(1 for w in missing_data_signals if w in atk or w in defn)
+        if missing_hits:
+            penalty = -(missing_hits * 2)
+            impact_components.append({"type": "MISSING_DATA", "delta": penalty,
+                                      "detail": f"{missing_hits} evidence gap(s) identified"})
+
+        # 3. Overconfidence penalty
+        overconfidence_signals = [
+            'overstated', 'overconfident', 'too certain', 'exaggerated',
+            'inflated', 'unrealistic', 'unjustified certainty'
+        ]
+        oc_hits = sum(1 for w in overconfidence_signals if w in atk or w in defn)
+        if oc_hits:
+            penalty = -(oc_hits * 3)
+            impact_components.append({"type": "OVERCONFIDENCE", "delta": penalty,
+                                      "detail": f"{oc_hits} overconfidence flag(s)"})
+
+        # 4. Concessions (defender acknowledges weakness)
         concession_signals = [
             'concede', 'concession', 'acknowledged', 'valid point', 'correctly identifies',
-            'fair criticism', 'legitimate concern', 'understated', 'overlooked', 'gap in',
-            'you are correct', 'i was wrong', 'error in', 'failed to account', 'missed',
+            'fair criticism', 'legitimate concern', 'understated',
+            'you are correct', 'i was wrong', 'error in',
             'incomplete', 'inaccurate', 'i acknowledge', 'the attacker is right',
             'this criticism is valid', 'cannot dispute', 'stands corrected'
         ]
-        defense_signals = [
-            'no evidence', 'unfounded', 'speculative', 'my analysis stands', 'maintains',
-            'logic maintained', 'evidence supports', 'rebuttal', 'refuted', 'incorrect assumption',
-            'the challenge is based on', 'the original assessment holds', 'i stand by',
-            'the criticism is flawed', 'my original position', 'remains valid', 'not a valid'
-        ]
         concessions = sum(1 for w in concession_signals if w in defn)
+        if concessions:
+            penalty = -(concessions * 3)
+            impact_components.append({"type": "CONCESSION", "delta": penalty,
+                                      "detail": f"{concessions} concession(s) from defender"})
+
+        # 5. Strong defense (positive — defender holds ground)
+        defense_signals = [
+            'my analysis stands', 'maintains', 'logic maintained', 'evidence supports',
+            'rebuttal', 'refuted', 'incorrect assumption', 'the original assessment holds',
+            'i stand by', 'the criticism is flawed', 'my original position',
+            'remains valid', 'not a valid'
+        ]
         holds = sum(1 for w in defense_signals if w in defn or w in atk)
-        # Attacker also signals defender weakness
-        atk_success = sum(1 for w in ['critical flaw', 'fatal error', 'clearly wrong',
-                                       'demonstrably false', 'significant error', 'major gap'] if w in atk)
+        if holds:
+            bonus = holds * 3
+            impact_components.append({"type": "DEFENSE_HELD", "delta": bonus,
+                                      "detail": f"{holds} defense point(s) maintained"})
 
-        total_concede = concessions + atk_success
-        if total_concede >= 3:
-            return -18, 'CRITICAL CONCESSION'
-        elif total_concede == 2:
-            return -12, 'CONCESSION x2'
-        elif total_concede == 1:
-            return -6, 'CONCESSION'
-        elif holds >= 2:
-            return 8, 'STRONG DEFENSE'
-        elif holds == 1:
-            return 4, 'DEFENSE HELD'
+        # 6. Attacker critical hits
+        atk_critical = sum(1 for w in ['critical flaw', 'fatal error', 'clearly wrong',
+                                        'demonstrably false', 'significant error', 'major gap'] if w in atk)
+        if atk_critical:
+            penalty = -(atk_critical * 4)
+            impact_components.append({"type": "CRITICAL_HIT", "delta": penalty,
+                                      "detail": f"{atk_critical} critical flaw(s) identified by attacker"})
+
+        # Compute net delta from components
+        net_delta = sum(c['delta'] for c in impact_components) if impact_components else -2
+
+        # Determine verdict label
+        if net_delta <= -15:
+            verdict = 'CRITICAL CONCESSION'
+        elif net_delta <= -8:
+            verdict = 'SIGNIFICANT WEAKNESS'
+        elif net_delta <= -3:
+            verdict = 'CONCESSION'
+        elif net_delta < 0:
+            verdict = 'CHALLENGED — INCONCLUSIVE'
+        elif net_delta == 0:
+            verdict = 'CONTESTED — NEUTRAL'
+        elif net_delta <= 5:
+            verdict = 'DEFENSE HELD'
         else:
-            return -2, 'CHALLENGED — INCONCLUSIVE'
+            verdict = 'STRONG DEFENSE'
 
-    interrogation_delta, interrogation_verdict = _interrogation_verdict(attacker_text, defender_text)
+        return net_delta, verdict, impact_components
+
+    interrogation_delta, interrogation_verdict, impact_components = _interrogation_verdict(attacker_text, defender_text)
 
     response_data = {
         "success": True,
@@ -2512,6 +2590,7 @@ def interrogate():
         "original_query": original_query,
         "score_delta": interrogation_delta,
         "verdict": interrogation_verdict,
+        "impact_report": impact_components,
         "falcon": {
             "enabled": use_falcon,
             "level": falcon_level,

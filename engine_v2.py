@@ -2352,6 +2352,13 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
             div_summary = entry.get('divergence_summary', '')
             if div_summary and div_summary != 'Divergence analysis not available.':
                 prompt += f"**Divergence:** {div_summary}\n"
+            # Full Loop Integrity: include interrogation/verification history
+            interrog_history = entry.get('interrogation_history', '')
+            if interrog_history:
+                prompt += f"\n**Prior Interrogation/Verification Events:**\n{interrog_history}\n"
+                prompt += "IMPORTANT: These events represent challenges to the prior council output. "
+                prompt += "Your response MUST account for any concessions or invalidations noted above. "
+                prompt += "Do NOT repeat claims that were previously invalidated.\n"
         prompt += "\n--------------------\n"
 
     if position == 0:
@@ -2368,6 +2375,52 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
             prompt += f"\n-- PHASE [{entry['persona'].upper()}] ({entry['ai'].upper()}):\n{snippet}\n"
 
     return prompt
+
+# ===================================================================
+# CONFIDENCE CALIBRATION — Score-Band Language Enforcement
+# ===================================================================
+
+CONFIDENCE_BANDS = [
+    (80, 100, "high", "Strong evidence supports conclusions. Language may use 'confirms', 'demonstrates', 'establishes'."),
+    (60,  79, "moderate-to-high", "Moderate confidence. Use 'suggests', 'indicates', 'likely'. Avoid absolute certainty."),
+    (40,  59, "moderate", "Weak support. Use 'preliminary data suggests', 'may indicate', 'possible'. Emphasize caveats."),
+    ( 0,  39, "low", "Insufficient data. Use 'unconfirmed', 'speculative', 'insufficient evidence to determine'. Recommend further investigation."),
+]
+
+def _build_confidence_directive(results):
+    """
+    Compute average truth score from results and return the appropriate
+    confidence band directive for injection into the synthesis prompt.
+    """
+    if not results:
+        return "Default to 'moderate-to-high' confidence. Only use 'high' if 3+ council members independently confirmed facts with specific evidence. This is an intelligence product — overconfidence is a liability."
+
+    scores = [r.get('truth_meter', 50) for r in results.values() if isinstance(r, dict) and r.get('success')]
+    if not scores:
+        avg = 50
+    else:
+        avg = sum(scores) / len(scores)
+
+    band_label = "moderate-to-high"
+    band_guidance = ""
+    for low, high, label, guidance in CONFIDENCE_BANDS:
+        if low <= avg <= high:
+            band_label = label
+            band_guidance = guidance
+            break
+
+    directive = (
+        f"The council's aggregate truth score is {avg:.0f}/100.\n"
+        f"    This places the output in the '{band_label.upper()}' confidence band.\n"
+        f"    Required tone: {band_guidance}\n"
+        f"    You MUST set overall_confidence to '{band_label}'.\n"
+        f"    Your language throughout ALL sections must match this band.\n"
+        f"    VIOLATION: Using 'confirms' or 'demonstrates' when score is below 80 is overconfidence.\n"
+        f"    VIOLATION: Using 'speculative' or 'insufficient' when score is above 79 is underconfidence.\n"
+        f"    Match your language to the evidence. This is decision intelligence — calibration is everything."
+    )
+    return directive
+
 
 # --- PHASE 4: SYNTHESIS (The Extractor) ---
 def synthesize_results(context, divergence_analysis=None, arbiter_report=None, results=None, user_id=None):
@@ -2488,6 +2541,13 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     4. NO CONVERSATIONAL FLUFF: Output only the result.
     5. THE COUNCIL CONTRIBUTORS table must use the actual Phase Titles and Roles from the history.
     6. NORMALIZATION PROTECTION (Section 5): The council discussion uses [STRUCTURED_TABLE]...[/STRUCTURED_TABLE] tags for high-fidelity data. You MUST PRESERVE THESE TAGS EXACTLY. Do NOT convert them back to Markdown or summarize their contents.
+    7. BALANCED DECISION LOGIC: NEVER recommend halting all operations, stopping all decisions, or full organizational paralysis. Even under high uncertainty or risk:
+       - Recommend proceeding with caution on low-risk actions
+       - Prioritize reversible decisions that can be adjusted later
+       - Identify what additional data would reduce uncertainty
+       - Separate "must pause" items from "can proceed" items
+       - Frame recommendations as a decision gradient, not binary go/no-go
+       VIOLATION: Any recommendation that says "halt all", "stop everything", "cease operations", or "suspend all decisions" without offering actionable alternatives is rejected. Decision intelligence means enabling decisions under uncertainty, not preventing them.
 
     COUNCIL DISCUSSION:
     {history_text}
@@ -2527,11 +2587,16 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
         "overall_confidence": "low|moderate|moderate-to-high|high (default to moderate-to-high unless 3+ sources independently confirm with evidence)",
         "key_assumptions": ["List 3-5 assumptions the analysis depends on"],
         "limitations": ["List 2-3 limitations or gaps in the analysis"]
-      }}
+      }},
+      "claim_rewrites": [
+        {{"original": "The original claim as stated by a council member", "status": "INVALIDATED|UNVERIFIED|CORRECTED", "corrected": "The rewritten version with calibrated language, or null if no correction is possible", "provider": "Which provider made the original claim"}}
+      ]
     }}
 
     REMEMBER: Each section value must be 3-5 rich paragraphs with specific details from the council discussion. This report will be exported as a professional PDF — make it worth reading.
-    CONFIDENCE CALIBRATION: Default to "moderate-to-high" confidence. Only use "high" if 3+ council members independently confirmed facts with specific evidence. This is an intelligence product — overconfidence is a liability.
+    CLAIM REWRITES: If the TRUTH PROPAGATION layer flagged any UNVERIFIED or INVALIDATED claims, you MUST populate the claim_rewrites array. For each flagged claim, provide the original text, its status, and a corrected version using calibrated language. If no correction is possible, set corrected to null. If no claims were flagged, return an empty array.
+    CONFIDENCE CALIBRATION — MANDATORY SCORE-BAND ENFORCEMENT:
+    {_build_confidence_directive(results)}
     """
     
     try:
