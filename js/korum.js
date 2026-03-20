@@ -2602,90 +2602,48 @@ function renderChainResults(result) {
         analysisGrid.appendChild(card);
     });
     analysisPane.appendChild(analysisGrid);
-    const grid = document.createElement("div");
-    grid.className = "results-grid";
 
-    // Helper to create phase cards
-    const createCard = (title, model, content, phase, metricData) => {
-        const card = document.createElement("div");
-        card.className = `agent-card ${model.toLowerCase().includes('gpt') ? 'openai' : model.toLowerCase().includes('claude') ? 'anthropic' : model.toLowerCase().includes('perplexity') || model.toLowerCase().includes('sonar') ? 'perplexity' : 'google'}`;
-        card.dataset.name = title;
-        card.dataset.meta = `<div class="agent-meta"><span>${phase}</span><span>${model}</span></div>`;
-        card.dataset.rawContent = encodeURIComponent(content);
-
-        const formattedRaw = formatV2Content(content, phase);
-
-        const modelToProvider = { 'claude': 'anthropic', 'gpt': 'openai', 'gemini': 'google', 'perplexity': 'perplexity', 'sonar': 'perplexity', 'mistral': 'mistral', 'oracle': 'local' };
-        const providerKey = Object.keys(modelToProvider).find(k => model.toLowerCase().includes(k));
-        const res = result.results ? result.results[modelToProvider[providerKey]] : null;
-        const verifiedClaims = res?.verified_claims || [];
-        const truthScore = res?.truth_meter !== undefined ? res.truth_meter : (metricData?.score || 85);
-
-        const displayContent = highlightClaims(formattedRaw, verifiedClaims);
-        const cost = metricData?.cost || 0.0000;
-        const time = metricData?.time || 0.00;
-
-        card.innerHTML = `
-            <div class="precision-header">
-                <div class="ph-left">
-                    <div class="ph-model-name">${title}</div>
-                    <div class="ph-role-label">${model} • ${phase}</div>
-                    <div class="ph-truth-container">
-                        <div class="truth-score-val" style="color: ${truthScore > 80 ? '#4CAF7D' : truthScore > 50 ? '#FFB020' : '#FF4444'}">
-                            TRUTH SCORE: ${truthScore}/100
-                        </div>
-                        <div class="truth-bar-container">
-                            <div class="truth-fill" style="width: ${truthScore}%"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="ph-right">
-                    <button class="interrogate-btn" data-card-action="interrogate">
-                        🔍 INTERROGATE
-                    </button>
-                    <div class="metric-pill">$${cost.toFixed(4)}</div>
-                    <div class="metric-pill time">${time}s</div>
-                    <div class="tool-action" data-card-action="save" title="Save">💾</div>
-                    <div class="tool-action chart-dropdown-trigger" title="Chart">📊
-                        <div class="chart-dropdown">
-                            <div class="chart-option" data-chart="pie">🥧 Pie Chart</div>
-                            <div class="chart-option" data-chart="bar">📊 Bar Chart</div>
-                            <div class="chart-option" data-chart="line">📈 Line Chart</div>
-                            <div class="chart-option" data-chart="flowchart">🔀 Flowchart</div>
-                            <div class="chart-option" data-chart="auto">🎯 Auto-detect</div>
-                        </div>
-                    </div>
-                    <div class="tool-action" data-card-action="copy" title="Copy">📋</div>
-                </div>
-            </div>
-            <div class="agent-response">${displayContent}</div>
-        `;
-        return card;
-    };
-
-    // 1. Deconstruction (Claude)
-    grid.appendChild(createCard("PHASE 1: DECONSTRUCTION", "Claude 3.5 Sonnet", result.constraints, "CONSTRAINT ANALYSIS", result.metrics?.deconstruct));
-
-    // 2. Construction (GPT-4o)
-    grid.appendChild(createCard("PHASE 2: ARCHITECTURE", "GPT-4o", result.standard_solution, "STANDARD MODEL", result.metrics?.build));
-
-    // 3. Stress Test (Gemini)
-    grid.appendChild(createCard("PHASE 3: STRESS TEST", "Gemini 2.5", result.failure_analysis, "FAILURE PHYSICS", result.metrics?.stress));
-
-    // 3.5 Hacker (If active)
+    // Build providerRecords for workspace dock (roster / reader / inspector)
+    const v2Phases = [
+        { provider: 'anthropic', label: 'DECONSTRUCTION', providerMeta: 'Claude 3.5 Sonnet | Constraint Analysis', model: 'Claude 3.5 Sonnet', content: result.constraints, metric: result.metrics?.deconstruct },
+        { provider: 'openai', label: 'ARCHITECTURE', providerMeta: 'GPT-4o | Standard Model', model: 'GPT-4o', content: result.standard_solution, metric: result.metrics?.build },
+        { provider: 'google', label: 'STRESS TEST', providerMeta: 'Gemini 2.5 | Failure Physics', model: 'Gemini 2.5', content: result.failure_analysis, metric: result.metrics?.stress },
+        { provider: 'perplexity', label: 'SCOUT RECON', providerMeta: 'Perplexity Sonar | Live Intelligence', model: 'Perplexity Sonar', content: result.scout_intel, metric: result.metrics?.scout },
+        { provider: 'openai_exec', label: 'EXECUTION', providerMeta: 'GPT-4o General | Executive Directive', model: 'GPT-4o General', content: result.final_artifact, metric: result.metrics?.synthesize }
+    ];
     if (result.exploit_poc) {
-        grid.appendChild(createCard("PHASE 3.5: RED TEAM", "Gemini Flash", result.exploit_poc, "EXPLOIT GENERATION", result.metrics?.hacker));
+        v2Phases.splice(3, 0, { provider: 'red_team', label: 'RED TEAM', providerMeta: 'Gemini Flash | Exploit Generation', model: 'Gemini Flash', content: result.exploit_poc, metric: result.metrics?.hacker });
     }
 
-    // 4. Scout Intel (Perplexity)
-    if (result.scout_intel) {
-        grid.appendChild(createCard("PHASE 4: SCOUT RECON", "Perplexity Sonar", result.scout_intel, "LIVE INTELLIGENCE", result.metrics?.scout));
-    }
+    const providerRecords = v2Phases.filter(p => p.content).map(p => {
+        const res = result.results ? result.results[p.provider] : null;
+        const truthScore = res?.truth_meter !== undefined ? res.truth_meter : (p.metric?.score || 85);
+        return {
+            provider: p.provider,
+            label: p.label,
+            providerMeta: p.providerMeta,
+            model: p.model,
+            success: true,
+            rawResponse: p.content,
+            verifiedClaims: res?.verified_claims || [],
+            truthScore,
+            cost: p.metric?.cost || 0,
+            time: p.metric?.time || 0,
+            citations: res?.citations || [],
+            error: '',
+            cardId: `card-${p.provider}-${Date.now()}`
+        };
+    });
 
-    // 5. Execution (GPT-4o) - formerly Synthesis
-    grid.appendChild(createCard("PHASE 5: EXECUTION", "GPT-4o General", result.final_artifact, "EXECUTIVE DIRECTIVE", result.metrics?.synthesize));
-
-    councilPane.appendChild(grid);
+    // Render workspace dock (roster left, reader center, inspector right)
+    renderCouncilWorkspace(councilPane, lastCouncilData, providerRecords, {
+        truthScore: compositeTruth,
+        modelCount: providerRecords.filter(r => r.provider !== 'red_team').length,
+        totalTime,
+        totalCost: v2Phases.reduce((sum, p) => sum + (p.metric?.cost || 0), 0),
+        divergenceScore: result.divergence?.divergence_score || 0,
+        consensusPreview: summarizeText(result.consensus || synthesisData.meta?.summary || '', 180)
+    });
     document.querySelector(".results-container").classList.add("visible");
     updateResultsDockState({
         pill: 'Results Ready',
@@ -2703,7 +2661,7 @@ function renderChainResults(result) {
         risk: stageRisk,
         activeModels: (synthesisData.meta?.models_used || []).length || 4,
         councilCopy: 'Sequential council pass completed and ready for interrogation or verification.',
-        roleCopy: `${grid.children.length} result card${grid.children.length === 1 ? '' : 's'} assembled across the mission phases.`
+        roleCopy: `${providerRecords.length} result card${providerRecords.length === 1 ? '' : 's'} assembled across the mission phases.`
     });
     updateRevisionSummary({
         latestFollowup: sessionState.originalQuery || 'Mission directive received.',
