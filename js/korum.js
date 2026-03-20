@@ -3043,6 +3043,28 @@ function buildWorkspaceInspectorPanels(data) {
     }
     if (divergenceHtml) panels.push(buildInspectorPanel('inspectorDivergence', 'Divergence', divergenceHtml));
 
+    // --- CLAIM REWRITES PANEL (Truth Propagation) ---
+    const claimRewrites = synthesis?.claim_rewrites || [];
+    if (claimRewrites.length > 0) {
+        const rewriteRows = claimRewrites.map(rw => {
+            const statusColor = rw.status === 'INVALIDATED' ? '#FF4444'
+                              : rw.status === 'CORRECTED' ? '#4CAF7D'
+                              : '#FFB020';
+            const statusLabel = (rw.status || 'UNKNOWN').toUpperCase();
+            return `
+                <div style="padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-size:0.55rem; color:#888; letter-spacing:0.1em;">${escapeHtml((rw.provider || '').toUpperCase())}</span>
+                        <span style="font-size:0.55rem; color:${statusColor}; letter-spacing:0.1em; font-weight:700;">${statusLabel}</span>
+                    </div>
+                    <div style="font-size:0.6rem; color:#FF8888; text-decoration:line-through; margin-bottom:3px;">${escapeHtml((rw.original || '').slice(0, 120))}</div>
+                    ${rw.corrected ? `<div style="font-size:0.6rem; color:#4CAF7D;">→ ${escapeHtml(rw.corrected.slice(0, 150))}</div>` : `<div style="font-size:0.6rem; color:#666; font-style:italic;">No correction available</div>`}
+                </div>
+            `;
+        }).join('');
+        panels.push(buildInspectorPanel('inspectorRewrites', 'Claim Rewrites', rewriteRows));
+    }
+
     // --- CLAIM CONTRIBUTIONS PANEL ---
     const selectedProvider = sessionState.selectedCardProvider;
     const providerResult = selectedProvider && data.results ? data.results[selectedProvider] : null;
@@ -4076,6 +4098,42 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
                 <span style="color:${verdictColor}; font-weight:700">${verdict} · SCORE ${sign}${delta}</span>
             `;
             faceoffCard.appendChild(verdictBanner);
+
+            // === IMPACT REPORT — Component breakdown of score changes ===
+            if (result.impact_report && result.impact_report.length > 0) {
+                const impactPanel = document.createElement('div');
+                impactPanel.style.cssText = `
+                    margin: 6px 16px 8px;
+                    padding: 8px 12px;
+                    background: rgba(255,255,255,0.02);
+                    border: 1px solid rgba(255,255,255,0.06);
+                `;
+                const impactRows = result.impact_report.map(comp => {
+                    const compColor = comp.delta > 0 ? '#4CAF7D' : '#FF4444';
+                    const compSign = comp.delta > 0 ? '+' : '';
+                    const typeLabel = comp.type.replace(/_/g, ' ');
+                    return `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:3px 0; font-size:0.58rem;">
+                            <span style="color:#999; letter-spacing:0.08em;">${typeLabel}</span>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="color:#777;">${escapeHtml(comp.detail)}</span>
+                                <span style="color:${compColor}; font-weight:700; min-width:30px; text-align:right;">${compSign}${comp.delta}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                impactPanel.innerHTML = `
+                    <div style="font-size:0.55rem; color:#666; letter-spacing:0.12em; margin-bottom:4px;">IMPACT REPORT</div>
+                    ${impactRows}
+                `;
+                faceoffCard.appendChild(impactPanel);
+
+                // Log each component to telemetry
+                for (const comp of result.impact_report) {
+                    const icon = comp.delta > 0 ? '🛡️' : '⚔️';
+                    logTelemetry(`${icon} ${comp.type.replace(/_/g, ' ')}: ${comp.detail} (${comp.delta > 0 ? '+' : ''}${comp.delta})`, comp.delta > 0 ? 'success' : 'warning');
+                }
+            }
         }
 
     } catch (err) {
@@ -7086,10 +7144,34 @@ async function handleDocExport(format) {
     logTelemetry(`DEPLOYING ASSET: ${format.toUpperCase()}...`, "process");
 
     try {
-        const intelligenceObj = { ...lastCouncilData.synthesis };
+        const data = lastCouncilData || {};
+        let intelligenceObj = data.synthesis ? { ...data.synthesis } : null;
+
+        // --- LEGACY FALLBACK: Support older final results without synthesis blocks ---
+        if (!intelligenceObj) {
+            logTelemetry("Building intelligence object from legacy data...", "warning");
+            intelligenceObj = {
+                meta: {
+                    title: data.roleName || (sessionState.originalQuery || 'Korum Intelligence Brief').substring(0, 80),
+                    summary: data.consensus || "Automated intelligence briefing.",
+                    generated_at: new Date().toISOString(),
+                    workflow: sessionState.missionContext?.workflow || 'RESEARCH',
+                    theme: themeVal
+                },
+                sections: {
+                    executive_summary: data.consensus || data.final_artifact || "No summary provided."
+                },
+                structured_data: {
+                    key_metrics: [],
+                    risks: [],
+                    actions: []
+                }
+            };
+        }
+
         // Inject divergence data into intelligence object for exporters
-        if (lastCouncilData.divergence) {
-            intelligenceObj.divergence_analysis = lastCouncilData.divergence;
+        if (data.divergence) {
+            intelligenceObj.divergence_analysis = data.divergence;
         }
 
         // Inject research dock snippets
@@ -7097,11 +7179,10 @@ async function handleDocExport(format) {
             intelligenceObj.docked_snippets = ResearchDock.getReportArtifacts();
         }
         
-        logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis} | Snippets: ${intelligenceObj.docked_snippets?.length || 0}`, "process");
-        const themeVal = document.getElementById('themeSelect')?.value || 'NEON_DESERT';
+        logTelemetry(`Exporting: ${intelligenceObj.meta?.title || 'Untitled'} | Theme: ${themeVal}`, "process");
         const payload = {
             intelligence_object: intelligenceObj,
-            card_results: lastCouncilData.results || {},
+            card_results: data.results || {},
             format: format,
             theme: themeVal,
             mission_context: sessionState.missionContext || null
