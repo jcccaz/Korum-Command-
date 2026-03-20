@@ -217,6 +217,18 @@
     border-color: rgba(255, 255, 255, 0.2);
 }
 
+.secondary-deploy.style-set {
+    border-color: rgba(0, 255, 157, 0.18);
+    background: rgba(0, 255, 157, 0.06);
+    color: var(--accent-green);
+}
+
+.secondary-deploy.style-set:hover {
+    background: rgba(0, 255, 157, 0.12);
+    border-color: rgba(0, 255, 157, 0.28);
+    color: #E8FFF6;
+}
+
 /* UTILS */
 .glass-scroll::-webkit-scrollbar {
     width: 6px;

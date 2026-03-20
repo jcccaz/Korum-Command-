@@ -2530,6 +2530,78 @@ body.activated .sphere-container {
     flex-wrap: wrap;
 }
 
+.export-theme-picker {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+
+.export-theme-card {
+    min-width: 150px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.38);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.export-theme-card:hover {
+    border-color: rgba(245, 168, 0, 0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+}
+
+.export-theme-card.active {
+    border-color: rgba(0, 255, 157, 0.45);
+    box-shadow: 0 0 0 1px rgba(0, 255, 157, 0.2), 0 10px 22px rgba(0, 0, 0, 0.28);
+}
+
+.export-theme-swatch {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.export-theme-swatch.neon-desert {
+    background: linear-gradient(135deg, #0D1117 0%, #FFB020 55%, #2DD4BF 100%);
+}
+
+.export-theme-swatch.carbon-steel {
+    background: linear-gradient(135deg, #0D0D0D 0%, #4B5563 55%, #D1D5DB 100%);
+}
+
+.export-theme-swatch.architect {
+    background: linear-gradient(135deg, #F2F1EF 0%, #A65E46 58%, #636E72 100%);
+}
+
+.export-theme-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+}
+
+.export-theme-copy strong {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.export-theme-copy span {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.58);
+}
+
 .export-command-center select {
     background: rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.15);

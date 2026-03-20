@@ -7014,6 +7014,7 @@ function renderExportToolbar(container, _data) {
 
     const toolbar = document.createElement("div");
     toolbar.className = "export-command-center";
+    const selectedTheme = _data?.synthesis?.meta?.theme || _data?.meta?.theme || 'NEON_DESERT';
 
     // Sub-task warning if active
     const subTaskStatus = sessionState.isSubTask ?
@@ -7029,10 +7030,33 @@ function renderExportToolbar(container, _data) {
             ${sessionState.mainMissionData && sessionState.isSubTask ? `
                 <button class="ecc-back-btn" onclick="returnToMainMission()" style="background:rgba(245,168,0,0.12); border:1px solid rgba(245,168,0,0.4); color:#F5A800; padding:8px 12px; border-radius:6px; cursor:pointer; font-family:var(--font-head); font-size:11px; font-weight:700;">↩ RETURN TO MAIN MISSION</button>
             ` : ''}
+            <div class="export-theme-picker" id="exportThemePicker" aria-label="Export theme preview">
+                <button type="button" class="export-theme-card" data-theme-value="NEON_DESERT">
+                    <span class="export-theme-swatch neon-desert"></span>
+                    <span class="export-theme-copy">
+                        <strong>Neon Desert</strong>
+                        <span>Amber command glow</span>
+                    </span>
+                </button>
+                <button type="button" class="export-theme-card" data-theme-value="CARBON_STEEL">
+                    <span class="export-theme-swatch carbon-steel"></span>
+                    <span class="export-theme-copy">
+                        <strong>Carbon Steel</strong>
+                        <span>Neutral tactical slate</span>
+                    </span>
+                </button>
+                <button type="button" class="export-theme-card" data-theme-value="ARCHITECT">
+                    <span class="export-theme-swatch architect"></span>
+                    <span class="export-theme-copy">
+                        <strong>Architect</strong>
+                        <span>Warm executive profile</span>
+                    </span>
+                </button>
+            </div>
             <select id="themeSelect" style="margin-right:8px; background:#111; color:#fff; border:1px solid #333; font-size:10px; border-radius:4px;">
-                <option value="NEON_DESERT">Neon Desert</option>
-                <option value="CARBON_STEEL">Carbon Steel</option>
-                <option value="ARCHITECT">Architect</option>
+                <option value="NEON_DESERT"${selectedTheme === 'NEON_DESERT' ? ' selected' : ''}>Neon Desert</option>
+                <option value="CARBON_STEEL"${selectedTheme === 'CARBON_STEEL' ? ' selected' : ''}>Carbon Steel</option>
+                <option value="ARCHITECT"${selectedTheme === 'ARCHITECT' ? ' selected' : ''}>Architect</option>
             </select>
             <select id="exportDoc" onchange="handleDocExport(this.value)">
                 <option value="" disabled selected>Export Report...</option>
@@ -7066,6 +7090,27 @@ function renderExportToolbar(container, _data) {
 
     // Insert at the TOP of results content, before the grid
     container.prepend(toolbar);
+
+    const themeSelect = toolbar.querySelector('#themeSelect');
+    const themeCards = toolbar.querySelectorAll('.export-theme-card');
+    const syncThemeSelection = (themeValue) => {
+        themeCards.forEach(card => {
+            card.classList.toggle('active', card.dataset.themeValue === themeValue);
+        });
+    };
+
+    if (themeSelect) {
+        syncThemeSelection(themeSelect.value);
+        themeSelect.addEventListener('change', () => syncThemeSelection(themeSelect.value));
+    }
+
+    themeCards.forEach(card => {
+        card.addEventListener('click', () => {
+            const themeValue = card.dataset.themeValue;
+            if (themeSelect) themeSelect.value = themeValue;
+            syncThemeSelection(themeValue);
+        });
+    });
 }
 
 function returnToMainMission() {
@@ -7126,10 +7171,11 @@ function handleSocialExport(platform) {
     document.getElementById('exportSocial').selectedIndex = 0;
 }
 
-async function handleDocExport(format) {
+async function handleDocExport(format, themeOverride = null) {
     if (!format) return;
 
     const select = document.getElementById('exportDoc');
+    const themeSelect = document.getElementById('themeSelect');
     const formatNames = {
         'paper-docx': 'Research Paper (Word)', paper: 'Research Paper', pdf: 'Board Brief', docx: 'Executive Memo', xlsx: 'Intelligence Workbook',
         pptx: 'Strategy Presentation', csv: 'Flat Data', json: 'Raw Intelligence', md: 'Markdown Brief', txt: 'Text Report'
@@ -7154,6 +7200,7 @@ async function handleDocExport(format) {
     try {
         const data = lastCouncilData || {};
         let intelligenceObj = data.synthesis ? { ...data.synthesis } : null;
+        const themeVal = themeOverride || themeSelect?.value || intelligenceObj?.meta?.theme || 'NEON_DESERT';
 
         // --- LEGACY FALLBACK: Support older final results without synthesis blocks ---
         if (!intelligenceObj) {
@@ -7240,6 +7287,14 @@ async function handleDocExport(format) {
     if (select) {
         select.disabled = false;
         select.selectedIndex = 0;
+    }
+}
+
+async function exportThemeSet(format) {
+    const themeSet = ['NEON_DESERT', 'CARBON_STEEL', 'ARCHITECT'];
+    for (const theme of themeSet) {
+        await handleDocExport(format, theme);
+        await new Promise(resolve => setTimeout(resolve, 180));
     }
 }
 
@@ -7599,6 +7654,14 @@ const PreviewManager = {
         document.getElementById('deployXlsxBtn')?.addEventListener('click', () => {
             this.close();
             handleDocExport('xlsx');
+        });
+        document.getElementById('deployPdfThemeSetBtn')?.addEventListener('click', async () => {
+            this.close();
+            await exportThemeSet('pdf');
+        });
+        document.getElementById('deployDocxThemeSetBtn')?.addEventListener('click', async () => {
+            this.close();
+            await exportThemeSet('docx');
         });
 
         // Tab switching

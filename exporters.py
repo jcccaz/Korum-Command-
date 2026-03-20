@@ -113,7 +113,7 @@ class PDFExporter:
         SIGNAL_RED = "#FF3131"
         AMBER = "#FFB020"
 
-        filename = f"KORUM-OS_{meta.get('title', 'Intelligence')}_{_timestamp()}.pdf"
+        filename = f"KORUM-OS_{meta.get('title', 'Intelligence')}_{theme_id}_{_timestamp()}.pdf"
         filepath = _output_path(filename, output_dir)
         doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=25, bottomMargin=25, leftMargin=40, rightMargin=40)
         doc._bg_color = BG_DARK
@@ -416,7 +416,7 @@ class WordExporter:
                 doc.add_paragraph(art.get("content", ""))
                 doc.add_paragraph()
             
-        filename = f"KORUM-OS_REPORT_{_timestamp()}.docx"
+        filename = f"KORUM-OS_REPORT_{theme_id}_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
         doc.save(filepath)
         return filepath
@@ -634,5 +634,4 @@ def _convert_mermaid_to_table(text):
     """Placeholder for eventual Mermaid-to-Grid rendering."""
     # For now, just return clean text
     return text
-
 
