@@ -116,9 +116,9 @@ class PDFExporter:
         
         # --- THE WOW PALETTE ---
         THEMES = {
-            'NEON_DESERT': {"bg": "#090C10", "accent": "#00F5FF", "gold": "#FFD700", "text": "#E2E8F0", "dim": "#475569"},
-            'CARBON_STEEL':{"bg": "#0D0D0D", "accent": "#FFFFFF", "gold": "#94A3B8", "text": "#FAFAFA", "dim": "#525252"},
-            'ARCHITECT':   {"bg": "#FBF9F4", "accent": "#1A1A1A", "gold": "#8B4513", "text": "#2C2C2C", "dim": "#71717A"},
+            'NEON_DESERT': {"bg": "#0F172A", "accent": "#2DD4BF", "gold": "#FBBF24", "text": "#94A3B8", "dim": "#475569"},
+            'CARBON_STEEL':{"bg": "#1A1A1A", "accent": "#D1D5DB", "gold": "#BC2F32", "text": "#D1D5DB", "dim": "#4B5563"},
+            'ARCHITECT':   {"bg": "#2D3436", "accent": "#F2F1EF", "gold": "#A65E46", "text": "#F2F1EF", "dim": "#636E72"},
         }
         theme_id = meta.get("theme", "NEON_DESERT").upper()
         if theme_id not in THEMES: theme_id = "NEON_DESERT"
@@ -147,10 +147,15 @@ class PDFExporter:
         story = []
 
         # 1. --- LOGO & STRATEGIC BRANDING ---
-        logo_filename = "main korum os logo light.png" if theme_id != "ARCHITECT" else "main korum os logo dark.png"
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", logo_filename)
+        # All themes are dark — always use light logo
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo light.png")
         if not os.path.exists(logo_path):
             logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo.png")
+
+        # CONFIDENTIAL banner — top of every page
+        conf_banner = Table([[Paragraph(f"<font color='{GOLD}'>CONFIDENTIAL</font> &mdash; PROPRIETARY INTELLIGENCE PRODUCT", styles['ExecAudit'])]], colWidths=[540])
+        conf_banner.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('BOTTOMPADDING', (0,0), (-1,-1), 12)]))
+        story.append(conf_banner)
 
         header_tab_data = []
         if os.path.exists(logo_path):
@@ -158,11 +163,11 @@ class PDFExporter:
             header_tab_data = [[img, Paragraph("INTELLIGENCE DOSSIER", styles['ExecSig'])]]
         else:
             header_tab_data = [[Paragraph("KORUM-OS", styles['ExecTitle']), Paragraph("INTELLIGENCE DOSSIER", styles['ExecSig'])]]
-        
+
         h_table = Table(header_tab_data, colWidths=[270, 270])
         h_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('ALIGN', (1,0), (1,0), 'RIGHT')]))
         story.append(h_table)
-        story.append(Spacer(1, 30))
+        story.append(Spacer(1, 25))
 
         # 2. --- DOSSIER IDENTIFIER & CONTEXT ---
         story.append(Paragraph(f"{escape(meta.get('title', 'Node_Command').upper())}", styles['ExecTitle']))
@@ -189,12 +194,13 @@ class PDFExporter:
         story.append(Paragraph(escape(original_query).upper(), styles['ExecImpact']))
         story.append(Spacer(1, 40))
 
-        # 4. --- INTELLIGENCE GRID (Asymmetric Dossier) ---
-        for idx, (sid, content) in enumerate(sections.items()):
+        # 4. --- INTELLIGENCE GRID (Flowing, Asymmetric Layout) ---
+        section_items = list(sections.items())
+        for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
-            node_id = f"[DECISION_NODE_{idx+1:02d}]"
-            
-            # Text Processing (Escaping + Dynamic Highlighting)
+            node_id = f"NODE {idx+1:02d}"
+
+            # --- Text Processing (Escaping + Dynamic Highlighting) ---
             raw_text = _as_text(content)
             tag_placeholders = {}
             for tag in ["CRITICAL", "ACTION REQUIRED", "VERIFIED", "RISK"]:
@@ -213,11 +219,63 @@ class PDFExporter:
             for orig, ph in bold_spans: styled = styled.replace(ph, f"<b>{escape(orig[2:-2])}</b>")
             styled = styled.replace("\n", "<br/>")
 
-            # Row Table (Left: Metadata, Right: Content)
-            row_data = [[Paragraph(f"{sec_title}<br/><font color='{GOLD}'>{node_id}</font>", styles['ExecLabel']), Paragraph(styled, styles['ExecBody'])]]
-            t_row = Table(row_data, colWidths=[160, 380])
-            t_row.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 25)]))
-            story.append(t_row)
+            # --- LAYOUT VARIATION (break the box monotony) ---
+            if idx == 0:
+                # LEAD ASSESSMENT — accent left bar, full-width, prominent
+                lead_content = Paragraph(f"<font color='{GOLD}' size='11'><b>{sec_title}</b></font><br/><font color='{TXT_DIM}' size='7'>{node_id} &mdash; LEAD ASSESSMENT</font><br/><br/>{styled}", styles['ExecBody'])
+                lead_row = Table([["", lead_content]], colWidths=[5, 530])
+                lead_row.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (0,0), colors.HexColor(GOLD)),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('LEFTPADDING', (1,0), (1,0), 18),
+                    ('TOPPADDING', (0,0), (-1,-1), 12),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 18),
+                ]))
+                story.append(lead_row)
+
+            elif idx % 3 == 1:
+                # FULL-WIDTH FLOWING — section header above, body below (no side column)
+                story.append(Paragraph(f"<font color='{GOLD}'><b>{sec_title}</b></font> &nbsp;<font color='{TXT_DIM}' size='7'>{node_id}</font>", styles['ExecBody']))
+                story.append(Spacer(1, 6))
+                story.append(Paragraph(styled, styles['ExecBody']))
+
+            elif idx % 3 == 2:
+                # TWO-COLUMN — compact metadata left, content right
+                row_data = [[Paragraph(f"{sec_title}<br/><font color='{TXT_DIM}' size='7'>{node_id}</font>", styles['ExecLabel']),
+                             Paragraph(styled, styles['ExecBody'])]]
+                t_row = Table(row_data, colWidths=[130, 410])
+                t_row.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 10)]))
+                story.append(t_row)
+
+            else:
+                # ACCENT-BAR VARIANT — thin accent line on left, indented block
+                bar_content = Paragraph(f"<font color='{ACCENT}' size='10'><b>{sec_title}</b></font> &nbsp;<font color='{TXT_DIM}' size='7'>{node_id}</font><br/><br/>{styled}", styles['ExecBody'])
+                bar_row = Table([["", bar_content]], colWidths=[3, 532])
+                bar_row.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (0,0), colors.HexColor(ACCENT)),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('LEFTPADDING', (1,0), (1,0), 14),
+                    ('TOPPADDING', (0,0), (-1,-1), 8),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 14),
+                ]))
+                story.append(bar_row)
+
+            # --- SECTION DIVIDERS (varied rhythm) ---
+            if idx < len(section_items) - 1:
+                story.append(Spacer(1, 12))
+                if idx % 2 == 0:
+                    # Short centered accent rule
+                    div_row = Table([["", "", ""]], colWidths=[170, 200, 170], rowHeights=[0.5])
+                    div_row.setStyle(TableStyle([
+                        ('BACKGROUND', (1,0), (1,0), colors.HexColor(TXT_DIM)),
+                        ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                        ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+                    ]))
+                    story.append(div_row)
+                else:
+                    # Dots / breathing room only
+                    story.append(Paragraph(f"<font color='{TXT_DIM}' size='6'>&bull; &bull; &bull;</font>", ParagraphStyle('DivDots', parent=styles['Normal'], alignment=1, spaceAfter=0)))
+                story.append(Spacer(1, 14))
 
         # 5. --- TRUTH SCORE BAR ---
         truth_raw = meta.get("composite_truth_score", 0)
@@ -243,11 +301,25 @@ class PDFExporter:
             story.append(bar)
             story.append(Spacer(1, 25))
 
+        # --- OPERATIONAL DATA ZONE BREAK ---
+        has_data = (structured.get("key_metrics") or risks or structured.get("action_items") or structured.get("actions"))
+        if has_data:
+            story.append(Spacer(1, 15))
+            zone_break = Table([["", Paragraph(f"<font color='{ACCENT}' size='8'><b>OPERATIONAL DATA</b></font>", styles['ExecBody']), ""]], colWidths=[80, 380, 80], rowHeights=[18])
+            zone_break.setStyle(TableStyle([
+                ('LINEABOVE', (0,0), (0,0), 0.5, colors.HexColor(TXT_DIM)),
+                ('LINEABOVE', (2,0), (2,0), 0.5, colors.HexColor(TXT_DIM)),
+                ('ALIGN', (1,0), (1,0), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ]))
+            story.append(zone_break)
+            story.append(Spacer(1, 20))
+
         # 6. --- KEY METRICS TABLE ---
         key_metrics = structured.get("key_metrics") or []
         if key_metrics:
-            story.append(Table([[Paragraph("KEY INTELLIGENCE METRICS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
-            story.append(Spacer(1, 10))
+            story.append(Paragraph(f"<font color='{GOLD}'><b>KEY INTELLIGENCE METRICS</b></font>", styles['ExecBody']))
+            story.append(Spacer(1, 8))
             m_header = [[Paragraph("METRIC", styles['ExecLabel']), Paragraph("VALUE", styles['ExecLabel']), Paragraph("CONTEXT", styles['ExecLabel'])]]
             m_rows = [[Paragraph(escape(_as_text(m.get('metric',''))), styles['ExecBody']),
                         Paragraph(f"<b>{escape(_as_text(m.get('value','')))}</b>", styles['ExecBody']),
@@ -256,9 +328,10 @@ class PDFExporter:
             m_table = Table(m_header + m_rows, colWidths=[160, 120, 260])
             m_table.setStyle(TableStyle([
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor(TXT_DIM)),
                 ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-                ('TOPPADDING', (0,0), (-1,-1), 4),
+                ('TOPPADDING', (0,0), (-1,-1), 5),
+                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
             ]))
             story.append(m_table)
             story.append(Spacer(1, 25))
@@ -266,11 +339,14 @@ class PDFExporter:
         # 7. --- RISK MATRIX ---
         risks = structured.get("risks") or []
         if risks:
-            story.append(Table([[Paragraph("RISK MATRIX", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
-            story.append(Spacer(1, 10))
+            # Accent-bar header (different from metrics — visual variety)
+            risk_hdr = Table([["", Paragraph(f"<font color='{GOLD}'><b>RISK MATRIX</b></font>", styles['ExecBody'])]], colWidths=[5, 535])
+            risk_hdr.setStyle(TableStyle([('BACKGROUND', (0,0), (0,0), colors.HexColor(GOLD)), ('LEFTPADDING', (1,0), (1,0), 12), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+            story.append(risk_hdr)
+            story.append(Spacer(1, 8))
             r_header = [[Paragraph("RISK", styles['ExecLabel']), Paragraph("SEVERITY", styles['ExecLabel']), Paragraph("MITIGATION", styles['ExecLabel'])]]
             r_rows = []
-            for r in risks[:8]:
+            for ri, r in enumerate(risks[:8]):
                 sev = _as_text(r.get('severity', 'MEDIUM')).upper()
                 sev_color = '#FF3131' if sev in ('CRITICAL', 'HIGH') else (GOLD if sev == 'MEDIUM' else ACCENT)
                 r_rows.append([
@@ -279,20 +355,26 @@ class PDFExporter:
                     Paragraph(escape(_as_text(r.get('mitigation',''))), styles['ExecBody']),
                 ])
             r_table = Table(r_header + r_rows, colWidths=[200, 80, 260])
-            r_table.setStyle(TableStyle([
+            r_style = [
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor(TXT_DIM)),
                 ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
                 ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-                ('TOPPADDING', (0,0), (-1,-1), 4),
-            ]))
+                ('TOPPADDING', (0,0), (-1,-1), 5),
+            ]
+            # Alternate row tinting for readability
+            for ri in range(len(r_rows)):
+                if ri % 2 == 1:
+                    r_style.append(('BACKGROUND', (0, ri+1), (-1, ri+1), colors.HexColor(BG_PAGE)))
+            r_table.setStyle(TableStyle(r_style))
             story.append(r_table)
             story.append(Spacer(1, 25))
 
         # 8. --- RECOMMENDED ACTIONS ---
         actions = structured.get("action_items") or structured.get("actions") or []
         if actions:
-            story.append(Table([[Paragraph("RECOMMENDED ACTIONS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
-            story.append(Spacer(1, 10))
+            story.append(Paragraph(f"<font color='{GOLD}'><b>RECOMMENDED ACTIONS</b></font>", styles['ExecBody']))
+            story.append(Spacer(1, 8))
             a_header = [[Paragraph("ACTION", styles['ExecLabel']), Paragraph("PRIORITY", styles['ExecLabel']), Paragraph("TIMELINE", styles['ExecLabel'])]]
             a_rows = []
             for a in actions[:8]:
@@ -306,18 +388,34 @@ class PDFExporter:
             a_table = Table(a_header + a_rows, colWidths=[260, 80, 200])
             a_table.setStyle(TableStyle([
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor(TXT_DIM)),
                 ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
                 ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-                ('TOPPADDING', (0,0), (-1,-1), 4),
+                ('TOPPADDING', (0,0), (-1,-1), 5),
             ]))
             story.append(a_table)
             story.append(Spacer(1, 25))
 
-        # 9. --- COUNCIL CONTRIBUTORS ---
+        # --- COUNCIL INTELLIGENCE ZONE BREAK ---
         contributors = intelligence_object.get("council_contributors") or []
-        if contributors:
-            story.append(Table([[Paragraph("COUNCIL CONTRIBUTORS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
+        confidence = intelligence_object.get("confidence_and_assumptions") or {}
+        divergence = intelligence_object.get("divergence_analysis") or {}
+        if contributors or confidence or divergence:
             story.append(Spacer(1, 10))
+            ci_break = Table([["", Paragraph(f"<font color='{ACCENT}' size='8'><b>COUNCIL INTELLIGENCE</b></font>", styles['ExecBody']), ""]], colWidths=[80, 380, 80], rowHeights=[18])
+            ci_break.setStyle(TableStyle([
+                ('LINEABOVE', (0,0), (0,0), 0.5, colors.HexColor(TXT_DIM)),
+                ('LINEABOVE', (2,0), (2,0), 0.5, colors.HexColor(TXT_DIM)),
+                ('ALIGN', (1,0), (1,0), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ]))
+            story.append(ci_break)
+            story.append(Spacer(1, 20))
+
+        # 9. --- COUNCIL CONTRIBUTORS ---
+        if contributors:
+            story.append(Paragraph(f"<font color='{GOLD}'><b>COUNCIL CONTRIBUTORS</b></font>", styles['ExecBody']))
+            story.append(Spacer(1, 8))
             c_header = [[Paragraph("PHASE", styles['ExecLabel']), Paragraph("PROVIDER", styles['ExecLabel']), Paragraph("ROLE", styles['ExecLabel']), Paragraph("CONTRIBUTION", styles['ExecLabel'])]]
             c_rows = [[Paragraph(escape(_as_text(c.get('phase',''))), styles['ExecBody']),
                         Paragraph(escape(_as_text(c.get('provider','')).upper()), styles['ExecBody']),
@@ -327,40 +425,48 @@ class PDFExporter:
             c_table = Table(c_header + c_rows, colWidths=[100, 80, 90, 270])
             c_table.setStyle(TableStyle([
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor(TXT_DIM)),
                 ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor(GOLD)),
                 ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-                ('TOPPADDING', (0,0), (-1,-1), 3),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
             ]))
             story.append(c_table)
             story.append(Spacer(1, 25))
 
-        # 10. --- CONFIDENCE ASSESSMENT ---
-        confidence = intelligence_object.get("confidence_and_assumptions") or {}
+        # 10. --- CONFIDENCE ASSESSMENT (accent-bar callout style) ---
         if confidence:
-            story.append(Table([[Paragraph("CONFIDENCE ASSESSMENT", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
-            story.append(Spacer(1, 10))
             conf_level = _as_text(confidence.get('overall_confidence', '')).upper()
             conf_color = '#4CAF7D' if 'HIGH' in conf_level else (GOLD if 'MODERATE' in conf_level else '#FF3131')
-            story.append(Paragraph(f"OVERALL CONFIDENCE: <font color='{conf_color}'><b>{escape(conf_level)}</b></font>", styles['ExecBody']))
-            story.append(Spacer(1, 8))
+            # Build confidence content as a single flowing block
+            conf_parts = [f"<font color='{GOLD}' size='10'><b>CONFIDENCE ASSESSMENT</b></font><br/><br/>"]
+            conf_parts.append(f"OVERALL CONFIDENCE: <font color='{conf_color}'><b>{escape(conf_level)}</b></font><br/><br/>")
             assumptions = confidence.get('key_assumptions') or []
             if assumptions:
-                story.append(Paragraph("KEY ASSUMPTIONS:", styles['ExecLabel']))
+                conf_parts.append(f"<font color='{GOLD}' size='8'><b>KEY ASSUMPTIONS</b></font><br/>")
                 for assumption in assumptions[:5]:
-                    story.append(Paragraph(f"&bull; {escape(_as_text(assumption))}", styles['ExecBody']))
+                    conf_parts.append(f"&bull; {escape(_as_text(assumption))}<br/>")
+                conf_parts.append("<br/>")
             limitations = confidence.get('limitations') or []
             if limitations:
-                story.append(Spacer(1, 6))
-                story.append(Paragraph("LIMITATIONS:", styles['ExecLabel']))
+                conf_parts.append(f"<font color='{GOLD}' size='8'><b>LIMITATIONS</b></font><br/>")
                 for lim in limitations[:4]:
-                    story.append(Paragraph(f"&bull; {escape(_as_text(lim))}", styles['ExecBody']))
+                    conf_parts.append(f"&bull; {escape(_as_text(lim))}<br/>")
+            conf_block = Paragraph("".join(conf_parts), styles['ExecBody'])
+            conf_row = Table([["", conf_block]], colWidths=[4, 531])
+            conf_row.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (0,0), colors.HexColor(conf_color)),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('LEFTPADDING', (1,0), (1,0), 16),
+                ('TOPPADDING', (0,0), (-1,-1), 10),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 14),
+            ]))
+            story.append(conf_row)
             story.append(Spacer(1, 25))
 
-        # 11. --- DIVERGENCE ANALYSIS ---
-        divergence = intelligence_object.get("divergence_analysis") or {}
+        # 11. --- DIVERGENCE ANALYSIS (inline two-stat + contested list) ---
         if divergence and (divergence.get("divergence_score") or divergence.get("contested_topics")):
-            story.append(Table([[Paragraph("DIVERGENCE ANALYSIS", styles['ExecLabel'])]], colWidths=[540], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(GOLD))]))
-            story.append(Spacer(1, 10))
+            story.append(Paragraph(f"<font color='{ACCENT}'><b>DIVERGENCE ANALYSIS</b></font>", styles['ExecBody']))
+            story.append(Spacer(1, 8))
             div_score = divergence.get("divergence_score", 0)
             con_score = divergence.get("consensus_score", 0)
             try:
@@ -369,16 +475,24 @@ class PDFExporter:
             except (ValueError, TypeError):
                 div_score, con_score = 0, 0
             if div_score or con_score:
-                story.append(Paragraph(f"CONSENSUS: <b>{con_score}/100</b> &nbsp;&nbsp; DIVERGENCE: <b>{div_score}/100</b>", styles['ExecBody']))
-                story.append(Spacer(1, 8))
+                # Two-stat side-by-side
+                con_color = '#4CAF7D' if con_score > 70 else (GOLD if con_score > 40 else '#FF3131')
+                div_color = '#FF3131' if div_score > 60 else (GOLD if div_score > 30 else '#4CAF7D')
+                stat_data = [[Paragraph(f"<font color='{con_color}' size='18'><b>{con_score}</b></font><br/><font color='{TXT_DIM}' size='7'>CONSENSUS</font>", ParagraphStyle('StatCenter', parent=styles['Normal'], alignment=1, textColor=colors.HexColor(TXT_MAIN))),
+                              Paragraph(f"<font color='{div_color}' size='18'><b>{div_score}</b></font><br/><font color='{TXT_DIM}' size='7'>DIVERGENCE</font>", ParagraphStyle('StatCenter2', parent=styles['Normal'], alignment=1, textColor=colors.HexColor(TXT_MAIN)))]]
+                stat_tab = Table(stat_data, colWidths=[270, 270])
+                stat_tab.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 10)]))
+                story.append(stat_tab)
             div_summary = divergence.get("divergence_summary")
             if div_summary:
                 story.append(Paragraph(escape(_as_text(div_summary)), styles['ExecBody']))
                 story.append(Spacer(1, 8))
             contested = divergence.get("contested_topics") or []
-            for topic in contested[:4]:
-                topic_name = topic.get("topic", topic) if isinstance(topic, dict) else _as_text(topic)
-                story.append(Paragraph(f"&bull; <b>{escape(_as_text(topic_name))}</b>", styles['ExecBody']))
+            if contested:
+                story.append(Paragraph(f"<font color='{GOLD}' size='8'><b>CONTESTED TOPICS</b></font>", styles['ExecBody']))
+                for topic in contested[:4]:
+                    topic_name = topic.get("topic", topic) if isinstance(topic, dict) else _as_text(topic)
+                    story.append(Paragraph(f"&bull; <b>{escape(_as_text(topic_name))}</b>", styles['ExecBody']))
             story.append(Spacer(1, 25))
 
         # 12. --- SUPPLEMENTAL DATA EXHIBITS ---
@@ -392,12 +506,24 @@ class PDFExporter:
                 at_tab.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 20)]))
                 story.append(at_tab)
 
-        # 13. --- FOOTER AUTHENTICATION ---
-        story.append(Spacer(1, 40))
-        sig_data = [[Paragraph(f"Produced by Korum-OS Decision Intelligence // {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['ExecAudit'])]]
-        sig_tab = Table(sig_data, colWidths=[540])
-        sig_tab.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'RIGHT')]))
-        story.append(sig_tab)
+        # 13. --- SIGN-OFF & AUTHENTICATION ---
+        story.append(Spacer(1, 30))
+        story.append(Table([[""]], colWidths=[540], rowHeights=[1], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(GOLD))]))
+        story.append(Spacer(1, 20))
+
+        # Sign-off block
+        signoff_data = [
+            [Paragraph("COMPLETED BY:", styles['ExecLabel']), Paragraph("KORUM-OS DECISION INTELLIGENCE ENGINE", styles['ExecValue'])],
+            [Paragraph("AUTHORIZATION:", styles['ExecLabel']), Paragraph(f"AUTONOMOUS COUNCIL &mdash; {len(contributors)} CONTRIBUTING AGENTS", styles['ExecValue'])],
+            [Paragraph("CLASSIFICATION:", styles['ExecLabel']), Paragraph(f"<font color='{GOLD}'><b>CONFIDENTIAL</b></font> &mdash; PROPRIETARY INTELLIGENCE PRODUCT", styles['ExecValue'])],
+            [Paragraph("TIMESTAMP:", styles['ExecLabel']), Paragraph(datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC'), styles['ExecValue'])],
+        ]
+        signoff = Table(signoff_data, colWidths=[150, 390])
+        signoff.setStyle(TableStyle([('BOTTOMPADDING', (0,0), (-1,-1), 6), ('VALIGN', (0,0), (-1,-1), 'TOP')]))
+        story.append(signoff)
+
+        story.append(Spacer(1, 30))
+        story.append(Paragraph(f"<font color='{TXT_DIM}'>This document was generated by Korum-OS and contains proprietary analysis. Distribution is restricted to authorized recipients only.</font>", styles['ExecAudit']))
 
         doc.build(story, onFirstPage=_dark_page_bg, onLaterPages=_dark_page_bg)
         return filepath
@@ -416,9 +542,9 @@ class WordExporter:
         
         # --- THE WOW PALETTE ---
         THEMES = {
-            'NEON_DESERT': {"accent": "00F5FF", "gold": "FFD700"},
-            'CARBON_STEEL':{"accent": "FFFFFF", "gold": "94A3B8"},
-            'ARCHITECT':   {"accent": "1A1A1A", "gold": "8B4513"},
+            'NEON_DESERT': {"accent": "2DD4BF", "gold": "FBBF24"},
+            'CARBON_STEEL':{"accent": "D1D5DB", "gold": "BC2F32"},
+            'ARCHITECT':   {"accent": "F2F1EF", "gold": "A65E46"},
         }
         theme_id = meta.get("theme", "NEON_DESERT").upper()
         if theme_id not in THEMES: theme_id = "NEON_DESERT"
@@ -427,20 +553,29 @@ class WordExporter:
         p_rgb = RGBColor(*WordExporter._hex_to_rgb(t['gold']))
         s_rgb = RGBColor(*WordExporter._hex_to_rgb(t['accent']))
         
-        # 1. --- LOGO & HEADER ---
-        logo_filename = "main korum os logo light.png" if theme_id != "ARCHITECT" else "main korum os logo dark.png"
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", logo_filename)
-        
+        # 1. --- CONFIDENTIAL BANNER + LOGO ---
+        conf_p = doc.add_paragraph()
+        conf_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        conf_run = conf_p.add_run("CONFIDENTIAL — PROPRIETARY INTELLIGENCE PRODUCT")
+        conf_run.font.size = Pt(7)
+        conf_run.font.color.rgb = p_rgb
+        conf_run.font.name = 'Courier New'
+
+        # All themes dark — use light logo
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo light.png")
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo.png")
+
         h_tab = doc.add_table(rows=1, cols=2)
         h_tab.columns[0].width = Inches(3.0)
         h_tab.columns[1].width = Inches(3.0)
-        
+
         if os.path.exists(logo_path):
             l_cell_p = h_tab.rows[0].cells[0].paragraphs[0]
             l_cell_p.add_run().add_picture(logo_path, width=Inches(1.8))
         else:
             h_tab.rows[0].cells[0].text = "KORUM-OS"
-            
+
         r_p = h_tab.rows[0].cells[1].paragraphs[0]
         r_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         r_run = r_p.add_run("INTELLIGENCE DOSSIER")
@@ -454,15 +589,15 @@ class WordExporter:
         t_run.bold = True
         t_run.font.size = Pt(24)
         t_run.font.color.rgb = s_rgb
-        
+
         ctx_tab = doc.add_table(rows=3, cols=2)
         ctx_tab.columns[0].width = Inches(1.8)
         ctx_tab.columns[1].width = Inches(4.2)
-        
-        labels = [("PREPARED FOR:", "DECISION COMMANDER ALPHA"), 
-                  ("MISSION DIRECTIVE:", escape(meta.get('workflow', 'STRATEGIC_INTEL').upper())),
+
+        labels = [("PREPARED FOR:", "DECISION COMMANDER ALPHA"),
+                  ("MISSION DIRECTIVE:", meta.get('workflow', 'STRATEGIC_INTEL').upper()),
                   ("AUTHENTICATION:", "KORUM-OS DECISION INTELLIGENCE")]
-        
+
         for i, (lab, val) in enumerate(labels):
             l_cell = ctx_tab.rows[i].cells[0]
             l_p = l_cell.paragraphs[0]
@@ -470,44 +605,96 @@ class WordExporter:
             l_run.bold = True
             l_run.font.size = Pt(9)
             l_run.font.color.rgb = p_rgb
-            
+
             v_cell = ctx_tab.rows[i].cells[1]
             v_p = v_cell.paragraphs[0]
             v_run = v_p.add_run(val)
             v_run.font.size = Pt(10)
-        
-        doc.add_paragraph("-" * 90)
+
+        doc.add_paragraph("_" * 90)
 
         # 3. --- STRATEGIC IMPACT ---
         sum_p = doc.add_paragraph("STRATEGIC IMPACT SUMMARY")
         sum_p.runs[0].bold = True
         sum_p.runs[0].font.size = Pt(9)
         sum_p.runs[0].font.color.rgb = p_rgb
-        
+
         impact_text = (meta.get("summary") or "INTEL SYNTHESIS REQUIRED").upper()
         imp_p = doc.add_paragraph(impact_text)
         imp_p.runs[0].bold = True
         imp_p.runs[0].font.size = Pt(12)
         doc.add_paragraph()
 
-        # 4. --- CONTENT GRID (Asymmetric) ---
-        for idx, (sid, content) in enumerate(sections.items()):
-            grid = doc.add_table(rows=1, cols=2)
-            grid.columns[0].width = Inches(1.5)
-            grid.columns[1].width = Inches(4.5)
-            
-            l_cell = grid.rows[0].cells[0]
-            l_p = l_cell.paragraphs[0]
-            l_run = l_p.add_run(sid.replace("_", " ").upper())
-            l_run.bold = True
-            l_run.font.size = Pt(9)
-            l_run.font.color.rgb = p_rgb
-            
-            r_cell = grid.rows[0].cells[1]
+        # 4. --- INTELLIGENCE SECTIONS (Varied Layout) ---
+        section_items = list(sections.items())
+        for idx, (sid, content) in enumerate(section_items):
+            sec_title = sid.replace("_", " ").upper()
             clean_text = _clean_tags(content, strip_markdown=True)
-            r_cell.text = clean_text
-            r_cell.paragraphs[0].runs[0].font.size = Pt(10)
-            doc.add_paragraph()
+            node_label = f"NODE {idx+1:02d}"
+
+            if idx == 0:
+                # LEAD ASSESSMENT — full-width, bold header, indented body
+                lead_p = doc.add_paragraph()
+                lead_title = lead_p.add_run(f"{sec_title}  —  LEAD ASSESSMENT")
+                lead_title.bold = True
+                lead_title.font.size = Pt(11)
+                lead_title.font.color.rgb = p_rgb
+                node_run = lead_p.add_run(f"  [{node_label}]")
+                node_run.font.size = Pt(7)
+                node_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+                body_p = doc.add_paragraph(clean_text)
+                body_p.runs[0].font.size = Pt(10)
+                body_p.paragraph_format.left_indent = Inches(0.3)
+
+            elif idx % 3 == 1:
+                # FULL-WIDTH FLOWING — header above, body below
+                hdr_p = doc.add_paragraph()
+                hdr_run = hdr_p.add_run(sec_title)
+                hdr_run.bold = True
+                hdr_run.font.size = Pt(10)
+                hdr_run.font.color.rgb = p_rgb
+                n_run = hdr_p.add_run(f"  [{node_label}]")
+                n_run.font.size = Pt(7)
+                n_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+                body_p = doc.add_paragraph(clean_text)
+                body_p.runs[0].font.size = Pt(10)
+
+            elif idx % 3 == 2:
+                # TWO-COLUMN — compact metadata left, content right
+                grid = doc.add_table(rows=1, cols=2)
+                grid.columns[0].width = Inches(1.3)
+                grid.columns[1].width = Inches(4.7)
+                l_cell = grid.rows[0].cells[0]
+                l_p = l_cell.paragraphs[0]
+                l_run = l_p.add_run(f"{sec_title}\n[{node_label}]")
+                l_run.bold = True
+                l_run.font.size = Pt(9)
+                l_run.font.color.rgb = p_rgb
+                r_cell = grid.rows[0].cells[1]
+                r_cell.text = clean_text
+                if r_cell.paragraphs[0].runs:
+                    r_cell.paragraphs[0].runs[0].font.size = Pt(10)
+
+            else:
+                # INDENTED BLOCK — accent header with body indented
+                hdr_p = doc.add_paragraph()
+                hdr_run = hdr_p.add_run(f"// {sec_title}")
+                hdr_run.bold = True
+                hdr_run.font.size = Pt(10)
+                hdr_run.font.color.rgb = s_rgb
+                n_run = hdr_p.add_run(f"  [{node_label}]")
+                n_run.font.size = Pt(7)
+                n_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+                body_p = doc.add_paragraph(clean_text)
+                body_p.runs[0].font.size = Pt(10)
+                body_p.paragraph_format.left_indent = Inches(0.2)
+
+            # Section dividers (varied)
+            if idx < len(section_items) - 1:
+                if idx % 2 == 0:
+                    doc.add_paragraph("—  —  —")
+                else:
+                    doc.add_paragraph()
 
         # 5. --- TRUTH SCORE ---
         truth_raw = meta.get("composite_truth_score", 0)
@@ -659,14 +846,48 @@ class WordExporter:
                     doc.add_paragraph(_as_text(lim), style='List Bullet')
             doc.add_paragraph()
 
-        # 11. --- SIGNATURE FOOTER ---
+        # 11. --- SIGN-OFF & AUTHENTICATION ---
+        doc.add_paragraph("_" * 90)
+
+        contributors = intelligence_object.get("council_contributors") or []
+        signoff_tab = doc.add_table(rows=4, cols=2)
+        signoff_tab.columns[0].width = Inches(1.8)
+        signoff_tab.columns[1].width = Inches(4.2)
+
+        signoff_labels = [
+            ("COMPLETED BY:", "KORUM-OS DECISION INTELLIGENCE ENGINE"),
+            ("AUTHORIZATION:", f"AUTONOMOUS COUNCIL — {len(contributors)} CONTRIBUTING AGENTS"),
+            ("CLASSIFICATION:", "CONFIDENTIAL — PROPRIETARY INTELLIGENCE PRODUCT"),
+            ("TIMESTAMP:", datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')),
+        ]
+        for i, (lab, val) in enumerate(signoff_labels):
+            l_cell = signoff_tab.rows[i].cells[0]
+            l_p = l_cell.paragraphs[0]
+            l_run = l_p.add_run(lab)
+            l_run.bold = True
+            l_run.font.size = Pt(9)
+            l_run.font.color.rgb = p_rgb
+            v_cell = signoff_tab.rows[i].cells[1]
+            v_p = v_cell.paragraphs[0]
+            v_run = v_p.add_run(val)
+            v_run.font.size = Pt(10)
+
+        doc.add_paragraph()
+        disc_p = doc.add_paragraph()
+        disc_run = disc_p.add_run("This document was generated by Korum-OS and contains proprietary analysis. Distribution is restricted to authorized recipients only.")
+        disc_run.font.size = Pt(7)
+        disc_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+        disc_run.font.name = 'Courier New'
+
+        # Footer
         section = doc.sections[0]
         footer = section.footer
         p = footer.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        f_run = p.add_run(f"Produced by Korum-OS Decision Intelligence // {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        f_run = p.add_run(f"CONFIDENTIAL // Korum-OS Decision Intelligence // {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         f_run.font.name = 'Courier New'
-        f_run.font.size = Pt(8)
+        f_run.font.size = Pt(7)
+        f_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
 
         safe_title = _safe_filename_part(meta.get('title', 'Intelligence'))
         filename = f"KORUM-OS_REPORT_{safe_title}_{theme_id}_{_timestamp()}.docx"
