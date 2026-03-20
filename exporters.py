@@ -363,14 +363,18 @@ class WordExporter:
         d_tab.style = 'Table Grid'
         cell = d_tab.rows[0].cells[0]
         WordExporter._shade_cell(cell, "050505")
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run("[PRIMARY DIRECTIVE]")
-        run.bold = True
-        run.font.color.rgb = p_rgb
-        p2 = cell.add_paragraph(_as_text(directive).upper())
+        
+        # [PRIMARY DIRECTIVE] Label
+        p1 = cell.paragraphs[0]
+        p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run1 = p1.add_run("[PRIMARY DIRECTIVE]")
+        run1.bold = True
+        run1.font.color.rgb = p_rgb
+        
+        # Directive Content
+        p2 = cell.add_paragraph()
         p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run2 = p2.paragraphs[-1].runs[0]
+        run2 = p2.add_run(_as_text(directive).upper())
         run2.bold = True
         run2.font.size = Pt(14)
         run2.font.color.rgb = p_rgb
