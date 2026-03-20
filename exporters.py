@@ -117,9 +117,9 @@ class PDFExporter:
         
         # --- THE TRINITY: CORPORATE | NEURAL | OPERATOR ---
         THEMES = {
-            'ARCHITECT':   {"bg": "#2D3436", "primary": "#A65E46", "secondary": "#636E72", "text": "#F2F1EF"},
-            'NEON_DESERT': {"bg": "#0D1117", "primary": "#FFB020", "secondary": "#2DD4BF", "text": "#D1D5DB"},
-            'CARBON_STEEL':{"bg": "#0D0D0D", "primary": "#A5A5A5", "secondary": "#4B5563", "text": "#E2E8F0"},
+            'ARCHITECT':   {"bg": "#F2F1EF", "primary": "#A65E46", "secondary": "#636E72", "text": "#2D3436", "card": "#FFFFFF", "accent": "#A65E46"},
+            'NEON_DESERT': {"bg": "#0D1117", "primary": "#FFB020", "secondary": "#2DD4BF", "text": "#D1D5DB", "card": "#161B22", "accent": "#FFB020"},
+            'CARBON_STEEL':{"bg": "#0D0D0D", "primary": "#E2E8F0", "secondary": "#94A3B8", "text": "#F1F5F9", "card": "#1A1A1A", "accent": "#64748B"},
         }
         theme_id = meta.get("theme", "NEON_DESERT").upper()
         if theme_id not in THEMES:
@@ -128,216 +128,198 @@ class PDFExporter:
              else: theme_id = "NEON_DESERT"
         
         t = THEMES[theme_id]
-        BG_DARK = t['bg']
+        BG_PAGE = t['bg']
         ACCENT_PRIMARY = t['primary']
         ACCENT_SECONDARY = t['secondary']
         TEXT_PRIMARY = t['text']
         TEXT_SECONDARY = t['secondary']
-        BORDER = t['secondary']
+        CARD_BG = t['card']
+        ACCENT_BAR = t['accent']
 
-        # Signal Red (Reserved for Critical)
+        # Signal Colors
         SIGNAL_RED = "#FF3131"
         AMBER = "#FFB020"
 
         safe_title = _safe_filename_part(meta.get('title', 'Intelligence'))
         filename = f"KORUM-OS_{safe_title}_{theme_id}_{_timestamp()}.pdf"
         filepath = _output_path(filename, output_dir)
-        doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=25, bottomMargin=25, leftMargin=40, rightMargin=40)
-        doc._bg_color = BG_DARK
+        doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=25, bottomMargin=35, leftMargin=40, rightMargin=40)
+        doc._bg_color = BG_PAGE
         
         styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle('BrandedTitle', parent=styles['Heading1'], fontSize=28, textColor=colors.HexColor(TEXT_PRIMARY), alignment=1, spaceAfter=20, fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle('BannerText', parent=styles['Normal'], fontSize=7, textColor=colors.HexColor(TEXT_SECONDARY), alignment=1, fontName='Courier'))
-        styles.add(ParagraphStyle('SectionBody', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor(TEXT_PRIMARY), leading=14))
-        styles.add(ParagraphStyle('BrandedHeading1', parent=styles['Heading2'], fontSize=16, textColor=colors.HexColor(ACCENT_PRIMARY), spaceBefore=20, fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle('DirectiveTitle', parent=styles['Normal'], fontSize=18, textColor=colors.HexColor(ACCENT_PRIMARY), alignment=1, spaceAfter=5, fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle('DirectiveText', parent=styles['Normal'], fontSize=14, textColor=colors.HexColor(TEXT_PRIMARY), alignment=1, leading=18, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('BrandedTitle', parent=styles['Heading1'], fontSize=24, textColor=colors.HexColor(TEXT_PRIMARY), alignment=1, spaceAfter=20, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('HUDLabel', parent=styles['Normal'], fontSize=7, textColor=colors.HexColor(ACCENT_SECONDARY), alignment=1, fontName='Courier-Bold'))
+        styles.add(ParagraphStyle('HUDValue', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor(TEXT_PRIMARY), alignment=1, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('SectionBody', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor(TEXT_PRIMARY), leading=14, fontName='Helvetica'))
+        styles.add(ParagraphStyle('CardTitle', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor(ACCENT_PRIMARY), spaceBefore=0, fontName='Helvetica-Bold', leftIndent=10))
+        styles.add(ParagraphStyle('DirectiveTitle', parent=styles['Normal'], fontSize=16, textColor=colors.HexColor(ACCENT_PRIMARY), alignment=1, spaceAfter=5, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('DirectiveText', parent=styles['Normal'], fontSize=13, textColor=colors.HexColor(TEXT_PRIMARY), alignment=1, leading=17, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('ArtifactTitle', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor(ACCENT_SECONDARY), fontName='Courier-Bold'))
 
         story = []
 
-        # --- LOGO HEADER (Adaptive Branding) ---
-        is_dark_bg = True # Default for Neon/Steel
-        if theme_id == "ARCHITECT": is_dark_bg = False
-        
-        logo_filename = "main korum os logo light.png" if is_dark_bg else "main korum os logo dark.png"
+        # --- LOGO & HUD HEADER ---
+        logo_filename = "main korum os logo light.png" if theme_id != "ARCHITECT" else "main korum os logo dark.png"
         logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", logo_filename)
-        # Fallback to main version if specific ones are missing
         if not os.path.exists(logo_path):
             logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo.png")
 
+        header_table_data = []
         if os.path.exists(logo_path):
-            img = RLImage(logo_path, width=200, height=50) # Increased size for higher impact
-            img.hAlign = 'CENTER'
-            story.append(img)
-            story.append(Spacer(1, 15))
-
-        # --- COMMAND DASHBOARD ---
-        workflow = _as_text(meta.get("workflow", "INTEL")).upper()
-        agents_cnt = len(meta.get("models_used", []))
-        dash_data = [
-            [Paragraph(f"<font color='{ACCENT_SECONDARY}'>KORUM-OS // COMMAND NODE // ALPHA-MODE ACTIVE</font>", styles['BannerText']),
-             Paragraph(f"INTELLIGENCE BRIEF — {escape(workflow)}", styles['BannerText'])],
-            [Paragraph(f"MISSION: {escape(meta.get('title', 'KORUM_ALPHA').upper())}", styles['BannerText']),
-             Paragraph(f"AGENTS: {agents_cnt} ACTIVE NODE(S)", styles['BannerText'])]
-        ]
-        dash_table = Table(dash_data, colWidths=[266, 266])
-        dash_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(BG_DARK)),
-            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor(BORDER)),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor(BORDER)),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('LEFTPADDING', (0,0), (-1,-1), 10),
-            ('RIGHTPADDING', (0,0), (-1,-1), 10),
-            ('TOPPADDING', (0,0), (-1,-1), 8),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ]))
-
-        story.append(dash_table)
+            img = RLImage(logo_path, width=160, height=40)
+            header_table_data.append([img])
+        
+        h_table = Table(header_table_data or [["KORUM-OS INTEL"]], colWidths=[532])
+        h_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+        story.append(h_table)
         story.append(Spacer(1, 10))
 
-        # --- TACTICAL STATUS BAR ---
+        # --- COMMAND HUD (Tactical HUD) ---
+        workflow = _as_text(meta.get("workflow", "INTEL")).upper()
         truth_raw = meta.get("composite_truth_score", "0")
         try:
              truth_int = int(float(truth_raw) * 100) if float(truth_raw) <= 1 else int(float(truth_raw))
         except:
              truth_int = 0
              
-        stat_data = [[f"CONFIDENCE: {truth_int}/100    |    STATUS: VERIFIED    |    SYSTEM: SECURE"]]
-        stat_table = Table(stat_data, colWidths=[532])
-        stat_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#1A1A1A")),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor(ACCENT_SECONDARY) if truth_int > 80 else colors.HexColor(AMBER)),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Courier-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor(BORDER)),
+        hud_data = [
+            [Paragraph("MISSION IDENTIFIER", styles['HUDLabel']), Paragraph("WORKFLOW CONTEXT", styles['HUDLabel']), Paragraph("TRUTH SCORE", styles['HUDLabel'])],
+            [Paragraph(escape(meta.get('title', 'KORUM_ALPHA').upper()), styles['HUDValue']), 
+             Paragraph(escape(workflow), styles['HUDValue']), 
+             Paragraph(f"{truth_int}%", styles['HUDValue'])]
+        ]
+        hud_table = Table(hud_data, colWidths=[177, 177, 177])
+        hud_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor(CARD_BG)),
+            ('BOTTOMPADDING', (0,0), (-1,0), 0),
+            ('TOPPADDING', (0,1), (-1,1), 2),
+            ('BOTTOMPADDING', (0,1), (-1,1), 8),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor(ACCENT_SECONDARY)),
         ]))
-        story.append(stat_table)
-        story.append(Spacer(1, 40))
+        story.append(hud_table)
 
-        # --- [PRIMARY DIRECTIVE] - DIRECTIVE-FIRST APPROACH ---
-        # Fetch directly from intelligence_tags or fallback to synthesis summary
+        # Visual Truth Bar
+        bar_width = 532
+        filled_width = (truth_int / 100.0) * bar_width
+        truth_bar_data = [[""]]
+        truth_bar = Table(truth_bar_data, colWidths=[filled_width, bar_width - filled_width] if filled_width > 0 else [0.1, bar_width])
+        truth_bar.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,0), colors.HexColor(ACCENT_BAR)),
+            ('BACKGROUND', (1,0), (1,0), colors.HexColor("#333333")),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
+            ('TOPPADDING', (0,0), (-1,-1), 0),
+        ]))
+        story.append(truth_bar)
+        story.append(Spacer(1, 30))
+
+        # --- [PRIMARY DIRECTIVE] BANNER ---
         directive_list = (intelligence_object.get("intelligence_tags") or {}).get("decisions", [])
-        directive = directive_list[0] if directive_list else (meta.get("summary") or "INTEL ANALYSIS IN PROGRESS")
+        directive = directive_list[0] if directive_list else (meta.get("summary") or "ANALYSIS IN PROGRESS")
         
         d_data = [
             [Paragraph(f"<b>[PRIMARY DIRECTIVE]</b>", styles['DirectiveTitle'])],
             [Paragraph(escape(_as_text(directive).upper()), styles['DirectiveText'])],
-            [Paragraph(f"— ACTION REQUIRED —", styles['BannerText'])]
+            [Paragraph(f"STATUS: LOGIC VERIFIED // ACTION REQUIRED", styles['HUDLabel'])]
         ]
-        d_table = Table(d_data, colWidths=[532])
+        d_table = Table(d_data, colWidths=[510])
         d_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#080808")),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(CARD_BG)),
             ('BOX', (0,0), (-1,-1), 2, colors.HexColor(ACCENT_PRIMARY)),
-            ('TOPPADDING', (0,0), (0,0), 15),
-            ('BOTTOMPADDING', (2,2), (2,2), 15),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 12),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+            ('LEFTPADDING', (0,0), (-1,-1), 15),
+            ('RIGHTPADDING', (0,0), (-1,-1), 15),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ]))
         story.append(d_table)
-        story.append(Spacer(1, 50))
+        story.append(Spacer(1, 40))
 
-        # --- SECTIONS (Executive Intel) ---
+        # --- SECTIONS (INTEL CARDS) ---
         for sid, content in sections.items():
             section_title = sid.replace("_", " ").upper()
-            story.append(Paragraph(section_title, styles['BrandedHeading1']))
-
-            # CRITICAL: Escape XML-special chars BEFORE injecting our HTML tags.
-            # Raw LLM output contains <, >, & which crash ReportLab's XML parser.
+            
+            # Prepare Content with Signal Highlighting
             raw_text = _as_text(content)
-
-            # Extract signal tags before escaping so we can re-inject styled versions
-            # Temporarily replace signal tags with safe placeholders
             tag_placeholders = {}
-            critical_placeholder = "___SIGNAL_CRITICAL___"
-            raw_text = raw_text.replace("[CRITICAL]", critical_placeholder)
-            signal_tags = ["ACTION REQUIRED", "VERIFIED", "RISK", "WARNING", "DECISION CANDIDATE", "METRIC ANCHOR", "TRUTH BOMB"]
+            critical_ph = "___SIGNAL_CRITICAL___"
+            raw_text = raw_text.replace("[CRITICAL]", critical_ph)
+            signal_tags = ["ACTION REQUIRED", "VERIFIED", "RISK", "WARNING", "DECISION CANDIDATE"]
             for tag in signal_tags:
-                ph_open = f"___SIGNAL_{tag.replace(' ', '_')}___"
-                raw_text = raw_text.replace(f"[{tag}]", ph_open)
+                ph = f"___SIGNAL_{tag.replace(' ', '_')}___"
+                raw_text = raw_text.replace(f"[{tag}]", ph)
                 raw_text = raw_text.replace(f"[/{tag}]", "")
-                tag_placeholders[ph_open] = f"<font color='{AMBER}'><b>[{tag}]</b></font>"
+                tag_placeholders[ph] = f"<font color='{AMBER}'><b>[{tag}]</b></font>"
 
-            # Extract markdown bold before escaping
             bold_spans = []
             for m in re.finditer(r'\*\*(.*?)\*\*', raw_text):
                 bold_spans.append((m.group(0), f"___BOLD_{len(bold_spans)}___"))
-            for original, placeholder in bold_spans:
-                raw_text = raw_text.replace(original, placeholder, 1)
+            for orig, ph in bold_spans: raw_text = raw_text.replace(orig, ph, 1)
 
-            # NOW escape all XML-special characters
             styled_content = escape(raw_text)
-
-            # Re-inject styled HTML tags on the now-safe text
-            styled_content = styled_content.replace(critical_placeholder, f"<font color='{SIGNAL_RED}'><b>[CRITICAL]</b></font>")
-            for ph, styled_tag in tag_placeholders.items():
-                styled_content = styled_content.replace(ph, styled_tag)
-            for i, (original, placeholder) in enumerate(bold_spans):
-                bold_text = escape(original[2:-2])  # Strip ** and escape inner text
+            styled_content = styled_content.replace(critical_ph, f"<font color='{SIGNAL_RED}'><b>[CRITICAL]</b></font>")
+            for ph, styled_tag in tag_placeholders.items(): styled_content = styled_content.replace(ph, styled_tag)
+            for original, placeholder in bold_spans:
+                bold_text = escape(original[2:-2])
                 styled_content = styled_content.replace(placeholder, f"<b>{bold_text}</b>")
-
             styled_content = styled_content.replace("\n", "<br/>")
 
-            try:
-                story.append(Paragraph(styled_content, styles['SectionBody']))
-            except Exception:
-                # Fallback: strip all markup and render plain
-                plain = escape(_clean_tags(_as_text(content))).replace("\n", "<br/>")
-                story.append(Paragraph(plain, styles['SectionBody']))
+            # Build the Card
+            card_data = [
+                [Paragraph(section_title, styles['CardTitle'])],
+                [Paragraph(styled_content, styles['SectionBody'])]
+            ]
+            
+            card_table = Table(card_data, colWidths=[520])
+            card_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(CARD_BG)),
+                ('TOPPADDING', (0,0), (-1,0), 10),
+                ('BOTTOMPADDING', (0,0), (-1,0), 5),
+                ('BOTTOMPADDING', (0,1), (-1,1), 15),
+                ('LEFTPADDING', (0,0), (-1,-1), 15),
+                ('RIGHTPADDING', (0,0), (-1,-1), 15),
+                ('LINEBEFORE', (0,0), (0,1), 4, colors.HexColor(ACCENT_BAR)), # Accent Bar
+                ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#333333")),
+            ]))
+            
+            story.append(card_table)
             story.append(Spacer(1, 20))
 
-        # --- EXHIBITS: DOCKED ARTIFACTS ---
+        # --- EXHIBITS ---
         artifacts = _report_artifacts(intelligence_object)
         if artifacts:
-            story.append(Spacer(1, 30))
-            story.append(Paragraph("SUPPLEMENTAL INTELLIGENCE EXHIBITS", styles['BrandedHeading1']))
+            story.append(Spacer(1, 20))
+            story.append(Paragraph("SUPPLEMENTAL EXHIBITS // MISSION DATA", styles['CardTitle']))
             for art in artifacts:
                 title = _artifact_label(art).upper()
-                story.append(Paragraph(f"EXHIBIT: {escape(title)}", styles['SectionBody']))
-                art_content = _as_text(art.get("content", ""))
-                # Handle basic table rendering in PDF for artifacts
-                if "|" in art_content and "-" in art_content:
-                    # Markdown table approximation
-                    rows = [r.strip() for r in art_content.split("\n") if r.strip()]
-                    table_data = []
-                    for row in rows:
-                        if "|" in row:
-                            cols_data = [Paragraph(escape(c.strip()), styles['SectionBody']) for c in row.split("|") if c.strip()]
-                            if cols_data:
-                                table_data.append(cols_data)
-                    
-                    if table_data:
-                        t_obj = Table(table_data)
-                        t_obj.setStyle(TableStyle([
-                            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor(BORDER)),
-                            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor(BORDER)),
-                            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1A1A1A")),
-                        ]))
-                        story.append(t_obj)
-                        story.append(Spacer(1, 15))
-                else:
-                    story.append(Paragraph(escape(art_content).replace("\n", "<br/>"), styles['SectionBody']))
-                    story.append(Spacer(1, 15))
+                art_content = escape(_as_text(art.get("content", ""))).replace("\n", "<br/>")
+                
+                ex_data = [[Paragraph(f"EXHIBIT: {title}", styles['ArtifactTitle'])],
+                           [Paragraph(art_content, styles['SectionBody'])]]
+                ex_table = Table(ex_data, colWidths=[520])
+                ex_table.setStyle(TableStyle([
+                    ('TOPPADDING', (0,0), (-1,-1), 8),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                    ('GRID', (0,0), (-1,0), 0.5, colors.HexColor(ACCENT_SECONDARY)),
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1A1A1A") if theme_id != "ARCHITECT" else colors.HexColor("#EAEAEA")),
+                ]))
+                story.append(ex_table)
+                story.append(Spacer(1, 15))
 
         # --- FOOTER ---
+        footer_text = f"KOS // {datetime.now().strftime('%Y-%m-%d %H:%M')} // AUTHENTICATED INTEL NODE // PROP-RESTRICTIVE"
+        footer_table = Table([[Paragraph(footer_text, styles['HUDLabel'])]], colWidths=[532])
+        footer_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER')]))
         story.append(Spacer(1, 40))
-        footer_data = [[f"KORUM-OS AUTHENTICATED INTEL NODE — {datetime.now().strftime('%Y-%m-%d %H:%M')} — PROP-RESTRICTIVE ACCESS"]]
-        footer_table = Table(footer_data, colWidths=[512])
-        footer_table.setStyle(TableStyle([
-            ('TEXTCOLOR', (0,0), (-1,-1), colors.HexColor(ACCENT_SECONDARY)),
-            ('FONTSIZE', (0,0), (-1,-1), 7),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Courier'),
-        ]))
         story.append(footer_table)
 
         doc.build(story, onFirstPage=_dark_page_bg, onLaterPages=_dark_page_bg)
         return filepath
 
 class WordExporter:
-    """Branded Word report following High-Fidelity Command Alpha identity."""
+    """Premium Word report with themed headers and high-contrast logic."""
     
     @staticmethod
     def _shade_cell(cell, hex_color):
@@ -351,7 +333,7 @@ class WordExporter:
         doc = Document()
         
         THEMES = {
-            'ARCHITECT':   {"bg": "2D3436", "primary": (0xA6, 0x5E, 0x46), "secondary": (0x63, 0x6E, 0x72), "text": "F2F1EF"},
+            'ARCHITECT':   {"bg": "F2F1EF", "primary": (0xA6, 0x5E, 0x46), "secondary": (0x63, 0x6E, 0x72), "text": "2D3436"},
             'NEON_DESERT': {"bg": "0D1117", "primary": (0xFF, 0xB0, 0x20), "secondary": (0x2D, 0xD4, 0xBF), "text": "D1D5DB"},
             'CARBON_STEEL':{"bg": "0D0D0D", "primary": (0xD1, 0xD5, 0xDB), "secondary": (0x4B, 0x55, 0x63), "text": "E2E8F0"},
         }
@@ -365,112 +347,57 @@ class WordExporter:
         p_rgb = RGBColor(*t['primary'])
         s_rgb = RGBColor(*t['secondary'])
         
-        # Margins & Section Setup
-        sec = doc.sections[0]
-        sec.top_margin = Inches(0.5)
-        sec.bottom_margin = Inches(1.0)
-        sec.left_margin = Inches(1.0)
-        sec.right_margin = Inches(1.0)
-        
-        # Header: Logo (Adaptive)
-        is_dark_bg = theme_id != "ARCHITECT"
-        logo_filename = "main korum os logo light.png" if is_dark_bg else "main korum os logo dark.png"
+        # Header: Logo
+        logo_filename = "main korum os logo light.png" if theme_id != "ARCHITECT" else "main korum os logo dark.png"
         logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", logo_filename)
-        if not os.path.exists(logo_path):
-            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo.png")
-
         if os.path.exists(logo_path):
-            doc.add_picture(logo_path, width=Inches(2.5))
+            doc.add_picture(logo_path, width=Inches(2.2))
             doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
             doc.add_paragraph()
-            
-        # Command Registry Table
-        cmd_tab = doc.add_table(rows=2, cols=2)
-        cmd_tab.style = 'Table Grid'
-        cmd_tab.autofit = True
-        
-        for r in range(2):
-            for c in range(2):
-                WordExporter._shade_cell(cmd_tab.rows[r].cells[c], t['bg'])
 
-        def _p_style(cell, text, bold=False, color=None, size=8):
-            p = cell.paragraphs[0]
-            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            run = p.add_run(text)
-            run.font.name = 'Courier New'
-            run.font.size = Pt(size)
-            if bold: run.bold = True
-            if color: run.font.color.rgb = color
-            return run
-
-        _p_style(cmd_tab.rows[0].cells[0], "KORUM-OS // COMMAND NODE // ALPHA", color=s_rgb)
-        _p_style(cmd_tab.rows[0].cells[1], f"MISSION: {meta.get('title', 'KORUM_ALPHA').upper()}", color=s_rgb)
-        _p_style(cmd_tab.rows[1].cells[0], f"WORKFLOW: {meta.get('workflow', 'INTEL').upper()}", color=s_rgb)
-        _p_style(cmd_tab.rows[1].cells[1], f"SYSTEM STATUS: SECURE", color=s_rgb)
-        
-        doc.add_paragraph() # Spacer
-        
-        # Primary Directive Block
+        # Premium Directive Banner
         directive_list = (intelligence_object.get("intelligence_tags") or {}).get("decisions", [])
-        directive = directive_list[0] if directive_list else (meta.get("summary") or "INTEL ANALYSIS IN PROGRESS")
+        directive = directive_list[0] if directive_list else (meta.get("summary") or "INTEL ANALYSIS")
         
         d_tab = doc.add_table(rows=1, cols=1)
+        d_tab.style = 'Table Grid'
         cell = d_tab.rows[0].cells[0]
-        WordExporter._shade_cell(cell, "0D0D0D")
+        WordExporter._shade_cell(cell, "050505")
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = p.add_run("[PRIMARY DIRECTIVE]")
         run.bold = True
-        run.font.size = Pt(10)
         run.font.color.rgb = p_rgb
-        
-        p2 = cell.add_paragraph()
+        p2 = cell.add_paragraph(_as_text(directive).upper())
         p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run2 = p2.add_run(_as_text(directive).upper())
+        run2 = p2.paragraphs[-1].runs[0]
         run2.bold = True
         run2.font.size = Pt(14)
         run2.font.color.rgb = p_rgb
         
-        p3 = cell.add_paragraph()
-        p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run3 = p3.add_run("— ACTION REQUIRED —")
-        run3.font.size = Pt(8)
-        run3.font.color.rgb = s_rgb
-        
         doc.add_paragraph()
         
-        # Content Sections
+        # Content Sections as "Cards"
         for sid, content in sections.items():
-            h = doc.add_heading(sid.replace("_", " ").upper(), level=1)
-            # Find and style run for Signal Tags
-            text_block = _clean_tags(content, strip_markdown=False)
-            p = doc.add_paragraph()
+            s_tab = doc.add_table(rows=2, cols=1)
+            s_tab.style = 'Table Grid'
+            # Header Row
+            h_cell = s_tab.rows[0].cells[0]
+            WordExporter._shade_cell(h_cell, "1A1A1A")
+            h_p = h_cell.paragraphs[0]
+            h_run = h_p.add_run(sid.replace("_", " ").upper())
+            h_run.bold = True
+            h_run.font.color.rgb = p_rgb
             
-            # Simple splitter to highlight tags
-            parts = re.split(r'(\[.*?\])', text_block)
-            for part in parts:
-                run = p.add_run(part)
-                if part == "[CRITICAL]":
-                    run.bold = True
-                    run.font.color.rgb = RGBColor(0xFF, 0x31, 0x31)
-                elif part.startswith("[") and part.endswith("]"):
-                    run.bold = True
-                    run.font.color.rgb = RGBColor(0xFF, 0xB0, 0x20)
-                
+            # Body Row
+            b_cell = s_tab.rows[1].cells[0]
+            b_p = b_cell.paragraphs[0]
+            # Strip tags for clean word output
+            clean_text = _clean_tags(content, strip_markdown=True)
+            b_p.add_run(clean_text)
+            
             doc.add_paragraph()
 
-        # Exhibits
-        artifacts = _report_artifacts(intelligence_object)
-        if artifacts:
-            doc.add_heading("SUPPLEMENTARY EXHIBITS", level=1)
-            for art in artifacts:
-                label = _artifact_label(art).upper()
-                p = doc.add_paragraph()
-                run = p.add_run(f"EXHIBIT: {label}")
-                run.bold = True
-                doc.add_paragraph(art.get("content", ""))
-                doc.add_paragraph()
-            
         safe_title = _safe_filename_part(meta.get('title', 'Intelligence'))
         filename = f"KORUM-OS_REPORT_{safe_title}_{theme_id}_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
