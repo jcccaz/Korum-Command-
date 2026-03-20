@@ -108,13 +108,13 @@ def _sanitize_for_csv(value):
     return text
 
 class PDFExporter:
-    """True High-Fidelity Intelligence Dossier — Matches KORUM-OS Command Alpha Visuals."""
+    """Professional Intelligence Dossier — 30-Year Veteran Standard — Strat-Asymmetric Layout."""
     
     @staticmethod
     def generate(intelligence_object, output_dir=None):
         meta, sections, structured, interrogations, verifications = _extract_parts(intelligence_object)
         
-        # --- THE COLOR PALETTE (From Reference) ---
+        # --- COMMAND PALETTE ---
         THEMES = {
             'NEON_DESERT': {"bg": "#0D1117", "accent": "#2DD4BF", "gold": "#FFB020", "text": "#D1D5DB", "dim": "#636E72"},
             'CARBON_STEEL':{"bg": "#0D0D0D", "accent": "#E2E8F0", "gold": "#94A3B8", "text": "#F1F5F9", "dim": "#4B5563"},
@@ -124,82 +124,66 @@ class PDFExporter:
         if theme_id not in THEMES: theme_id = "NEON_DESERT"
         
         t = THEMES[theme_id]
-        BG_PAGE = t['bg']
-        ACC_TEAL = t['accent']
-        ACC_GOLD = t['gold']
-        TXT_MAIN = t['text']
-        TXT_DIM  = t['dim']
+        BG_PAGE, ACC_TEAL, ACC_GOLD, TXT_MAIN, TXT_DIM = t['bg'], t['accent'], t['gold'], t['text'], t['dim']
 
         safe_title = _safe_filename_part(meta.get('title', 'Intelligence'))
         filename = f"KORUM-OS_DOSSIER_{safe_title}_{_timestamp()}.pdf"
         filepath = _output_path(filename, output_dir)
         
-        # Edge-to-edge look achieved with tight margins and full-page draw
-        doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=40, bottomMargin=40, leftMargin=30, rightMargin=30)
+        doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=30, bottomMargin=30, leftMargin=25, rightMargin=25)
         doc._bg_color = BG_PAGE
         
         styles = getSampleStyleSheet()
-        # Custom Dossier Styles
-        styles.add(ParagraphStyle('DossierTitle', parent=styles['Normal'], fontSize=34, textColor=colors.HexColor(ACC_TEAL), leading=40, fontName='Helvetica-Bold', spaceAfter=15))
-        styles.add(ParagraphStyle('DossierMetaLeft', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor(TXT_MAIN), leading=11, fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle('DossierMetaDim', parent=styles['Normal'], fontSize=7, textColor=colors.HexColor(TXT_DIM), leading=9, fontName='Courier-Bold'))
-        styles.add(ParagraphStyle('DossierContent', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor(TXT_MAIN), leading=14, fontName='Helvetica'))
-        styles.add(ParagraphStyle('HUDIconLabel', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor(ACC_GOLD), fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle('HUDHeaderLabel', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor(TXT_MAIN), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('DossierTitle', parent=styles['Normal'], fontSize=34, textColor=colors.HexColor(ACC_TEAL), leading=38, fontName='Helvetica-Bold', spaceAfter=10))
+        styles.add(ParagraphStyle('TacticalLabel', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor(TXT_MAIN), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('NodeID', parent=styles['Normal'], fontSize=7, textColor=colors.HexColor(ACC_GOLD), fontName='Courier-Bold'))
+        styles.add(ParagraphStyle('DossierBody', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor(TXT_MAIN), leading=14, fontName='Helvetica'))
+        styles.add(ParagraphStyle('DirectiveTitle', parent=styles['Normal'], fontSize=14, textColor=colors.HexColor(ACC_GOLD), alignment=1, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('DirectiveText', parent=styles['Normal'], fontSize=16, textColor=colors.HexColor(TXT_MAIN), leading=20, alignment=1, fontName='Helvetica-Bold'))
 
         story = []
 
-        # 1. --- LOGO (Top Left) ---
+        # 1. --- LOGO & PRIMARY TITLE (Asymmetric Start) ---
         logo_filename = "main korum os logo light.png" if theme_id != "ARCHITECT" else "main korum os logo dark.png"
         logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", logo_filename)
-        if not os.path.exists(logo_path):
-            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "main korum os logo.png")
-
         if os.path.exists(logo_path):
-            img = RLImage(logo_path, width=140, height=35)
+            img = RLImage(logo_path, width=150, height=38)
             img.hAlign = 'LEFT'
             story.append(img)
-            story.append(Spacer(1, 30))
+            story.append(Spacer(1, 25))
 
-        # 2. --- MAIN TITLE (Teal) ---
-        story.append(Paragraph(f"KORUM-OS -<br/>{escape(meta.get('title', 'Network Integration').upper())}", styles['DossierTitle']))
+        story.append(Paragraph(f"KORUM-OS -<br/>{escape(meta.get('title', 'Intelligence Briefing').upper())}", styles['DossierTitle']))
         
-        # 3. --- GOLD DECK LINE ---
-        line_data = [[""]]
-        line_table = Table(line_data, colWidths=[552], rowHeights=[2])
-        line_table.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor(ACC_GOLD)), ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0)]))
-        story.append(line_table)
-        story.append(Spacer(1, 15))
+        # Gold Separator Line
+        line = Table([[""]], colWidths=[562], rowHeights=[2], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(ACC_GOLD))])
+        story.append(line)
+        story.append(Spacer(1, 30))
 
-        # 4. --- HUD HEADER ROW (Icons & Labels) ---
-        hud_header_data = [
-            [Paragraph("📖 Header", styles['HUDIconLabel']), Paragraph("Description", styles['HUDHeaderLabel'])]
-        ]
-        hud_header_tab = Table(hud_header_data, colWidths=[120, 432])
-        hud_header_tab.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('BOTTOMPADDING', (0,0), (-1,-1), 10)]))
-        story.append(hud_header_tab)
-        
-        # Thin divider under header
-        story.append(Table([[""]], colWidths=[552], rowHeights=[0.5], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(TXT_DIM))]))
-        story.append(Spacer(1, 20))
-
-        # 5. --- CONTENT GRID (2-Column Dossier Look) ---
-        # First, inject the Primary Directive if present
+        # 2. --- [PRIMARY DIRECTIVE] (Full-Width Tactical Break) ---
         directive_list = (intelligence_object.get("intelligence_tags") or {}).get("decisions", [])
         if directive_list:
-             directive = _as_text(directive_list[0]).upper()
-             grid_row = [
-                 [Paragraph("PRIMARY<br/>DIRECTIVE", styles['DossierMetaLeft']), Paragraph("ALPHA_NODE_01", styles['DossierMetaDim'])],
-                 Paragraph(f"<b>{escape(directive)}</b>", styles['DossierContent'])
-             ]
-             grid_tab = Table([grid_row], colWidths=[120, 432])
-             grid_tab.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 20)]))
-             story.append(grid_tab)
+            directive = _as_text(directive_list[0]).upper()
+            d_box_data = [
+                [Paragraph("[PRIMARY DIRECTIVE]", styles['DirectiveTitle'])],
+                [Paragraph(f"{escape(directive)}", styles['DirectiveText'])]
+            ]
+            d_box = Table(d_box_data, colWidths=[520])
+            d_box.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#080808")),
+                ('BOX', (0,0), (-1,-1), 1, colors.HexColor(ACC_GOLD)),
+                ('TOPPADDING', (0,0), (-1,-1), 20),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 20),
+            ]))
+            story.append(d_box)
+            story.append(Spacer(1, 40))
 
-        for sid, content in sections.items():
+        # 3. --- INTELLIGENCE GRID (2-Column Asymmetric) ---
+        # 140pt Left Margin for labels/node-ids
+        for idx, (sid, content) in enumerate(sections.items()):
             section_title = sid.replace("_", " ").upper()
+            node_id = f"KOS-NODE-{100 + idx:03d}"
             
-            # Text Processing (Robust Escaping + Tag Highlighting)
+            # High-Fidelity Content Processing
             raw_text = _as_text(content)
             tag_placeholders = {}
             critical_ph = "___SIGNAL_CRITICAL___"
@@ -218,61 +202,60 @@ class PDFExporter:
 
             styled_content = escape(raw_text)
             styled_content = styled_content.replace(critical_ph, f"<font color='#FF3131'><b>[CRITICAL]</b></font>")
-            for ph, styled_tag in tag_placeholders.items(): styled_content = styled_content.replace(ph, styled_tag)
+            for ph, st in tag_placeholders.items(): styled_content = styled_content.replace(ph, st)
             for orig, ph in bold_spans:
-                inner = escape(orig[2:-2])
-                styled_content = styled_content.replace(ph, f"<b>{inner}</b>")
+                styled_content = styled_content.replace(ph, f"<b>{escape(orig[2:-2])}</b>")
             styled_content = styled_content.replace("\n", "<br/>")
 
-            # Create Grid Row
+            # Asymmetric Row
             row_data = [
-                [Paragraph(section_title, styles['DossierMetaLeft']), Paragraph(f"REF_{sid[:4].upper()}", styles['DossierMetaDim'])],
-                Paragraph(styled_content, styles['DossierContent'])
+                [Paragraph(section_title, styles['TacticalLabel']), Paragraph(node_id, styles['NodeID'])],
+                Paragraph(styled_content, styles['DossierBody'])
             ]
-            
-            t_row = Table([row_data], colWidths=[120, 432])
+            t_row = Table([row_data], colWidths=[140, 412])
             t_row.setStyle(TableStyle([
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 25),
+                ('BOTTOMPADDING', (0,0), (-1,-1), idx == len(sections)-1 and 20 or 30),
                 ('LEFTPADDING', (0,0), (-1,-1), 0),
             ]))
             story.append(t_row)
 
-        # --- EXHIBITS (Standardized to 2-Column Grid) ---
+        # 4. --- SUPPLEMENTAL EXHIBITS (Full-Width Breakouts) ---
         artifacts = _report_artifacts(intelligence_object)
         if artifacts:
             story.append(Spacer(1, 20))
-            story.append(Paragraph("SUPPLEMENTAL EXHIBITS // MISSION DATA", styles['HUDHeaderLabel']))
-            story.append(Spacer(1, 10))
+            story.append(Table([[Paragraph("SUPPLEMENTAL TECHNICAL EXHIBITS", styles['TacticalLabel'])]], colWidths=[552], style=[('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(ACC_GOLD))]))
+            story.append(Spacer(1, 15))
             
             for art in artifacts:
                 title = _artifact_label(art).upper()
-                art_content = escape(_as_text(art.get("content", ""))).replace("\n", "<br/>")
+                content = escape(_as_text(art.get("content", ""))).replace("\n", "<br/>")
                 
+                # Hybrid Grid-Breakout
+                # Small label on left, LARGE content on Right (using almost full width)
                 ex_row = [
-                    [Paragraph(f"EXHIBIT: {title}", styles['DossierMetaLeft']), Paragraph("TECH_AUDIT_LOG", styles['DossierMetaDim'])],
-                    Paragraph(art_content, styles['DossierContent'])
+                    [Paragraph(f"EXHIBIT: {title}", styles['NodeID']), Paragraph("MISSION_DATA", styles['NodeID'])],
+                    Paragraph(content, styles['DossierBody'])
                 ]
-                ex_grid = Table([ex_row], colWidths=[120, 432])
+                ex_grid = Table([ex_row], colWidths=[110, 442])
                 ex_grid.setStyle(TableStyle([
                     ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                    ('BOTTOMPADDING', (0,0), (-1,-1), 15),
-                    ('LINEABOVE', (1,0), (1,0), 0.5, colors.HexColor(TXT_DIM)), # Subtle separator
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 20),
                 ]))
                 story.append(ex_grid)
 
-        # 6. --- FOOTER HUD ---
-        footer_text = f"KOS // {datetime.now().strftime('%Y-%m-%d %H:%M')} // AUTHENTICATED INTEL NODE // PROP-RESTRICTIVE"
-        footer_table = Table([[Paragraph(footer_text, styles['HUDIconLabel'])]], colWidths=[532])
-        footer_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER')]))
+        # 5. --- FOOTER HUD ---
         story.append(Spacer(1, 40))
-        story.append(footer_table)
+        footer_text = f"KORUM-OS AUTH-ALPHA // {datetime.now().strftime('%Y-%m-%d %H:%M')} // SECURE ACCESS ONLY // PAGE 01"
+        footer = Table([[Paragraph(footer_text, styles['NodeID'])]], colWidths=[562])
+        footer.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'RIGHT'), ('LINEABOVE', (0,0), (-1,-1), 0.5, colors.HexColor(ACC_GOLD))]))
+        story.append(footer)
 
         doc.build(story, onFirstPage=_dark_page_bg, onLaterPages=_dark_page_bg)
         return filepath
 
 class WordExporter:
-    """Premium Word report with themed headers and high-contrast logic."""
+    """Professional Asymmetric Word Report — High-Fidelity Intelligence Standard."""
     
     @staticmethod
     def _shade_cell(cell, hex_color):
@@ -291,69 +274,91 @@ class WordExporter:
             'CARBON_STEEL':{"bg": "0D0D0D", "primary": (0xD1, 0xD5, 0xDB), "secondary": (0x4B, 0x55, 0x63), "text": "E2E8F0"},
         }
         theme_id = meta.get("theme", "NEON_DESERT").upper()
-        if theme_id not in THEMES:
-             if "ARCH" in theme_id: theme_id = "ARCHITECT"
-             elif "STEEL" in theme_id: theme_id = "CARBON_STEEL"
-             else: theme_id = "NEON_DESERT"
+        if theme_id not in THEMES: theme_id = "NEON_DESERT"
         
         t = THEMES[theme_id]
-        p_rgb = RGBColor(*t['primary'])
-        s_rgb = RGBColor(*t['secondary'])
+        p_rgb, s_rgb = RGBColor(*t['primary']), RGBColor(*t['secondary'])
         
         # Header: Logo
         logo_filename = "main korum os logo light.png" if theme_id != "ARCHITECT" else "main korum os logo dark.png"
         logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", logo_filename)
         if os.path.exists(logo_path):
-            doc.add_picture(logo_path, width=Inches(2.2))
-            doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_picture(logo_path, width=Inches(2.0))
+            doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.LEFT
             doc.add_paragraph()
 
-        # Premium Directive Banner
-        directive_list = (intelligence_object.get("intelligence_tags") or {}).get("decisions", [])
-        directive = directive_list[0] if directive_list else (meta.get("summary") or "INTEL ANALYSIS")
-        
-        d_tab = doc.add_table(rows=1, cols=1)
-        d_tab.style = 'Table Grid'
-        cell = d_tab.rows[0].cells[0]
-        WordExporter._shade_cell(cell, "050505")
-        
-        # [PRIMARY DIRECTIVE] Label
-        p1 = cell.paragraphs[0]
-        p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run1 = p1.add_run("[PRIMARY DIRECTIVE]")
-        run1.bold = True
-        run1.font.color.rgb = p_rgb
-        
-        # Directive Content
-        p2 = cell.add_paragraph()
-        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run2 = p2.add_run(_as_text(directive).upper())
-        run2.bold = True
-        run2.font.size = Pt(14)
-        run2.font.color.rgb = p_rgb
-        
+        # Title Section
+        t_p = doc.add_paragraph()
+        t_run = t_p.add_run(f"KORUM-OS // {meta.get('title', 'Intelligence Briefing').upper()}")
+        t_run.bold = True
+        t_run.font.size = Pt(22)
+        t_run.font.color.rgb = s_rgb
         doc.add_paragraph()
-        
-        # Content Sections as "Cards"
-        for sid, content in sections.items():
-            s_tab = doc.add_table(rows=2, cols=1)
-            s_tab.style = 'Table Grid'
-            # Header Row
-            h_cell = s_tab.rows[0].cells[0]
-            WordExporter._shade_cell(h_cell, "1A1A1A")
-            h_p = h_cell.paragraphs[0]
-            h_run = h_p.add_run(sid.replace("_", " ").upper())
-            h_run.bold = True
-            h_run.font.color.rgb = p_rgb
+
+        # Primary Directive Block (Tactical Break)
+        directive_list = (intelligence_object.get("intelligence_tags") or {}).get("decisions", [])
+        if directive_list:
+            directive = _as_text(directive_list[0]).upper()
+            doc.add_paragraph("-" * 80)
+            d_p = doc.add_paragraph("[PRIMARY DIRECTIVE]")
+            d_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            d_p.runs[0].bold = True
+            d_p.runs[0].font.color.rgb = p_rgb
             
-            # Body Row
-            b_cell = s_tab.rows[1].cells[0]
-            b_p = b_cell.paragraphs[0]
-            # Strip tags for clean word output
-            clean_text = _clean_tags(content, strip_markdown=True)
-            b_p.add_run(clean_text)
+            d_main = doc.add_paragraph(escape(directive))
+            d_main.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            d_run = d_main.runs[0]
+            d_run.bold = True
+            d_run.font.size = Pt(14)
+            d_run.font.color.rgb = p_rgb
+            doc.add_paragraph("-" * 80)
+            doc.add_paragraph()
+
+        # Content Sections (Asymmetric Grid)
+        for idx, (sid, content) in enumerate(sections.items()):
+            node_id = f"KOS-NODE-{100 + idx:03d}"
+            # Create a 2-column invisible table
+            tab = doc.add_table(rows=1, cols=2)
+            tab.autofit = False
+            tab.columns[0].width = Inches(1.5)
+            tab.columns[1].width = Inches(4.5)
+            
+            # Left Metadata Cell
+            l_cell = tab.rows[0].cells[0]
+            lp = l_cell.paragraphs[0]
+            l_run = lp.add_run(sid.replace("_", " ").upper())
+            l_run.bold = True
+            l_run.font.size = Pt(9)
+            
+            lp2 = l_cell.add_paragraph()
+            id_run = lp2.add_run(node_id)
+            id_run.font.name = 'Courier New'
+            id_run.font.size = Pt(7)
+            id_run.font.color.rgb = p_rgb
+            
+            # Right Content Cell
+            r_cell = tab.rows[0].cells[1]
+            rp = r_cell.paragraphs[0]
+            # Strip tags but keep some basic bolding
+            clean_text = _clean_tags(content, strip_markdown=False)
+            rp.add_run(clean_text)
             
             doc.add_paragraph()
+
+        # Footer Audit
+        section = doc.sections[0]
+        footer = section.footer
+        p = footer.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        f_run = p.add_run(f"KORUM-OS AUTH-ALPHA // {datetime.now().strftime('%Y-%M-%d %H:%M')} // SECURE")
+        f_run.font.name = 'Courier New'
+        f_run.font.size = Pt(7)
+
+        safe_title = _safe_filename_part(meta.get('title', 'Intelligence'))
+        filename = f"KORUM-OS_REPORT_{safe_title}_{theme_id}_{_timestamp()}.docx"
+        filepath = _output_path(filename, output_dir)
+        doc.save(filepath)
+        return filepath
 
         safe_title = _safe_filename_part(meta.get('title', 'Intelligence'))
         filename = f"KORUM-OS_REPORT_{safe_title}_{theme_id}_{_timestamp()}.docx"
