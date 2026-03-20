@@ -92,7 +92,7 @@ class PDFExporter:
         # --- THE TRINITY: CORPORATE | NEURAL | OPERATOR ---
         THEMES = {
             'ARCHITECT':   {"bg": "#2D3436", "primary": "#A65E46", "secondary": "#636E72", "text": "#F2F1EF"},
-            'NEON_DESERT': {"bg": "#0D1117", "primary": "#FFB020", "secondary": "#00FF9D", "text": "#D1D5DB"},
+            'NEON_DESERT': {"bg": "#0D1117", "primary": "#FFB020", "secondary": "#2DD4BF", "text": "#D1D5DB"},
             'CARBON_STEEL':{"bg": "#0D0D0D", "primary": "#A5A5A5", "secondary": "#4B5563", "text": "#E2E8F0"},
         }
         theme_id = meta.get("theme", "NEON_DESERT").upper()
@@ -129,7 +129,7 @@ class PDFExporter:
         story = []
 
         # --- LOGO HEADER ---
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum os logo.png")
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "Screenshot 2026-03-18 154250.png")
         if os.path.exists(logo_path):
             img = RLImage(logo_path, width=180, height=45)
             img.hAlign = 'CENTER'
@@ -148,8 +148,8 @@ class PDFExporter:
         dash_table = Table(dash_data, colWidths=[266, 266])
         dash_table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(BG_DARK)),
-            ('BOX', (0,0), (-1,-1), 1, colors.HexColor(BORDER)),
-            ('GRID', (0,0), (-1,-1), 1, colors.HexColor(BORDER)),
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor(BORDER)),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor(BORDER)),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('LEFTPADDING', (0,0), (-1,-1), 10),
             ('RIGHTPADDING', (0,0), (-1,-1), 10),
@@ -167,7 +167,7 @@ class PDFExporter:
         except:
              truth_int = 0
              
-        stat_data = [[f"CONFIDENCE: {truth_int}/100    |    STATUS: VERIFIED    |    AUTH: COMMAND ALPHA"]]
+        stat_data = [[f"CONFIDENCE: {truth_int}/100    |    STATUS: VERIFIED    |    SYSTEM: SECURE"]]
         stat_table = Table(stat_data, colWidths=[532])
         stat_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#1A1A1A")),
@@ -177,7 +177,7 @@ class PDFExporter:
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('TOPPADDING', (0,0), (-1,-1), 5),
             ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-            ('BOX', (0,0), (-1,-1), 1, colors.HexColor(BORDER)),
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor(BORDER)),
         ]))
         story.append(stat_table)
         story.append(Spacer(1, 40))
@@ -289,7 +289,7 @@ class WordExporter:
         
         THEMES = {
             'ARCHITECT':   {"bg": "2D3436", "primary": (0xA6, 0x5E, 0x46), "secondary": (0x63, 0x6E, 0x72), "text": "F2F1EF"},
-            'NEON_DESERT': {"bg": "0D1117", "primary": (0xFF, 0xB0, 0x20), "secondary": (0x00, 0xFF, 0x9D), "text": "D1D5DB"},
+            'NEON_DESERT': {"bg": "0D1117", "primary": (0xFF, 0xB0, 0x20), "secondary": (0x2D, 0xD4, 0xBF), "text": "D1D5DB"},
             'CARBON_STEEL':{"bg": "0D0D0D", "primary": (0xD1, 0xD5, 0xDB), "secondary": (0x4B, 0x55, 0x63), "text": "E2E8F0"},
         }
         theme_id = meta.get("theme", "NEON_DESERT").upper()
@@ -310,7 +310,7 @@ class WordExporter:
         sec.right_margin = Inches(1.0)
         
         # Header: Logo
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "korum os logo.png")
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "Screenshot 2026-03-18 154250.png")
         if os.path.exists(logo_path):
             doc.add_picture(logo_path, width=Inches(2.0))
             doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -338,7 +338,7 @@ class WordExporter:
         _p_style(cmd_tab.rows[0].cells[0], "KORUM-OS // COMMAND NODE // ALPHA", color=s_rgb)
         _p_style(cmd_tab.rows[0].cells[1], f"MISSION: {meta.get('title', 'KORUM_ALPHA').upper()}", color=s_rgb)
         _p_style(cmd_tab.rows[1].cells[0], f"WORKFLOW: {meta.get('workflow', 'INTEL').upper()}", color=s_rgb)
-        _p_style(cmd_tab.rows[1].cells[1], f"SYSTEM STATUS: ACTIVATED", color=s_rgb)
+        _p_style(cmd_tab.rows[1].cells[1], f"SYSTEM STATUS: SECURE", color=s_rgb)
         
         doc.add_paragraph() # Spacer
         
