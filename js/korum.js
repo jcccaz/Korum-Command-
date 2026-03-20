@@ -5962,6 +5962,12 @@ function startProcessingLogs() {
 const sentinelChat = {
     history: [],
 
+    autoResizeInput: function (input) {
+        if (!input) return;
+        input.style.height = 'auto';
+        input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
+    },
+
     refreshEmptyState: function () {
         const emptyState = document.getElementById('commsEmptyState');
         const hasMessages = document.querySelectorAll('.sentinel-wrapper .chat-message').length > 0;
@@ -5976,9 +5982,14 @@ const sentinelChat = {
 
         if (input && sendBtn) {
             sendBtn.addEventListener('click', () => this.sendMessage());
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.sendMessage();
+            input.addEventListener('input', () => this.autoResizeInput(input));
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
+                }
             });
+            this.autoResizeInput(input);
         }
 
         this.refreshEmptyState();
@@ -6001,6 +6012,7 @@ const sentinelChat = {
         });
         addCommsActivity('Follow-up queued', query.length > 96 ? `${query.slice(0, 96)}...` : query, 'live');
         input.value = '';
+        this.autoResizeInput(input);
         input.disabled = true;
 
         try {
@@ -6056,6 +6068,11 @@ const sentinelChat = {
         this.history = [];
         const wrapper = document.querySelector('.sentinel-wrapper');
         if (wrapper) wrapper.innerHTML = '';
+        const spotlight = document.getElementById('followupSpotlight');
+        if (spotlight) {
+            spotlight.style.display = 'none';
+            spotlight.classList.remove('is-visible');
+        }
         this.refreshEmptyState();
         resetCommsActivity();
         logTelemetry("Global Comms cleared", "system");
@@ -6211,9 +6228,9 @@ function openCommsActivityModal(title, detail) {
 
     const modal = document.createElement('div');
     modal.id = 'comms-activity-modal';
-    modal.className = 'card-modal-overlay';
+    modal.className = 'card-modal-overlay visible';
     modal.innerHTML = `
-        <div class="card-modal activity-modal">
+        <div class="card-modal activity-modal followup-response-modal">
             <div class="card-modal-header">
                 <div>
                     <div class="card-modal-provider">Mission Activity</div>
@@ -6265,10 +6282,12 @@ function updateFollowupSpotlight(detail, label = 'Latest Follow-Up Answer') {
     const fullText = String(detail || '').trim();
     if (!fullText) {
         spotlight.style.display = 'none';
+        spotlight.classList.remove('is-visible');
         return;
     }
 
     spotlight.style.display = 'flex';
+    spotlight.classList.add('is-visible');
     body.textContent = fullText;
     if (title) title.textContent = label;
     

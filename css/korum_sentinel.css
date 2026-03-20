@@ -146,6 +146,107 @@
     flex-shrink: 0;
 }
 
+.followup-spotlight {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    margin: 14px 16px 0;
+    padding: 16px;
+    border: 1px solid rgba(245, 168, 0, 0.22);
+    border-radius: 16px;
+    background:
+        linear-gradient(180deg, rgba(30, 24, 12, 0.96), rgba(10, 10, 14, 0.98));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.03),
+        0 14px 34px rgba(0, 0, 0, 0.26);
+    flex-shrink: 0;
+    min-height: clamp(240px, 34vh, 420px);
+    max-height: 72vh;
+    overflow: hidden;
+    resize: vertical;
+}
+
+.followup-spotlight.is-visible {
+    display: flex;
+}
+
+.followup-spotlight-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.followup-spotlight-label {
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(245, 168, 0, 0.9);
+}
+
+.followup-spotlight-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.followup-spotlight-open,
+.followup-spotlight-dock {
+    border: 1px solid rgba(245, 168, 0, 0.28);
+    background: rgba(245, 168, 0, 0.1);
+    color: #F5A800;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.followup-spotlight-dock {
+    border-color: rgba(0, 255, 157, 0.25);
+    background: rgba(0, 255, 157, 0.08);
+    color: var(--accent-green);
+}
+
+.followup-spotlight-open:hover,
+.followup-spotlight-dock:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 14px rgba(245, 168, 0, 0.14);
+}
+
+.followup-spotlight-dock:disabled {
+    opacity: 0.6;
+    cursor: default;
+    filter: none;
+    box-shadow: none;
+}
+
+.followup-spotlight-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 8px;
+    font-size: 14px;
+    line-height: 1.72;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.followup-spotlight-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.followup-spotlight-body::-webkit-scrollbar-thumb {
+    background: rgba(245, 168, 0, 0.22);
+    border-radius: 999px;
+}
+
 .comms-activity-header {
     display: flex;
     flex-direction: column;
@@ -358,9 +459,52 @@
     border-right: none;
     border-top: none;
     border-bottom: 1px solid rgba(245, 168, 0, 0.2);
-    background: rgba(8, 8, 12, 0.9);
-    padding: 10px 12px;
+    background:
+        linear-gradient(180deg, rgba(22, 18, 10, 0.94), rgba(10, 10, 14, 0.98));
+    padding: 12px 14px;
     flex-shrink: 0;
+}
+
+.sentinel-composer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.sentinel-composer-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sentinel-composer-kicker {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-gold);
+}
+
+.sentinel-composer-hint {
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.sentinel-input-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(245, 168, 0, 0.18);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+        rgba(6, 6, 8, 0.72);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .sentinel-input {
@@ -371,6 +515,11 @@
     font-family: var(--font-body);
     font-size: 13px;
     outline: none;
+    resize: none;
+    min-height: 52px;
+    max-height: 128px;
+    line-height: 1.5;
+    overflow-y: auto;
 }
 
 .sentinel-input::placeholder {
@@ -388,8 +537,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 36px;
-    min-height: 32px;
+    min-width: 40px;
+    min-height: 40px;
+    align-self: end;
 }
 
 .sentinel-send:hover {
@@ -403,6 +553,24 @@
 .sentinel-send:active {
     transform: scale(0.95);
     background: rgba(245, 168, 0, 0.35);
+}
+
+.sentinel-input:disabled,
+.sentinel-send:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+@media (max-width: 1024px) {
+    .followup-spotlight {
+        margin: 0;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        min-height: 72vh;
+        max-height: 88vh;
+        resize: none;
+    }
 }
 
 /* Scrollbar */

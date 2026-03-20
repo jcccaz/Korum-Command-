@@ -405,15 +405,24 @@
 
                     <!-- PINNED INPUT: always visible at top -->
                     <div class="sentinel-input-area sentinel-input-top">
-                        <input type="text" id="sentinelInput" class="sentinel-input"
-                            placeholder="Type tactical query..." autocomplete="off">
-                        <button id="sentinelSendBtn" class="sentinel-send">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <line x1="22" y1="2" x2="11" y2="13"></line>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                            </svg>
-                        </button>
+                        <div class="sentinel-composer">
+                            <div class="sentinel-composer-copy">
+                                <span class="sentinel-composer-kicker">Follow-Up Channel</span>
+                                <span class="sentinel-composer-hint">Refine, verify, or challenge the live mission without leaving Global Comms.</span>
+                            </div>
+                            <div class="sentinel-input-shell">
+                                <textarea id="sentinelInput" class="sentinel-input"
+                                    placeholder="Type tactical follow-up, verification request, or challenge..."
+                                    autocomplete="off" rows="2"></textarea>
+                                <button id="sentinelSendBtn" class="sentinel-send" type="button" aria-label="Send follow-up">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- LIVE REVISION FEED: pinned below input -->
@@ -436,7 +445,7 @@
                     <div class="followup-spotlight" id="followupSpotlight" style="display:none;">
                         <div class="followup-spotlight-header">
                             <span class="followup-spotlight-label" id="followupSpotlightLabel">Latest Follow-Up Answer</span>
-                            <div style="display:flex; gap:8px;">
+                            <div class="followup-spotlight-actions">
                                 <button class="followup-spotlight-dock" id="followupSpotlightDock" type="button" title="Dock this answer to research">📌 DOCK</button>
                                 <button class="followup-spotlight-open" id="followupSpotlightOpen" type="button">Open Full</button>
                             </div>
