@@ -55,6 +55,15 @@ def _report_artifacts(o):
     apps = o.get("docked_snippets") or []
     return [a for a in apps if a.get('includeInReport') is True]
 
+# --- BRANDING CONFIG ---
+
+THEME_COLORS = {
+    "ARCHITECT":    {"accent": "#1e3a8a", "text": "#334155", "label": "#64748b", "bg_shade": "#F8FAFC"},
+    "NEON_DESERT":  {"accent": "#2DD4BF", "text": "#0F172A", "label": "#94A3B8", "bg_shade": "#F1F5F9"}, # Fixed for paper
+    "CARBON_STEEL": {"accent": "#DC2626", "text": "#111827", "label": "#9CA3AF", "bg_shade": "#F1F5F9"},
+    "STEEL_RUBY":   {"accent": "#991B1B", "text": "#020617", "label": "#64748b", "bg_shade": "#F1F5F9"}
+}
+
 # --- PDF BRANDING CANVAS ---
 
 def _dark_page_bg(canvas, doc):
@@ -79,19 +88,24 @@ class ExecutiveMemoExporter:
                                 leftMargin=35, rightMargin=35, topMargin=40, bottomMargin=40)
         styles = getSampleStyleSheet()
         
-        # DNA: Color Palette
-        MAIN_BLUE = "#1e3a8a" # The Executive Blue
-        TEXT_DIM = "#64748b" # Light Gray
+        # DNA: Color Palette - Specialist Dynamic Resolution
+        theme_id = _as_text(meta.get('theme', 'ARCHITECT')).upper()
+        tc = THEME_COLORS.get(theme_id) or THEME_COLORS["ARCHITECT"]
+        
+        ACCENT_HEX = tc["accent"]
+        TEXT_HEX = tc["text"]
+        LABEL_HEX = tc["label"]
+        SHADE_HEX = tc["bg_shade"]
         
         # DNA: Styles - Curated for Executive Scan Patterns
-        styles.add(ParagraphStyle('ExecLabel', fontSize=6.5, leading=8, textColor=colors.HexColor(TEXT_DIM), fontName='Helvetica-Bold', letterSpacing=0.5))
-        styles.add(ParagraphStyle('ExecSig', fontSize=7, leading=10, textColor=colors.HexColor(TEXT_DIM), alignment=TA_RIGHT, fontName='Helvetica'))
-        styles.add(ParagraphStyle('ExecTitle', fontSize=26, leading=30, textColor=colors.HexColor(MAIN_BLUE), fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle('ExecImpact', fontSize=10, leading=14, textColor=colors.HexColor(MAIN_BLUE), fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle('ExecBody', fontSize=8.5, leading=12, textColor=colors.HexColor("#334155"), fontName='Helvetica'))
-        styles.add(ParagraphStyle('ExecAudit', fontSize=7, leading=9, textColor=colors.HexColor(TEXT_DIM), fontName='Helvetica'))
-        styles.add(ParagraphStyle('StatBig', fontSize=20, leading=24, textColor=colors.HexColor(MAIN_BLUE), fontName='Helvetica-Bold', alignment=TA_CENTER))
-        styles.add(ParagraphStyle('StatCaption', fontSize=6.5, leading=8, textColor=colors.HexColor(TEXT_DIM), fontName='Helvetica-Bold', alignment=TA_CENTER, letterSpacing=0.5))
+        styles.add(ParagraphStyle('ExecLabel', fontSize=6.5, leading=8, textColor=colors.HexColor(LABEL_HEX), fontName='Helvetica-Bold', letterSpacing=0.5))
+        styles.add(ParagraphStyle('ExecSig', fontSize=7, leading=10, textColor=colors.HexColor(LABEL_HEX), alignment=TA_RIGHT, fontName='Helvetica'))
+        styles.add(ParagraphStyle('ExecTitle', fontSize=26, leading=30, textColor=colors.HexColor(ACCENT_HEX), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('ExecImpact', fontSize=10, leading=14, textColor=colors.HexColor(ACCENT_HEX), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle('ExecBody', fontSize=8.5, leading=12, textColor=colors.HexColor(TEXT_HEX), fontName='Helvetica'))
+        styles.add(ParagraphStyle('ExecAudit', fontSize=7, leading=9, textColor=colors.HexColor(LABEL_HEX), fontName='Helvetica'))
+        styles.add(ParagraphStyle('StatBig', fontSize=20, leading=24, textColor=colors.HexColor(ACCENT_HEX), fontName='Helvetica-Bold', alignment=TA_CENTER))
+        styles.add(ParagraphStyle('StatCaption', fontSize=6.5, leading=8, textColor=colors.HexColor(LABEL_HEX), fontName='Helvetica-Bold', alignment=TA_CENTER, letterSpacing=0.5))
         styles.add(ParagraphStyle('PullQuoteInline', fontSize=8, leading=11, textColor=colors.white, fontName='Helvetica-Oblique'))
         styles.add(ParagraphStyle('Cons', fontSize=9, leading=13, textColor=colors.white, fontName='Helvetica-Oblique'))
         styles.add(ParagraphStyle('ConsScore', fontSize=22, leading=24, textColor=colors.white, fontName='Helvetica-Bold', alignment=TA_RIGHT))
@@ -124,7 +138,7 @@ class ExecutiveMemoExporter:
         story.append(Spacer(1, 15))
         
         # The Blue Underline (Thick Command Line)
-        story.append(Table([[[Paragraph("", styles['ExecBody'])]]], colWidths=[540], rowHeights=[2.5], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(MAIN_BLUE))]))
+        story.append(Table([[[Paragraph("", styles['ExecBody'])]]], colWidths=[540], rowHeights=[2.5], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(ACCENT_HEX))]))
         story.append(Spacer(1, 30))
 
         # 2. --- EXECUTIVE SUMMARY & TOP VISUAL ---
@@ -165,7 +179,7 @@ class ExecutiveMemoExporter:
             s_tab = Table(s_tab_data, colWidths=[180, 180, 180], style=[
                 ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
                 ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
-                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F8FAFC")),
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SHADE_HEX)),
                 ('TOPPADDING', (0,0), (-1,-1), 12),
                 ('BOTTOMPADDING', (0,0), (-1,-1), 12),
                 ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -216,7 +230,7 @@ class ExecutiveMemoExporter:
                 q_attrib = f"&mdash; {prov_name}"
                 right_col = [
                     Table([[[Paragraph("")], [Paragraph(f"<i>&ldquo;{q_text}&rdquo;</i><br/><font size='7' color='#64748b'>{q_attrib}</font>", styles['PullQuoteInline'])]]], colWidths=[4, 146], style=[
-                        ('BACKGROUND', (0,0), (0,0), colors.HexColor(MAIN_BLUE)),
+                        ('BACKGROUND', (0,0), (0,0), colors.HexColor(ACCENT_HEX)),
                         ('LEFTPADDING', (0,0), (-1,-1), 0),
                         ('RIGHTPADDING', (0,0), (-1,-1), 0),
                         ('LEFTPADDING', (1,0), (1,0), 10),
@@ -248,7 +262,7 @@ class ExecutiveMemoExporter:
         ]
         cons_tab = Table(cons_data, colWidths=[410, 130])
         cons_tab.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(MAIN_BLUE)),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(ACCENT_HEX)),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('TOPPADDING', (0,0), (-1,-1), 12),
             ('BOTTOMPADDING', (0,0), (-1,-1), 12),
@@ -285,10 +299,13 @@ class WordExporter:
         meta, sections, structured, _, _ = _extract_parts(intelligence_object)
         doc = Document()
         
-        # DNA: SHARED THEME
-        MAIN_BLUE = "1e3a8a" 
-        DIM_GRAY = "64748b"
-        s_rgb = RGBColor(*WordExporter._hex_to_rgb(MAIN_BLUE))
+        # DNA: SHARED THEME - specialist dynamic resolution
+        theme_id = _as_text(meta.get('theme', 'ARCHITECT')).upper()
+        tc = THEME_COLORS.get(theme_id) or THEME_COLORS["ARCHITECT"]
+        
+        ACCENT_HEX = tc["accent"].lstrip('#')
+        DIM_GRAY = tc["label"].lstrip('#')
+        s_rgb = RGBColor(*WordExporter._hex_to_rgb(ACCENT_HEX))
 
         mission_ctx = intelligence_object.get("_mission_context") or {}
         client_name = _as_text(mission_ctx.get("client", "")).strip() or "DECISION COMMANDER ALPHA"
@@ -321,9 +338,9 @@ class WordExporter:
         t_run.font.size = Pt(22)
         t_run.font.color.rgb = s_rgb
         
-        # Thick Blue Rule (Executive Baseline)
+        # Thick Rule (Executive Baseline)
         u_tab = doc.add_table(rows=1, cols=1)
-        WordExporter._set_cell_background(u_tab.rows[0].cells[0], MAIN_BLUE)
+        WordExporter._set_cell_background(u_tab.rows[0].cells[0], ACCENT_HEX)
         u_tab.rows[0].height = Inches(0.05)
         
         doc.add_paragraph() # Spacer
@@ -387,7 +404,7 @@ class WordExporter:
             
             # Right: Sidebar Shaded
             r_cell = n_tab.rows[0].cells[1]
-            WordExporter._set_cell_background(r_cell, "F8FAFC")
+            WordExporter._set_cell_background(r_cell, tc["bg_shade"].lstrip('#'))
             
             # Match artifact
             local_visual = None

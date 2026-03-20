@@ -1,0 +1,58 @@
+Traceback (most recent call last):
+  File "C:\Users\carlo\Projects\KorumOS\exporters.py", line 260, in generate
+    doc.build(story, onFirstPage=_dark_page_bg, onLaterPages=_dark_page_bg)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\doctemplate.py", line 1322, in build
+    BaseDocTemplate.build(self,flowables, canvasmaker=canvasmaker)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\doctemplate.py", line 1083, in build
+    self.handle_flowable(flowables)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\doctemplate.py", line 932, in handle_flowable
+    if frame.add(f, canv, trySplit=self.allowSplitting):
+       ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\frames.py", line 158, in _add
+    w, h = flowable.wrap(aW, h)
+           ~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\tables.py", line 1354, in wrap
+    self._calc(availWidth, availHeight)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\tables.py", line 740, in _calc
+    self._calc_height(availHeight,availWidth,W=W)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\tables.py", line 664, in _calc_height
+    dW,t = self._listCellGeom(v,w or self._listValueWidth(v),s)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\tables.py", line 500, in _listCellGeom
+    vw, vh = v.wrapOn(canv, aW, aH)
+             ~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\flowables.py", line 123, in wrapOn
+    w, h = self.wrap(aW,aH)
+           ~~~~~~~~~^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\tables.py", line 1354, in wrap
+    self._calc(availWidth, availHeight)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\tables.py", line 740, in _calc
+    self._calc_height(availHeight,availWidth,W=W)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\tables.py", line 664, in _calc_height
+    dW,t = self._listCellGeom(v,w or self._listValueWidth(v),s)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\tables.py", line 490, in _listCellGeom
+    raise ValueError(f'{self.identity()}: flowable given negative availWidth={aW} == width={w} - leftPadding={s.leftPadding} - rightPadding={s.rightPadding}')
+                        ~~~~~~~~~~~~~^^
+  File "C:\Users\carlo\AppData\Local\Programs\Python\Python314\Lib\site-packages\reportlab\platypus\tables.py", line 440, in identity
+    tallest = '(tallest row %d)' % int(max(rh))
+                                   ~~~^^^^^^^^^
+TypeError: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "c:\Users\carlo\Projects\KorumOS\tmp\test_pdf_v3.py", line 59, in <module>
+    output_path = PDFExporter.generate(intel, output_dir="exports")
+  File "C:\Users\carlo\Projects\KorumOS\exporters.py", line 262, in generate
+    raise RuntimeError(f"ReportLab Build Error: {str(e)}") from e
+RuntimeError: ReportLab Build Error: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+Running PDF Export Test...
+PDF Generation Failed: ReportLab Build Error: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
