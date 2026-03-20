@@ -32,54 +32,66 @@ def _output_path(filename: str, output_dir: str | None = None) -> str:
         return os.path.join(output_dir, filename)
     return filename
 
-def _safe_filename_part(value, fallback="Intelligence"):
-    text = _as_text(value).strip()
-    if not text:
-        text = fallback
-    text = re.sub(r'[<>:"/\\|?*\x00-\x1F]+', '_', text)
-    text = re.sub(r'\s+', ' ', text).strip().rstrip('. ')
-    return text[:120] or fallback
+# --- INTERNAL HELPERS ---
 
 def _as_text(value):
     if value is None: return ""
     if isinstance(value, (dict, list)): return json.dumps(value, ensure_ascii=False)
     return str(value)
 
-def _sanitize_for_csv(value):
-    text = _as_text(value)
-    text = re.sub(r'\[\/?(?:DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', text)
-    if text and text[0] in ('=', '+', '-', '@'): text = "'" + text
-    return text
-
-def _convert_mermaid_to_table(text):
-    # (Helper logic for Mermaid integration)
-    return text
+def _safe_filename_part(value, fallback="Intelligence"):
+    text = _as_text(value).strip()
+    if not text:
+        text = fallback
+    # Remove invalid Windows filename characters
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1F]+', '_', text)
+    text = re.sub(r'\s+', ' ', text).strip().rstrip('. ')
+    return text[:120] or fallback
 
 def _clean_tags(text, strip_markdown=True):
     text = _as_text(text)
+    # Strip KOS directive tags
     text = re.sub(r'\[\/?(?:DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', text)
     if strip_markdown:
-        text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-        text = re.sub(r'\*(.*?)\*', r'\1', text)
-        text = re.sub(r'#{1,4}\s*', '', text)
+        # Simple markdown stripper for clean text output
+        text = re.sub(r'#+\s', '', text)
+        text = re.sub(r'\*\*', '', text)
+        text = re.sub(r'__', '', text)
+        text = re.sub(r'`', '', text)
     return text.strip()
 
-def _extract_parts(intelligence_object):
-    data = intelligence_object or {}
-    meta = data.get("meta", {}) or {}
-    sections = data.get("sections", {}) or {}
-    structured = data.get("structured_data", {}) or {}
-    interrogations = data.get("interrogations", [])
-    verifications = data.get("verifications", [])
+def _extract_parts(o):
+    """Deep extraction helper for Korum intelligence objects - robust legacy support."""
+    if not o: return {}, {}, {}, [], []
+    meta = o.get("meta", {}) or {}
+    sections = o.get("sections", {}) or {}
+    # Handle both new 'structured_data' and legacy 'structured' keys
+    structured = o.get("structured_data") or o.get("structured") or {}
+    interrogations = o.get("interrogations", [])
+    verifications = o.get("verifications", [])
     return meta, sections, structured, interrogations, verifications
 
-def _report_artifacts(intelligence_object):
-    snippets = intelligence_object.get("docked_snippets") or []
-    selected = [s for s in snippets if s.get("includeInReport")]
-    return selected or snippets
+def _report_artifacts(o):
+    """Extracts docked artifacts or snippets for exhibit rendering."""
+    if not o: return []
+    # Check 'docked_snippets' first (passed from JS ResearchDock)
+    snippets = o.get("docked_snippets") or []
+    if snippets:
+        # Filter for includes if specifically flagged, else take all
+        selected = [s for s in snippets if s.get("includeInReport")]
+        return selected or snippets
+    # Fallback to research_results or data_lake for legacy missions
+    return o.get("research_results") or o.get("data_lake") or []
 
-def _artifact_label(snippet):
-    return _as_text(snippet.get("label", "Artifact")).strip() or "Artifact"
+def _artifact_label(art):
+    """Returns a clean display name for an artifact."""
+    if not art: return "UNNAMED EXHIBIT"
+    return (art.get("title") or art.get("label") or art.get("filename") or "UNNAMED EXHIBIT").upper()
+
+def _convert_mermaid_to_table(text):
+    """Placeholder for eventual Mermaid-to-Grid rendering."""
+    # (Helper logic for Mermaid integration)
+    return text
 
 def _dark_page_bg(canvas, doc):
     canvas.saveState()
@@ -88,6 +100,12 @@ def _dark_page_bg(canvas, doc):
     canvas.setFillColor(colors.HexColor(bg_color))
     canvas.rect(0, 0, 612, 792, fill=True, stroke=False)
     canvas.restoreState()
+
+def _sanitize_for_csv(value):
+    text = _as_text(value)
+    text = re.sub(r'\[\/?(?:DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', text)
+    if text and text[0] in ('=', '+', '-', '@'): text = "'" + text
+    return text
 
 class PDFExporter:
     """Command-Grade PDF briefing — High high-fidelity Command Alpha standards."""
@@ -602,45 +620,6 @@ class ResearchPaperWordExporter:
     @staticmethod
     def generate(o, d=None): return WordExporter.generate(o, d)
 
-# --- INTERNAL HELPERS ---
 
-def _extract_parts(o):
-    """Deep extraction helper for Korum intelligence objects."""
-    if not o: return {}, {}, {}, [], []
-    meta = o.get("meta", {})
-    sections = o.get("sections", {})
-    # Handle both new 'cards' and old 'results' keys
-    structured = o.get("structured", {})
-    interrogations = o.get("interrogations", [])
-    verifications = o.get("verifications", [])
-    return meta, sections, structured, interrogations, verifications
+# --- END OF EXPORTERS ---
 
-def _report_artifacts(o):
-    """Extracts docked artifacts or snippets for exhibit rendering."""
-    # Check 'docked_snippets' first (passed from JS ResearchDock)
-    snippets = o.get("docked_snippets")
-    if snippets: return snippets
-    # Fallback to research_results or data_lake
-    return o.get("research_results", [])
-
-def _artifact_label(art):
-    """Returns a clean display name for an artifact."""
-    return art.get("title") or art.get("label") or art.get("filename") or "UNNAMED EXHIBIT"
-
-def _clean_tags(text, strip_markdown=False):
-    """Strips Korum logic tags and optionally markdown for clean exports."""
-    if not text: return ""
-    # Strip KOS directive tags
-    text = re.sub(r'\[\/?(?:DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', text)
-    if strip_markdown:
-        # Simple markdown stripper
-        text = re.sub(r'#+\s', '', text)
-        text = re.sub(r'\*\*', '', text)
-        text = re.sub(r'__', '', text)
-        text = re.sub(r'`', '', text)
-    return text
-
-def _convert_mermaid_to_table(text):
-    """Placeholder for eventual Mermaid-to-Grid rendering."""
-    # For now, just return clean text
-    return text
