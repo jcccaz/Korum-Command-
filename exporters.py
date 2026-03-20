@@ -176,8 +176,8 @@ class PDFExporter:
         agents_cnt = len(meta.get("models_used", []))
         dash_data = [
             [Paragraph(f"<font color='{ACCENT_SECONDARY}'>KORUM-OS // COMMAND NODE // ALPHA-MODE ACTIVE</font>", styles['BannerText']),
-             Paragraph(f"INTELLIGENCE BRIEF — {workflow}", styles['BannerText'])],
-            [Paragraph(f"MISSION: {meta.get('title', 'KORUM_ALPHA').upper()}", styles['BannerText']),
+             Paragraph(f"INTELLIGENCE BRIEF — {escape(workflow)}", styles['BannerText'])],
+            [Paragraph(f"MISSION: {escape(meta.get('title', 'KORUM_ALPHA').upper())}", styles['BannerText']),
              Paragraph(f"AGENTS: {agents_cnt} ACTIVE NODE(S)", styles['BannerText'])]
         ]
         dash_table = Table(dash_data, colWidths=[266, 266])
@@ -224,7 +224,7 @@ class PDFExporter:
         
         d_data = [
             [Paragraph(f"<b>[PRIMARY DIRECTIVE]</b>", styles['DirectiveTitle'])],
-            [Paragraph(f"{_as_text(directive).upper()}", styles['DirectiveText'])],
+            [Paragraph(escape(_as_text(directive).upper()), styles['DirectiveText'])],
             [Paragraph(f"— ACTION REQUIRED —", styles['BannerText'])]
         ]
         d_table = Table(d_data, colWidths=[532])
@@ -242,21 +242,49 @@ class PDFExporter:
         for sid, content in sections.items():
             section_title = sid.replace("_", " ").upper()
             story.append(Paragraph(section_title, styles['BrandedHeading1']))
-            
-            # Implementation of Signal Tag Highlighting in PDFs
-            # Convert [CRITICAL] to red, others to amber
-            styled_content = _as_text(content)
-            styled_content = styled_content.replace("[CRITICAL]", f"<font color='{SIGNAL_RED}'><b>[CRITICAL]</b></font>")
-            tags = ["ACTION REQUIRED", "VERIFIED", "RISK", "WARNING", "DECISION CANDIDATE", "METRIC ANCHOR", "TRUTH BOMB"]
-            for tag in tags:
-                styled_content = styled_content.replace(f"[{tag}]", f"<font color='{AMBER}'><b>[{tag}]</b></font>")
-                styled_content = styled_content.replace(f"[/{tag}]", "") # Cleanup
-            
-            # Basic markdown conversions for PDF bolding
-            styled_content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', styled_content)
+
+            # CRITICAL: Escape XML-special chars BEFORE injecting our HTML tags.
+            # Raw LLM output contains <, >, & which crash ReportLab's XML parser.
+            raw_text = _as_text(content)
+
+            # Extract signal tags before escaping so we can re-inject styled versions
+            # Temporarily replace signal tags with safe placeholders
+            tag_placeholders = {}
+            critical_placeholder = "___SIGNAL_CRITICAL___"
+            raw_text = raw_text.replace("[CRITICAL]", critical_placeholder)
+            signal_tags = ["ACTION REQUIRED", "VERIFIED", "RISK", "WARNING", "DECISION CANDIDATE", "METRIC ANCHOR", "TRUTH BOMB"]
+            for tag in signal_tags:
+                ph_open = f"___SIGNAL_{tag.replace(' ', '_')}___"
+                raw_text = raw_text.replace(f"[{tag}]", ph_open)
+                raw_text = raw_text.replace(f"[/{tag}]", "")
+                tag_placeholders[ph_open] = f"<font color='{AMBER}'><b>[{tag}]</b></font>"
+
+            # Extract markdown bold before escaping
+            bold_spans = []
+            for m in re.finditer(r'\*\*(.*?)\*\*', raw_text):
+                bold_spans.append((m.group(0), f"___BOLD_{len(bold_spans)}___"))
+            for original, placeholder in bold_spans:
+                raw_text = raw_text.replace(original, placeholder, 1)
+
+            # NOW escape all XML-special characters
+            styled_content = escape(raw_text)
+
+            # Re-inject styled HTML tags on the now-safe text
+            styled_content = styled_content.replace(critical_placeholder, f"<font color='{SIGNAL_RED}'><b>[CRITICAL]</b></font>")
+            for ph, styled_tag in tag_placeholders.items():
+                styled_content = styled_content.replace(ph, styled_tag)
+            for i, (original, placeholder) in enumerate(bold_spans):
+                bold_text = escape(original[2:-2])  # Strip ** and escape inner text
+                styled_content = styled_content.replace(placeholder, f"<b>{bold_text}</b>")
+
             styled_content = styled_content.replace("\n", "<br/>")
 
-            story.append(Paragraph(styled_content, styles['SectionBody']))
+            try:
+                story.append(Paragraph(styled_content, styles['SectionBody']))
+            except Exception:
+                # Fallback: strip all markup and render plain
+                plain = escape(_clean_tags(_as_text(content))).replace("\n", "<br/>")
+                story.append(Paragraph(plain, styles['SectionBody']))
             story.append(Spacer(1, 20))
 
         # --- EXHIBITS: DOCKED ARTIFACTS ---
@@ -266,7 +294,7 @@ class PDFExporter:
             story.append(Paragraph("SUPPLEMENTAL INTELLIGENCE EXHIBITS", styles['BrandedHeading1']))
             for art in artifacts:
                 title = _artifact_label(art).upper()
-                story.append(Paragraph(f"EXHIBIT: {title}", styles['SectionBody']))
+                story.append(Paragraph(f"EXHIBIT: {escape(title)}", styles['SectionBody']))
                 art_content = _as_text(art.get("content", ""))
                 # Handle basic table rendering in PDF for artifacts
                 if "|" in art_content and "-" in art_content:
@@ -275,7 +303,7 @@ class PDFExporter:
                     table_data = []
                     for row in rows:
                         if "|" in row:
-                            cols_data = [Paragraph(c.strip(), styles['SectionBody']) for c in row.split("|") if c.strip()]
+                            cols_data = [Paragraph(escape(c.strip()), styles['SectionBody']) for c in row.split("|") if c.strip()]
                             if cols_data:
                                 table_data.append(cols_data)
                     
@@ -290,7 +318,7 @@ class PDFExporter:
                         story.append(t_obj)
                         story.append(Spacer(1, 15))
                 else:
-                    story.append(Paragraph(art_content.replace("\n", "<br/>"), styles['SectionBody']))
+                    story.append(Paragraph(escape(art_content).replace("\n", "<br/>"), styles['SectionBody']))
                     story.append(Spacer(1, 15))
 
         # --- FOOTER ---

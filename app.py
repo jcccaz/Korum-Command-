@@ -594,7 +594,9 @@ def deploy_intelligence():
         return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath), mimetype=mimetype)
 
     except Exception as e:
+        import traceback
         print(f"❌ Deployment Error: {e}")
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/generate_preview', methods=['POST'])
