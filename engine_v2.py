@@ -1064,6 +1064,163 @@ def calculate_truth_score(verified_claims):
     total = sum(c['score'] for c in verified_claims)
     return int(total / len(verified_claims))
 
+
+# ===================================================================
+# SCORE MEDIATION ENGINE — Bidirectional Truth Recalibration
+# Scores are a living instrument: down on weakness, up on correction.
+# ===================================================================
+
+def mediate_truth_scores(current_results, prior_events):
+    """
+    Compare current council results against prior interrogation/verification
+    events from the thread. Produce per-provider score deltas.
+
+    prior_events: list of dicts with keys:
+        - type: 'interrogation' | 'verification'
+        - provider: provider key (e.g. 'openai')
+        - score_delta: int (the original penalty/bonus applied)
+        - verdict: str (e.g. 'CONCESSION', 'INACCURATE', etc.)
+        - keywords: list[str] — key terms from the contested claim
+
+    Returns dict: {
+        provider: {
+            'delta': int,           # net score change to apply
+            'reason': str,          # human-readable explanation
+            'components': list,     # breakdown of what moved
+            'recovery_pct': float   # 0.0-1.0 if recovering
+        }
+    }
+    """
+    if not prior_events or not current_results:
+        return {}
+
+    mediation = {}
+
+    # Group prior negative events by provider
+    provider_penalties = {}
+    for evt in prior_events:
+        prov = evt.get('provider')
+        delta = evt.get('score_delta', 0)
+        if not prov or delta >= 0:
+            continue  # only track prior penalties
+        if prov not in provider_penalties:
+            provider_penalties[prov] = []
+        provider_penalties[prov].append(evt)
+
+    for provider, penalties in provider_penalties.items():
+        result = current_results.get(provider)
+        if not result or not result.get('success') or not result.get('response'):
+            continue
+
+        response_lower = result['response'].lower()
+        components = []
+        total_recovery = 0
+
+        for penalty in penalties:
+            penalty_amount = abs(penalty['score_delta'])
+            verdict = penalty.get('verdict', '')
+            keywords = penalty.get('keywords', [])
+
+            # Check if the current response addresses the prior weakness
+            addressed = False
+            address_strength = 0.0
+
+            # Signal 1: Response contains correction language referencing the issue
+            correction_signals = [
+                'upon further analysis', 'revised assessment', 'updated finding',
+                'corrected', 'additional evidence', 'further review',
+                'refined analysis', 'upon reflection', 'taking into account',
+                'more accurate', 'better supported', 'revised estimate',
+                'additional data supports', 'evidence now indicates',
+                'recalibrated', 'adjusted based on'
+            ]
+            correction_hits = sum(1 for s in correction_signals if s in response_lower)
+
+            # Signal 2: Keywords from the contested claim appear (topic is addressed)
+            keyword_hits = 0
+            if keywords:
+                keyword_hits = sum(1 for kw in keywords if kw.lower() in response_lower)
+                keyword_coverage = keyword_hits / len(keywords) if keywords else 0
+            else:
+                keyword_coverage = 0.5  # no keywords tracked — give partial credit
+
+            # Signal 3: Response shows hedged/calibrated language (learned from penalty)
+            calibration_signals = [
+                'moderate likelihood', 'insufficient data', 'limited evidence',
+                'estimated range', 'preliminary', 'subject to', 'uncertain',
+                'requires further', 'cannot confirm', 'approximate',
+                'with caveats', 'contingent on'
+            ]
+            calibration_hits = sum(1 for s in calibration_signals if s in response_lower)
+
+            # Determine if the weakness was addressed
+            if correction_hits >= 2 and keyword_coverage >= 0.3:
+                addressed = True
+                address_strength = min(0.6, 0.3 + (correction_hits * 0.05) + (keyword_coverage * 0.15))
+            elif correction_hits >= 1 and keyword_coverage >= 0.5:
+                addressed = True
+                address_strength = min(0.5, 0.25 + (keyword_coverage * 0.15))
+            elif keyword_coverage >= 0.6 and calibration_hits >= 1:
+                addressed = True
+                address_strength = min(0.45, 0.2 + (calibration_hits * 0.05) + (keyword_coverage * 0.1))
+
+            if addressed:
+                recovery = int(penalty_amount * address_strength)
+                recovery = max(1, recovery)  # at least 1 point recovery
+                total_recovery += recovery
+                components.append({
+                    'type': 'RECOVERY',
+                    'original_penalty': -penalty_amount,
+                    'recovery': +recovery,
+                    'recovery_pct': round(address_strength, 2),
+                    'reason': f"Prior {verdict} ({-penalty_amount}) — corrected (+{recovery}, {int(address_strength*100)}% recovery)"
+                })
+            else:
+                # Weakness not addressed — small ongoing drag
+                drag = -1 if penalty_amount >= 8 else 0
+                if drag:
+                    total_recovery += drag
+                    components.append({
+                        'type': 'UNRESOLVED_DRAG',
+                        'original_penalty': -penalty_amount,
+                        'drag': drag,
+                        'reason': f"Prior {verdict} ({-penalty_amount}) — unaddressed, ongoing drag ({drag})"
+                    })
+
+        # Check for NEW overconfidence in the follow-up (score can also go down)
+        overconfidence_signals = [
+            'guaranteed', 'absolutely certain', '100% probability',
+            'without any doubt', 'impossible to fail', 'zero risk',
+            'no chance of failure', 'certain to succeed'
+        ]
+        overconfidence_hits = sum(1 for s in overconfidence_signals if s in response_lower)
+        if overconfidence_hits >= 1:
+            oc_penalty = -(overconfidence_hits * 3)
+            total_recovery += oc_penalty
+            components.append({
+                'type': 'OVERCONFIDENCE_PENALTY',
+                'penalty': oc_penalty,
+                'reason': f"New overconfident language detected ({oc_penalty})"
+            })
+
+        if components and total_recovery != 0:
+            if total_recovery > 0:
+                reason = f"Score recovery: +{total_recovery} (prior weakness addressed)"
+            elif total_recovery < 0:
+                reason = f"Score drag: {total_recovery} (unresolved issues persist)"
+            else:
+                reason = "Score unchanged (mixed signals)"
+
+            mediation[provider] = {
+                'delta': total_recovery,
+                'reason': reason,
+                'components': components,
+                'recovery_pct': round(total_recovery / max(1, sum(abs(p['score_delta']) for p in penalties)), 2)
+            }
+
+    return mediation
+
+
 # ===================================================================
 # FINAL ARBITER ENGINE — Mathematical Consistency Validation
 # Section 8a enforcement: deterministic, zero-LLM, regex-based.

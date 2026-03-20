@@ -6899,6 +6899,11 @@ function renderExportToolbar(container, _data) {
             ${sessionState.mainMissionData && sessionState.isSubTask ? `
                 <button class="ecc-back-btn" onclick="returnToMainMission()" style="background:rgba(245,168,0,0.12); border:1px solid rgba(245,168,0,0.4); color:#F5A800; padding:8px 12px; border-radius:6px; cursor:pointer; font-family:var(--font-head); font-size:11px; font-weight:700;">↩ RETURN TO MAIN MISSION</button>
             ` : ''}
+            <select id="themeSelect" style="margin-right:8px; background:#111; color:#fff; border:1px solid #333; font-size:10px; border-radius:4px;">
+                <option value="NEON_DESERT">Neon Desert</option>
+                <option value="CARBON_STEEL">Carbon Steel</option>
+                <option value="ARCHITECT">Architect</option>
+            </select>
             <select id="exportDoc" onchange="handleDocExport(this.value)">
                 <option value="" disabled selected>Export Report...</option>
                 <option value="paper-docx">Research Paper (.docx)</option>
@@ -7029,10 +7034,12 @@ async function handleDocExport(format) {
         }
         
         logTelemetry(`Export divergence: ${!!intelligenceObj.divergence_analysis} | Snippets: ${intelligenceObj.docked_snippets?.length || 0}`, "process");
+        const themeVal = document.getElementById('themeSelect')?.value || 'NEON_DESERT';
         const payload = {
             intelligence_object: intelligenceObj,
             card_results: lastCouncilData.results || {},
             format: format,
+            theme: themeVal,
             mission_context: sessionState.missionContext || null
         };
 

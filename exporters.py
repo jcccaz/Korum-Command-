@@ -579,3 +579,47 @@ class ResearchPaperWordExporter:
     @staticmethod
     def generate(o, d=None): return WordExporter.generate(o, d)
 
+# --- INTERNAL HELPERS ---
+
+def _extract_parts(o):
+    """Deep extraction helper for Korum intelligence objects."""
+    if not o: return {}, {}, {}, [], []
+    meta = o.get("meta", {})
+    sections = o.get("sections", {})
+    # Handle both new 'cards' and old 'results' keys
+    structured = o.get("structured", {})
+    interrogations = o.get("interrogations", [])
+    verifications = o.get("verifications", [])
+    return meta, sections, structured, interrogations, verifications
+
+def _report_artifacts(o):
+    """Extracts docked artifacts or snippets for exhibit rendering."""
+    # Check 'docked_snippets' first (passed from JS ResearchDock)
+    snippets = o.get("docked_snippets")
+    if snippets: return snippets
+    # Fallback to research_results or data_lake
+    return o.get("research_results", [])
+
+def _artifact_label(art):
+    """Returns a clean display name for an artifact."""
+    return art.get("title") or art.get("label") or art.get("filename") or "UNNAMED EXHIBIT"
+
+def _clean_tags(text, strip_markdown=False):
+    """Strips Korum logic tags and optionally markdown for clean exports."""
+    if not text: return ""
+    # Strip KOS directive tags
+    text = re.sub(r'\[\/?(?:DECISION_CANDIDATE|RISK_VECTOR|METRIC_ANCHOR|TRUTH_BOMB)\]', '', text)
+    if strip_markdown:
+        # Simple markdown stripper
+        text = re.sub(r'#+\s', '', text)
+        text = re.sub(r'\*\*', '', text)
+        text = re.sub(r'__', '', text)
+        text = re.sub(r'`', '', text)
+    return text
+
+def _convert_mermaid_to_table(text):
+    """Placeholder for eventual Mermaid-to-Grid rendering."""
+    # For now, just return clean text
+    return text
+
+

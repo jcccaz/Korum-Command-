@@ -466,7 +466,7 @@ def get_decision_chain(decision_id):
 
 
 # Import Generator
-from engine_v2 import execute_council_v2, generate_presentation_preview, generate_pptx_file
+from engine_v2 import execute_council_v2, generate_presentation_preview, generate_pptx_file, mediate_truth_scores
 
 # Cost logic moved to llm_core.py for centralization.
 from llm_core import MODEL_COST, estimate_cost
@@ -573,8 +573,13 @@ def deploy_intelligence():
         if not exporter:
             return jsonify({"error": f"Format {format_type} not supported"}), 501
 
-        filename = exporter.generate(intelligence_object, output_dir=EXPORTS_DIR)
-        filepath = os.path.abspath(filename)
+        theme = data.get('theme', 'NEON_DESERT')
+        if 'meta' not in intelligence_object:
+            intelligence_object['meta'] = {}
+        intelligence_object['meta']['theme'] = theme
+
+        filepath = exporter.generate(intelligence_object, output_dir=EXPORTS_DIR)
+        filepath = os.path.abspath(filepath)
         mime_types = {
             'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -1083,6 +1088,35 @@ def _thread_build_previous_context(thread_id):
             "divergence_summary": meta.get("divergence_summary", "")
         })
     return context if context else None
+
+
+def _thread_get_score_events(thread_id):
+    """
+    Pull prior interrogation/verification events from thread for score mediation.
+    Returns list of dicts suitable for mediate_truth_scores().
+    """
+    score_msgs = Message.query.filter(
+        Message.thread_id == thread_id,
+        Message.role.in_(['interrogation', 'verification'])
+    ).order_by(Message.created_at.asc()).all()
+
+    events = []
+    for msg in score_msgs:
+        try:
+            meta = json.loads(msg.metadata_) if msg.metadata_ else {}
+        except (json.JSONDecodeError, TypeError):
+            meta = {}
+        delta = meta.get('score_delta')
+        if delta is None:
+            continue  # legacy event without score data — skip
+        events.append({
+            'type': msg.role,
+            'provider': meta.get('target_provider', ''),
+            'score_delta': delta,
+            'verdict': meta.get('verdict', ''),
+            'keywords': meta.get('keywords', [])
+        })
+    return events
 
 
 def _thread_save_message(thread_id, role, content, metadata=None):
@@ -2468,10 +2502,16 @@ def interrogate():
     thread_id = data.get('thread_id')
     if thread_id:
         try:
+            # Extract key terms from the original query for mediation keyword matching
+            _interrog_keywords = [w for w in original_query.lower().split() if len(w) > 4][:10]
             _thread_save_message(thread_id, 'interrogation',
                                  json.dumps({"attacker": attacker_text[:2000], "defender": defender_text[:2000]}),
                                  metadata={"attacker_role": attacker_role, "defender_role": defender_role,
-                                           "attacker_model": attacker_result.get('model'), "defender_model": defender_result.get('model')})
+                                           "attacker_model": attacker_result.get('model'), "defender_model": defender_result.get('model'),
+                                           "score_delta": interrogation_delta,
+                                           "verdict": interrogation_verdict,
+                                           "target_provider": data.get('target_provider', defender_role),
+                                           "keywords": _interrog_keywords})
         except Exception as thread_err:
             logger.error(f"[INTERROGATION] Thread save failed: {thread_err}")
 
@@ -2577,9 +2617,14 @@ def verify_claim():
             # Save verification to thread if thread_id provided
             thread_id = data.get('thread_id')
             if thread_id:
+                _verify_keywords = [w for w in claim.lower().split() if len(w) > 4][:10]
                 _thread_save_message(thread_id, 'verification',
                                      json.dumps({"claim": claim[:500], "verification": result['response'][:2000]}),
-                                     metadata={"model": result.get('model'), "provider": "perplexity"})
+                                     metadata={"model": result.get('model'), "provider": "perplexity",
+                                               "score_delta": verify_score_delta,
+                                               "verdict": verify_verdict,
+                                               "target_provider": data.get('provider_name', 'unknown'),
+                                               "keywords": _verify_keywords})
 
             return jsonify(verify_response)
         else:
