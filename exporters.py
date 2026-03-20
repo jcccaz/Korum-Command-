@@ -32,6 +32,14 @@ def _output_path(filename: str, output_dir: str | None = None) -> str:
         return os.path.join(output_dir, filename)
     return filename
 
+def _safe_filename_part(value, fallback="Intelligence"):
+    text = _as_text(value).strip()
+    if not text:
+        text = fallback
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1F]+', '_', text)
+    text = re.sub(r'\s+', ' ', text).strip().rstrip('. ')
+    return text[:120] or fallback
+
 def _as_text(value):
     if value is None: return ""
     if isinstance(value, (dict, list)): return json.dumps(value, ensure_ascii=False)
@@ -113,7 +121,8 @@ class PDFExporter:
         SIGNAL_RED = "#FF3131"
         AMBER = "#FFB020"
 
-        filename = f"KORUM-OS_{meta.get('title', 'Intelligence')}_{theme_id}_{_timestamp()}.pdf"
+        safe_title = _safe_filename_part(meta.get('title', 'Intelligence'))
+        filename = f"KORUM-OS_{safe_title}_{theme_id}_{_timestamp()}.pdf"
         filepath = _output_path(filename, output_dir)
         doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=25, bottomMargin=25, leftMargin=40, rightMargin=40)
         doc._bg_color = BG_DARK
@@ -416,7 +425,8 @@ class WordExporter:
                 doc.add_paragraph(art.get("content", ""))
                 doc.add_paragraph()
             
-        filename = f"KORUM-OS_REPORT_{theme_id}_{_timestamp()}.docx"
+        safe_title = _safe_filename_part(meta.get('title', 'Intelligence'))
+        filename = f"KORUM-OS_REPORT_{safe_title}_{theme_id}_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
         doc.save(filepath)
         return filepath
@@ -634,4 +644,3 @@ def _convert_mermaid_to_table(text):
     """Placeholder for eventual Mermaid-to-Grid rendering."""
     # For now, just return clean text
     return text
-
