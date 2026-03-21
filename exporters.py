@@ -49,7 +49,16 @@ def _extract_parts(o):
     return meta, sections, structured, interrogations, verifications
 
 def _artifact_label(art):
-    return _as_text(art.get('title') or art.get('name') or 'ARTIFACT').upper()
+    label = _as_text(art.get('title') or art.get('name') or '').strip()
+    if not label:
+        art_type = _as_text(art.get('type') or '').upper()
+        if art_type in ('VISUALIZATION', 'MERMAID', 'CHART'):
+            label = 'CHART'
+        elif art_type in ('CSV', 'TABLE', 'DATA'):
+            label = 'DATA TABLE'
+        else:
+            label = art_type or 'ARTIFACT'
+    return label.upper()
 
 def _report_artifacts(o):
     """Filter snippets for inclusion in the report."""
@@ -253,15 +262,35 @@ def _decode_image_data(data_url, max_width=500, max_height=300):
         return None
 
 
-def _decode_image_bytes(data_url):
-    """Decode a base64 data URL into raw bytes for Word embedding."""
+def _decode_image_bytes(data_url, max_width_inches=4.5, max_height_inches=3.5):
+    """Decode a base64 data URL into (BytesIO, width_inches, height_inches) for Word embedding.
+    Scales to fit within max bounds while preserving aspect ratio."""
     try:
         if not data_url or not data_url.startswith('data:image/'):
-            return None
+            return None, None, None
         _, encoded = data_url.split(',', 1)
-        return io.BytesIO(base64.b64decode(encoded))
+        img_bytes = base64.b64decode(encoded)
+
+        # Read PNG dimensions from header (bytes 16-23 for width/height)
+        w_px, h_px = 800, 400  # fallback
+        if len(img_bytes) > 24 and img_bytes[:4] == b'\x89PNG':
+            import struct
+            w_px = struct.unpack('>I', img_bytes[16:20])[0]
+            h_px = struct.unpack('>I', img_bytes[20:24])[0]
+
+        # Convert to inches at 96 DPI and scale to fit
+        w_in = w_px / 96.0
+        h_in = h_px / 96.0
+        if w_in > max_width_inches:
+            scale = max_width_inches / w_in
+            w_in, h_in = w_in * scale, h_in * scale
+        if h_in > max_height_inches:
+            scale = max_height_inches / h_in
+            w_in, h_in = w_in * scale, h_in * scale
+
+        return io.BytesIO(img_bytes), w_in, h_in
     except Exception:
-        return None
+        return None, None, None
 
 
 def _artifact_matches(label, section_title, provider_name):
@@ -955,9 +984,16 @@ class WordExporter:
                 art_content = _as_text(art.get('content', ''))
                 if art_label:
                     WordExporter._add_paragraph(doc, art_label, size=8, bold=True, italic=True, color=tc["accent_dark"])
-                img_stream = _decode_image_bytes(art.get('imageData'))
+                img_stream, img_w, img_h = _decode_image_bytes(art.get('imageData'))
                 if img_stream:
-                    doc.add_picture(img_stream, width=Inches(5.0))
+                    pic_kwargs = {}
+                    if img_w:
+                        pic_kwargs['width'] = Inches(img_w)
+                    if img_h:
+                        pic_kwargs['height'] = Inches(img_h)
+                    if not pic_kwargs:
+                        pic_kwargs['width'] = Inches(4.5)
+                    doc.add_picture(img_stream, **pic_kwargs)
                 elif art_content:
                     art_blocks = _extract_content_blocks(art_content)
                     WordExporter._render_word_blocks(doc, art_blocks, tc)

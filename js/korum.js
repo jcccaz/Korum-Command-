@@ -869,10 +869,58 @@ function updateUptime() {
 setInterval(updateUptime, 30000);
 
 // === SVG-TO-PNG CAPTURE — chart image for PDF/Word export ===
+// Renders SVG to canvas PNG with white background for print-ready output.
 async function _svgToPng(svgElement, scale = 2) {
     return new Promise((resolve) => {
         try {
-            const svgData = new XMLSerializer().serializeToString(svgElement);
+            // Clone SVG so we don't mutate the visible chart
+            const clone = svgElement.cloneNode(true);
+
+            // Force explicit dimensions from viewBox if missing
+            const vb = clone.getAttribute('viewBox');
+            if (vb && (!clone.getAttribute('width') || !clone.getAttribute('height'))) {
+                const parts = vb.split(/[\s,]+/).map(Number);
+                if (parts.length === 4) {
+                    clone.setAttribute('width', parts[2]);
+                    clone.setAttribute('height', parts[3]);
+                }
+            }
+
+            // Override dark theme: set SVG background to white
+            clone.style.backgroundColor = 'white';
+            // Find the main background rect (Mermaid uses first <rect> as canvas)
+            const bgRects = clone.querySelectorAll('rect');
+            for (const rect of bgRects) {
+                const fill = (rect.getAttribute('fill') || '').toLowerCase();
+                const cls = (rect.getAttribute('class') || '').toLowerCase();
+                // Target the full-canvas background rect (usually first, or has dark fill)
+                if (cls.includes('background') || fill === '#1f2020' || fill === '#171b1f' ||
+                    fill === '#2d2d2d' || fill === '#0d1117' || fill === 'rgb(31, 32, 32)' ||
+                    (rect === bgRects[0] && rect.getAttribute('width') === '100%')) {
+                    rect.setAttribute('fill', '#FFFFFF');
+                }
+            }
+
+            // Override dark text colors to dark-on-white for readability
+            clone.querySelectorAll('text, tspan').forEach(el => {
+                const fill = (el.getAttribute('fill') || '').toLowerCase();
+                if (fill === '#ccc' || fill === '#ddd' || fill === '#eee' || fill === '#fff' ||
+                    fill === 'white' || fill === '#ffffff' || fill === 'rgb(255, 255, 255)' ||
+                    fill === '#e0dfdb' || fill === '#cde498' || fill.startsWith('rgb(2')) {
+                    el.setAttribute('fill', '#2f2b24');
+                }
+            });
+
+            // Override light grid lines that won't print well
+            clone.querySelectorAll('line, path').forEach(el => {
+                const stroke = (el.getAttribute('stroke') || '').toLowerCase();
+                if (stroke === '#333' || stroke === '#444' || stroke === '#555' ||
+                    stroke === 'rgb(51, 51, 51)') {
+                    el.setAttribute('stroke', '#CCCCCC');
+                }
+            });
+
+            const svgData = new XMLSerializer().serializeToString(clone);
             const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
             const url = URL.createObjectURL(svgBlob);
             const img = new window.Image();
@@ -895,6 +943,21 @@ async function _svgToPng(svgElement, scale = 2) {
             resolve(null);
         }
     });
+}
+
+// Extract a human-readable title from Mermaid chart code
+function _extractChartTitle(mermaidCode) {
+    if (!mermaidCode) return null;
+    // xychart-beta: title "Some Title"
+    let m = mermaidCode.match(/title\s+"([^"]+)"/i);
+    if (m) return m[1];
+    // pie title text
+    m = mermaidCode.match(/pie\s+title\s+(.+)/i);
+    if (m) return m[1].trim();
+    // flowchart/graph label from first node
+    m = mermaidCode.match(/graph\s+\w+\s*\n\s*\w+\[([^\]]+)\]/);
+    if (m) return m[1].trim();
+    return null;
 }
 
 // === RESEARCH DOCK - Smart Clipboard for Research Artifacts ===
@@ -4470,11 +4533,30 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
             const btn = event.currentTarget;
             const snippet = ResearchDock.add(result.mermaid_code, 'visualization');
             if (!snippet) return;
+
+            // Set a meaningful title from chart code
+            const chartTitle = _extractChartTitle(result.mermaid_code);
+            if (chartTitle) {
+                snippet.title = chartTitle;
+                snippet.name = chartTitle;
+            } else {
+                snippet.title = `${chartType.toUpperCase()} Chart`;
+                snippet.name = snippet.title;
+            }
+
             btn.innerHTML = '📌 CAPTURING...';
             btn.disabled = true;
-            // Capture rendered SVG as PNG
+
+            // Re-render with light theme for print-ready capture
             try {
-                const svgEl = document.querySelector(`#${chartId}-overlay .mermaid svg`);
+                const lightCode = `%%{init: {'theme':'default'}}%%\n${result.mermaid_code}`;
+                const renderDiv = document.createElement('div');
+                renderDiv.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;padding:20px;';
+                document.body.appendChild(renderDiv);
+                const renderId = 'export-' + Date.now();
+                const { svg } = await mermaid.render(renderId, lightCode);
+                renderDiv.innerHTML = svg;
+                const svgEl = renderDiv.querySelector('svg');
                 if (svgEl) {
                     const pngData = await _svgToPng(svgEl);
                     if (pngData) {
@@ -4482,8 +4564,20 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
                         ResearchDock.save();
                     }
                 }
+                document.body.removeChild(renderDiv);
             } catch (e) {
-                console.error('Chart capture error:', e);
+                console.error('Light-theme capture error, falling back:', e);
+                // Fallback: capture the visible dark-theme SVG
+                try {
+                    const svgEl = document.querySelector(`#${chartId}-overlay .mermaid svg`);
+                    if (svgEl) {
+                        const pngData = await _svgToPng(svgEl);
+                        if (pngData) {
+                            snippet.imageData = pngData;
+                            ResearchDock.save();
+                        }
+                    }
+                } catch (e2) { console.error('Fallback capture error:', e2); }
             }
             btn.innerHTML = '📌 DOCKED';
             showProcessingToast("Chart docked with image.");
