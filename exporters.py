@@ -2,6 +2,7 @@
 # Proprietary KorumOS source code. Access is limited to authorized personnel
 # and collaborators operating under written confidentiality obligations.
 
+import base64
 import csv
 import io
 import json
@@ -226,6 +227,41 @@ def _first_table_block(text):
         if block.get("type") == "table":
             return block
     return None
+
+
+def _decode_image_data(data_url, max_width=500, max_height=300):
+    """Decode a base64 data URL into a ReportLab Image flowable."""
+    try:
+        if not data_url or not data_url.startswith('data:image/'):
+            return None
+        header, encoded = data_url.split(',', 1)
+        img_bytes = base64.b64decode(encoded)
+        buf = io.BytesIO(img_bytes)
+        img = Image(buf)
+        # Scale to fit within max bounds while preserving aspect ratio
+        w, h = img.drawWidth, img.drawHeight
+        if w > max_width:
+            scale = max_width / w
+            w, h = w * scale, h * scale
+        if h > max_height:
+            scale = max_height / h
+            w, h = w * scale, h * scale
+        img.drawWidth = w
+        img.drawHeight = h
+        return img
+    except Exception:
+        return None
+
+
+def _decode_image_bytes(data_url):
+    """Decode a base64 data URL into raw bytes for Word embedding."""
+    try:
+        if not data_url or not data_url.startswith('data:image/'):
+            return None
+        _, encoded = data_url.split(',', 1)
+        return io.BytesIO(base64.b64decode(encoded))
+    except Exception:
+        return None
 
 
 def _artifact_matches(label, section_title, provider_name):
@@ -503,11 +539,19 @@ class ExecutiveMemoExporter:
             top_visual = artifacts.pop(0)
 
         if top_visual:
-            visual_col = [
-                Paragraph(_artifact_label(top_visual), styles['StatCaption']),
-                Spacer(1, 5),
-                Paragraph(escape(_as_text(top_visual.get('content',''))[:150]).replace("\n","<br/>"), styles['ExecAudit'])
-            ]
+            chart_img = _decode_image_data(top_visual.get('imageData'), max_width=200, max_height=180)
+            if chart_img:
+                visual_col = [
+                    Paragraph(_artifact_label(top_visual), styles['StatCaption']),
+                    Spacer(1, 5),
+                    chart_img,
+                ]
+            else:
+                visual_col = [
+                    Paragraph(_artifact_label(top_visual), styles['StatCaption']),
+                    Spacer(1, 5),
+                    Paragraph(escape(_as_text(top_visual.get('content',''))[:150]).replace("\n","<br/>"), styles['ExecAudit'])
+                ]
             summary_tab = Table([[[summary_p], visual_col]], colWidths=[324, 216])
             summary_tab.setStyle(TableStyle([
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -639,7 +683,10 @@ class ExecutiveMemoExporter:
                 if art_label:
                     story.append(Paragraph(art_label, styles['ExecSectionSubhead']))
                     story.append(Spacer(1, 4))
-                if art_content:
+                chart_img = _decode_image_data(art.get('imageData'), max_width=480, max_height=300)
+                if chart_img:
+                    story.append(chart_img)
+                elif art_content:
                     art_blocks = _extract_content_blocks(art_content)
                     story.extend(_render_pdf_blocks(art_blocks, styles, 540, tc))
                 story.append(Spacer(1, 12))
@@ -908,7 +955,10 @@ class WordExporter:
                 art_content = _as_text(art.get('content', ''))
                 if art_label:
                     WordExporter._add_paragraph(doc, art_label, size=8, bold=True, italic=True, color=tc["accent_dark"])
-                if art_content:
+                img_stream = _decode_image_bytes(art.get('imageData'))
+                if img_stream:
+                    doc.add_picture(img_stream, width=Inches(5.0))
+                elif art_content:
                     art_blocks = _extract_content_blocks(art_content)
                     WordExporter._render_word_blocks(doc, art_blocks, tc)
             WordExporter._add_spacing(doc)

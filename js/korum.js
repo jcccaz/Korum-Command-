@@ -868,6 +868,35 @@ function updateUptime() {
 }
 setInterval(updateUptime, 30000);
 
+// === SVG-TO-PNG CAPTURE — chart image for PDF/Word export ===
+async function _svgToPng(svgElement, scale = 2) {
+    return new Promise((resolve) => {
+        try {
+            const svgData = new XMLSerializer().serializeToString(svgElement);
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth * scale;
+                canvas.height = img.naturalHeight * scale;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.scale(scale, scale);
+                ctx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(url);
+                resolve(canvas.toDataURL('image/png'));
+            };
+            img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+            img.src = url;
+        } catch (e) {
+            console.error('SVG to PNG error:', e);
+            resolve(null);
+        }
+    });
+}
+
 // === RESEARCH DOCK - Smart Clipboard for Research Artifacts ===
 const ResearchDock = {
     snippets: [],
@@ -4437,13 +4466,27 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-        document.getElementById(`${chartId}-dock-btn`)?.addEventListener('click', (event) => {
+        document.getElementById(`${chartId}-dock-btn`)?.addEventListener('click', async (event) => {
             const btn = event.currentTarget;
             const snippet = ResearchDock.add(result.mermaid_code, 'visualization');
             if (!snippet) return;
-            btn.innerHTML = '📌 DOCKED';
+            btn.innerHTML = '📌 CAPTURING...';
             btn.disabled = true;
-            showProcessingToast("Chart docked to research dock.");
+            // Capture rendered SVG as PNG
+            try {
+                const svgEl = document.querySelector(`#${chartId}-overlay .mermaid svg`);
+                if (svgEl) {
+                    const pngData = await _svgToPng(svgEl);
+                    if (pngData) {
+                        snippet.imageData = pngData;
+                        ResearchDock.save();
+                    }
+                }
+            } catch (e) {
+                console.error('Chart capture error:', e);
+            }
+            btn.innerHTML = '📌 DOCKED';
+            showProcessingToast("Chart docked with image.");
         });
 
         // Render the Mermaid diagram
