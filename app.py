@@ -806,6 +806,7 @@ def falcon_preview():
 
     try:
         import hashlib
+        from falcon import build_ghost_map_summary, detect_residual_pii
         _salt = hashlib.sha256(f"ghost_preview:{time.time_ns()}".encode()).hexdigest()[:12]
         result = falcon_preprocess(
             raw_text,
@@ -814,11 +815,29 @@ def falcon_preview():
             salt=_salt,
             placeholder_cache={}
         )
+        ghost_map_summary = build_ghost_map_summary(result)
+        residual_report = detect_residual_pii(result.redacted_text, result)
+        safe_residual_report = {
+            "residual_count": residual_report.get("residual_count", 0),
+            "missed_categories": residual_report.get("missed_categories", []),
+            "pii_diff_clean": residual_report.get("pii_diff_clean", False),
+            "audit_note": residual_report.get("audit_note", ""),
+            "primary_redaction_count": residual_report.get("primary_redaction_count", 0),
+            "primary_level": residual_report.get("primary_level", level),
+        }
+        safe_ghost_map = {
+            "by_type": ghost_map_summary.get("by_type", {}),
+            "total_redacted": ghost_map_summary.get("total_redacted", 0),
+            "high_risk_types": ghost_map_summary.get("high_risk_types", []),
+            "redaction_mode": ghost_map_summary.get("redaction_mode", "hash"),
+            "falcon_level": ghost_map_summary.get("falcon_level", level),
+        }
 
         print("--- FALCON GHOST PREVIEW ---")
         print(f"  ORIGINAL : {raw_text[:80]}{'...' if len(raw_text) > 80 else ''}")
         print(f"  GHOST    : {result.redacted_text[:80]}{'...' if len(result.redacted_text) > 80 else ''}")
         print(f"  KEYS     : {list(result.placeholder_map.keys())}")
+        print(f"  RESIDUAL : {safe_residual_report['residual_count']} -> {'CLEAN' if safe_residual_report['pii_diff_clean'] else 'ALERT'}")
         print("----------------------------")
 
         return jsonify({
@@ -829,7 +848,9 @@ def falcon_preview():
             "categories_found": result.metadata.get("categories_found", []),
             "exposure_risk": result.metadata.get("exposure_risk", "none"),
             "execution_time_ms": result.metadata.get("execution_time_ms", 0),
-            "documents_scanned": doc_count
+            "documents_scanned": doc_count,
+            "ghost_map_summary": safe_ghost_map,
+            "residual_report": safe_residual_report,
         })
     except Exception as e:
         print(f"FALCON PREVIEW ERROR: {e}")

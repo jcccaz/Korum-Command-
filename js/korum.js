@@ -4409,6 +4409,8 @@ function openGhostModal(originalText, redactedHtml, stats) {
     const origEl = document.getElementById('ghostOriginalText');
     const redEl = document.getElementById('ghostRedactedText');
     const statsEl = document.getElementById('ghostStats');
+    const trustEl = document.getElementById('ghostTrustPanel');
+    const executeBtn = document.getElementById('ghostExecuteBtn');
     if (!modal || !origEl || !redEl) return;
 
     origEl.textContent = originalText;
@@ -4438,6 +4440,19 @@ function openGhostModal(originalText, redactedHtml, stats) {
             }, 3000);
         }
     }
+
+    if (trustEl && stats) {
+        trustEl.innerHTML = buildGhostTrustPanel(stats);
+    }
+
+    if (executeBtn) {
+        const residualClean = !!stats?.residual_report?.pii_diff_clean;
+        executeBtn.classList.toggle('warning', !residualClean);
+        executeBtn.textContent = residualClean ? 'EXECUTE PROTOCOL' : 'EXECUTE WITH ALERT';
+        executeBtn.title = residualClean
+            ? 'Falcon residual scan is clean. Proceed to council.'
+            : 'Residual scan found possible misses. Review outbound ghost before proceeding.';
+    }
     modal.classList.add('visible');
 }
 
@@ -4448,6 +4463,103 @@ function closeGhostModal() {
 function highlightPlaceholders(text) {
     return text.replace(/\[([A-Z_]+_[A-F0-9]+)\]/g,
         '<span class="ghost-placeholder">[$1]</span>');
+}
+
+function escapeGhostHtml(text) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function buildGhostTrustPanel(stats) {
+    const ghostMap = stats.ghost_map_summary || {};
+    const residual = stats.residual_report || {};
+    const byType = ghostMap.by_type || {};
+    const residualClean = !!residual.pii_diff_clean;
+    const residualState = residualClean ? 'ghost-trust-clean' : 'ghost-trust-alert';
+    const residualLabel = residualClean ? 'RESIDUAL SCAN CLEAN' : 'RESIDUAL ALERT';
+    const residualCount = residual.residual_count || 0;
+    const level = ghostMap.falcon_level || stats.level || 'STANDARD';
+    const mode = (ghostMap.redaction_mode || 'hash').toUpperCase();
+    const highRisk = (ghostMap.high_risk_types || []).map(type =>
+        `<span class="ghost-trust-highrisk">${escapeGhostHtml(type)}</span>`
+    ).join('');
+
+    const inventory = Object.entries(byType)
+        .sort((a, b) => b[1].length - a[1].length)
+        .map(([type, tokens]) => {
+            const safeTokens = tokens.slice(0, 3).map(token =>
+                `<span class="ghost-token-chip">${escapeGhostHtml(token)}</span>`
+            ).join('');
+            const moreCount = tokens.length - Math.min(tokens.length, 3);
+            const moreLabel = moreCount > 0 ? `<span class="ghost-token-more">+${moreCount} more</span>` : '';
+            return `
+                <div class="ghost-inventory-row">
+                    <div class="ghost-inventory-head">
+                        <span class="ghost-inventory-type">${escapeGhostHtml(type)}</span>
+                        <span class="ghost-inventory-count">${tokens.length}</span>
+                    </div>
+                    <div class="ghost-token-row">${safeTokens}${moreLabel}</div>
+                </div>`;
+        }).join('');
+
+    const missedCategories = (residual.missed_categories || []).map(cat =>
+        `<span class="ghost-trust-missed">${escapeGhostHtml(cat)}</span>`
+    ).join('');
+
+    const auditNote = residual.audit_note
+        ? `<div class="ghost-trust-note">${escapeGhostHtml(residual.audit_note)}</div>`
+        : '';
+
+    return `
+        <div class="ghost-trust-header">
+            <div class="ghost-trust-title">FALCON TRUST PANEL</div>
+            <div class="ghost-trust-subtitle">This audit uses the exact outbound ghost shown above.</div>
+        </div>
+        <div class="ghost-trust-summary">
+            <div class="ghost-trust-status ${residualState}">
+                <span class="ghost-trust-status-label">${residualLabel}</span>
+                <strong>${residualCount}</strong>
+                <span class="ghost-trust-status-copy">${residualClean ? 'secondary pass clear' : 'possible misses found'}</span>
+            </div>
+            <div class="ghost-trust-metrics">
+                <div class="ghost-trust-metric">
+                    <span class="ghost-trust-k">LEVEL</span>
+                    <span class="ghost-trust-v">${escapeGhostHtml(level)}</span>
+                </div>
+                <div class="ghost-trust-metric">
+                    <span class="ghost-trust-k">MODE</span>
+                    <span class="ghost-trust-v">${escapeGhostHtml(mode)}</span>
+                </div>
+                <div class="ghost-trust-metric">
+                    <span class="ghost-trust-k">TOKENS</span>
+                    <span class="ghost-trust-v">${ghostMap.total_redacted || stats.total_redactions || 0}</span>
+                </div>
+            </div>
+        </div>
+        <div class="ghost-trust-grid">
+            <div class="ghost-trust-card">
+                <div class="ghost-trust-card-label">TOKEN INVENTORY BY TYPE</div>
+                <div class="ghost-inventory-list">${inventory || '<div class="ghost-empty-copy">No redacted entities detected.</div>'}</div>
+            </div>
+            <div class="ghost-trust-card">
+                <div class="ghost-trust-card-label">AUDIT READINESS</div>
+                <div class="ghost-readiness-row">
+                    <span class="ghost-readiness-pill ${residualState}">${residualLabel}</span>
+                    <span class="ghost-readiness-copy">${residualClean ? 'No residual PII detected in secondary pass.' : 'Secondary pass found possible misses. Review before sending.'}</span>
+                </div>
+                <div class="ghost-readiness-row">
+                    <span class="ghost-readiness-pill ghost-trust-neutral">HIGH-RISK TYPES</span>
+                    <span class="ghost-readiness-copy">${highRisk || '<span class="ghost-empty-copy">None detected.</span>'}</span>
+                </div>
+                <div class="ghost-readiness-row">
+                    <span class="ghost-readiness-pill ghost-trust-neutral">MISSED CATEGORIES</span>
+                    <span class="ghost-readiness-copy">${missedCategories || '<span class="ghost-empty-copy">None.</span>'}</span>
+                </div>
+                ${auditNote}
+            </div>
+        </div>`;
 }
 
 window.ghostPreview = async function () {

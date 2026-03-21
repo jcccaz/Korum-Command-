@@ -3712,6 +3712,271 @@ body.activated .sphere-texture {
     margin-left: 4px;
 }
 
+.ghost-trust-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(31, 24, 18, 0.72);
+    border: 1px solid rgba(173, 129, 79, 0.2);
+    border-radius: 10px;
+}
+
+.ghost-trust-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ghost-trust-title {
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    color: #d6b07a;
+}
+
+.ghost-trust-subtitle {
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.ghost-trust-summary {
+    display: grid;
+    grid-template-columns: minmax(210px, 1fr) 1.2fr;
+    gap: 12px;
+}
+
+.ghost-trust-status,
+.ghost-trust-metrics,
+.ghost-trust-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+}
+
+.ghost-trust-status {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 14px 16px;
+}
+
+.ghost-trust-status-label {
+    font-family: var(--font-head);
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    color: rgba(255, 255, 255, 0.58);
+}
+
+.ghost-trust-status strong {
+    font-family: var(--font-head);
+    font-size: 28px;
+    line-height: 1;
+}
+
+.ghost-trust-status-copy {
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.ghost-trust-clean {
+    border-color: rgba(109, 177, 94, 0.35);
+    background: rgba(39, 74, 36, 0.35);
+    color: #9fdb8f;
+}
+
+.ghost-trust-alert {
+    border-color: rgba(194, 94, 82, 0.4);
+    background: rgba(91, 34, 29, 0.42);
+    color: #f1a09a;
+}
+
+.ghost-trust-neutral {
+    background: rgba(120, 94, 58, 0.28);
+    color: #d6b07a;
+    border: 1px solid rgba(173, 129, 79, 0.2);
+}
+
+.ghost-trust-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px 12px;
+}
+
+.ghost-trust-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    background: rgba(12, 12, 12, 0.38);
+    border-radius: 6px;
+}
+
+.ghost-trust-k {
+    font-family: var(--font-head);
+    font-size: 9px;
+    letter-spacing: 1.2px;
+    color: rgba(255, 255, 255, 0.42);
+}
+
+.ghost-trust-v {
+    font-family: var(--font-head);
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.ghost-trust-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 12px;
+}
+
+.ghost-trust-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+}
+
+.ghost-trust-card-label {
+    font-family: var(--font-head);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.ghost-inventory-list,
+.ghost-readiness-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ghost-inventory-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ghost-inventory-row:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.ghost-inventory-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.ghost-inventory-type {
+    font-family: var(--font-head);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.82);
+    letter-spacing: 0.6px;
+}
+
+.ghost-inventory-count {
+    min-width: 26px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(173, 129, 79, 0.16);
+    color: #d6b07a;
+    font-family: var(--font-head);
+    font-size: 10px;
+    text-align: center;
+}
+
+.ghost-token-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ghost-token-chip,
+.ghost-token-more,
+.ghost-trust-highrisk,
+.ghost-trust-missed {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 10px;
+}
+
+.ghost-token-chip {
+    background: rgba(255, 140, 50, 0.1);
+    border: 1px solid rgba(255, 140, 50, 0.18);
+    color: #efc085;
+}
+
+.ghost-token-more {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.48);
+}
+
+.ghost-trust-highrisk,
+.ghost-trust-missed {
+    margin-right: 6px;
+}
+
+.ghost-trust-highrisk {
+    background: rgba(194, 94, 82, 0.18);
+    border: 1px solid rgba(194, 94, 82, 0.28);
+    color: #f1a09a;
+}
+
+.ghost-trust-missed {
+    background: rgba(216, 176, 122, 0.12);
+    border: 1px solid rgba(216, 176, 122, 0.18);
+    color: #d6b07a;
+}
+
+.ghost-readiness-pill {
+    display: inline-flex;
+    align-self: flex-start;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-family: var(--font-head);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+}
+
+.ghost-readiness-copy {
+    font-family: var(--font-body);
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.ghost-trust-note {
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.22);
+    border-left: 2px solid rgba(216, 176, 122, 0.45);
+    border-radius: 6px;
+    font-family: var(--font-body);
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.ghost-empty-copy {
+    color: rgba(255, 255, 255, 0.42);
+    font-style: italic;
+}
+
 /* Quick-Protect row inside Ghost Preview */
 .ghost-protect-row {
     display: flex;
@@ -3810,6 +4075,29 @@ body.activated .sphere-texture {
     background: rgba(255, 140, 50, 0.2);
     border-color: rgba(255, 140, 50, 0.6);
     box-shadow: 0 0 16px rgba(255, 140, 50, 0.15);
+}
+
+.ghost-action-btn.execute.warning {
+    background: rgba(194, 94, 82, 0.14);
+    border-color: rgba(194, 94, 82, 0.38);
+    color: #f1a09a;
+}
+
+.ghost-action-btn.execute.warning:hover {
+    background: rgba(194, 94, 82, 0.22);
+    border-color: rgba(194, 94, 82, 0.52);
+    box-shadow: 0 0 16px rgba(194, 94, 82, 0.12);
+}
+
+@media (max-width: 820px) {
+    .ghost-trust-summary,
+    .ghost-trust-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ghost-trust-metrics {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* EXECUTIVE BRIEF PANEL */
