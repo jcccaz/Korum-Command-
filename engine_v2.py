@@ -1077,12 +1077,23 @@ def verify_claims(claims, council_history):
                 score -= 5
                 contribution -= 2
 
-        # Simple cross-provider agreement logic
+        # Cross-provider agreement via keyword overlap
+        # Extract significant words (4+ chars, not stopwords) from the claim
+        _stopwords = {'this', 'that', 'with', 'from', 'will', 'have', 'been', 'they',
+                      'their', 'would', 'could', 'should', 'about', 'which', 'there',
+                      'these', 'those', 'than', 'then', 'also', 'into', 'more', 'most',
+                      'such', 'when', 'what', 'some', 'only', 'very', 'just', 'over',
+                      'each', 'does', 'were', 'being', 'other', 'while', 'both', 'after',
+                      'before', 'between', 'under', 'through', 'during', 'without', 'within'}
+        claim_words = [w for w in re.findall(r'[a-z0-9]+', claim_lower)
+                       if len(w) >= 4 and w not in _stopwords]
+        keyword_threshold = max(2, len(claim_words) * 0.4)  # 40% of keywords must match
+
         agreement_count = 0
         for entry in council_history:
             content = entry['response'].lower()
-            # Basic semantic match: if the core claim text is present
-            if claim_lower in content:
+            matched = sum(1 for w in claim_words if w in content)
+            if claim_words and matched >= keyword_threshold:
                 agreement_count += 1
                 anchors.append(entry['ai'])
 
