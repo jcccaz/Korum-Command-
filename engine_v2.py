@@ -1959,8 +1959,10 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
 
     # 4. Hidden Finalizer Pass (Section 10 Directive)
     # If Mistral is present, it acts as a non-visible Finalizer to unify tone.
+    # SKIP for RESEARCH workflow — clean report mode handles unification via synthesis + output filter.
     finalizer_response = None
-    if 'mistral' in active_models or 'mistral' in [m.split('-')[0].lower() for m in (execution_order if 'execution_order' in locals() else [])]:
+    _skip_finalizer = workflow in ("RESEARCH", "TECH", "WAR_ROOM")
+    if not _skip_finalizer and ('mistral' in active_models or 'mistral' in [m.split('-')[0].lower() for m in (execution_order if 'execution_order' in locals() else [])]):
         print("[COUNCIL] Hidden Finalizer Pass: Mistral unifying report tone...")
         try:
             # Build history_text for the hidden Finalizer pass (aggregates previous council findings)
@@ -2934,6 +2936,47 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
         for m in metrics:
             if m.strip() not in data["intelligence_tags"]["metrics"]:
                 data["intelligence_tags"]["metrics"].append(m.strip())
+
+        # --- POST-SYNTHESIS OUTPUT FILTER (Clean Report Mode) ---
+        # Regex scrub on all sections to strip agent labels, tags, citations, tool spam
+        sections = data.get("sections") or {}
+        if sections:
+            import re as _cf
+            _clean_patterns = [
+                (_cf.compile(r'NODE\s+\d+\s*[-—:]?\s*', _cf.IGNORECASE), ''),                  # NODE 01 —
+                (_cf.compile(r'\b(OPENAI|ANTHROPIC|GOOGLE|PERPLEXITY|MISTRAL)\b', _cf.IGNORECASE), ''),  # provider names
+                (_cf.compile(r'\b(GPT-4o?|Claude\s*\d*\.?\d*\s*\w*|Gemini\s*\d*\.?\d*|Sonar)\b', _cf.IGNORECASE), ''),  # model names
+                (_cf.compile(r'\[(?:VERIFIED|CRITICAL|ACTION REQUIRED|REJECTED|AMBER|WARNING|RISK)\]'), ''),  # signal tags
+                (_cf.compile(r'\[(?:TRUTH_BOMB|RISK_VECTOR|DECISION_CANDIDATE|METRIC_ANCHOR)\]'), ''),  # internal tags
+                (_cf.compile(r'\[/(?:TRUTH_BOMB|RISK_VECTOR|DECISION_CANDIDATE|METRIC_ANCHOR)\]'), ''),  # closing tags
+                (_cf.compile(r'\[\d+\]'), ''),                                                    # citation refs [1][2]
+                (_cf.compile(r'(?:the\s+)?council\s+(?:found|determined|agreed|concluded)', _cf.IGNORECASE), 'analysis indicates'),  # council refs
+                (_cf.compile(r'this\s+model\s+(?:said|found|concluded)', _cf.IGNORECASE), 'analysis shows'),  # model refs
+            ]
+            _scrubbed = 0
+            for sec_key, sec_text in sections.items():
+                if not isinstance(sec_text, str):
+                    continue
+                original = sec_text
+                for pattern, replacement in _clean_patterns:
+                    sec_text = pattern.sub(replacement, sec_text)
+                # Clean up double spaces from removals
+                sec_text = _cf.sub(r'  +', ' ', sec_text)
+                sec_text = _cf.sub(r'\n +\n', '\n\n', sec_text)
+                if sec_text != original:
+                    _scrubbed += 1
+                sections[sec_key] = sec_text
+            data["sections"] = sections
+            if _scrubbed:
+                print(f"[OUTPUT FILTER] Scrubbed {_scrubbed} section(s) — removed agent labels, tags, citations")
+
+        # Also scrub meta.summary if present
+        meta_summary = (data.get("meta") or {}).get("summary", "")
+        if meta_summary and isinstance(meta_summary, str):
+            for pattern, replacement in _clean_patterns:
+                meta_summary = pattern.sub(replacement, meta_summary)
+            meta_summary = _cf.sub(r'  +', ' ', meta_summary)
+            data["meta"]["summary"] = meta_summary
 
         # Clean report validation — log warnings (non-blocking)
         validate_clean_report(data, workflow=context.workflow)
