@@ -499,11 +499,8 @@ class ExecutiveMemoExporter:
         summary_p = Paragraph(f"<b>{escape(summary_text)}</b>", styles['ExecImpact'])
 
         top_visual = None
-        for art in artifacts:
-            if art.get('type') in ('donut', 'pie') or 'REVENUE' in _artifact_label(art):
-                top_visual = art
-                artifacts.remove(art)
-                break
+        if artifacts:
+            top_visual = artifacts.pop(0)
 
         if top_visual:
             visual_col = [
@@ -629,7 +626,25 @@ class ExecutiveMemoExporter:
             story.append(contrib_tab)
             story.append(Spacer(1, 20))
 
-        # 6. --- CONSENSUS FOOTER ---
+        # 6. --- DOCKED ARTIFACTS ---
+        if artifacts:
+            story.append(Paragraph("DOCKED ARTIFACTS", styles['ExecLabel']))
+            story.append(Spacer(1, 6))
+            story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
+                style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
+            story.append(Spacer(1, 10))
+            for art in artifacts:
+                art_label = _artifact_label(art)
+                art_content = _as_text(art.get('content', ''))
+                if art_label:
+                    story.append(Paragraph(art_label, styles['ExecSectionSubhead']))
+                    story.append(Spacer(1, 4))
+                if art_content:
+                    art_blocks = _extract_content_blocks(art_content)
+                    story.extend(_render_pdf_blocks(art_blocks, styles, 540, tc))
+                story.append(Spacer(1, 12))
+
+        # 7. --- CONSENSUS FOOTER ---
         truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
         consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Council reached operational consensus."
         cons_data = [
@@ -752,6 +767,7 @@ class WordExporter:
         card_results = intelligence_object.get("_card_results") or {}
         contributors = intelligence_object.get("council_contributors") or []
         divergence = intelligence_object.get("divergence_analysis") or {}
+        artifacts = _report_artifacts(intelligence_object)
         session_id = _resolve_session_id(meta, intelligence_object)
 
         # 1. --- PREMIUM HEADER ---
@@ -884,7 +900,20 @@ class WordExporter:
                 WordExporter._add_paragraph(cell, stamp, size=7, color=tc["text"])
             WordExporter._add_spacing(doc)
 
-        # 6. --- CONSENSUS FOOTER ---
+        # 6. --- DOCKED ARTIFACTS ---
+        if artifacts:
+            WordExporter._add_paragraph(doc, "DOCKED ARTIFACTS", size=7, bold=True, color=DIM_GRAY)
+            for art in artifacts:
+                art_label = _artifact_label(art)
+                art_content = _as_text(art.get('content', ''))
+                if art_label:
+                    WordExporter._add_paragraph(doc, art_label, size=8, bold=True, italic=True, color=tc["accent_dark"])
+                if art_content:
+                    art_blocks = _extract_content_blocks(art_content)
+                    WordExporter._render_word_blocks(doc, art_blocks, tc)
+            WordExporter._add_spacing(doc)
+
+        # 7. --- CONSENSUS FOOTER ---
         truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
         consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Council reached operational consensus."
         cons_tab = doc.add_table(rows=1, cols=2)
