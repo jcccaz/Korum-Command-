@@ -2912,7 +2912,10 @@ function buildAnalysisActionBar() {
                 <div class="chart-option" data-chart="bar">📊 Bar Chart</div>
                 <div class="chart-option" data-chart="line">📈 Line Chart</div>
                 <div class="chart-option" data-chart="flowchart">🔀 Flowchart</div>
-                <div class="chart-option" data-chart="auto">🎯 Auto-detect</div>
+                <div class="chart-option" data-chart="waterfall">📉 Waterfall</div>
+                <div class="chart-option" data-chart="horizontal_bar">↔️ Horizontal Bar</div>
+                <div class="chart-option" data-chart="stacked_bar">📊 Stacked Bar</div>
+                <div class="chart-option" data-chart="auto">🔍 Auto-detect</div>
             </div>
         </div>
         <button class="aab-btn aab-document" data-action="document">
@@ -4480,7 +4483,7 @@ window.visualizeSelection = function (fallbackText) {
     generateCardChart(textToProcess, 'auto');
 };
 
-// Lightweight chart generation — single Gemini Flash call, returns Mermaid
+// Dual-path chart generation: Mermaid (frontend render) or SVG native (server render)
 async function generateCardChart(data, chartType = 'auto', cardEl = null) {
     logTelemetry(`GENERATING ${chartType.toUpperCase()} CHART...`, "process");
     showProcessingToast("Generating chart...");
@@ -4504,17 +4507,32 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
         }
 
         const result = await response.json();
-        if (!result.success || !result.mermaid_code) {
-            throw new Error('No chart data returned');
+        const renderer = result.renderer || 'mermaid';
+
+        // Validate response based on renderer
+        if (renderer === 'svg_native') {
+            if (!result.success || !result.svg_code) throw new Error('No SVG chart data returned');
+        } else {
+            if (!result.success || !result.mermaid_code) throw new Error('No chart data returned');
         }
 
         // Render chart in a modal
         const chartId = 'chart-' + Date.now();
+        const chartTitle = result.title || `${chartType.replace(/_/g, ' ').toUpperCase()} VISUALIZATION`;
+
+        // Build modal body based on renderer
+        let modalBody;
+        if (renderer === 'svg_native') {
+            modalBody = `<div class="svg-native-container">${result.svg_code}</div>`;
+        } else {
+            modalBody = `<div class="mermaid-container"><div class="mermaid">${result.mermaid_code}</div></div>`;
+        }
+
         const modalHtml = `
             <div class="chart-modal-overlay" id="${chartId}-overlay">
                 <div class="chart-modal">
                     <div class="chart-modal-header">
-                        <span>📊 ${chartType.toUpperCase()} VISUALIZATION</span>
+                        <span>📊 ${chartTitle}</span>
                         <div style="display:flex; gap:10px; align-items:center;">
                             <button class="modal-action-btn" id="${chartId}-dock-btn" style="padding:4px 10px; font-size:10px; background:rgba(0,255,157,0.1); border-color:rgba(0,255,157,0.3); color:#00FF9D;">
                                 📌 DOCK CHART
@@ -4523,53 +4541,36 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
                         </div>
                     </div>
                     <div class="chart-modal-body">
-                        <div class="mermaid-container"><div class="mermaid">${result.mermaid_code}</div></div>
+                        ${modalBody}
                     </div>
                 </div>
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // ── Dock button handler ──────────────────────────────────────────
         document.getElementById(`${chartId}-dock-btn`)?.addEventListener('click', async (event) => {
             const btn = event.currentTarget;
-            const snippet = ResearchDock.add(result.mermaid_code, 'visualization');
+            const dockContent = renderer === 'svg_native' ? result.svg_code : result.mermaid_code;
+            const snippet = ResearchDock.add(dockContent, 'visualization');
             if (!snippet) return;
 
-            // Set a meaningful title from chart code
-            const chartTitle = _extractChartTitle(result.mermaid_code);
-            if (chartTitle) {
-                snippet.title = chartTitle;
-                snippet.name = chartTitle;
+            // Set title
+            if (renderer === 'svg_native') {
+                snippet.title = result.title || `${chartType.replace(/_/g, ' ').toUpperCase()} Chart`;
             } else {
-                snippet.title = `${chartType.toUpperCase()} Chart`;
-                snippet.name = snippet.title;
+                const extractedTitle = _extractChartTitle(result.mermaid_code);
+                snippet.title = extractedTitle || `${chartType.toUpperCase()} Chart`;
             }
+            snippet.name = snippet.title;
 
             btn.innerHTML = '📌 CAPTURING...';
             btn.disabled = true;
 
-            // Re-render with light theme for print-ready capture
-            try {
-                const lightCode = `%%{init: {'theme':'default'}}%%\n${result.mermaid_code}`;
-                const renderDiv = document.createElement('div');
-                renderDiv.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;padding:20px;';
-                document.body.appendChild(renderDiv);
-                const renderId = 'export-' + Date.now();
-                const { svg } = await mermaid.render(renderId, lightCode);
-                renderDiv.innerHTML = svg;
-                const svgEl = renderDiv.querySelector('svg');
-                if (svgEl) {
-                    const pngData = await _svgToPng(svgEl);
-                    if (pngData) {
-                        snippet.imageData = pngData;
-                        ResearchDock.save();
-                    }
-                }
-                document.body.removeChild(renderDiv);
-            } catch (e) {
-                console.error('Light-theme capture error, falling back:', e);
-                // Fallback: capture the visible dark-theme SVG
+            // ── SVG Native capture (already white/print-ready) ──────────
+            if (renderer === 'svg_native') {
                 try {
-                    const svgEl = document.querySelector(`#${chartId}-overlay .mermaid svg`);
+                    const svgEl = document.querySelector(`#${chartId}-overlay .svg-native-container svg`);
                     if (svgEl) {
                         const pngData = await _svgToPng(svgEl);
                         if (pngData) {
@@ -4577,14 +4578,47 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
                             ResearchDock.save();
                         }
                     }
-                } catch (e2) { console.error('Fallback capture error:', e2); }
+                } catch (e) { console.error('SVG native capture error:', e); }
+            }
+            // ── Mermaid capture (re-render with light theme) ────────────
+            else {
+                try {
+                    const lightCode = `%%{init: {'theme':'default'}}%%\n${result.mermaid_code}`;
+                    const renderDiv = document.createElement('div');
+                    renderDiv.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;padding:20px;';
+                    document.body.appendChild(renderDiv);
+                    const renderId = 'export-' + Date.now();
+                    const { svg } = await mermaid.render(renderId, lightCode);
+                    renderDiv.innerHTML = svg;
+                    const svgEl = renderDiv.querySelector('svg');
+                    if (svgEl) {
+                        const pngData = await _svgToPng(svgEl);
+                        if (pngData) {
+                            snippet.imageData = pngData;
+                            ResearchDock.save();
+                        }
+                    }
+                    document.body.removeChild(renderDiv);
+                } catch (e) {
+                    console.error('Light-theme capture error, falling back:', e);
+                    try {
+                        const svgEl = document.querySelector(`#${chartId}-overlay .mermaid svg`);
+                        if (svgEl) {
+                            const pngData = await _svgToPng(svgEl);
+                            if (pngData) {
+                                snippet.imageData = pngData;
+                                ResearchDock.save();
+                            }
+                        }
+                    } catch (e2) { console.error('Fallback capture error:', e2); }
+                }
             }
             btn.innerHTML = '📌 DOCKED';
             showProcessingToast("Chart docked with image.");
         });
 
-        // Render the Mermaid diagram
-        if (window.mermaid) {
+        // Render Mermaid diagram (only for mermaid renderer)
+        if (renderer === 'mermaid' && window.mermaid) {
             try {
                 mermaid.run({ querySelector: `#${chartId}-overlay .mermaid`, suppressErrors: true });
             } catch (e) {
@@ -4592,7 +4626,7 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
             }
         }
 
-        logTelemetry(`CHART GENERATED: ${chartType}`, "success");
+        logTelemetry(`CHART GENERATED: ${chartType} (${renderer})`, "success");
         showProcessingToast("Chart rendered.");
 
     } catch (e) {
@@ -5919,7 +5953,10 @@ function showHighlightToolbar(rect, text, provider) {
                     <div class="ht-chart-opt" data-chart="bar">📊 Bar</div>
                     <div class="ht-chart-opt" data-chart="line">📈 Line</div>
                     <div class="ht-chart-opt" data-chart="flowchart">🔀 Flow</div>
-                    <div class="ht-chart-opt" data-chart="auto">🎯 Auto</div>
+                    <div class="ht-chart-opt" data-chart="waterfall">📉 Waterfall</div>
+                    <div class="ht-chart-opt" data-chart="horizontal_bar">↔️ H-Bar</div>
+                    <div class="ht-chart-opt" data-chart="stacked_bar">📊 Stacked</div>
+                    <div class="ht-chart-opt" data-chart="auto">🔍 Auto</div>
                 </div>
             </div>
             <button class="ht-btn export-xls" title="Export Selection to Excel">📥 XLS</button>

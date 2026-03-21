@@ -944,7 +944,9 @@ COLLECTED SNIPPETS:
 @auth_required
 @limiter.limit("30 per minute")
 def generate_chart():
-    """Lightweight single-model chart generation. Returns Mermaid code only."""
+    """Dual-path chart generation: Mermaid (frontend render) or SVG native (server render)."""
+    from chart_engine import CHART_REGISTRY, get_renderer, generate_svg_chart
+
     data = request.json or {}
     raw_data = data.get('data', '').strip()
     chart_type = data.get('chart_type', 'auto')
@@ -952,6 +954,85 @@ def generate_chart():
     if not raw_data:
         return jsonify({"success": False, "error": "No data provided"}), 400
 
+    if not google_client:
+        return jsonify({"success": False, "error": "Chart engine unavailable"}), 501
+
+    renderer = get_renderer(chart_type)
+
+    # ── SVG Native path (waterfall, horizontal_bar, stacked_bar) ─────────
+    if renderer == "svg_native":
+        SVG_DATA_PROMPTS = {
+            "waterfall": (
+                "Extract structured data from this text for a waterfall chart. "
+                "Return ONLY valid JSON (no markdown, no explanation) with this exact shape: "
+                '{"labels": ["Start", ...], "values": [100, 50, -20, ...], '
+                '"value_types": ["total", "positive", "negative", ...], '
+                '"title": "Insight-driven title describing what the chart proves"}\n'
+                "Rules:\n"
+                "- First item is usually a 'total' (starting value)\n"
+                "- Last item is usually a 'total' (ending value)\n"
+                "- Increases are 'positive', decreases are 'negative'\n"
+                "- Title must be an insight, not a label. BAD: 'Revenue Breakdown'. GOOD: 'Revenue dropped 22% driven by COGS increase'\n"
+                "- Strip currency symbols from values, use plain numbers\n"
+            ),
+            "horizontal_bar": (
+                "Extract structured data from this text for a horizontal bar chart. "
+                "Return ONLY valid JSON (no markdown, no explanation) with this exact shape: "
+                '{"categories": ["Enterprise", ...], "values": [450000, ...], '
+                '"status": ["verified", "conditional", "flagged", ...], '
+                '"title": "Insight-driven title describing what the chart proves"}\n'
+                "Rules:\n"
+                "- Status should reflect data confidence: 'verified' (confirmed), 'conditional' (uncertain), 'flagged' (risk/concern)\n"
+                "- If no confidence info is available, use 'verified' for all\n"
+                "- Title must be an insight. BAD: 'Sales by Segment'. GOOD: 'Enterprise accounts for 60% of total revenue'\n"
+                "- Strip currency symbols, use plain numbers\n"
+            ),
+            "stacked_bar": (
+                "Extract structured data from this text for a stacked bar chart. "
+                "Return ONLY valid JSON (no markdown, no explanation) with this exact shape: "
+                '{"categories": ["Q1", "Q2", ...], "series": [{"label": "Product A", "values": [100, 120, ...]}, ...], '
+                '"title": "Insight-driven title describing what the chart proves"}\n'
+                "Rules:\n"
+                "- Each series must have the same number of values as categories\n"
+                "- Title must be an insight. BAD: 'Quarterly Breakdown'. GOOD: 'Product B is growing faster than A across all quarters'\n"
+                "- Strip currency symbols, use plain numbers\n"
+            ),
+        }
+
+        prompt = SVG_DATA_PROMPTS.get(chart_type, "")
+        prompt += f'\n\nDATA:\n{raw_data}'
+
+        try:
+            response = google_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+            raw_json = response.text.strip()
+            # Strip markdown JSON fences if present
+            import re as _re
+            m = _re.search(r'```(?:json)?\s*([\s\S]*?)```', raw_json)
+            if m:
+                raw_json = m.group(1).strip()
+
+            import json as _json
+            spec = _json.loads(raw_json)
+            spec["type"] = chart_type
+
+            svg_code = generate_svg_chart(spec)
+            title = spec.get("title", f"{chart_type.replace('_', ' ').title()} Chart")
+
+            return jsonify({
+                "success": True,
+                "svg_code": svg_code,
+                "chart_type": chart_type,
+                "renderer": "svg_native",
+                "title": title,
+            })
+        except Exception as e:
+            print(f"[CHART/SVG] Generation error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── Mermaid path (pie, bar, line, flowchart, auto) ────────────────────
     CHART_PREAMBLE = (
         "You are a Mermaid.js chart generator. Output ONLY valid Mermaid code inside a ```mermaid``` code block. "
         "RULES: 1) No explanation or text outside the code block. "
@@ -974,16 +1055,12 @@ def generate_chart():
     prompt = CHART_PROMPTS.get(chart_type, CHART_PROMPTS["auto"])
     prompt += f'\n\nDATA:\n{raw_data}'
 
-    if not google_client:
-        return jsonify({"success": False, "error": "Chart engine unavailable"}), 501
-
     try:
         response = google_client.models.generate_content(
             model="gemini-2.0-flash",
             contents=prompt
         )
         mermaid_code = response.text.strip()
-        # Extract just the mermaid code if wrapped in ```mermaid ... ```
         import re as _re
         m = _re.search(r'```mermaid\s*([\s\S]*?)```', mermaid_code)
         if m:
@@ -993,6 +1070,7 @@ def generate_chart():
             "success": True,
             "mermaid_code": mermaid_code,
             "chart_type": chart_type,
+            "renderer": "mermaid",
         })
     except Exception as e:
         print(f"[CHART] Generation error: {e}")

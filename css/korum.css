@@ -2193,6 +2193,21 @@ body.activated .sphere-container {
     box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
+.svg-native-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    margin: 15px 0;
+    border: 1px solid rgba(0, 255, 157, 0.15);
+}
+.svg-native-container svg {
+    max-width: 100%;
+    height: auto;
+}
+
 .table-row {
     transition: background 0.2s;
 }
