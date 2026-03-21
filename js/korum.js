@@ -2909,6 +2909,7 @@ function buildAnalysisActionBar() {
             <span class="aab-icon">&#x1F4CA;</span> VISUALIZE
             <div class="chart-dropdown">
                 <div class="chart-option" data-chart="pie">🥧 Pie Chart</div>
+                <div class="chart-option" data-chart="donut">🍩 Donut Chart</div>
                 <div class="chart-option" data-chart="bar">📊 Bar Chart</div>
                 <div class="chart-option" data-chart="line">📈 Line Chart</div>
                 <div class="chart-option" data-chart="flowchart">🔀 Flowchart</div>
@@ -5966,6 +5967,7 @@ function showHighlightToolbar(rect, text, provider) {
             <div class="ht-btn ht-chart-trigger" title="Chart Selection">📊 VIZ
                 <div class="ht-chart-dropdown">
                     <div class="ht-chart-opt" data-chart="pie">🥧 Pie</div>
+                    <div class="ht-chart-opt" data-chart="donut">🍩 Donut</div>
                     <div class="ht-chart-opt" data-chart="bar">📊 Bar</div>
                     <div class="ht-chart-opt" data-chart="line">📈 Line</div>
                     <div class="ht-chart-opt" data-chart="flowchart">🔀 Flow</div>
