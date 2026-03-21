@@ -932,33 +932,18 @@ class ExecutiveMemoExporter:
                 else:
                     remaining_arts.append(art)
 
+            # PDF reliability mode: render node prose full-width, then charts immediately after.
+            # ReportLab cannot split tall table cells across pages; side-by-side float tables can
+            # hard-fail export on long nodes. Stacking preserves proximity without breaking export.
+            story.extend(_render_pdf_blocks(content_blocks, styles, 540, tc))
             if float_charts:
-                # FLOAT MODE: 60/40 side-by-side — prose left, chart right
-                left_col = _render_pdf_blocks(content_blocks, styles, 310, tc)
-
-                # Build right column: chart(s) stacked with labels
-                right_col = []
                 for art, chart_img in float_charts:
                     art_label = _artifact_label(art)
                     if art_label:
-                        right_col.append(Paragraph(art_label, styles['StatCaption']))
-                        right_col.append(Spacer(1, 4))
-                    right_col.append(chart_img)
-                    right_col.append(Spacer(1, 8))
-
-                float_tab = Table([[left_col, right_col]], colWidths=[324, 216])
-                float_tab.setStyle(TableStyle([
-                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                    ('LEFTPADDING', (0,0), (0,-1), 0),
-                    ('RIGHTPADDING', (0,0), (0,-1), 8),
-                    ('LEFTPADDING', (1,0), (1,-1), 10),
-                    ('RIGHTPADDING', (1,0), (1,-1), 0),
-                    ('TOPPADDING', (0,0), (-1,-1), 0),
-                ]))
-                story.append(float_tab)
-            else:
-                # No chart — full-width prose as normal
-                story.extend(_render_pdf_blocks(content_blocks, styles, 540, tc))
+                        story.append(Paragraph(art_label, styles['StatCaption']))
+                        story.append(Spacer(1, 4))
+                    story.append(chart_img)
+                    story.append(Spacer(1, 8))
 
             # Inline pull quotes from verified claims (skip trivial/duplicate)
             claims = prov_data.get("verified_claims") or []
