@@ -2541,6 +2541,246 @@ def _build_confidence_directive(results):
     return directive
 
 
+def _is_decision_packet_shape(data):
+    if not isinstance(data, dict):
+        return False
+    packet_keys = {
+        "decision_headline",
+        "executive_summary",
+        "go_no_go_call",
+        "confidence",
+        "verified_claims",
+        "risk_vectors",
+        "assumptions",
+        "unknowns",
+        "immediate_actions",
+        "alternatives_rejected",
+        "evidence_trace",
+        "export_metadata",
+    }
+    present = sum(1 for key in packet_keys if key in data)
+    return present >= 8 and "sections" not in data
+
+
+def _packet_confidence_status(score):
+    if score >= 80:
+        return "Recommended"
+    if score >= 70:
+        return "Conditional"
+    return "Fail"
+
+
+def _packet_timeline_bucket(timeline):
+    tl = str(timeline or "").strip().lower()
+    if any(term in tl for term in ("immediate", "now", "urgent", "day 0")):
+        return "Immediate"
+    if any(term in tl for term in ("mid", "later", "long", "90", "quarter", "phase 3")):
+        return "Mid-Term"
+    if any(term in tl for term in ("near", "soon", "next", "30", "60", "phase 2")):
+        return "Near-Term"
+    return "Immediate"
+
+
+def _packet_bullet_lines(items):
+    return "\n".join(f"- {item}" for item in items if str(item).strip())
+
+
+def _group_actions_from_packet(actions):
+    grouped = {"Immediate": [], "Near-Term": [], "Mid-Term": []}
+    for action in actions or []:
+        if isinstance(action, dict):
+            line = str(action.get("action") or "").strip()
+            owner = str(action.get("owner") or "").strip()
+            if owner:
+                line = f"{line} ({owner})"
+            bucket = _packet_timeline_bucket(action.get("timeline"))
+        else:
+            line = str(action).strip()
+            bucket = "Immediate"
+        if line:
+            grouped.setdefault(bucket, []).append(line)
+
+    parts = []
+    for label in ("Immediate", "Near-Term", "Mid-Term"):
+        if grouped.get(label):
+            parts.append(f"**{label}**\n" + _packet_bullet_lines(grouped[label]))
+    return "\n\n".join(parts)
+
+
+def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
+    """
+    Convert a strict Decision Packet into the legacy synthesis shape still
+    required by exporters and clean-report validation.
+    """
+    if not isinstance(packet, dict):
+        return packet
+
+    export_meta = packet.get("export_metadata") or {}
+    confidence = packet.get("confidence") or {}
+    go_no_go = packet.get("go_no_go_call") or {}
+    verified_claims = packet.get("verified_claims") or []
+    evidence_trace = packet.get("evidence_trace") or []
+    risk_vectors = packet.get("risk_vectors") or []
+    assumptions = [str(item).strip() for item in (packet.get("assumptions") or []) if str(item).strip()]
+    unknowns = [str(item).strip() for item in (packet.get("unknowns") or []) if str(item).strip()]
+    alternatives = packet.get("alternatives_rejected") or []
+    actions = packet.get("immediate_actions") or []
+
+    raw_score = confidence.get("score", export_meta.get("composite_truth_score", 82))
+    try:
+        score = int(round(float(raw_score)))
+    except (TypeError, ValueError):
+        score = 82
+    status = _packet_confidence_status(score)
+    basis = str(confidence.get("basis") or "").strip()
+
+    decision_text = str(go_no_go.get("decision") or "CONDITIONAL GO").strip().upper()
+    rationale_text = str(go_no_go.get("rationale") or "").strip()
+
+    key_signals = []
+    for claim in verified_claims[:4]:
+        if isinstance(claim, dict):
+            claim_text = str(claim.get("claim") or "").strip()
+        else:
+            claim_text = str(claim).strip()
+        if claim_text:
+            key_signals.append(claim_text)
+
+    if len(key_signals) < 4:
+        for trace in evidence_trace:
+            if isinstance(trace, dict):
+                point = str(trace.get("point") or "").strip()
+            else:
+                point = str(trace).strip()
+            if point and point not in key_signals:
+                key_signals.append(point)
+            if len(key_signals) >= 4:
+                break
+
+    high_impact = []
+    secondary = []
+    structured_risks = []
+    for risk in risk_vectors:
+        if isinstance(risk, dict):
+            title = str(risk.get("title") or "Risk").strip()
+            description = str(risk.get("description") or "").strip()
+            mitigation = str(risk.get("mitigation") or "").strip()
+            severity = str(risk.get("severity") or "MEDIUM").strip().upper()
+            line = f"{title}: {description}" if description else title
+            if mitigation:
+                line += f" Mitigation: {mitigation}"
+            if severity in ("CRITICAL", "HIGH"):
+                high_impact.append(line)
+            else:
+                secondary.append(line)
+            structured_risks.append({
+                "risk": title,
+                "severity": severity.lower(),
+                "mitigation": mitigation or "None specified",
+            })
+        else:
+            text = str(risk).strip()
+            if text:
+                secondary.append(text)
+
+    critical_challenges_parts = []
+    if high_impact:
+        critical_challenges_parts.append("**HIGH IMPACT CHALLENGES**\n" + _packet_bullet_lines(high_impact))
+    if secondary:
+        critical_challenges_parts.append("**SECONDARY CONSIDERATIONS**\n" + _packet_bullet_lines(secondary))
+    critical_challenges_parts.append(
+        "**SYNTHESIS**: The uncertainties do not outweigh the risk of inaction; proceed while monitoring the key assumptions and unknowns."
+    )
+
+    tradeoff_lines = []
+    for alt in alternatives:
+        if isinstance(alt, dict):
+            option = str(alt.get("option") or "").strip()
+            reason = str(alt.get("reason_rejected") or "").strip()
+            if option or reason:
+                tradeoff_lines.append(f"- {option}: {reason}".strip(": "))
+        else:
+            text = str(alt).strip()
+            if text:
+                tradeoff_lines.append(f"- {text}")
+
+    execution_lines = []
+    if assumptions:
+        execution_lines.append("**ASSUMPTIONS**\n" + _packet_bullet_lines(assumptions))
+    if unknowns:
+        execution_lines.append("**UNKNOWNS**\n" + _packet_bullet_lines(unknowns))
+
+    confidence_lines = [
+        f"Score: {score} / 100",
+        f"Status: {status}",
+    ]
+    if basis:
+        confidence_lines.extend(["", "Key Drivers:", f"- {basis}"])
+    if assumptions:
+        confidence_lines.extend(["", "Assumptions:"])
+        confidence_lines.extend(f"- {item}" for item in assumptions[:5])
+    if unknowns:
+        confidence_lines.extend(["", "Limitations:"])
+        confidence_lines.extend(f"- {item}" for item in unknowns[:5])
+
+    rationale_bullets = []
+    if rationale_text:
+        rationale_bullets.append(rationale_text)
+    rationale_bullets.extend(key_signals[:4])
+    decision_lines = [f"Decision: {decision_text}"]
+    if rationale_bullets:
+        decision_lines.extend(f"- {item}" for item in rationale_bullets[:5])
+
+    final_assessment = str(
+        packet.get("decision_headline")
+        or rationale_text
+        or packet.get("executive_summary")
+        or ""
+    ).strip()
+    if not final_assessment:
+        final_assessment = "Proceed on the strongest defensible path while monitoring the exposed risks and unresolved assumptions."
+
+    legacy = {
+        "meta": {
+            "title": str(packet.get("decision_headline") or "Decision Packet").strip() or "Decision Packet",
+            "generated_at": export_meta.get("generated_at") or datetime.now().isoformat(),
+            "summary": str(packet.get("executive_summary") or "").strip() or final_assessment,
+            "workflow": export_meta.get("workflow") or workflow,
+            "composite_truth_score": score,
+            "truth_score": score,
+        },
+        "sections": {
+            "executive_summary": str(packet.get("executive_summary") or "").strip() or final_assessment,
+            "key_signals": _packet_bullet_lines(key_signals),
+            "critical_challenges": "\n\n".join(part for part in critical_challenges_parts if part),
+            "tradeoffs": "\n".join(tradeoff_lines),
+            "decision": "\n".join(decision_lines),
+            "action_priorities": _group_actions_from_packet(actions),
+            "execution_considerations": "\n\n".join(execution_lines),
+            "confidence_assessment": "\n".join(confidence_lines),
+            "final_assessment": final_assessment,
+        },
+        "structured_data": {
+            "key_metrics": [
+                {"metric": "Decision Score", "value": f"{score} / 100", "context": status},
+            ],
+            "action_items": [
+                {
+                    "task": str(action.get("action") or "").strip(),
+                    "priority": "high" if _packet_timeline_bucket(action.get("timeline")) == "Immediate" else "medium",
+                    "timeline": _packet_timeline_bucket(action.get("timeline")),
+                }
+                for action in actions
+                if isinstance(action, dict) and str(action.get("action") or "").strip()
+            ],
+            "risks": structured_risks,
+        },
+        "decision_packet": packet,
+        "decision_packet_version": export_meta.get("schema_version", "1.0"),
+    }
+    return legacy
+
+
 # --- PHASE 4: SYNTHESIS (The Extractor) ---
 def synthesize_results(context, divergence_analysis=None, arbiter_report=None, results=None, user_id=None):
     """
@@ -2739,7 +2979,7 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     }
 
     prompt = f"""
-    You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a comprehensive, high-fidelity "Intelligence Object".
+    You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a strict JSON Decision Packet.
     
     ## MISSION CONTEXT:
     - Type: {context.workflow}
@@ -2748,81 +2988,70 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
 
     ## CRITICAL RULES:
     1. EXCLUSIVITY: Only use the provided COUNCIL DISCUSSION.
-    2. VERBATIM DRAFTS: If there is a section titled "Main Draft", "Draft Deliverable", or "Final Draft", you MUST extract the actual content from the 'CONTENT CREATOR' or 'WRITER' phase verbatim. DO NOT summarize it. DO NOT add "In this post..." or other meta-commentary. Just provide the ready-to-publish content.
-    3. DEPTH: For all OTHER sections, provide 3-5 detailed paragraphs. Pull specific findings, data points, and recommendations.
-    4. NO CONVERSATIONAL FLUFF: Output only the result.
-    5. THE COUNCIL CONTRIBUTORS table must use the actual Phase Titles and Roles from the history.
-    6. NORMALIZATION PROTECTION (Section 5): The council discussion uses [STRUCTURED_TABLE]...[/STRUCTURED_TABLE] tags for high-fidelity data. You MUST PRESERVE THESE TAGS EXACTLY. Do NOT convert them back to Markdown or summarize their contents.
-    7. BALANCED DECISION LOGIC: NEVER recommend halting all operations, stopping all decisions, or full organizational paralysis. Even under high uncertainty or risk:
-       - Recommend proceeding with caution on low-risk actions
-       - Prioritize reversible decisions that can be adjusted later
-       - Identify what additional data would reduce uncertainty
-       - Separate "must pause" items from "can proceed" items
-       - Frame recommendations as a decision gradient, not binary go/no-go
-       VIOLATION: Any recommendation that says "halt all", "stop everything", "cease operations", or "suspend all decisions" without offering actionable alternatives is rejected. Decision intelligence means enabling decisions under uncertainty, not preventing them.
-    8. CLEAN REPORT MODE: The final output MUST be a unified executive narrative.
-       - Write in ONE voice — senior strategy consultant delivering a decision memo
-       - NEVER expose internal labels: no node numbers, no model names (GPT-4, Claude, Gemini), no provider names (OpenAI, Anthropic, Google), no agent references
-       - NEVER use phase labels like ANALYST, ARCHITECT, CRITIC, INTEGRATOR in the output
-       - NEVER use "the council found" or "this model said" — use "analysis shows", "scenario modeling indicates", "key challenges include"
-       - STRIP all internal tags: [VERIFIED], [CRITICAL], [ACTION REQUIRED], [TRUTH_BOMB], [RISK_VECTOR], [DECISION_CANDIDATE], [METRIC_ANCHOR]
-       - NO citations in body text (no [1][2][3] references)
-       - NO tool/vendor stacks or methodology tutorials
-       - NO day-by-day timelines, "Month 1-3" schedules, or micro-execution plans — use "Immediate", "Near-Term", "Mid-Term"
-       - NO FAKE PRECISION: Do NOT invent specific percentages, dollar amounts, or timeframes not in the user's data.
-         Replace fabricated numbers with directional language:
-         BAD: "30-35% latency increase" → GOOD: "elevated latency levels"
-         BAD: "12-48 hours" → GOOD: "extended outages"
-         BAD: "15-20% cost increase" → GOOD: "higher total costs"
-         BAD: "3-4x cost multiplier" → GOOD: "significantly higher costs"
-       - Confidence must reflect actual data quality — if baselines or financials are unquantified, use "Moderate-High" not "High"
+    2. STRICT SCHEMA: You MUST output exactly the JSON structure provided below. Do NOT add extra keys like 'meta' or 'sections'.
+    3. NO CONVERSATIONAL FLUFF: Output only the requested data.
+    4. BALANCED DECISION LOGIC: Never recommend halting all operations without actionable alternatives.
+    5. CLEAN REPORT MODE: Write in ONE voice — senior strategy consultant delivering a memo.
+       - NEVER expose internal labels: no node numbers, no model names, no provider names.
+       - NEVER use "the council found" — use "analysis shows".
+       - STRIP all internal tags: [VERIFIED], [CRITICAL] from text strings.
+       - NO FAKE PRECISION: Do not invent percentages or timelines not found in user data.
+    6. DECISION DISCIPLINE: No role may hide uncertainty. If evidence is insufficient, state 'INSUFFICIENT EVIDENCE'.
+
+    FIELD INSTRUCTIONS:
+    - decision_headline: One clear actionable sentence. NO hedging.
+    - executive_summary: Situation -> Decision -> Rationale -> Confidence. 4-6 sentences max. No labeled fields in the text.
+    - go_no_go_call.decision: Must strictly be GO, NO-GO, or CONDITIONAL GO.
+    - confidence: Must explicitly label band (HIGH | MEDIUM | LOW), a 0-100 score, and a 1-sentence basis.
+    - risk_vectors: Present the critical challenges and failure modes. High impact challenges only.
+    - assumptions: List 3-5 baseline assumptions.
+    - unknowns: List 2-3 critical unknowns.
+    - immediate_actions: Break execution down. What happens Monday morning?
+    - alternatives_rejected: What options were considered and explicitly killed by the Integrator?
+    - verified_claims: claims verified from tags.
+    - evidence_trace: critical data points mapping to source details.
 
     COUNCIL DISCUSSION:
     {history_text}
 
-    Return ONLY a single valid JSON object with this schema:
+    Return ONLY a single valid JSON object mapped exactly to this schema:
     {{
-      "meta": {{
-        "title": "Concise, Descriptive Report Title",
-        "generated_at": "{datetime.now().isoformat()}",
-        "summary": "4-6 sentence executive overview: key finding, primary risk, recommended action, and confidence level",
-        "final_document": "ASSEMBLY WORKFLOWS ONLY: If this is an EOM_STATEMENT, FINANCE, AUDIT, CODE_AUDIT, LEGAL, or PORTFOLIO_BUILDER mission, place the COMPLETE final deliverable here in full Markdown — every table, every section, every figure. For all other workflows, set this to null.",
-        "composite_truth_score": 85,
-        "models_used": [],
-        "workflow": "{context.workflow}"
+      "decision_headline": "string",
+      "executive_summary": "string",
+      "go_no_go_call": {{
+        "decision": "GO | NO-GO | CONDITIONAL GO",
+        "rationale": "string"
       }},
-      "sections": {json.dumps(schema_sections, indent=8)},
-      "structured_data": {{
-        "key_metrics": [
-          {{"metric": "Name of metric", "value": "Specific value or range", "context": "Why this matters and which council members cited it"}}
-        ],
-        "action_items": [
-          {{"task": "Specific actionable recommendation", "priority": "high|med|low", "timeline": "Timeframe for action"}}
-        ],
-        "risks": [
-          {{"risk": "Specific risk identified", "severity": "critical|high|medium|low", "mitigation": "Recommended mitigation strategy"}}
-        ]
+      "confidence": {{
+        "band": "HIGH | MEDIUM | LOW",
+        "score": 0,
+        "basis": "string"
       }},
-      "intelligence_tags": {{
-        "decisions": ["extracted from [DECISION_CANDIDATE] tags"],
-        "risks": ["extracted from [RISK_VECTOR] tags"],
-        "metrics": ["extracted from [METRIC_ANCHOR] tags"]
-      }},
-      "council_contributors": [
-        {{"phase": "Phase name (e.g. INTAKE)", "provider": "AI provider name", "role": "Assigned role", "contribution_summary": "1-2 sentence summary of what this phase uniquely contributed"}}
+      "verified_claims": [
+        {{ "claim": "string", "status": "VERIFIED | PARTIAL | FALSE | UNVERIFIED", "source_ref": "string" }}
       ],
-      "confidence_and_assumptions": {{
-        "overall_confidence": "low|moderate|moderate-to-high|high (default to moderate-to-high unless 3+ sources independently confirm with evidence)",
-        "key_assumptions": ["List 3-5 assumptions the analysis depends on"],
-        "limitations": ["List 2-3 limitations or gaps in the analysis"]
-      }},
-      "claim_rewrites": [
-        {{"original": "The original claim as stated by a council member", "status": "INVALIDATED|UNVERIFIED|CORRECTED", "corrected": "The rewritten version with calibrated language, or null if no correction is possible", "provider": "Which provider made the original claim"}}
-      ]
+      "risk_vectors": [
+        {{ "title": "string", "severity": "CRITICAL | HIGH | MEDIUM | LOW", "impact_type": "string", "description": "string", "mitigation": "string" }}
+      ],
+      "assumptions": ["string"],
+      "unknowns": ["string"],
+      "immediate_actions": [
+        {{ "action": "string", "owner": "string", "timeline": "string" }}
+      ],
+      "alternatives_rejected": [
+        {{ "option": "string", "reason_rejected": "string" }}
+      ],
+      "evidence_trace": [
+        {{ "point": "string", "support": "string" }}
+      ],
+      "export_metadata": {{
+        "report_type": "{context.workflow}",
+        "workflow": "{context.workflow}",
+        "generated_at": "{datetime.now().isoformat()}",
+        "schema_version": "1.0",
+        "composite_truth_score": 85
+      }}
     }}
-
-    REMEMBER: Each section value must be 3-5 rich paragraphs with specific details from the council discussion. This report will be exported as a professional PDF — make it worth reading.
-    CLAIM REWRITES: If the TRUTH PROPAGATION layer flagged any UNVERIFIED or INVALIDATED claims, you MUST populate the claim_rewrites array. For each flagged claim, provide the original text, its status, and a corrected version using calibrated language. If no correction is possible, set corrected to null. If no claims were flagged, return an empty array.
     CONFIDENCE CALIBRATION — MANDATORY SCORE-BAND ENFORCEMENT:
     {_build_confidence_directive(results)}
     """
@@ -2852,7 +3081,11 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
                     return {"meta": {"models_used": models_used, "summary": "Synthesis JSON was malformed", "workflow": context.workflow}, "sections": {}, "structured_data": {}}
             else:
                 return {"meta": {"models_used": models_used, "summary": "Synthesis returned no valid JSON", "workflow": context.workflow}, "sections": {}, "structured_data": {}}
-        
+
+        if _is_decision_packet_shape(data):
+            print("[SYNTHESIS] Decision Packet detected — adapting to legacy export shape")
+            data = adapt_decision_packet_to_legacy_shape(data, workflow=context.workflow)
+
         # Inject metadata if missing or simplified
         if "meta" not in data:
             data["meta"] = {}

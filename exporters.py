@@ -119,6 +119,27 @@ def _reorder_sections(sections, order=None):
     return ordered
 
 
+
+def _packet_backed_risks_mode(data, sections):
+    """
+    True when this export is packet-backed and has normalized risk content.
+    """
+    packet = (data or {}).get("decision_packet") or {}
+    risks_text = str((sections or {}).get("risks") or "").strip()
+    return bool(packet) and bool(risks_text)
+
+def _filter_sections(section_items, data, sections_dict):
+    pb_mode = _packet_backed_risks_mode(data, sections_dict)
+    filtered = []
+    for sid, content in section_items:
+        key = str(sid).strip().lower()
+        if key == "critical_challenges" and pb_mode:
+            continue
+        if key == "risks" and not pb_mode:
+            continue
+        filtered.append((sid, content))
+    return filtered
+
 def _extract_parts(o):
     meta = o.get("meta") or {}
     sections = o.get("sections") or {}
@@ -1413,7 +1434,7 @@ class ExecutiveMemoExporter:
         story.append(Spacer(1, 30))
 
         # Reorder sections to match canonical output_structure
-        section_items_pre = _reorder_sections(sections or {})
+        section_items_pre = _filter_sections(_reorder_sections(sections or {}), intelligence_object, sections)
         # Chart Standard: assign remaining artifacts to their source nodes for inline placement
         node_artifacts = _assign_artifacts_to_nodes(body_artifacts, section_items_pre, contributors)
 
@@ -1834,7 +1855,7 @@ class WordExporter:
         # Reorder sections to match canonical output_structure
         section_items_pre = [
             (sid, content)
-            for sid, content in _reorder_sections(sections or {})
+            for sid, content in _filter_sections(_reorder_sections(sections or {}), intelligence_object, sections)
             if _as_text(sid).strip().lower() != "final_assessment"
         ]
         # Chart Standard: assign artifacts to their source nodes for inline placement
