@@ -780,6 +780,137 @@ def _normalize_truth_score(raw_score):
         score *= 100
     return int(round(score))
 
+
+def _confidence_status_from_score(score):
+    if score >= 80:
+        return "Recommended"
+    if score >= 70:
+        return "Conditional"
+    return "Fail"
+
+
+def _extract_labeled_segment(text, label, stop_labels):
+    if not text:
+        return ""
+    stop_pattern = "|".join(re.escape(lbl) for lbl in stop_labels)
+    match = re.search(
+        rf"{re.escape(label)}\s*:\s*(.*?)(?=(?:{stop_pattern})\s*:|$)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    return match.group(1).strip(" .\n") if match else ""
+
+
+def _split_export_items(text):
+    if not text:
+        return []
+    normalized = text.replace("\u2022", ";").replace("•", ";")
+    parts = [re.sub(r"^\-\s*", "", item).strip(" .") for item in re.split(r"\s*;\s*|\n+", normalized)]
+    return [item for item in parts if item]
+
+
+def _score_from_confidence_text(text, meta=None):
+    match = re.search(r"(\d{1,3})\s*/\s*100", _as_text(text))
+    if match:
+        return _normalize_truth_score(match.group(1))
+
+    score_sources = []
+    if meta:
+        score_sources.extend([
+            meta.get("truth_score"),
+            meta.get("score"),
+            meta.get("confidence_score"),
+        ])
+    for raw in score_sources:
+        if raw is not None and raw != "":
+            return _normalize_truth_score(raw)
+
+    lowered = _as_text(text).lower()
+    mappings = [
+        ("very high", 88),
+        ("moderate-high", 78),
+        ("moderate high", 78),
+        ("high", 82),
+        ("moderate", 74),
+        ("low", 65),
+    ]
+    for phrase, score in mappings:
+        if phrase in lowered:
+            return score
+    return 82
+
+
+def _normalize_action_priorities_text(text):
+    normalized = _as_text(text)
+    replacements = [
+        (r"(\*\*)?\s*IMMEDIATE\s*\([^)]+\)\s*(\*\*)?", "**IMMEDIATE**"),
+        (r"(\*\*)?\s*NEAR[\-\s]?TERM\s*\([^)]+\)\s*(\*\*)?", "**NEAR-TERM**"),
+        (r"(\*\*)?\s*MID[\-\s]?TERM\s*\([^)]+\)\s*(\*\*)?", "**MID-TERM**"),
+        (r"(\*\*)?\s*SHORT[\-\s]?TERM\s*\([^)]+\)\s*(\*\*)?", "**NEAR-TERM**"),
+    ]
+    for pattern, replacement in replacements:
+        normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
+    return normalized
+
+
+def _normalize_confidence_text(text, meta=None):
+    raw = _as_text(text).strip()
+    if not raw:
+        return raw
+
+    score = _score_from_confidence_text(raw, meta)
+    status = _confidence_status_from_score(score)
+    assumptions = _split_export_items(
+        _extract_labeled_segment(
+            raw,
+            "KEY ASSUMPTIONS",
+            ["LIMITATIONS", "KEY DRIVERS", "STATUS", "SCORE"],
+        )
+    )
+    limitations = _split_export_items(
+        _extract_labeled_segment(
+            raw,
+            "LIMITATIONS",
+            ["KEY ASSUMPTIONS", "KEY DRIVERS", "STATUS", "SCORE"],
+        )
+    )
+    key_drivers = _split_export_items(
+        _extract_labeled_segment(
+            raw,
+            "KEY DRIVERS",
+            ["LIMITATIONS", "KEY ASSUMPTIONS", "STATUS", "SCORE"],
+        )
+    )
+
+    lines = [
+        f"Score: {score} / 100",
+        f"Status: {status}",
+    ]
+
+    if key_drivers:
+        lines.extend(["", "Key Drivers:"])
+        lines.extend(f"- {item}" for item in key_drivers[:5])
+
+    if assumptions:
+        lines.extend(["", "Assumptions:"])
+        lines.extend(f"- {item}" for item in assumptions[:5])
+
+    if limitations:
+        lines.extend(["", "Limitations:"])
+        lines.extend(f"- {item}" for item in limitations[:5])
+
+    return "\n".join(lines)
+
+
+def _normalize_export_section_text(section_id, content, meta=None):
+    sid = _as_text(section_id).strip().lower()
+    text = _as_text(content)
+    if sid == "action_priorities":
+        return _normalize_action_priorities_text(text)
+    if sid in ("confidence", "confidence_assessment"):
+        return _normalize_confidence_text(text, meta)
+    return text
+
 # --- BRANDING CONFIG ---
 
 IRON_DISPATCH = {
@@ -1000,7 +1131,7 @@ class ExecutiveMemoExporter:
                 prov_name = _as_text(contributors[idx].get('provider', '')).upper()
 
             # Flatten structured data (dicts/lists) into readable prose text
-            content = _flatten_structured_value(content)
+            content = _normalize_export_section_text(sid, _flatten_structured_value(content), meta)
             content_blocks = _extract_content_blocks(content)
 
             prov_key = prov_name.lower()
@@ -1477,7 +1608,7 @@ class WordExporter:
                 prov_name = _as_text(contributors[idx].get('provider', '')).upper()
 
             # Flatten structured data (dicts/lists) into readable prose text
-            content = _flatten_structured_value(content)
+            content = _normalize_export_section_text(sid, _flatten_structured_value(content), meta)
 
             n_p = doc.add_paragraph()
             n_run = n_p.add_run(sec_title)
