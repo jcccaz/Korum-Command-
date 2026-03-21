@@ -940,10 +940,19 @@ class WordExporter:
         t_run.font.size = Pt(22)
         t_run.font.color.rgb = s_rgb
         
-        # Thick Rule (Executive Baseline)
+        # Thick Rule (Executive Baseline) — exact height, no cell expansion
+        from docx.enum.table import WD_ROW_HEIGHT_RULE
         u_tab = doc.add_table(rows=1, cols=1)
         WordExporter._set_cell_background(u_tab.rows[0].cells[0], ACCENT_HEX)
-        u_tab.rows[0].height = Inches(0.05)
+        # Shrink default paragraph to prevent cell height expansion
+        u_p = u_tab.rows[0].cells[0].paragraphs[0]
+        u_p.paragraph_format.space_before = Pt(0)
+        u_p.paragraph_format.space_after = Pt(0)
+        u_p.paragraph_format.line_spacing = Pt(1)
+        u_run = u_p.add_run("")
+        u_run.font.size = Pt(1)
+        u_tab.rows[0].height = Inches(0.04)
+        u_tab.rows[0].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
         
         doc.add_paragraph() # Spacer
 
