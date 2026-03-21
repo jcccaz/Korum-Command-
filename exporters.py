@@ -40,6 +40,81 @@ def _as_text(val):
     if val is None: return ""
     return str(val).strip()
 
+def _flatten_structured_value(val):
+    """Convert dicts/lists from synthesis JSON into readable prose text."""
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return val
+    if isinstance(val, list):
+        lines = []
+        for item in val:
+            if isinstance(item, dict):
+                # Scenario-style dicts: {name, description, timeline, implication}
+                parts = []
+                name = item.get('name', '')
+                if name:
+                    parts.append(f"**{name}**")
+                for k in ('description', 'timeline', 'implication'):
+                    v = item.get(k)
+                    if v:
+                        parts.append(f"{k.title()}: {v}")
+                # Catch any other keys
+                for k, v in item.items():
+                    if k not in ('name', 'description', 'timeline', 'implication') and v:
+                        parts.append(f"{k.replace('_', ' ').title()}: {v}")
+                lines.append("\n".join(parts))
+            else:
+                lines.append(f"- {_as_text(item)}")
+        return "\n\n".join(lines) if any(isinstance(i, dict) for i in val) else "\n".join(lines)
+    if isinstance(val, dict):
+        lines = []
+        for k, v in val.items():
+            label = k.replace('_', ' ').upper()
+            if isinstance(v, list):
+                lines.append(f"**{label}**")
+                for item in v:
+                    if isinstance(item, dict):
+                        lines.append(f"- {_flatten_structured_value(item)}")
+                    else:
+                        lines.append(f"- {_as_text(item)}")
+            elif isinstance(v, dict):
+                lines.append(f"**{label}**")
+                lines.append(_flatten_structured_value(v))
+            elif isinstance(v, str):
+                lines.append(f"**{label}**: {v}")
+            else:
+                lines.append(f"**{label}**: {_as_text(v)}")
+        return "\n".join(lines)
+    return str(val)
+
+
+# Phase titles for anonymized pull quote attributions (replaces provider names)
+_PHASE_TITLES = ["ANALYST", "ARCHITECT", "CRITIC", "INTEGRATOR", "COMPOSER"]
+
+# Canonical section order for RESEARCH reports (matches WORKFLOW_DNA output_structure)
+_RESEARCH_SECTION_ORDER = [
+    "executive_summary", "key_signals", "system_context", "scenario_analysis",
+    "critical_challenges", "tradeoff_analysis", "decision", "action_priorities",
+    "execution_considerations", "confidence_assessment", "final_assessment",
+]
+
+def _reorder_sections(sections, order=None):
+    """Reorder sections dict to match canonical output_structure.
+    Sections not in the order list are appended at the end."""
+    if not order:
+        order = _RESEARCH_SECTION_ORDER
+    ordered = []
+    remaining = dict(sections)
+    for key in order:
+        if key in remaining:
+            ordered.append((key, remaining.pop(key)))
+    # Append any sections not in the canonical order
+    for key, val in remaining.items():
+        ordered.append((key, val))
+    return ordered
+
+
 def _extract_parts(o):
     meta = o.get("meta") or {}
     sections = o.get("sections") or {}
@@ -880,8 +955,9 @@ class ExecutiveMemoExporter:
             story.append(summary_p)
         story.append(Spacer(1, 30))
 
+        # Reorder sections to match canonical output_structure
+        section_items_pre = _reorder_sections(sections or {})
         # Chart Standard: assign remaining artifacts to their source nodes for inline placement
-        section_items_pre = list((sections or {}).items())
         node_artifacts = _assign_artifacts_to_nodes(body_artifacts, section_items_pre, contributors)
 
         # 3. --- KPI STRIP ---
@@ -910,7 +986,7 @@ class ExecutiveMemoExporter:
 
         # 4. --- INTELLIGENCE NODES (FULL-WIDTH PROSE) ---
         seen_claims = set()  # Deduplicate claims across nodes
-        section_items = list(sections.items())
+        section_items = _reorder_sections(sections or {})
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
             # Clean report mode: section title only — no node numbers, no provider names
@@ -918,11 +994,11 @@ class ExecutiveMemoExporter:
 
             # Still resolve provider internally for claim lookups (not displayed)
             prov_name = "KORUM"
-            prov_role = ""
             if idx < len(contributors):
                 prov_name = _as_text(contributors[idx].get('provider', '')).upper()
-                prov_role = _as_text(contributors[idx].get('role', ''))
 
+            # Flatten structured data (dicts/lists) into readable prose text
+            content = _flatten_structured_value(content)
             content_blocks = _extract_content_blocks(content)
 
             prov_key = prov_name.lower()
@@ -975,7 +1051,9 @@ class ExecutiveMemoExporter:
                     continue
                 seen_claims.add(claim_key)
                 claim_status = _as_text(claim.get('status', 'strategic'))
-                pq = _build_pull_quote(claim_text, claim_status, prov_name, prov_role, doc._session_id, styles)
+                # Anonymize: use phase title instead of provider name
+                phase_label = _PHASE_TITLES[idx] if idx < len(_PHASE_TITLES) else "ANALYSIS"
+                pq = _build_pull_quote(claim_text, claim_status, phase_label, "", doc._session_id, styles)
                 story.append(pq)
                 story.append(Spacer(1, 8))
 
@@ -1280,8 +1358,9 @@ class WordExporter:
         artifacts = _report_artifacts(intelligence_object)
         session_id = _resolve_session_id(meta, intelligence_object)
 
+        # Reorder sections to match canonical output_structure
+        section_items_pre = _reorder_sections(sections or {})
         # Chart Standard: assign artifacts to their source nodes for inline placement
-        section_items_pre = list((sections or {}).items())
         node_artifacts = _assign_artifacts_to_nodes(artifacts, section_items_pre, contributors)
 
         # 1. --- PREMIUM HEADER ---
@@ -1338,7 +1417,22 @@ class WordExporter:
         key_metrics = structured.get("key_metrics") or []
         if key_metrics:
             kpi_tab = doc.add_table(rows=2, cols=min(3, len(key_metrics)))
-            kpi_tab.style = "Table Grid"
+            # Thin top/bottom rules only — no full grid box
+            from docx.oxml import parse_xml as _px_kpi
+            from docx.oxml.ns import nsdecls as _ns_kpi
+            from docx.enum.table import WD_ROW_HEIGHT_RULE as _RH
+            tbl_pr = kpi_tab._tbl.tblPr if kpi_tab._tbl.tblPr is not None else kpi_tab._tbl.get_or_add_tblPr()
+            tbl_borders = _px_kpi(
+                f'<w:tblBorders {_ns_kpi("w")}>'
+                f'<w:top w:val="single" w:sz="4" w:space="0" w:color="{tc["line"].lstrip("#")}"/>'
+                f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="{tc["line"].lstrip("#")}"/>'
+                f'<w:left w:val="none" w:sz="0" w:space="0"/>'
+                f'<w:right w:val="none" w:sz="0" w:space="0"/>'
+                f'<w:insideH w:val="none" w:sz="0" w:space="0"/>'
+                f'<w:insideV w:val="none" w:sz="0" w:space="0"/>'
+                f'</w:tblBorders>'
+            )
+            tbl_pr.append(tbl_borders)
             for i, km in enumerate(key_metrics[:3]):
                 v_p = kpi_tab.rows[0].cells[i].paragraphs[0]
                 v_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1355,15 +1449,16 @@ class WordExporter:
 
         # 4. --- INTELLIGENCE NODES (full-width prose) ---
         seen_claims = set()  # Deduplicate claims across nodes
-        section_items = list(sections.items())
+        section_items = _reorder_sections(sections or {})
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
             # Clean report mode: section title only — no node numbers, no provider names
             prov_name = "KORUM"
-            prov_role = ""
             if idx < len(contributors):
                 prov_name = _as_text(contributors[idx].get('provider', '')).upper()
-                prov_role = _as_text(contributors[idx].get('role', ''))
+
+            # Flatten structured data (dicts/lists) into readable prose text
+            content = _flatten_structured_value(content)
 
             n_p = doc.add_paragraph()
             n_run = n_p.add_run(sec_title)
@@ -1439,10 +1534,23 @@ class WordExporter:
                     border_hex, bg_hex = SEM_BLUE, "F0F3FA"
                 pq_tab = doc.add_table(rows=1, cols=1)
                 pq_cell = pq_tab.rows[0].cells[0]
+                # Thin left border only — no full box. Light background tint.
+                from docx.oxml import parse_xml as _px
+                from docx.oxml.ns import nsdecls as _ns
+                _tc_pr = pq_cell._tc.get_or_add_tcPr()
+                _tc_pr.append(_px(
+                    f'<w:tcBorders {_ns("w")}>'
+                    f'<w:left w:val="single" w:sz="12" w:space="0" w:color="{border_hex.lstrip("#")}"/>'
+                    f'<w:top w:val="none" w:sz="0" w:space="0"/>'
+                    f'<w:bottom w:val="none" w:sz="0" w:space="0"/>'
+                    f'<w:right w:val="none" w:sz="0" w:space="0"/>'
+                    f'</w:tcBorders>'
+                ))
                 WordExporter._set_cell_background(pq_cell, bg_hex)
                 WordExporter._add_paragraph(pq_cell, f"\u201c{claim_text}\u201d", size=8, italic=True, color=tc["text"])
-                role_part = f" \u00b7 {prov_role}" if prov_role else ""
-                WordExporter._add_paragraph(pq_cell, f"\u2014 {prov_name}{role_part} \u00b7 {session_id}", size=6.5, color=SEM_MUTED)
+                # Anonymize: use phase title instead of provider name
+                phase_label = _PHASE_TITLES[idx] if idx < len(_PHASE_TITLES) else "ANALYSIS"
+                WordExporter._add_paragraph(pq_cell, f"\u2014 {phase_label} \u00b7 {session_id}", size=6.5, color=SEM_MUTED)
 
             # Remaining text-only artifacts — render below full-width (skip empty)
             for art in remaining_arts:
@@ -1529,8 +1637,8 @@ class CSVExporter:
             writer.writerow(["Field", "Value"])
             writer.writerow(["Title", meta.get('title')])
             writer.writerow(["Summary", meta.get('summary')])
-            for k, v in sections.items():
-                writer.writerow([k, v])
+            for k, v in _reorder_sections(sections or {}):
+                writer.writerow([k, _flatten_structured_value(v)])
         return filepath
 
 class TextExporter:
@@ -1539,8 +1647,8 @@ class TextExporter:
         meta, sections, structured, _, _ = _extract_parts(intelligence_object)
         lines = [f"KORUM-OS REPORT: {meta.get('title','').upper()}", "="*40, ""]
         lines.append(f"SUMMARY: {meta.get('summary','')}\n")
-        for k, v in sections.items():
-            lines.append(f"SECTION: {k.upper()}\n{v}\n")
+        for k, v in _reorder_sections(sections or {}):
+            lines.append(f"SECTION: {k.upper()}\n{_flatten_structured_value(v)}\n")
         filename = f"KORUM-OS_BRIEF_{_timestamp()}.txt"
         filepath = _output_path(filename, output_dir)
         with open(filepath, 'w') as f:
