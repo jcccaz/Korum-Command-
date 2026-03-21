@@ -8,6 +8,8 @@ import io
 import json
 import os
 import re
+import tempfile
+import zipfile
 from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -1271,6 +1273,85 @@ class WordExporter:
             doc.add_paragraph()
 
     @staticmethod
+    def _ensure_sentence(text):
+        clean = _as_text(text).strip()
+        if not clean:
+            return ""
+        if clean[-1] in ".!?":
+            return clean
+        return clean + "."
+
+    @staticmethod
+    def _resolve_final_assessment(meta, sections):
+        ordered_sections = dict(_reorder_sections(sections or {}))
+        candidates = [
+            ordered_sections.get("final_assessment"),
+            ordered_sections.get("decision"),
+            ordered_sections.get("confidence_assessment"),
+            ordered_sections.get("execution_considerations"),
+            meta.get("summary"),
+        ]
+        for candidate in candidates:
+            text = _flatten_structured_value(candidate).strip()
+            if text:
+                return WordExporter._ensure_sentence(text)
+        return "KorumOS recommends proceeding on the strongest available decision path while maintaining visible accountability for execution and follow-up review."
+
+    @staticmethod
+    def _append_final_assessment_and_footer(doc, meta, sections, theme, intelligence_object):
+        session_id = _resolve_session_id(meta, intelligence_object)
+        final_assessment = WordExporter._resolve_final_assessment(meta, sections)
+        closing_line_1, closing_line_2, closing_line_3 = _closing_stamp_parts(session_id)
+
+        WordExporter._add_spacing(doc)
+
+        fa_label = doc.add_paragraph()
+        fa_label_run = fa_label.add_run("FINAL ASSESSMENT")
+        WordExporter._set_run_style(
+            fa_label_run,
+            size=8,
+            bold=True,
+            color=theme["label"],
+        )
+
+        fa_body = doc.add_paragraph()
+        fa_body_run = fa_body.add_run(final_assessment)
+        WordExporter._set_run_style(
+            fa_body_run,
+            size=9.5,
+            color=theme["text"],
+        )
+
+        WordExporter._add_spacing(doc)
+
+        rule_tab = doc.add_table(rows=1, cols=1)
+        WordExporter._set_cell_background(rule_tab.rows[0].cells[0], theme["line"].lstrip('#'))
+        rule_p = rule_tab.rows[0].cells[0].paragraphs[0]
+        rule_p.paragraph_format.space_before = Pt(0)
+        rule_p.paragraph_format.space_after = Pt(0)
+        rule_p.paragraph_format.line_spacing = Pt(1)
+        rule_run = rule_p.add_run("")
+        rule_run.font.size = Pt(1)
+        from docx.enum.table import WD_ROW_HEIGHT_RULE as _FooterRH
+        rule_tab.rows[0].height = Inches(0.03)
+        rule_tab.rows[0].height_rule = _FooterRH.EXACTLY
+
+        footer_tab = doc.add_table(rows=2, cols=2)
+        footer_tab.columns[0].width = Inches(4.5)
+        footer_tab.columns[1].width = Inches(1.8)
+        WordExporter._clear_table_borders(footer_tab)
+
+        left_top = footer_tab.rows[0].cells[0]
+        left_bottom = footer_tab.rows[1].cells[0]
+        right_top = footer_tab.rows[0].cells[1]
+        right_bottom = footer_tab.rows[1].cells[1]
+
+        WordExporter._add_paragraph(left_top, closing_line_1, size=8, bold=True, color=theme["accent_dark"])
+        WordExporter._add_paragraph(left_bottom, closing_line_2, size=7, color=theme["label"])
+        WordExporter._add_paragraph(right_top, closing_line_3, size=7, bold=True, color=theme["accent_dark"], align=WD_ALIGN_PARAGRAPH.RIGHT)
+        WordExporter._add_paragraph(right_bottom, "EXPORT STATUS | DECISION ARTIFACT", size=7, bold=True, color=theme["label"], align=WD_ALIGN_PARAGRAPH.RIGHT)
+
+    @staticmethod
     def generate(intelligence_object, output_dir=None):
         meta, sections, structured, _, _ = _extract_parts(intelligence_object)
         doc = Document()
@@ -1469,13 +1550,27 @@ class WordExporter:
 
             WordExporter._add_spacing(doc)
 
-        # Clean report mode: no ANALYSIS PHASES, no CONFIDENCE SCORE, no closing stamp
-        # These are internal system artifacts — not part of the decision document
-        WordExporter._add_spacing(doc)
+        # Force a deterministic terminal section so DOCX never ends on an arbitrary node.
+        WordExporter._append_final_assessment_and_footer(doc, meta, sections, tc, intelligence_object)
 
         filename = f"KORUM-OS_DOSSIER_{_safe_filename_part(meta.get('title'))}_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
-        doc.save(filepath)
+        tmp_fd, tmp_path = tempfile.mkstemp(prefix="korum_docx_", suffix=".docx", dir=os.path.dirname(filepath))
+        os.close(tmp_fd)
+        try:
+            doc.save(tmp_path)
+            with open(tmp_path, 'rb') as handle:
+                data = handle.read()
+                if not data:
+                    raise RuntimeError("DOCX export produced an empty file")
+            with zipfile.ZipFile(tmp_path, 'r') as _:
+                pass
+            os.replace(tmp_path, filepath)
+            with open(filepath, 'rb+') as final_handle:
+                os.fsync(final_handle.fileno())
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
         return filepath
 
 class JSONExporter:
