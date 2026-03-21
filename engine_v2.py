@@ -30,12 +30,12 @@ WORKFLOW_DNA = {
         "output_structure": ["Situation", "Threat", "Immediate Action", "Resource Allocation", "Escalation Path"]
     },
     "RESEARCH": {
-        "goal": "Deep understanding and evidence-based exploration.",
-        "tone": "Neutral, academic, and comprehensive.",
+        "goal": "Clear decision with supporting analysis and actionable next steps.",
+        "tone": "Direct, structured, and decision-ready.",
         "risk_bias": "Balanced",
         "time_horizon": "Long-term strategic",
-        "posture": "Objective Scientist",
-        "output_structure": ["Hypotheses", "Evidence", "Counterarguments", "Confidence Score", "Further Research Paths"]
+        "posture": "Decision Commander",
+        "output_structure": ["Executive Assessment", "Scenario Analysis", "Critical Challenges", "Tradeoff Analysis", "Decision and Action Plan"]
     },
     "FINANCE": {
         "goal": "Economic viability and downside protection.",
@@ -2614,7 +2614,42 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
             history_text += "The executive summary and recommendations sections are the FINAL WORD.\n"
             history_text += "They must align with the truth score and verification outcomes — no contradictions.\n"
 
-    schema_sections = {section.lower().replace(" ", "_"): "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations." for section in dna["output_structure"]}
+    # Section-specific synthesis directives — tell the LLM exactly what each section should contain
+    SECTION_DIRECTIVES = {
+        "executive_assessment": (
+            "Open with the decision. State the recommended action in the FIRST sentence. "
+            "Then summarize the key finding, primary risk, and confidence level. "
+            "2-3 paragraphs max. No hedging on the recommendation — be direct."
+        ),
+        "scenario_analysis": (
+            "Present 2-3 scenarios with severity tags (CRITICAL/AMBER/GREEN). "
+            "Each scenario needs: a name, description, progression timeline, and an 'Implication:' line. "
+            "Include Most Plausible, Most Dangerous, and Strategic Opportunity where applicable. "
+            "Use concrete language, not abstract summaries."
+        ),
+        "critical_challenges": (
+            "Stress-test the assumptions underlying the analysis. "
+            "List High Impact challenges and Secondary Considerations separately. "
+            "End with a conclusion on whether uncertainties outweigh the risk of inaction. "
+            "This is the adversarial section — challenge the council's own conclusions."
+        ),
+        "tradeoff_analysis": (
+            "Build a structured comparison across dimensions (Operational, Financial, Customer, Strategic). "
+            "Use a [STRUCTURED_TABLE] with columns: Dimension | Option A (short-term) | Option B (long-term). "
+            "Each cell should be a concise statement, not a paragraph."
+        ),
+        "decision_and_action_plan": (
+            "State the decision clearly in one sentence. Provide rationale as bullet points. "
+            "Then break execution into time phases: Immediate (0-30 days), Near-Term (30-90 days), "
+            "Mid-Term (90+ days) with 2-4 concrete steps in each phase. "
+            "End with execution considerations (constraints, resource needs, data gaps)."
+        ),
+    }
+    default_directive = "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations."
+    schema_sections = {
+        section.lower().replace(" ", "_"): SECTION_DIRECTIVES.get(section.lower().replace(" ", "_"), default_directive)
+        for section in dna["output_structure"]
+    }
 
     prompt = f"""
     You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a comprehensive, high-fidelity "Intelligence Object".

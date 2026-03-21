@@ -113,8 +113,11 @@ def _pdf_status_label(status):
 def _clean_cell_text(text):
     t = _as_text(text)
     t = re.sub(r"\[/?METRIC_ANCHOR\]", "", t)
-    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
-    t = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", t)
+    t = re.sub(r"^#{1,6}\s*", "", t, flags=re.MULTILINE)       # markdown headers
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)                     # bold
+    t = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", t)  # italic
+    t = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", t)            # markdown links
+    t = re.sub(r"\[([A-Z_ ]+)\]", "", t)                       # signal tags like [AMBER]
     return t.strip()
 
 
@@ -1010,7 +1013,7 @@ class ExecutiveMemoExporter:
                 c_claims = c_data.get("verified_claims") or []
                 if any(_as_text(cl.get('status','')).lower() in ('flagged','challenged') for cl in c_claims):
                     stamp, stamp_color = "FLAGGED", SEM_RED
-                elif any(_as_text(cl.get('status','')).lower() == 'verified' for cl in c_claims):
+                elif any(_as_text(cl.get('status','')).lower() in ('confirmed', 'supported', 'verified') for cl in c_claims):
                     stamp, stamp_color = "VERIFIED", SEM_GREEN
                 else:
                     stamp, stamp_color = "CONDITIONAL", SEM_AMBER
@@ -1478,7 +1481,7 @@ class WordExporter:
                 c_claims = c_data.get("verified_claims") or []
                 if any(_as_text(cl.get('status','')).lower() in ('flagged','challenged') for cl in c_claims):
                     stamp = "\u2691 Flagged"
-                elif any(_as_text(cl.get('status','')).lower() == 'verified' for cl in c_claims):
+                elif any(_as_text(cl.get('status','')).lower() in ('confirmed', 'supported', 'verified') for cl in c_claims):
                     stamp = "\u2713 Verified"
                 else:
                     stamp = "\u25ce Conditional"
