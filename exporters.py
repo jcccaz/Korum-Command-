@@ -648,6 +648,7 @@ class ExecutiveMemoExporter:
             story.append(Spacer(1, 30))
 
         # 4. --- INTELLIGENCE NODES (FULL-WIDTH PROSE) ---
+        seen_claims = set()  # Deduplicate claims across nodes
         section_items = list(sections.items())
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
@@ -680,12 +681,16 @@ class ExecutiveMemoExporter:
             # Render all blocks full-width: prose, tables inline
             story.extend(_render_pdf_blocks(content_blocks, styles, 540, tc))
 
-            # Inline pull quotes from verified claims
+            # Inline pull quotes from verified claims (skip trivial/duplicate)
             claims = prov_data.get("verified_claims") or []
             for claim in claims[:2]:
                 claim_text = _as_text(claim.get('claim', ''))
-                if not claim_text:
+                if not claim_text or len(claim_text) < 25:
                     continue
+                claim_key = claim_text.strip().lower()
+                if claim_key in seen_claims:
+                    continue
+                seen_claims.add(claim_key)
                 claim_status = _as_text(claim.get('status', 'strategic'))
                 pq = _build_pull_quote(claim_text, claim_status, prov_name, prov_role, doc._session_id, styles)
                 story.append(pq)
@@ -937,6 +942,7 @@ class WordExporter:
             WordExporter._add_spacing(doc)
 
         # 4. --- INTELLIGENCE NODES (full-width prose) ---
+        seen_claims = set()  # Deduplicate claims across nodes
         section_items = list(sections.items())
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
@@ -963,12 +969,16 @@ class WordExporter:
 
             WordExporter._render_word_blocks(doc, content_blocks, tc)
 
-            # Inline pull quotes
+            # Inline pull quotes (skip trivial/duplicate)
             claims = prov_data.get("verified_claims") or []
             for claim in claims[:2]:
                 claim_text = _as_text(claim.get('claim', ''))
-                if not claim_text:
+                if not claim_text or len(claim_text) < 25:
                     continue
+                claim_key = claim_text.strip().lower()
+                if claim_key in seen_claims:
+                    continue
+                seen_claims.add(claim_key)
                 claim_status = _as_text(claim.get('status', 'strategic')).lower()
                 if claim_status in ('flagged', 'challenged'):
                     border_hex, bg_hex = SEM_RED, "FDF2F2"
