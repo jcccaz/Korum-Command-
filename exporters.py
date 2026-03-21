@@ -199,9 +199,26 @@ def _extract_content_blocks(text):
             blocks.extend(_extract_content_blocks(raw_text[last_end:]))
         return blocks
 
+    # Detect verification/interrogation sections — group header + body into one block
+    _EVIDENCE_HEADER = re.compile(
+        r"^(SOURCE VERIFICATION|VERIFICATION|INTERROGATION)\s*\[([^\]]+)\]",
+        re.IGNORECASE | re.MULTILINE
+    )
+
     for chunk in re.split(r"\n\s*\n", raw_text):
         chunk = chunk.strip()
         if not chunk:
+            continue
+
+        # Evidence blocks: SOURCE VERIFICATION [ACCURATE], INTERROGATION [FLAGGED], etc.
+        ev_match = _EVIDENCE_HEADER.match(chunk)
+        if ev_match:
+            blocks.append({
+                "type": "evidence",
+                "status": ev_match.group(2).strip().upper(),
+                "label": ev_match.group(1).strip().upper(),
+                "text": chunk,
+            })
             continue
 
         markdown_table = _parse_markdown_table_block(chunk)
@@ -418,7 +435,55 @@ def _render_pdf_blocks(blocks, styles, total_width, palette):
             if table:
                 flowables.append(table)
                 flowables.append(Spacer(1, 10))
+        elif block["type"] == "evidence":
+            ev_flowables = _build_pdf_evidence_block(block, styles, total_width, palette)
+            flowables.extend(ev_flowables)
     return flowables
+
+
+def _build_pdf_evidence_block(block, styles, total_width, palette):
+    """Render SOURCE VERIFICATION / INTERROGATION as indented block with left border."""
+    status = block.get("status", "").upper()
+    text = block.get("text", "")
+
+    if status in ("INACCURATE", "FLAGGED", "CHALLENGED"):
+        border_color = colors.HexColor("#A45A52")
+    elif status in ("ACCURATE", "VERIFIED"):
+        border_color = colors.HexColor("#5B7F5E")
+    else:
+        border_color = colors.HexColor("#4A6A7A")
+
+    # Build content paragraphs
+    content_parts = []
+    lines = text.split("\n")
+    first = True
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        clean = line.replace("**", "")
+        if first:
+            content_parts.append(Paragraph(f"<b>{escape(clean)}</b>", styles["ExecAudit"]))
+            first = False
+        elif line.startswith("Claim:"):
+            content_parts.append(Paragraph(f"<i>{escape(clean)}</i>", styles["ExecBody"]))
+        else:
+            content_parts.append(Paragraph(escape(clean), styles["ExecBody"]))
+        content_parts.append(Spacer(1, 3))
+
+    # Wrap in a table with left-border cell for visual indent
+    indent_width = total_width - 40  # 40pt left margin
+    ev_tab = Table([[content_parts]], colWidths=[indent_width])
+    ev_tab.setStyle(TableStyle([
+        ('LEFTPADDING', (0, 0), (-1, -1), 15),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LINEBEFORE', (0, 0), (0, -1), 2.5, border_color),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+
+    return [Spacer(1, 6), ev_tab, Spacer(1, 10)]
 
 
 def _resolve_session_id(meta, intelligence_object):
@@ -885,6 +950,71 @@ class WordExporter:
                 WordExporter._add_paragraph(container, block["text"], size=8, bold=True, italic=True, color=theme["accent_dark"])
             elif block["type"] == "table":
                 WordExporter._render_word_table(container, block, theme)
+            elif block["type"] == "evidence":
+                WordExporter._render_evidence_block(container, block, theme)
+
+    @staticmethod
+    def _render_evidence_block(container, block, theme):
+        """Render SOURCE VERIFICATION / INTERROGATION as indented block with left border."""
+        from docx.oxml import parse_xml
+        from docx.oxml.ns import nsdecls
+
+        status = block.get("status", "").upper()
+        text = block.get("text", "")
+
+        # Status-based border color
+        if status in ("INACCURATE", "FLAGGED", "CHALLENGED"):
+            border_color = "A45A52"  # dusty clay
+        elif status in ("ACCURATE", "VERIFIED"):
+            border_color = "5B7F5E"  # sage
+        else:
+            border_color = "4A6A7A"  # steel slate
+
+        # Create indented table with left border
+        ev_tab = container.add_table(rows=1, cols=1) if hasattr(container, 'add_table') else None
+        if not ev_tab:
+            # Fallback for table cells — just render as indented paragraphs
+            for line in text.split("\n"):
+                line = line.strip()
+                if line:
+                    p = WordExporter._add_paragraph(container, line, size=8, color=theme["text"])
+                    if p:
+                        p.paragraph_format.left_indent = Inches(0.4)
+            return
+
+        ev_cell = ev_tab.rows[0].cells[0]
+
+        # Left border via XML
+        tc_pr = ev_cell._tc.get_or_add_tcPr()
+        borders = parse_xml(
+            f'<w:tcBorders {nsdecls("w")}>'
+            f'<w:left w:val="single" w:sz="12" w:space="0" w:color="{border_color}"/>'
+            f'<w:top w:val="none" w:sz="0" w:space="0"/>'
+            f'<w:bottom w:val="none" w:sz="0" w:space="0"/>'
+            f'<w:right w:val="none" w:sz="0" w:space="0"/>'
+            f'</w:tcBorders>'
+        )
+        tc_pr.append(borders)
+
+        # Render content lines inside the cell
+        lines = text.split("\n")
+        first = True
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if first:
+                # Header line — bold, slightly larger
+                WordExporter._add_paragraph(ev_cell, line, size=8, bold=True, color=border_color)
+                first = False
+            elif line.startswith("**") and line.endswith("**"):
+                # Status verdict — bold
+                clean = line.strip("*").strip()
+                WordExporter._add_paragraph(ev_cell, clean, size=8, bold=True, color=border_color)
+            elif line.startswith("Claim:") or line.startswith("- **"):
+                WordExporter._add_paragraph(ev_cell, line.replace("**", ""), size=8, italic=True, color=theme["text"])
+            else:
+                WordExporter._add_paragraph(ev_cell, line.replace("**", ""), size=8, color=theme["text"])
 
     @staticmethod
     def _add_spacing(doc, count=1):
