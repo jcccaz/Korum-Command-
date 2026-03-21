@@ -57,7 +57,8 @@ def _artifact_label(art):
         elif art_type in ('CSV', 'TABLE', 'DATA'):
             label = 'DATA TABLE'
         else:
-            label = art_type or 'ARTIFACT'
+            # Only use recognized types — suppress stray labels like CODE, TEXT, etc.
+            label = ''
     return label.upper()
 
 def _report_artifacts(o):
@@ -305,23 +306,24 @@ def _artifact_matches(art, section_title, provider_name):
 
 
 def _assign_artifacts_to_nodes(artifacts, section_items, contributors):
-    """Map each artifact to its best-matching node index. Returns {node_idx: [art, ...], -1: [unmatched]}."""
+    """Map each artifact to its FIRST matching node. Each artifact renders exactly once."""
     assigned = {i: [] for i in range(len(section_items))}
     assigned[-1] = []  # unmatched bucket
-    remaining = list(artifacts)
+    claimed = set()  # track artifact indices already assigned
     for i, (sid, _content) in enumerate(section_items):
         sec_title = sid.replace("_", " ").upper()
         prov_name = "KORUM"
         if i < len(contributors):
             prov_name = _as_text(contributors[i].get('provider', '')).upper()
-        matched = [a for a in remaining if _artifact_matches(a, sec_title, prov_name)]
-        for a in matched:
-            assigned[i].append(a)
-            remaining.remove(a)
-    # Unmatched artifacts go to the last node (closest to their data), not a separate section
-    if remaining:
-        last_idx = len(section_items) - 1 if section_items else -1
-        assigned[last_idx].extend(remaining)
+        for ai, a in enumerate(artifacts):
+            if ai not in claimed and _artifact_matches(a, sec_title, prov_name):
+                assigned[i].append(a)
+                claimed.add(ai)
+    # Unmatched artifacts go to the last node
+    for ai, a in enumerate(artifacts):
+        if ai not in claimed:
+            last_idx = len(section_items) - 1 if section_items else -1
+            assigned[last_idx].append(a)
     return assigned
 
 
@@ -732,16 +734,17 @@ class ExecutiveMemoExporter:
                 story.append(pq)
                 story.append(Spacer(1, 8))
 
-            # Remaining artifacts without imageData — render below as text
+            # Remaining artifacts without imageData — render below as text (skip empty)
             for art in remaining_arts:
+                art_content = _as_text(art.get('content', '')).strip()
+                if not art_content:
+                    continue  # skip artifacts with no content and no image — bare labels
                 art_label = _artifact_label(art)
-                art_content = _as_text(art.get('content', ''))
                 if art_label:
                     story.append(Paragraph(art_label, styles['ExecSectionSubhead']))
                     story.append(Spacer(1, 4))
-                if art_content:
-                    art_blocks = _extract_content_blocks(art_content)
-                    story.extend(_render_pdf_blocks(art_blocks, styles, 540, tc))
+                art_blocks = _extract_content_blocks(art_content)
+                story.extend(_render_pdf_blocks(art_blocks, styles, 540, tc))
                 story.append(Spacer(1, 10))
 
             story.append(Spacer(1, 16))
@@ -1064,15 +1067,16 @@ class WordExporter:
                 role_part = f" \u00b7 {prov_role}" if prov_role else ""
                 WordExporter._add_paragraph(pq_cell, f"\u2014 {prov_name}{role_part} \u00b7 {session_id}", size=6.5, color=SEM_MUTED)
 
-            # Remaining text-only artifacts — render below full-width
+            # Remaining text-only artifacts — render below full-width (skip empty)
             for art in remaining_arts:
+                art_content = _as_text(art.get('content', '')).strip()
+                if not art_content:
+                    continue  # skip artifacts with no content and no image — bare labels
                 art_label = _artifact_label(art)
-                art_content = _as_text(art.get('content', ''))
                 if art_label:
                     WordExporter._add_paragraph(doc, art_label, size=8, bold=True, italic=True, color=tc["accent_dark"])
-                if art_content:
-                    art_blocks = _extract_content_blocks(art_content)
-                    WordExporter._render_word_blocks(doc, art_blocks, tc)
+                art_blocks = _extract_content_blocks(art_content)
+                WordExporter._render_word_blocks(doc, art_blocks, tc)
 
             WordExporter._add_spacing(doc)
 

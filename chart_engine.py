@@ -6,14 +6,14 @@ Registry routes chart types to renderers. SVG builders produce print-ready chart
 with semantic colors. Mermaid types pass through to the existing frontend pipeline.
 """
 
-# ── Semantic Colors ──────────────────────────────────────────────────────────
-SEM_GREEN  = "#2E7D32"   # positive / verified
-SEM_RED    = "#C62828"    # negative / flagged / risk
-SEM_AMBER  = "#F57F17"   # conditional / caution
-SEM_BLUE   = "#1565C0"   # total / structure / neutral
-SEM_GREY   = "#616161"   # baseline / label
-SEM_TEAL   = "#00695C"   # secondary positive
-SEM_PURPLE = "#6A1B9A"   # accent / differentiation
+# ── Semantic Colors (muted / earthy — print-friendly) ────────────────────────
+SEM_GREEN  = "#5B7F5E"   # positive / verified — sage
+SEM_RED    = "#A45A52"   # negative / flagged / risk — dusty clay
+SEM_AMBER  = "#B8893E"   # conditional / caution — warm ochre
+SEM_BLUE   = "#4A6A7A"   # total / structure / neutral — steel slate
+SEM_GREY   = "#7A7A72"   # baseline / label — warm grey
+SEM_TEAL   = "#5A7A6E"   # secondary positive — muted sage-teal
+SEM_PURPLE = "#7A6178"   # accent / differentiation — dusty mauve
 
 PALETTE = [SEM_BLUE, SEM_GREEN, SEM_RED, SEM_AMBER, SEM_TEAL, SEM_PURPLE, SEM_GREY]
 
