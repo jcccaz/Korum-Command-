@@ -1177,6 +1177,23 @@ class WordExporter:
         cell._tc.get_or_add_tcPr().append(shading_elm)
 
     @staticmethod
+    def _clear_table_borders(table):
+        """Remove all default borders from a python-docx table."""
+        from docx.oxml import parse_xml
+        from docx.oxml.ns import nsdecls
+        tbl_pr = table._tbl.tblPr if table._tbl.tblPr is not None else table._tbl.get_or_add_tblPr()
+        tbl_pr.append(parse_xml(
+            f'<w:tblBorders {nsdecls("w")}>'
+            f'<w:top w:val="none" w:sz="0" w:space="0"/>'
+            f'<w:bottom w:val="none" w:sz="0" w:space="0"/>'
+            f'<w:left w:val="none" w:sz="0" w:space="0"/>'
+            f'<w:right w:val="none" w:sz="0" w:space="0"/>'
+            f'<w:insideH w:val="none" w:sz="0" w:space="0"/>'
+            f'<w:insideV w:val="none" w:sz="0" w:space="0"/>'
+            f'</w:tblBorders>'
+        ))
+
+    @staticmethod
     def _set_run_style(run, *, size=None, bold=False, italic=False, color=None):
         if size is not None:
             run.font.size = Pt(size)
@@ -1277,6 +1294,7 @@ class WordExporter:
         # ── 1. CLAIM STRIP (left-bordered, prominent) ────────────────────
         if claim:
             claim_tab = container.add_table(rows=1, cols=1)
+            WordExporter._clear_table_borders(claim_tab)
             claim_cell = claim_tab.rows[0].cells[0]
             tc_pr = claim_cell._tc.get_or_add_tcPr()
             borders = parse_xml(
@@ -1293,6 +1311,7 @@ class WordExporter:
 
         # ── 2. STATUS STRIP ──────────────────────────────────────────────
         status_tab = container.add_table(rows=1, cols=1)
+        WordExporter._clear_table_borders(status_tab)
         status_cell = status_tab.rows[0].cells[0]
         WordExporter._set_cell_background(status_cell, bg_hex)
         status_text = f"{block_label}   {status_symbol} {status_label}"
@@ -1301,6 +1320,7 @@ class WordExporter:
         # ── 3. CHALLENGES (if any) ───────────────────────────────────────
         for challenge in challenges[:2]:
             ch_tab = container.add_table(rows=1, cols=1)
+            WordExporter._clear_table_borders(ch_tab)
             ch_cell = ch_tab.rows[0].cells[0]
             tc_pr = ch_cell._tc.get_or_add_tcPr()
             borders = parse_xml(
@@ -1324,6 +1344,7 @@ class WordExporter:
         if sources:
             source_summary = " \u00b7 ".join(s[:60] for s in sources[:3])
             prov_tab = container.add_table(rows=1, cols=1)
+            WordExporter._clear_table_borders(prov_tab)
             prov_cell = prov_tab.rows[0].cells[0]
             WordExporter._set_cell_background(prov_cell, bg_hex)
             WordExporter._add_paragraph(prov_cell, f"SOURCE: {source_summary}", size=6.5, color=SEM_MUTED)
@@ -1533,8 +1554,9 @@ class WordExporter:
                 else:
                     border_hex, bg_hex = SEM_BLUE, "F0F3FA"
                 pq_tab = doc.add_table(rows=1, cols=1)
+                WordExporter._clear_table_borders(pq_tab)
                 pq_cell = pq_tab.rows[0].cells[0]
-                # Thin left border only — no full box. Light background tint.
+                # Thin left accent border only
                 from docx.oxml import parse_xml as _px
                 from docx.oxml.ns import nsdecls as _ns
                 _tc_pr = pq_cell._tc.get_or_add_tcPr()
