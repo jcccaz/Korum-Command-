@@ -60,6 +60,7 @@ class Report(db.Model):
     consensus = db.Column(db.Text, nullable=True)
     synthesis = db.Column(db.Text, nullable=True)      # JSON string
     classification = db.Column(db.Text, nullable=True) # JSON string
+    docked_snippets = db.Column(db.Text, nullable=True) # JSON string
     role_name = db.Column(db.String(100), nullable=True)
     provider_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)

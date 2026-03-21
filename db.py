@@ -38,6 +38,9 @@ def init_db(app) -> None:
                 _safe_add_column(conn, 'usage_logs', 'session_id', "VARCHAR(36)")
                 _safe_add_column(conn, 'usage_logs', 'workflow_name', "VARCHAR(50)")
                 _safe_add_column(conn, 'usage_logs', 'provider_name', "VARCHAR(50)")
+
+                # Report extensions
+                _safe_add_column(conn, 'reports', 'docked_snippets', "TEXT")
                 
                 conn.commit()
             except Exception as e:

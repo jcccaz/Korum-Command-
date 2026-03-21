@@ -1337,6 +1337,7 @@ def save_report():
             consensus=_to_json(data.get("consensus", ""), ""),
             synthesis=_to_json(data.get("synthesis", ""), ""),
             classification=_to_json(data.get("classification", {}), {}),
+            docked_snippets=_to_json(data.get("docked_snippets", []), []),
             role_name=data.get("roleName", ""),
             provider_count=len([k for k, v in (results_raw if isinstance(results_raw, dict) else {}).items() if isinstance(v, dict) and v.get("success")])
         )
@@ -1392,6 +1393,7 @@ def get_report(report_id):
             "consensus": _from_json(r.consensus, ""),
             "synthesis": _from_json(r.synthesis, ""),
             "classification": _from_json(r.classification, {}),
+            "docked_snippets": _from_json(r.docked_snippets, []),
             "roleName": r.role_name or "",
             "timestamp": r.created_at.strftime("%Y-%m-%d %H:%M:%S") if r.created_at else "",
             "provider_count": r.provider_count or 0

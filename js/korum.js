@@ -657,6 +657,83 @@ const VaultUploader = {
 };
 
 // === REPORT LIBRARY ===
+const reportLibraryState = {
+    reports: [],
+    selectionMode: false,
+    selectedIds: new Set(),
+};
+
+function updateLibraryHeaderControls() {
+    const selectBtn = document.getElementById('librarySelectBtn');
+    const deleteBtn = document.getElementById('libraryDeleteSelectedBtn');
+    if (selectBtn) {
+        selectBtn.classList.toggle('active', reportLibraryState.selectionMode);
+        selectBtn.textContent = reportLibraryState.selectionMode ? 'CANCEL' : 'SELECT';
+    }
+    if (deleteBtn) {
+        const count = reportLibraryState.selectedIds.size;
+        deleteBtn.disabled = count === 0;
+        deleteBtn.textContent = count > 0 ? `DELETE SELECTED (${count})` : 'DELETE SELECTED';
+    }
+}
+
+function renderReportLibrary(reports) {
+    const list = document.getElementById('libraryList');
+    if (!list) return;
+
+    reportLibraryState.reports = Array.isArray(reports) ? reports : [];
+    updateLibraryHeaderControls();
+
+    if (!reportLibraryState.reports.length) {
+        list.innerHTML = '<div class="library-empty">No saved reports yet. Run a council query and save the results.</div>';
+        return;
+    }
+
+    list.innerHTML = reportLibraryState.reports.map(r => {
+        const selected = reportLibraryState.selectedIds.has(r.id);
+        const modeClass = reportLibraryState.selectionMode ? ' selection-mode' : '';
+        const selectedClass = selected ? ' selected' : '';
+        const selector = reportLibraryState.selectionMode ? `<span class="report-card-selector">✓</span>` : '';
+        return `
+            <div class="report-card${modeClass}${selectedClass}" onclick="handleReportCardClick(event, '${r.id}')">
+                ${selector}
+                <div class="report-card-header">
+                    <span class="report-card-role">${r.roleName || 'Council'}</span>
+                    <span class="report-card-time">${r.timestamp}</span>
+                </div>
+                <div class="report-card-query">${r.query}</div>
+                <div class="report-card-footer">
+                    <span class="report-card-providers">${r.provider_count} providers</span>
+                    ${reportLibraryState.selectionMode ? '' : `<button class="report-card-delete" onclick="event.stopPropagation(); deleteReport('${r.id}')" title="Delete">&times;</button>`}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleLibrarySelectionMode(forceState) {
+    const nextState = typeof forceState === 'boolean' ? forceState : !reportLibraryState.selectionMode;
+    reportLibraryState.selectionMode = nextState;
+    if (!nextState) {
+        reportLibraryState.selectedIds.clear();
+    }
+    renderReportLibrary(reportLibraryState.reports);
+}
+
+function handleReportCardClick(event, id) {
+    if (reportLibraryState.selectionMode) {
+        event.preventDefault();
+        if (reportLibraryState.selectedIds.has(id)) {
+            reportLibraryState.selectedIds.delete(id);
+        } else {
+            reportLibraryState.selectedIds.add(id);
+        }
+        renderReportLibrary(reportLibraryState.reports);
+        return;
+    }
+    recallReport(id);
+}
+
 async function saveReport() {
     if (!lastCouncilData) {
         showProcessingToast("No report to save. Run a council query first.");
@@ -691,6 +768,7 @@ async function loadReportLibrary() {
     const list = document.getElementById('libraryList');
     if (!list) { console.warn('[Reports] libraryList element not found'); return; }
     list.innerHTML = '<div class="library-empty">Loading...</div>';
+    updateLibraryHeaderControls();
 
     try {
         const resp = await authFetch('/api/reports/list');
@@ -699,23 +777,7 @@ async function loadReportLibrary() {
             list.innerHTML = `<div class="library-empty">Unable to load reports. Please refresh and try again.</div>`;
             return;
         }
-        if (!data.reports || !data.reports.length) {
-            list.innerHTML = '<div class="library-empty">No saved reports yet. Run a council query and save the results.</div>';
-            return;
-        }
-        list.innerHTML = data.reports.map(r => `
-            <div class="report-card" onclick="recallReport('${r.id}')">
-                <div class="report-card-header">
-                    <span class="report-card-role">${r.roleName || 'Council'}</span>
-                    <span class="report-card-time">${r.timestamp}</span>
-                </div>
-                <div class="report-card-query">${r.query}</div>
-                <div class="report-card-footer">
-                    <span class="report-card-providers">${r.provider_count} providers</span>
-                    <button class="report-card-delete" onclick="event.stopPropagation(); deleteReport('${r.id}')" title="Delete">&times;</button>
-                </div>
-            </div>
-        `).join('');
+        renderReportLibrary(data.reports || []);
     } catch (e) {
         console.error('[Reports] Load error:', e);
         logTelemetry(`Report library error: ${e.message}`, "error");
@@ -745,6 +807,17 @@ async function recallReport(id) {
             });
         }
 
+        if (typeof ResearchDock !== 'undefined') {
+            const recalledSnippets = Array.isArray(report.docked_snippets) ? report.docked_snippets : [];
+            ResearchDock.snippets = recalledSnippets.map(s => ({
+                ...s,
+                includeInReport: !!s.includeInReport,
+                timestamp: s.timestamp ? new Date(s.timestamp) : new Date()
+            }));
+            ResearchDock.render();
+            ResearchDock.save();
+        }
+
         // Re-render
         renderResults(report, report.roleName || "Recalled");
         logTelemetry(`Report recalled: ${id}`, "system");
@@ -769,6 +842,26 @@ async function deleteReport(id) {
     }
 }
 
+async function bulkDeleteReports() {
+    const ids = Array.from(reportLibraryState.selectedIds);
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} saved report${ids.length === 1 ? '' : 's'}?`)) return;
+
+    try {
+        for (const id of ids) {
+            await authFetch(`/api/reports/${id}`, { method: 'DELETE' });
+            logTelemetry(`Report deleted: ${id}`, "system");
+        }
+        reportLibraryState.selectedIds.clear();
+        reportLibraryState.selectionMode = false;
+        showProcessingToast(`${ids.length} report${ids.length === 1 ? '' : 's'} deleted.`);
+        loadReportLibrary();
+    } catch (e) {
+        logTelemetry(`Bulk report delete error: ${e.message}`, "error");
+        showProcessingToast("Unable to delete selected reports. Please try again.");
+    }
+}
+
 function toggleReportLibrary(show) {
     const panel = document.getElementById('reportLibrary');
     const overlay = document.getElementById('libraryOverlay');
@@ -785,6 +878,9 @@ function toggleReportLibrary(show) {
         if (overlay) overlay.classList.remove('visible');
         document.body.classList.remove('report-library-open');
         sessionState.archivePanelOpen = false;
+        reportLibraryState.selectionMode = false;
+        reportLibraryState.selectedIds.clear();
+        updateLibraryHeaderControls();
     }
 }
 

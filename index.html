@@ -869,7 +869,15 @@
     <div class="report-library" id="reportLibrary">
         <div class="library-header">
             <h3>SAVED REPORTS</h3>
-            <button class="close-library" id="closeLibraryBtn">&times;</button>
+            <div class="library-header-actions">
+                <button class="library-action-btn" id="librarySelectBtn" onclick="toggleLibrarySelectionMode()">
+                    SELECT
+                </button>
+                <button class="library-action-btn danger" id="libraryDeleteSelectedBtn" onclick="bulkDeleteReports()" disabled>
+                    DELETE SELECTED
+                </button>
+                <button class="close-library" id="closeLibraryBtn">&times;</button>
+            </div>
         </div>
         <div class="library-list" id="libraryList">
             <div class="library-empty">No saved reports yet. Run a council query and save the results.</div>
