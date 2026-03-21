@@ -96,6 +96,20 @@ def _closing_stamp_parts(session_id):
     )
 
 
+def _pdf_pipe_join(*parts):
+    cleaned = [_as_text(part).strip() for part in parts if _as_text(part).strip()]
+    return " | ".join(cleaned)
+
+
+def _pdf_status_label(status):
+    status_lower = _as_text(status).lower()
+    if status_lower in ("flagged", "challenged", "inaccurate"):
+        return "FLAGGED"
+    if status_lower == "verified" or status_lower == "accurate":
+        return "VERIFIED"
+    return "CONDITIONAL"
+
+
 def _clean_cell_text(text):
     t = _as_text(text)
     t = re.sub(r"\[/?METRIC_ANCHOR\]", "", t)
@@ -444,7 +458,6 @@ def _artifact_matches(art, section_title, provider_name):
 def _assign_artifacts_to_nodes(artifacts, section_items, contributors):
     """Map each artifact to its FIRST matching node. Each artifact renders exactly once."""
     assigned = {i: [] for i in range(len(section_items))}
-    assigned[-1] = []  # unmatched bucket
     claimed = set()  # track artifact indices already assigned
     for i, (sid, _content) in enumerate(section_items):
         sec_title = sid.replace("_", " ").upper()
@@ -455,11 +468,15 @@ def _assign_artifacts_to_nodes(artifacts, section_items, contributors):
             if ai not in claimed and _artifact_matches(a, sec_title, prov_name):
                 assigned[i].append(a)
                 claimed.add(ai)
-    # Unmatched artifacts go to the last node
-    for ai, a in enumerate(artifacts):
-        if ai not in claimed:
-            last_idx = len(section_items) - 1 if section_items else -1
-            assigned[last_idx].append(a)
+    # Unmatched artifacts distribute across nodes in artifact order so they stay near
+    # the report body instead of piling up as an appendix on the last node.
+    if section_items:
+        next_idx = 0
+        for ai, a in enumerate(artifacts):
+            if ai in claimed:
+                continue
+            assigned[next_idx].append(a)
+            next_idx = (next_idx + 1) % len(section_items)
     return assigned
 
 
@@ -521,11 +538,11 @@ def _build_pull_quote(claim_text, status, provider, role, session_id, styles):
         'PQAttr', parent=styles['ExecAudit'], fontSize=6.5,
         fontName='Courier', textColor=colors.HexColor(SEM_MUTED),
     )
-    role_part = f" \u00b7 {role}" if role else ""
+    role_part = f" | {role}" if role else ""
     content = [
         Paragraph(f"&ldquo;{escape(_as_text(claim_text))}&rdquo;", quote_style),
         Spacer(1, 4),
-        Paragraph(f"\u2014 {provider}{role_part} \u00b7 {session_id}", attr_style),
+        Paragraph(f"- {provider}{role_part} | {session_id}", attr_style),
     ]
     tbl = Table([[content]], colWidths=[520])
     tbl.setStyle(TableStyle([
@@ -571,17 +588,14 @@ def _build_pdf_evidence_block(block, styles, total_width, palette):
 
     if status in ("INACCURATE", "FLAGGED", "CHALLENGED"):
         border_color = colors.HexColor("#A45A52")
-        status_symbol = "\u2717"
         status_label = "FLAGGED"
         bg_color = colors.HexColor("#FDF6F5")
     elif status in ("ACCURATE", "VERIFIED"):
         border_color = colors.HexColor("#5B7F5E")
-        status_symbol = "\u2713"
         status_label = "VERIFIED"
         bg_color = colors.HexColor("#F4F8F5")
     else:
         border_color = colors.HexColor("#4A6A7A")
-        status_symbol = "\u25ce"
         status_label = "CONDITIONAL"
         bg_color = colors.HexColor("#F0F3FA")
 
@@ -592,7 +606,7 @@ def _build_pdf_evidence_block(block, styles, total_width, palette):
         claim_parts = [
             Paragraph(f"<b><i>{escape(claim)}</i></b>", styles["ExecBody"]),
             Spacer(1, 3),
-            Paragraph(f"\u2014 {status_label} CLAIM", styles["ExecAudit"]),
+            Paragraph(f"- {status_label} CLAIM", styles["ExecAudit"]),
         ]
         claim_tab = Table([[claim_parts]], colWidths=[total_width - 30])
         claim_tab.setStyle(TableStyle([
@@ -606,7 +620,7 @@ def _build_pdf_evidence_block(block, styles, total_width, palette):
         flowables.append(Spacer(1, 6))
 
     # ── 2. STATUS STRIP ──────────────────────────────────────────────
-    status_text = f"{block_label}   {status_symbol} {status_label}"
+    status_text = f"{block_label} | {status_label}"
     status_tab = Table([[Paragraph(f"<b>{escape(status_text)}</b>", styles["ExecAudit"])]], colWidths=[total_width - 30])
     status_tab.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), bg_color),
@@ -635,18 +649,18 @@ def _build_pdf_evidence_block(block, styles, total_width, palette):
         flowables.append(Paragraph(f"<b>WHY THIS HOLDS:</b>", styles["ExecAudit"]))
         flowables.append(Spacer(1, 3))
         for point in evidence_points[:5]:
-            flowables.append(Paragraph(f"\u2022 {escape(point)}", styles["ExecBody"]))
+            flowables.append(Paragraph(f"- {escape(point)}", styles["ExecBody"]))
             flowables.append(Spacer(1, 2))
         flowables.append(Spacer(1, 4))
 
     # ── 5. PROVENANCE ────────────────────────────────────────────────
     if sources:
-        source_summary = " \u00b7 ".join(s[:60] for s in sources[:3])
+        source_summary = " | ".join(s[:60] for s in sources[:3])
         challenge_status = "PASSED" if status in ("ACCURATE", "VERIFIED") else "FAILED" if status in ("INACCURATE", "FLAGGED") else "PENDING"
         prov_parts = [
             Paragraph(f"SOURCE: {escape(source_summary)}", styles["ExecAudit"]),
             Spacer(1, 2),
-            Paragraph(f"<b>STATUS: {status_symbol} {status_label}   CHALLENGE: {challenge_status}</b>", styles["ExecAudit"]),
+            Paragraph(f"<b>STATUS: {status_label} | CHALLENGE: {challenge_status}</b>", styles["ExecAudit"]),
         ]
         prov_tab = Table([[prov_parts]], colWidths=[total_width - 30])
         prov_tab.setStyle(TableStyle([
@@ -805,10 +819,6 @@ class ExecutiveMemoExporter:
         artifacts = _report_artifacts(intelligence_object)
         card_results = intelligence_object.get("_card_results") or {}
 
-        # Chart Standard: assign artifacts to their source nodes for inline placement
-        section_items_pre = list((sections or {}).items())
-        node_artifacts = _assign_artifacts_to_nodes(artifacts, section_items_pre, contributors)
-
         story = []
 
         # 1. --- STRATEGIC HEADER ---
@@ -817,7 +827,7 @@ class ExecutiveMemoExporter:
         
         # Header Metadata (Top Line)
         top_meta = [
-            [[Paragraph(f"INTELLIGENCE DOSSIER \u00b7 CONFIDENTIAL \u00b7 {workflow_label}", styles['ExecLabel'])], 
+            [[Paragraph(f"INTELLIGENCE DOSSIER | CONFIDENTIAL | {workflow_label}", styles['ExecLabel'])], 
              [Paragraph(f"<b>KORUM-OS</b><br/>{client_name}<br/>SESSION {doc._session_id}<br/>COUNCIL: {len(contributors)} AGENTS", styles['ExecSig'])]]
         ]
         top_tab = Table(top_meta, colWidths=[360, 180])
@@ -837,8 +847,9 @@ class ExecutiveMemoExporter:
         summary_p = Paragraph(f"<b>{escape(summary_text)}</b>", styles['ExecImpact'])
 
         top_visual = None
-        if artifacts:
-            top_visual = artifacts.pop(0)
+        body_artifacts = list(artifacts)
+        if body_artifacts:
+            top_visual = body_artifacts.pop(0)
 
         if top_visual:
             chart_img = _decode_image_data(top_visual.get('imageData'), max_width=200, max_height=180)
@@ -864,6 +875,10 @@ class ExecutiveMemoExporter:
         else:
             story.append(summary_p)
         story.append(Spacer(1, 30))
+
+        # Chart Standard: assign remaining artifacts to their source nodes for inline placement
+        section_items_pre = list((sections or {}).items())
+        node_artifacts = _assign_artifacts_to_nodes(body_artifacts, section_items_pre, contributors)
 
         # 3. --- KPI STRIP ---
         key_metrics = structured.get("key_metrics") or []
@@ -901,8 +916,8 @@ class ExecutiveMemoExporter:
                 prov_name = _as_text(contributors[idx].get('provider', '')).upper()
                 prov_role = _as_text(contributors[idx].get('role', ''))
 
-            role_suffix = f" &middot; {escape(prov_role)}" if prov_role else ""
-            node_id = f"{sec_title} &middot; NODE {idx+1:02d} &mdash; {prov_name}{role_suffix}"
+            role_suffix = f" | {escape(prov_role)}" if prov_role else ""
+            node_id = f"{sec_title} | NODE {idx+1:02d} - {prov_name}{role_suffix}"
 
             content_blocks = _extract_content_blocks(content)
 
@@ -994,11 +1009,11 @@ class ExecutiveMemoExporter:
                 c_data = card_results.get(c_prov.lower()) or {}
                 c_claims = c_data.get("verified_claims") or []
                 if any(_as_text(cl.get('status','')).lower() in ('flagged','challenged') for cl in c_claims):
-                    stamp, stamp_color = "\u2691 Flagged", SEM_RED
+                    stamp, stamp_color = "FLAGGED", SEM_RED
                 elif any(_as_text(cl.get('status','')).lower() == 'verified' for cl in c_claims):
-                    stamp, stamp_color = "\u2713 Verified", SEM_GREEN
+                    stamp, stamp_color = "VERIFIED", SEM_GREEN
                 else:
-                    stamp, stamp_color = "\u25ce Conditional", SEM_AMBER
+                    stamp, stamp_color = "CONDITIONAL", SEM_AMBER
                 cell_content = [
                     Paragraph(f"<b>{escape(c_prov)}</b>", styles['ExecAudit']),
                     Paragraph(escape(c_role), styles['ExecAudit']),
@@ -1045,12 +1060,12 @@ class ExecutiveMemoExporter:
         closer_left = [
             Paragraph(closer_head, styles['ExecLabel']),
             Spacer(1, 2),
-            Paragraph(closer_legal, styles['ExecAudit']),
+            Paragraph(closer_legal.replace(" \u00b7 ", " | "), styles['ExecAudit']),
         ]
         closer_right = [
-            Paragraph(closer_meta, styles['ExecSig']),
+            Paragraph(closer_meta.replace(" \u00b7 ", " | "), styles['ExecSig']),
             Spacer(1, 2),
-            Paragraph("EXPORT STATUS \u00b7 DECISION ARTIFACT", styles['ExecSig']),
+            Paragraph("EXPORT STATUS | DECISION ARTIFACT", styles['ExecSig']),
         ]
         closer_tab = Table([[closer_left, closer_right]], colWidths=[340, 200])
         closer_tab.setStyle(TableStyle([
