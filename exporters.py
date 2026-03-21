@@ -542,6 +542,7 @@ def _render_pdf_blocks(blocks, styles, total_width, palette):
 
 def _build_pdf_evidence_block(block, styles, total_width, palette):
     """KORUM-style evidence block: claim strip + status + evidence + provenance."""
+    block_label = _as_text(block.get("label") or "SOURCE VERIFICATION").upper()
     status = block.get("status", "").upper()
     claim = block.get("claim", "")
     evidence_points = block.get("evidence_points", [])
@@ -585,7 +586,7 @@ def _build_pdf_evidence_block(block, styles, total_width, palette):
         flowables.append(Spacer(1, 6))
 
     # ── 2. STATUS STRIP ──────────────────────────────────────────────
-    status_text = f"SOURCE VERIFICATION   {status_symbol} {status_label}"
+    status_text = f"{block_label}   {status_symbol} {status_label}"
     status_tab = Table([[Paragraph(f"<b>{escape(status_text)}</b>", styles["ExecAudit"])]], colWidths=[total_width - 30])
     status_tab.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), bg_color),
@@ -1113,6 +1114,7 @@ class WordExporter:
         from docx.oxml import parse_xml
         from docx.oxml.ns import nsdecls
 
+        block_label = _as_text(block.get("label") or "SOURCE VERIFICATION").upper()
         status = block.get("status", "").upper()
         claim = block.get("claim", "")
         evidence_points = block.get("evidence_points", [])
@@ -1165,7 +1167,7 @@ class WordExporter:
         status_tab = container.add_table(rows=1, cols=1)
         status_cell = status_tab.rows[0].cells[0]
         WordExporter._set_cell_background(status_cell, bg_hex)
-        status_text = f"SOURCE VERIFICATION   {status_symbol} {status_label}"
+        status_text = f"{block_label}   {status_symbol} {status_label}"
         WordExporter._add_paragraph(status_cell, status_text, size=7, bold=True, color=border_color)
 
         # ── 3. CHALLENGES (if any) ───────────────────────────────────────
