@@ -1385,6 +1385,8 @@ const ResearchDock = {
         if (this.snippets.length === 0) {
             if (snippetList) snippetList.innerHTML = `<div class="dock-empty">Select text and click DOCK to collect research</div>`;
             if (artifactSection) artifactSection.remove();
+            const counter = document.querySelector('.dock-count');
+            if (counter) counter.textContent = '0';
             updateResultsDockState({
                 pill: 'Standby',
                 text: 'Results, exports, and revision outputs land here.',
