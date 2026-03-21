@@ -85,12 +85,6 @@ button:focus-visible,
     font-size: var(--ui-xs);
 }
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
 body {
     background-color: var(--bg-base);
     background-image:
@@ -2198,7 +2192,7 @@ body.activated .sphere-container {
     display: flex;
     justify-content: center;
     padding: 20px;
-    background: white;
+    background: linear-gradient(180deg, rgba(30, 30, 30, 0.98), rgba(20, 20, 20, 0.98));
     border-radius: 8px;
     margin: 15px 0;
     border: 1px solid rgba(0, 255, 157, 0.15);

@@ -2460,7 +2460,8 @@ async function triggerCouncil(query) {
     const globe = document.querySelector(".globe");
     if (globe) globe.classList.add("processing");
 
-    // --- 3. SEND TO API --- updateSystemStatus("PROCESSING");
+    // --- 3. SEND TO API ---
+    updateSystemStatus("PROCESSING");
 
     animateActivation();
     startProcessingLogs();
@@ -2644,9 +2645,9 @@ function renderChainResults(result) {
     const councilPane = document.getElementById('pane-council');
     const analysisPane = document.getElementById('pane-analysis');
     const interPane = document.getElementById('pane-interrogation');
-    councilPane.innerHTML = "";
-    analysisPane.innerHTML = "";
-    interPane.innerHTML = '<div class="interrogation-empty-state">No interrogation or verification results yet.</div>';
+    if (councilPane) councilPane.innerHTML = "";
+    if (analysisPane) analysisPane.innerHTML = "";
+    if (interPane) interPane.innerHTML = '<div class="interrogation-empty-state">No interrogation or verification results yet.</div>';
 
     // Store for export functionality — use backend synthesis when available
     const totalTime = (result.metrics?.deconstruct?.time || 0) + (result.metrics?.build?.time || 0) +
@@ -2794,7 +2795,7 @@ function renderChainResults(result) {
         `;
         analysisGrid.appendChild(card);
     });
-    analysisPane.appendChild(analysisGrid);
+    if (analysisPane) analysisPane.appendChild(analysisGrid);
 
     // Build providerRecords for workspace dock (roster / reader / inspector)
     const v2Phases = [
@@ -5896,13 +5897,13 @@ function renderResults(data, roleName) {
     })();
 
     // Clear panes and populate
-    councilPane.innerHTML = "";
-    analysisPane.innerHTML = "";
-    interPane.innerHTML = '<div class="interrogation-empty-state">No interrogation or verification results yet.</div>';
+    if (councilPane) councilPane.innerHTML = "";
+    if (analysisPane) analysisPane.innerHTML = "";
+    if (interPane) interPane.innerHTML = '<div class="interrogation-empty-state">No interrogation or verification results yet.</div>';
 
     // EXPORT COMMAND CENTER (Phase 6)
-    renderExportToolbar(councilPane, data);
-    renderCouncilWorkspace(councilPane, data, providerRecords, {
+    if (councilPane) renderExportToolbar(councilPane, data);
+    if (councilPane) renderCouncilWorkspace(councilPane, data, providerRecords, {
         truthScore: stageTruth,
         modelCount: providerRecords.filter(record => record.provider !== 'red_team').length,
         totalTime,
@@ -5910,7 +5911,7 @@ function renderResults(data, roleName) {
         divergenceScore: data.divergence?.divergence_score || 0,
         consensusPreview: summarizeText(consensusText, 180)
     });
-    analysisPane.appendChild(analysisGrid);
+    if (analysisPane) analysisPane.appendChild(analysisGrid);
 
     document.querySelector(".results-container").classList.add("visible");
     updateResultsDockState({
@@ -6146,9 +6147,9 @@ function handleTextSelection(e) {
         const rect = range.getBoundingClientRect();
         const anchorEl = selection.anchorNode?.nodeType === 1 ? selection.anchorNode : selection.anchorNode?.parentElement;
         const focusEl = selection.focusNode?.nodeType === 1 ? selection.focusNode : selection.focusNode?.parentElement;
-        const agentCard = anchorEl?.closest?.('.agent-card') || focusEl?.closest?.('.agent-card');
-        const workspaceReader = anchorEl?.closest?.('#dock-reader, .dock-reader, .reader-body')
-            || focusEl?.closest?.('#dock-reader, .dock-reader, .reader-body');
+        const agentCard = anchorEl?.closest('.agent-card') || focusEl?.closest('.agent-card');
+        const workspaceReader = anchorEl?.closest('#dock-reader, .dock-reader, .reader-body')
+            || focusEl?.closest('#dock-reader, .dock-reader, .reader-body');
         let provider = agentCard?.dataset?.provider || null;
 
         if (!provider && workspaceReader) {
