@@ -65,11 +65,19 @@ def _safe_paragraph(text, style):
     return Paragraph(escape(_as_text(text)).replace("\n", "<br/>"), style)
 
 
+def _clean_cell_text(text):
+    t = _as_text(text)
+    t = re.sub(r"\[/?METRIC_ANCHOR\]", "", t)
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
+    t = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", t)
+    return t.strip()
+
+
 def _table_from_rows(headers, rows):
     if not headers or not rows:
         return None
-    clean_headers = [_as_text(h) for h in headers]
-    clean_rows = [[_as_text(cell) for cell in row] for row in rows if any(_as_text(cell) for cell in row)]
+    clean_headers = [_clean_cell_text(h) for h in headers]
+    clean_rows = [[_clean_cell_text(cell) for cell in row] for row in rows if any(_as_text(cell) for cell in row)]
     if not clean_rows:
         return None
     return {"headers": clean_headers, "rows": clean_rows}
@@ -264,6 +272,44 @@ def _build_pdf_table(block, styles, total_width, palette):
     return tbl
 
 
+def _pull_quote_color(status):
+    status_lower = _as_text(status).lower()
+    if status_lower in ("flagged", "challenged"):
+        return SEM_RED, "#FDF2F2"
+    if status_lower == "verified":
+        return SEM_GREEN, "#F2F8F4"
+    return SEM_BLUE, "#F0F3FA"
+
+
+def _build_pull_quote(claim_text, status, provider, role, session_id, styles):
+    border_color, bg_color = _pull_quote_color(status)
+    quote_style = ParagraphStyle(
+        'PQ', parent=styles['ExecBody'], fontSize=8, leading=11,
+        fontName='Helvetica-Oblique', textColor=colors.HexColor("#2f2b24"),
+    )
+    attr_style = ParagraphStyle(
+        'PQAttr', parent=styles['ExecAudit'], fontSize=6.5,
+        fontName='Courier', textColor=colors.HexColor(SEM_MUTED),
+    )
+    role_part = f" \u00b7 {role}" if role else ""
+    content = [
+        Paragraph(f"&ldquo;{escape(_as_text(claim_text))}&rdquo;", quote_style),
+        Spacer(1, 4),
+        Paragraph(f"\u2014 {provider}{role_part} \u00b7 {session_id}", attr_style),
+    ]
+    tbl = Table([[content]], colWidths=[520])
+    tbl.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(bg_color)),
+        ('LEFTPADDING', (0,0), (-1,-1), 12),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LINEBEFORE', (0,0), (0,-1), 3, colors.HexColor(border_color)),
+    ]))
+    return tbl
+
+
 def _render_pdf_blocks(blocks, styles, total_width, palette):
     flowables = []
     for block in blocks:
@@ -352,6 +398,23 @@ THEME_COLORS = {
     "STEEL_RUBY": IRON_DISPATCH,
 }
 
+# Fixed semantic colors — DO NOT vary by theme
+SEM_BLUE = "#273C75"      # Structural — headers, borders, consensus bar
+SEM_GREEN = "#1B4332"     # Verified findings
+SEM_RED = "#8B1A1A"       # Flagged/audit findings
+SEM_AMBER = "#C8922A"     # Conditional
+SEM_MUTED = "#888888"     # Attribution lines
+SEM_RULE = "#D8D4CC"      # Thin divider rules
+
+# Agent accent colors — left border per contributor
+AGENT_COLORS = {
+    "OPENAI": "#273C75",
+    "ANTHROPIC": "#8B3A00",
+    "GOOGLE": "#2A5C1A",
+    "PERPLEXITY": "#4A2A8A",
+    "MISTRAL": "#1A4A5C",
+}
+
 # --- PDF BRANDING CANVAS ---
 
 def _dark_page_bg(canvas, doc):
@@ -383,7 +446,6 @@ class ExecutiveMemoExporter:
         ACCENT_HEX = tc["accent"]
         TEXT_HEX = tc["text"]
         LABEL_HEX = tc["label"]
-        SHADE_HEX = tc["bg_shade"]
         
         # DNA: Styles - Curated for Executive Scan Patterns
         styles.add(ParagraphStyle('ExecLabel', fontSize=6.5, leading=8, textColor=colors.HexColor(LABEL_HEX), fontName='Helvetica-Bold', letterSpacing=0.5))
@@ -413,7 +475,7 @@ class ExecutiveMemoExporter:
 
         # 1. --- STRATEGIC HEADER ---
         workflow_label = _as_text(meta.get('workflow')).upper() or 'STRATEGIC_INTEL'
-        doc_title = _as_text(meta.get('title')).upper() or 'COMMAND_NODE'
+        doc_title = _as_text(meta.get('title')) or 'Command Node'
         
         # Header Metadata (Top Line)
         top_meta = [
@@ -432,35 +494,31 @@ class ExecutiveMemoExporter:
         story.append(Table([[[Paragraph("", styles['ExecBody'])]]], colWidths=[540], rowHeights=[2.5], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(ACCENT_HEX))]))
         story.append(Spacer(1, 30))
 
-        # 2. --- EXECUTIVE SUMMARY & TOP VISUAL ---
+        # 2. --- EXECUTIVE SUMMARY ---
         summary_text = meta.get("summary") or "Intel synthesis required."
         summary_p = Paragraph(f"<b>{escape(summary_text)}</b>", styles['ExecImpact'])
-        
+
         top_visual = None
         for art in artifacts:
             if art.get('type') in ('donut', 'pie') or 'REVENUE' in _artifact_label(art):
                 top_visual = art
                 artifacts.remove(art)
                 break
-        
-        sidebar_content = [
-            Paragraph("MISSION SNAPSHOT", styles['StatCaption']),
-            Spacer(1, 5),
-            Paragraph(
-                escape(f"{workflow_label} | {client_name} | SESSION {doc._session_id}").replace(" | ", "<br/>"),
-                styles['ExecAudit']
-            ),
-        ]
+
         if top_visual:
-            sidebar_content = [
+            visual_col = [
                 Paragraph(_artifact_label(top_visual), styles['StatCaption']),
                 Spacer(1, 5),
                 Paragraph(escape(_as_text(top_visual.get('content',''))[:150]).replace("\n","<br/>"), styles['ExecAudit'])
             ]
-            
-        summary_tab = Table([[[summary_p], sidebar_content]], colWidths=[380, 160])
-        summary_tab.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (1,0), (1,0), 20)]))
-        story.append(summary_tab)
+            summary_tab = Table([[[summary_p], visual_col]], colWidths=[324, 216])
+            summary_tab.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('LEFTPADDING', (1,0), (1,0), 15),
+            ]))
+            story.append(summary_tab)
+        else:
+            story.append(summary_p)
         story.append(Spacer(1, 30))
 
         # 3. --- KPI STRIP ---
@@ -478,9 +536,8 @@ class ExecutiveMemoExporter:
                 value_row.append(Paragraph("", styles['StatBig']))
                 label_row.append(Paragraph("", styles['StatCaption']))
             s_tab = Table([value_row, label_row], colWidths=[180, 180, 180], style=[
-                ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor(tc["line"])),
-                ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor(tc["line"])),
-                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SHADE_HEX)),
+                ('LINEABOVE', (0,0), (-1,0), 0.5, colors.HexColor(SEM_RULE)),
+                ('LINEBELOW', (0,-1), (-1,-1), 0.5, colors.HexColor(SEM_RULE)),
                 ('TOPPADDING', (0,0), (-1,-1), 12),
                 ('BOTTOMPADDING', (0,0), (-1,-1), 12),
                 ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -489,94 +546,91 @@ class ExecutiveMemoExporter:
             story.append(s_tab)
             story.append(Spacer(1, 30))
 
-        # 4. --- DNA: INTELLIGENCE NODES (SECTIONS) ---
+        # 4. --- INTELLIGENCE NODES (FULL-WIDTH PROSE) ---
         section_items = list(sections.items())
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
             prov_name = "KORUM"
+            prov_role = ""
             if idx < len(contributors):
                 prov_name = _as_text(contributors[idx].get('provider', '')).upper()
-            
-            node_id = f"{sec_title} &middot; NODE {idx+1:02d} &mdash; {prov_name}"
-            
-            left_blocks = _extract_content_blocks(content)
+                prov_role = _as_text(contributors[idx].get('role', ''))
 
-            # Match sidebar artifact
-            local_visual = None
-            for art in artifacts:
-                label = _artifact_label(art)
-                if _artifact_matches(label, sec_title, prov_name):
-                    local_visual = art
-                    artifacts.remove(art)
-                    break
-            
-            # Try pull-quote if no visual
-            local_quote = None
+            role_suffix = f" &middot; {escape(prov_role)}" if prov_role else ""
+            node_id = f"{sec_title} &middot; NODE {idx+1:02d} &mdash; {prov_name}{role_suffix}"
+
+            content_blocks = _extract_content_blocks(content)
+
             prov_key = prov_name.lower()
             prov_data = card_results.get(prov_key) or {}
-            if not local_visual:
-                claims = prov_data.get("verified_claims") or []
-                if claims:
-                    local_quote = claims[0]
 
-            if not any(block.get("type") == "table" for block in left_blocks):
+            if not any(block.get("type") == "table" for block in content_blocks):
                 provider_table = _first_table_block(prov_data.get("response", ""))
                 if provider_table:
-                    left_blocks.append({"type": "heading", "text": "SOURCE TABLE"})
-                    left_blocks.append(provider_table)
+                    content_blocks.append(provider_table)
 
-            narrative_blocks = [block for block in left_blocks if block.get("type") != "table"]
-            table_blocks = [block for block in left_blocks if block.get("type") == "table"]
-            left_col = _render_pdf_blocks(narrative_blocks, styles, 340, tc) or [Paragraph("", styles['ExecBody'])]
-
-            right_col = [
-                Paragraph("SECTION CONTEXT", styles['StatCaption']),
-                Spacer(1, 4),
-                Paragraph(f"{prov_name} // {sec_title}", styles['ExecAudit'])
-            ]
-            if local_visual:
-                right_col.extend([
-                    Spacer(1, 6),
-                    Paragraph(_artifact_label(local_visual), styles['StatCaption']),
-                    Spacer(1, 4),
-                    Paragraph(escape(_as_text(local_visual.get('content',''))[:220]).replace("\n","<br/>"), styles['ExecAudit'])
-                ])
-            elif local_quote:
-                q_text = escape(_as_text(local_quote.get('claim','')))
-                right_col.extend([
-                    Spacer(1, 8),
-                    Paragraph(f"&ldquo;{q_text}&rdquo;", styles['PullQuoteInline']),
-                    Spacer(1, 4),
-                    Paragraph(prov_name, styles['ExecAudit'])
-                ])
-
+            # Node label + thin rule
             story.append(Paragraph(node_id, styles['ExecLabel']))
             story.append(Spacer(1, 6))
-            story.append(Table([[[Paragraph("", styles['ExecBody'])]]], colWidths=[540], rowHeights=[1], style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(tc["line"]))]))
+            story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
+                style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
             story.append(Spacer(1, 10))
-            
-            sec_tab = Table([[left_col, right_col]], colWidths=[380, 160])
-            sec_tab.setStyle(TableStyle([
+
+            # Render all blocks full-width: prose, tables inline
+            story.extend(_render_pdf_blocks(content_blocks, styles, 540, tc))
+
+            # Inline pull quotes from verified claims
+            claims = prov_data.get("verified_claims") or []
+            for claim in claims[:2]:
+                claim_text = _as_text(claim.get('claim', ''))
+                if not claim_text:
+                    continue
+                claim_status = _as_text(claim.get('status', 'strategic'))
+                pq = _build_pull_quote(claim_text, claim_status, prov_name, prov_role, doc._session_id, styles)
+                story.append(pq)
+                story.append(Spacer(1, 8))
+
+            story.append(Spacer(1, 16))
+
+        # 5. --- COUNCIL CONTRIBUTORS STRIP ---
+        if contributors:
+            story.append(Paragraph("COUNCIL CONTRIBUTORS", styles['ExecLabel']))
+            story.append(Spacer(1, 6))
+            contrib_cells = []
+            for contrib in contributors[:5]:
+                c_prov = _as_text(contrib.get('provider', '')).upper()
+                c_role = _as_text(contrib.get('role', ''))
+                c_data = card_results.get(c_prov.lower()) or {}
+                c_claims = c_data.get("verified_claims") or []
+                if any(_as_text(cl.get('status','')).lower() in ('flagged','challenged') for cl in c_claims):
+                    stamp, stamp_color = "\u2691 Flagged", SEM_RED
+                elif any(_as_text(cl.get('status','')).lower() == 'verified' for cl in c_claims):
+                    stamp, stamp_color = "\u2713 Verified", SEM_GREEN
+                else:
+                    stamp, stamp_color = "\u25ce Conditional", SEM_AMBER
+                cell_content = [
+                    Paragraph(f"<b>{escape(c_prov)}</b>", styles['ExecAudit']),
+                    Paragraph(escape(c_role), styles['ExecAudit']),
+                    Paragraph(f"<font color='{stamp_color}'>{stamp}</font>", styles['ExecAudit']),
+                ]
+                contrib_cells.append(cell_content)
+            col_w = 540 / len(contrib_cells)
+            contrib_tab = Table([contrib_cells], colWidths=[col_w] * len(contrib_cells))
+            agent_style_cmds = [
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                ('LEFTPADDING', (0,0), (0,0), 0),
-                ('LEFTPADDING', (1,0), (1,0), 10),
-                ('RIGHTPADDING', (0,0), (-1,-1), 0),
-                ('BACKGROUND', (1,0), (1,0), colors.HexColor(tc["paper"])),
-                ('BOX', (1,0), (1,0), 0.4, colors.HexColor(tc["line"])),
-                ('TOPPADDING', (1,0), (1,0), 8),
-                ('BOTTOMPADDING', (1,0), (1,0), 8),
-            ]))
-            story.append(sec_tab)
-            for table_block in table_blocks:
-                table_flowable = _build_pdf_table(table_block, styles, 540, tc)
-                if table_flowable:
-                    story.append(table_flowable)
-                    story.append(Spacer(1, 10))
+                ('TOPPADDING', (0,0), (-1,-1), 6),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                ('LEFTPADDING', (0,0), (-1,-1), 8),
+            ]
+            for ci, contrib in enumerate(contributors[:5]):
+                agent_color = AGENT_COLORS.get(_as_text(contrib.get('provider','')).upper(), SEM_BLUE)
+                agent_style_cmds.append(('LINEBEFORE', (ci,0), (ci,-1), 2.5, colors.HexColor(agent_color)))
+            contrib_tab.setStyle(TableStyle(agent_style_cmds))
+            story.append(contrib_tab)
             story.append(Spacer(1, 20))
 
-        # 5. --- CONSENSUS FOOTER ---
-        truth_raw = meta.get("composite_truth_score")
-        truth_int = int(float(truth_raw if truth_raw is not None else 0.85) * 100)
+        # 6. --- CONSENSUS FOOTER ---
+        truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
         consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Council reached operational consensus."
         cons_data = [
             [Paragraph("COUNCIL CONSENSUS", styles['ExecLabel']), Paragraph("", styles['Cons'])],
@@ -585,7 +639,7 @@ class ExecutiveMemoExporter:
         ]
         cons_tab = Table(cons_data, colWidths=[410, 130])
         cons_tab.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(tc["accent_dark"])),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_BLUE)),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('TOPPADDING', (0,0), (-1,-1), 12),
             ('BOTTOMPADDING', (0,0), (-1,-1), 12),
@@ -695,7 +749,6 @@ class WordExporter:
 
         mission_ctx = intelligence_object.get("_mission_context") or {}
         client_name = _as_text(mission_ctx.get("client", "")).strip() or "DECISION COMMANDER ALPHA"
-        artifacts = _report_artifacts(intelligence_object)
         card_results = intelligence_object.get("_card_results") or {}
         contributors = intelligence_object.get("council_contributors") or []
         divergence = intelligence_object.get("divergence_analysis") or {}
@@ -720,7 +773,7 @@ class WordExporter:
         
         # Title
         t_p = doc.add_paragraph()
-        t_run = t_p.add_run(_as_text(meta.get('title') or 'COMMAND_NODE').upper())
+        t_run = t_p.add_run(_as_text(meta.get('title') or 'Command Node'))
         t_run.bold = True
         t_run.font.size = Pt(22)
         t_run.font.color.rgb = s_rgb
@@ -732,41 +785,28 @@ class WordExporter:
         
         doc.add_paragraph() # Spacer
 
-        # 2. --- DASHBOARD SUMMARY ---
+        # 2. --- EXECUTIVE SUMMARY ---
         summary_text = meta.get("summary") or "Intel synthesis required."
-        sum_tab = doc.add_table(rows=1, cols=2)
-        sum_tab.columns[0].width = Inches(4.5)
-        sum_tab.columns[1].width = Inches(2.0)
-        
-        s_cell = sum_tab.rows[0].cells[0]
-        s_p = s_cell.paragraphs[0]
+        s_p = doc.add_paragraph()
         s_run = s_p.add_run(summary_text)
         s_run.bold = True
         s_run.font.size = Pt(11)
         s_run.font.color.rgb = s_rgb
-        meta_cell = sum_tab.rows[0].cells[1]
-        WordExporter._clear_cell(meta_cell)
-        WordExporter._set_cell_background(meta_cell, tc["bg_shade"].lstrip('#'))
-        WordExporter._add_paragraph(meta_cell, "MISSION SNAPSHOT", size=7, bold=True, color=DIM_GRAY)
-        WordExporter._add_paragraph(meta_cell, workflow := (_as_text(meta.get('workflow')).upper() or 'STRATEGIC_INTEL'), size=8, color=ACCENT_HEX)
-        WordExporter._add_paragraph(meta_cell, client_name, size=8, color=tc["text"])
-        WordExporter._add_paragraph(meta_cell, f"SESSION {session_id}", size=8, color=tc["text"])
-        
+
         WordExporter._add_spacing(doc)
 
-        # 3. --- KPI STRIP ---
+        # 3. --- KPI STRIP (thin rules, no box) ---
         key_metrics = structured.get("key_metrics") or []
         if key_metrics:
             kpi_tab = doc.add_table(rows=2, cols=min(3, len(key_metrics)))
+            kpi_tab.style = "Table Grid"
             for i, km in enumerate(key_metrics[:3]):
-                # Value
                 v_p = kpi_tab.rows[0].cells[i].paragraphs[0]
                 v_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 v_run = v_p.add_run(_as_text(km.get('value', '')))
                 v_run.bold = True
                 v_run.font.size = Pt(18)
                 v_run.font.color.rgb = s_rgb
-                # Metric
                 l_p = kpi_tab.rows[1].cells[i].paragraphs[0]
                 l_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 l_run = l_p.add_run(_as_text(km.get('metric', '')).upper())
@@ -774,78 +814,90 @@ class WordExporter:
                 l_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
             WordExporter._add_spacing(doc)
 
-        # 4. --- INTELLIGENCE NODES ---
+        # 4. --- INTELLIGENCE NODES (full-width prose) ---
         section_items = list(sections.items())
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
             prov_name = "KORUM"
+            prov_role = ""
             if idx < len(contributors):
                 prov_name = _as_text(contributors[idx].get('provider', '')).upper()
+                prov_role = _as_text(contributors[idx].get('role', ''))
 
-            # Node Label
+            role_suffix = f" \u00b7 {prov_role}" if prov_role else ""
             n_p = doc.add_paragraph()
-            n_run = n_p.add_run(f"{sec_title} · NODE {idx+1:02d} — {prov_name}")
+            n_run = n_p.add_run(f"{sec_title} \u00b7 NODE {idx+1:02d} \u2014 {prov_name}{role_suffix}")
             n_run.font.size = Pt(7)
             n_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
 
-            left_blocks = _extract_content_blocks(content)
-
-            # Match artifact
-            local_visual = None
-            for art in artifacts:
-                label = _artifact_label(art)
-                if _artifact_matches(label, sec_title, prov_name):
-                    local_visual = art
-                    artifacts.remove(art)
-                    break
-
+            content_blocks = _extract_content_blocks(content)
             prov_key = prov_name.lower()
             prov_data = card_results.get(prov_key) or {}
-            if not any(block.get("type") == "table" for block in left_blocks):
+
+            if not any(block.get("type") == "table" for block in content_blocks):
                 provider_table = _first_table_block(prov_data.get("response", ""))
                 if provider_table:
-                    left_blocks.append({"type": "heading", "text": "SOURCE TABLE"})
-                    left_blocks.append(provider_table)
+                    content_blocks.append(provider_table)
 
-            narrative_blocks = [block for block in left_blocks if block.get("type") != "table"]
-            table_blocks = [block for block in left_blocks if block.get("type") == "table"]
+            WordExporter._render_word_blocks(doc, content_blocks, tc)
 
-            n_tab = doc.add_table(rows=1, cols=2)
-            n_tab.columns[0].width = Inches(4.5)
-            n_tab.columns[1].width = Inches(2.0)
-
-            left_cell = n_tab.rows[0].cells[0]
-            right_cell = n_tab.rows[0].cells[1]
-            WordExporter._clear_cell(left_cell)
-            WordExporter._clear_cell(right_cell)
-            WordExporter._set_cell_background(right_cell, tc["bg_shade"].lstrip('#'))
-
-            WordExporter._render_word_blocks(left_cell, narrative_blocks, tc)
-
-            WordExporter._add_paragraph(right_cell, "SECTION CONTEXT", size=7, bold=True, color=DIM_GRAY)
-            WordExporter._add_paragraph(right_cell, f"{prov_name} // {sec_title}", size=8, color=tc["text"])
-
-            if local_visual:
-                WordExporter._add_paragraph(right_cell, _artifact_label(local_visual), size=8, bold=True, color=ACCENT_HEX)
-                WordExporter._add_paragraph(right_cell, _as_text(local_visual.get('content', ''))[:220], size=7, color=DIM_GRAY)
-            else:
-                claims = prov_data.get("verified_claims") or []
-                if claims:
-                    WordExporter._add_paragraph(right_cell, f"\"{_as_text(claims[0].get('claim', ''))}\"", size=8, italic=True, color=tc["text"])
-                    WordExporter._add_paragraph(right_cell, prov_name, size=7, color=DIM_GRAY)
-
-            for table_block in table_blocks:
-                WordExporter._render_word_table(doc, table_block, tc)
+            # Inline pull quotes
+            claims = prov_data.get("verified_claims") or []
+            for claim in claims[:2]:
+                claim_text = _as_text(claim.get('claim', ''))
+                if not claim_text:
+                    continue
+                claim_status = _as_text(claim.get('status', 'strategic')).lower()
+                if claim_status in ('flagged', 'challenged'):
+                    border_hex, bg_hex = SEM_RED, "FDF2F2"
+                elif claim_status == 'verified':
+                    border_hex, bg_hex = SEM_GREEN, "F2F8F4"
+                else:
+                    border_hex, bg_hex = SEM_BLUE, "F0F3FA"
+                pq_tab = doc.add_table(rows=1, cols=1)
+                pq_cell = pq_tab.rows[0].cells[0]
+                WordExporter._set_cell_background(pq_cell, bg_hex)
+                WordExporter._add_paragraph(pq_cell, f"\u201c{claim_text}\u201d", size=8, italic=True, color=tc["text"])
+                role_part = f" \u00b7 {prov_role}" if prov_role else ""
+                WordExporter._add_paragraph(pq_cell, f"\u2014 {prov_name}{role_part} \u00b7 {session_id}", size=6.5, color=SEM_MUTED)
 
             WordExporter._add_spacing(doc)
 
-        # 5. --- CONSENSUS FOOTER ---
+        # 5. --- COUNCIL CONTRIBUTORS STRIP ---
+        if contributors:
+            WordExporter._add_paragraph(doc, "COUNCIL CONTRIBUTORS", size=7, bold=True, color=DIM_GRAY)
+            c_tab = doc.add_table(rows=1, cols=min(5, len(contributors)))
+            for ci, contrib in enumerate(contributors[:5]):
+                c_prov = _as_text(contrib.get('provider', '')).upper()
+                c_role = _as_text(contrib.get('role', ''))
+                c_data = card_results.get(c_prov.lower()) or {}
+                c_claims = c_data.get("verified_claims") or []
+                if any(_as_text(cl.get('status','')).lower() in ('flagged','challenged') for cl in c_claims):
+                    stamp = "\u2691 Flagged"
+                elif any(_as_text(cl.get('status','')).lower() == 'verified' for cl in c_claims):
+                    stamp = "\u2713 Verified"
+                else:
+                    stamp = "\u25ce Conditional"
+                cell = c_tab.rows[0].cells[ci]
+                WordExporter._add_paragraph(cell, c_prov, size=7, bold=True, color=tc["text"])
+                WordExporter._add_paragraph(cell, c_role, size=7, color=DIM_GRAY)
+                WordExporter._add_paragraph(cell, stamp, size=7, color=tc["text"])
+            WordExporter._add_spacing(doc)
+
+        # 6. --- CONSENSUS FOOTER ---
         truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
-        c_p = doc.add_paragraph()
-        c_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        c_run = c_p.add_run(f"COUNCIL CONSENSUS: {truth_int}/100 TRUTH SCORE")
-        c_run.bold = True
-        c_run.font.color.rgb = RGBColor(255, 255, 255)
+        consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Council reached operational consensus."
+        cons_tab = doc.add_table(rows=1, cols=2)
+        cons_tab.columns[0].width = Inches(4.5)
+        cons_tab.columns[1].width = Inches(2.0)
+        left_cell = cons_tab.rows[0].cells[0]
+        right_cell = cons_tab.rows[0].cells[1]
+        WordExporter._set_cell_background(left_cell, SEM_BLUE.lstrip('#'))
+        WordExporter._set_cell_background(right_cell, SEM_BLUE.lstrip('#'))
+        WordExporter._add_paragraph(left_cell, "COUNCIL CONSENSUS", size=7, bold=True, color="FFFFFF")
+        WordExporter._add_paragraph(left_cell, consensus_summary, size=9, italic=True, color="FFFFFF")
+        WordExporter._add_paragraph(right_cell, f"{truth_int}", size=22, bold=True, color="FFFFFF", align=WD_ALIGN_PARAGRAPH.RIGHT)
+        WordExporter._add_paragraph(right_cell, "TRUTH SCORE / 100", size=7, bold=True, color="FFFFFF", align=WD_ALIGN_PARAGRAPH.RIGHT)
         
         filename = f"KORUM-OS_DOSSIER_{_safe_filename_part(meta.get('title'))}_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
