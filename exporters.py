@@ -114,7 +114,8 @@ def _clean_cell_text(text):
     t = _as_text(text)
     t = re.sub(r"\[/?METRIC_ANCHOR\]", "", t)
     t = re.sub(r"^#{1,6}\s*", "", t, flags=re.MULTILINE)       # markdown headers
-    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)                     # bold
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)                     # bold (paired)
+    t = re.sub(r"\*\*", "", t)                                   # stray unclosed bold markers
     t = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", t)  # italic
     t = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", t)            # markdown links
     t = re.sub(r"\[([A-Z_ ]+)\]", "", t)                       # signal tags like [AMBER]
@@ -894,10 +895,9 @@ class ExecutiveMemoExporter:
                 value_row.append(Paragraph(val, styles['StatBig']))
                 label_row.append(Paragraph(lab, styles['StatCaption']))
             
-            while len(value_row) < 3:
-                value_row.append(Paragraph("", styles['StatBig']))
-                label_row.append(Paragraph("", styles['StatCaption']))
-            s_tab = Table([value_row, label_row], colWidths=[180, 180, 180], style=[
+            n_cols = len(value_row) or 1
+            col_w = 540 / n_cols
+            s_tab = Table([value_row, label_row], colWidths=[col_w] * n_cols, style=[
                 ('LINEABOVE', (0,0), (-1,0), 0.5, colors.HexColor(SEM_RULE)),
                 ('LINEBELOW', (0,-1), (-1,-1), 0.5, colors.HexColor(SEM_RULE)),
                 ('TOPPADDING', (0,0), (-1,-1), 12),

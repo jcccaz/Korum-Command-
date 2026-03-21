@@ -2618,11 +2618,18 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     SECTION_DIRECTIVES = {
         "executive_assessment": (
             "Open with the decision. State the recommended action in the FIRST sentence. "
-            "Then summarize the key finding, primary risk, and confidence level. "
-            "2-3 paragraphs max. No hedging on the recommendation — be direct."
+            "Then summarize the key finding, primary risk, and confidence level in 2-3 paragraphs. "
+            "No hedging on the recommendation — be direct. "
+            "End with a **DECISION:** line stating the action and a **RATIONALE:** line stating why. "
+            "After the rationale, include a 'KEY SIGNALS' sub-section: a bullet list of 4-6 concrete "
+            "indicators from the data that drive the decision (metrics, trends, thresholds crossed). "
+            "These must come from the council discussion, not invented."
         ),
         "scenario_analysis": (
-            "Present 2-3 scenarios with severity tags (CRITICAL/AMBER/GREEN). "
+            "Begin with a brief 'SYSTEM CONTEXT' block: identify the Core Entities involved "
+            "(e.g., the organization, the infrastructure, the decision-makers) and their roles in "
+            "the situation — 3-5 bullet points max, no elaboration. "
+            "Then present 2-3 scenarios with severity tags (CRITICAL/AMBER/GREEN). "
             "Each scenario needs: a name, description, progression timeline, and an 'Implication:' line. "
             "Include Most Plausible, Most Dangerous, and Strategic Opportunity where applicable. "
             "Use concrete language, not abstract summaries."
