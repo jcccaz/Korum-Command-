@@ -22,11 +22,12 @@ CHART_REGISTRY = {
     "waterfall":      {"renderer": "svg_native", "purpose": "variance"},
     "horizontal_bar": {"renderer": "svg_native", "purpose": "comparison"},
     "stacked_bar":    {"renderer": "svg_native", "purpose": "composition"},
-    "pie":            {"renderer": "mermaid",     "purpose": "composition"},
-    "bar":            {"renderer": "mermaid",     "purpose": "comparison"},
-    "line":           {"renderer": "mermaid",     "purpose": "trend"},
-    "flowchart":      {"renderer": "mermaid",     "purpose": "process"},
-    "auto":           {"renderer": "mermaid",     "purpose": "auto"},
+    "pie":            {"renderer": "svg_native", "purpose": "composition"},
+    "donut":          {"renderer": "svg_native", "purpose": "composition"},
+    "bar":            {"renderer": "svg_native", "purpose": "comparison"},
+    "line":           {"renderer": "svg_native", "purpose": "trend"},
+    "flowchart":      {"renderer": "mermaid",    "purpose": "process"},
+    "auto":           {"renderer": "svg_native", "purpose": "auto"},
 }
 
 def get_renderer(chart_type: str) -> str:
@@ -58,6 +59,15 @@ def semantic_color(value_type: str) -> str:
         "neutral": SEM_GREY, "baseline": SEM_GREY,
     }
     return mapping.get(value_type, SEM_GREY)
+
+
+def _paired_slices(labels, values, *extras):
+    """Trim parallel chart arrays to the shortest usable length."""
+    limit = min(len(labels or []), len(values or []))
+    paired = [list((labels or [])[:limit]), list((values or [])[:limit])]
+    for extra in extras:
+        paired.append(list((extra or [])[:limit]))
+    return paired
 
 
 # ── Waterfall Chart ──────────────────────────────────────────────────────────
@@ -327,6 +337,316 @@ def build_stacked_bar_svg(spec: dict) -> str:
     return '\n'.join(elements)
 
 
+# ── Vertical Bar Chart ───────────────────────────────────────────────────────
+def build_bar_svg(spec: dict) -> str:
+    """
+    spec: {labels: [...], values: [...], value_types?: ["positive","negative","neutral",...]}
+    Vertical bars with semantic coloring. value_types defaults to palette cycling.
+    """
+    labels = spec.get("labels", []) or spec.get("categories", [])
+    values = spec.get("values", [])
+    value_types = spec.get("value_types", [])
+    title = spec.get("title", "")
+
+    labels, values, value_types = _paired_slices(labels, values, value_types)
+
+    n = len(labels)
+    if n == 0:
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><text x="400" y="250" text-anchor="middle">No data</text></svg>'
+
+    W, H = 800, 500
+    margin_left, margin_right, margin_top, margin_bottom = 80, 40, 70, 80
+    chart_w = W - margin_left - margin_right
+    chart_h = H - margin_top - margin_bottom
+
+    max_val = max(abs(v) for v in values) if values else 1
+    min_val = min(min(values), 0) if values else 0
+    val_range = max_val - min_val or 1
+
+    bar_area = chart_w / n
+    bar_w = max(min(bar_area * 0.6, 80), 20)
+    gap = (bar_area - bar_w) / 2
+
+    def y_pos(val):
+        return margin_top + chart_h - ((val - min_val) / val_range) * chart_h
+
+    elements = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
+        svg_rect(0, 0, W, H, "white"),
+    ]
+
+    if title:
+        elements.append(svg_text(W / 2, 30, title, size=16, weight="bold", color="#1a1a1a"))
+
+    # Grid lines
+    tick_count = 4
+    for i in range(tick_count + 1):
+        val = min_val + (val_range * i / tick_count)
+        gy = y_pos(val)
+        elements.append(svg_line(margin_left, gy, W - margin_right, gy, stroke="#eee", width=1))
+        elements.append(svg_text(margin_left - 10, gy + 4, _format_number(val), anchor="end", size=11, color=SEM_GREY))
+
+    # Baseline at zero if negative values exist
+    if min_val < 0:
+        zero_y = y_pos(0)
+        elements.append(svg_line(margin_left, zero_y, W - margin_right, zero_y, stroke="#ccc", width=1))
+
+    # Bars
+    for i in range(n):
+        val = values[i]
+        if i < len(value_types) and value_types[i]:
+            color = semantic_color(value_types[i])
+        else:
+            color = PALETTE[i % len(PALETTE)]
+
+        x = margin_left + i * bar_area + gap
+        bar_top = y_pos(max(val, 0))
+        bar_bottom = y_pos(min(val, 0))
+        bar_h = max(bar_bottom - bar_top, 1)
+
+        elements.append(svg_rect(x, bar_top, bar_w, bar_h, color, rx=2))
+
+        # Value label above bar (or below for negatives)
+        val_label = _format_number(val)
+        if val < 0:
+            elements.append(svg_text(x + bar_w / 2, bar_bottom + 16, val_label, size=11, color=color, weight="bold"))
+        else:
+            elements.append(svg_text(x + bar_w / 2, bar_top - 6, val_label, size=11, color=color, weight="bold"))
+
+        # Category label
+        elements.append(svg_text(x + bar_w / 2, H - margin_bottom + 20, labels[i], size=11, color=SEM_GREY))
+
+    elements.append('</svg>')
+    return '\n'.join(elements)
+
+
+# ── Line Chart ──────────────────────────────────────────────────────────────
+def build_line_svg(spec: dict) -> str:
+    """
+    spec: {labels: [...], series: [{label, values, color?}, ...]}
+    Or simple: {labels: [...], values: [...]}
+    Line chart with dots, grid lines, and optional multi-series.
+    """
+    labels = spec.get("labels", []) or spec.get("categories", [])
+    title = spec.get("title", "")
+
+    # Normalize to multi-series format
+    raw_series = spec.get("series", [])
+    if not raw_series and spec.get("values"):
+        raw_series = [{"label": title or "Value", "values": spec["values"]}]
+
+    n = len(labels)
+    if n == 0 or not raw_series:
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><text x="400" y="250" text-anchor="middle">No data</text></svg>'
+
+    W, H = 800, 500
+    margin_left, margin_right, margin_top, margin_bottom = 80, 40, 70, 80
+    chart_w = W - margin_left - margin_right
+    chart_h = H - margin_top - margin_bottom
+
+    # Compute global min/max across all series
+    all_vals = []
+    for s in raw_series:
+        all_vals.extend(v for v in s.get("values", []) if v is not None)
+    if not all_vals:
+        all_vals = [0]
+    data_min = min(all_vals)
+    data_max = max(all_vals)
+    # Add 10% padding so lines don't sit on edges
+    padding = (data_max - data_min) * 0.1 or 1
+    min_val = data_min - padding
+    max_val = data_max + padding
+    val_range = max_val - min_val or 1
+
+    def x_pos(idx):
+        return margin_left + (idx / max(n - 1, 1)) * chart_w
+
+    def y_pos(val):
+        return margin_top + chart_h - ((val - min_val) / val_range) * chart_h
+
+    elements = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
+        svg_rect(0, 0, W, H, "white"),
+    ]
+
+    if title:
+        elements.append(svg_text(W / 2, 30, title, size=16, weight="bold", color="#1a1a1a"))
+
+    # Grid lines
+    tick_count = 4
+    for i in range(tick_count + 1):
+        val = min_val + (val_range * i / tick_count)
+        gy = y_pos(val)
+        elements.append(svg_line(margin_left, gy, W - margin_right, gy, stroke="#eee", width=1))
+        elements.append(svg_text(margin_left - 10, gy + 4, _format_number(val), anchor="end", size=11, color=SEM_GREY))
+
+    # X-axis labels
+    for i in range(n):
+        lx = x_pos(i)
+        elements.append(svg_text(lx, H - margin_bottom + 20, labels[i], size=11, color=SEM_GREY))
+
+    # Series lines + dots
+    for si, s in enumerate(raw_series):
+        color = s.get("color", PALETTE[si % len(PALETTE)])
+        vals = s.get("values", [])
+        points = []
+        for i in range(min(n, len(vals))):
+            if vals[i] is not None:
+                points.append((i, vals[i]))
+
+        # Polyline
+        if len(points) >= 2:
+            path_points = " ".join(f"{x_pos(i)},{y_pos(v)}" for i, v in points)
+            elements.append(
+                f'<polyline points="{path_points}" fill="none" '
+                f'stroke="{color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
+            )
+
+        # Dots + value labels
+        for i, v in points:
+            cx, cy = x_pos(i), y_pos(v)
+            elements.append(f'<circle cx="{cx}" cy="{cy}" r="4" fill="{color}" stroke="white" stroke-width="1.5"/>')
+            # Label on first, last, and every ~3rd point to avoid clutter
+            if i == points[0][0] or i == points[-1][0] or i % 3 == 0:
+                elements.append(svg_text(cx, cy - 10, _format_number(v), size=10, color=color, weight="bold"))
+
+    # Legend (if multiple series)
+    if len(raw_series) > 1:
+        lx = margin_left
+        ly = margin_top - 20
+        for si, s in enumerate(raw_series):
+            color = s.get("color", PALETTE[si % len(PALETTE)])
+            label = s.get("label", f"Series {si + 1}")
+            elements.append(svg_line(lx, ly - 4, lx + 20, ly - 4, stroke=color, width=2.5))
+            elements.append(f'<circle cx="{lx + 10}" cy="{ly - 4}" r="3" fill="{color}"/>')
+            elements.append(svg_text(lx + 26, ly, label, anchor="start", size=11, color="#333"))
+            lx += len(label) * 7 + 50
+
+    elements.append('</svg>')
+    return '\n'.join(elements)
+
+
+# ── Pie / Donut Chart ───────────────────────────────────────────────────────
+import math
+
+def build_pie_svg(spec: dict) -> str:
+    """
+    spec: {labels: [...], values: [...], title?: str}
+    Set spec["donut"] = True for donut variant (hollow center).
+    """
+    labels = spec.get("labels", []) or spec.get("categories", [])
+    values = spec.get("values", [])
+    title = spec.get("title", "")
+    is_donut = spec.get("donut", False)
+
+    labels, values = _paired_slices(labels, values)
+
+    n = len(labels)
+    if n == 0 or not values:
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><text x="400" y="250" text-anchor="middle">No data</text></svg>'
+
+    # Ensure all values are positive
+    values = [max(abs(float(v)), 0) for v in values]
+    total = sum(values) or 1
+
+    W, H = 800, 500
+    cx, cy = 340, 270  # center offset left to make room for legend
+    outer_r = 180
+    inner_r = 110 if is_donut else 0
+    title_y = 35
+
+    elements = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
+        svg_rect(0, 0, W, H, "white"),
+    ]
+
+    if title:
+        elements.append(svg_text(W / 2, title_y, title, size=16, weight="bold", color="#1a1a1a"))
+
+    # Build slices
+    angle = -math.pi / 2  # start at 12 o'clock
+    for i in range(n):
+        frac = values[i] / total
+        sweep = frac * 2 * math.pi
+        color = PALETTE[i % len(PALETTE)]
+
+        if n == 1:
+            # Full circle — special case (arc path can't draw 360°)
+            if is_donut:
+                elements.append(
+                    f'<circle cx="{cx}" cy="{cy}" r="{outer_r}" fill="{color}"/>'
+                    f'<circle cx="{cx}" cy="{cy}" r="{inner_r}" fill="white"/>'
+                )
+            else:
+                elements.append(f'<circle cx="{cx}" cy="{cy}" r="{outer_r}" fill="{color}"/>')
+        else:
+            # Arc slice
+            x1_o = cx + outer_r * math.cos(angle)
+            y1_o = cy + outer_r * math.sin(angle)
+            x2_o = cx + outer_r * math.cos(angle + sweep)
+            y2_o = cy + outer_r * math.sin(angle + sweep)
+            large_arc = 1 if sweep > math.pi else 0
+
+            if is_donut:
+                x1_i = cx + inner_r * math.cos(angle)
+                y1_i = cy + inner_r * math.sin(angle)
+                x2_i = cx + inner_r * math.cos(angle + sweep)
+                y2_i = cy + inner_r * math.sin(angle + sweep)
+                # Outer arc forward, line to inner, inner arc backward, close
+                d = (
+                    f"M {x1_o:.2f} {y1_o:.2f} "
+                    f"A {outer_r} {outer_r} 0 {large_arc} 1 {x2_o:.2f} {y2_o:.2f} "
+                    f"L {x2_i:.2f} {y2_i:.2f} "
+                    f"A {inner_r} {inner_r} 0 {large_arc} 0 {x1_i:.2f} {y1_i:.2f} Z"
+                )
+            else:
+                d = (
+                    f"M {cx} {cy} "
+                    f"L {x1_o:.2f} {y1_o:.2f} "
+                    f"A {outer_r} {outer_r} 0 {large_arc} 1 {x2_o:.2f} {y2_o:.2f} Z"
+                )
+            elements.append(f'<path d="{d}" fill="{color}" stroke="white" stroke-width="2"/>')
+
+        # Percentage label on slice (mid-angle, between inner and outer)
+        pct = frac * 100
+        if pct >= 4:  # only label slices >= 4%
+            mid_angle = angle + sweep / 2
+            label_r = (outer_r + inner_r) / 2 if is_donut else outer_r * 0.6
+            lx = cx + label_r * math.cos(mid_angle)
+            ly = cy + label_r * math.sin(mid_angle)
+            elements.append(svg_text(lx, ly + 4, f"{pct:.0f}%", size=11, color="white", weight="bold"))
+
+        angle += sweep
+
+    # Donut center label (total)
+    if is_donut:
+        elements.append(svg_text(cx, cy - 5, _format_number(total), size=22, weight="bold", color="#1a1a1a"))
+        elements.append(svg_text(cx, cy + 16, "TOTAL", size=10, color=SEM_GREY, weight="bold"))
+
+    # Legend (right side)
+    legend_x = 560
+    legend_y = 100
+    for i in range(n):
+        color = PALETTE[i % len(PALETTE)]
+        ly = legend_y + i * 28
+        pct = (values[i] / total) * 100
+        elements.append(svg_rect(legend_x, ly - 8, 14, 14, color, rx=2))
+        label_text = labels[i] if len(labels[i]) <= 22 else labels[i][:20] + ".."
+        elements.append(svg_text(legend_x + 22, ly + 4, label_text, anchor="start", size=12, color="#333"))
+        elements.append(svg_text(legend_x + 22, ly + 18, f"{_format_number(values[i])} ({pct:.1f}%)",
+                                 anchor="start", size=10, color=SEM_GREY))
+
+    elements.append('</svg>')
+    return '\n'.join(elements)
+
+
+def build_donut_svg(spec: dict) -> str:
+    """Donut chart — delegates to pie with donut=True."""
+    spec = dict(spec)
+    spec["donut"] = True
+    return build_pie_svg(spec)
+
+
 # ── Utilities ────────────────────────────────────────────────────────────────
 def _format_number(val):
     """Format numbers for chart labels: 1500000 → 1.5M, 45000 → 45K, 123 → 123."""
@@ -352,6 +672,10 @@ def generate_svg_chart(spec: dict) -> str:
         "waterfall": build_waterfall_svg,
         "horizontal_bar": build_horizontal_bar_svg,
         "stacked_bar": build_stacked_bar_svg,
+        "bar": build_bar_svg,
+        "line": build_line_svg,
+        "pie": build_pie_svg,
+        "donut": build_donut_svg,
     }
     chart_type = spec.get("type", "")
     builder = builders.get(chart_type)

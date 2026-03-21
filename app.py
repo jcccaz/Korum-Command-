@@ -944,7 +944,7 @@ COLLECTED SNIPPETS:
 @auth_required
 @limiter.limit("30 per minute")
 def generate_chart():
-    """Dual-path chart generation: Mermaid (frontend render) or SVG native (server render)."""
+    """Chart generation: SVG native (server render) for all data charts, Mermaid for flowcharts only."""
     from chart_engine import CHART_REGISTRY, get_renderer, generate_svg_chart
 
     data = request.json or {}
@@ -959,7 +959,27 @@ def generate_chart():
 
     renderer = get_renderer(chart_type)
 
-    # ── SVG Native path (waterfall, horizontal_bar, stacked_bar) ─────────
+    def _resolve_svg_chart_type(requested_type, spec):
+        if requested_type != "auto":
+            return requested_type
+
+        candidate = str(spec.get("_chart_type", "")).strip().lower()
+        if candidate in CHART_REGISTRY and get_renderer(candidate) == "svg_native":
+            return candidate
+
+        if spec.get("status") and spec.get("categories"):
+            return "horizontal_bar"
+        if spec.get("series"):
+            return "stacked_bar" if spec.get("categories") else "line"
+        if spec.get("value_types") and any(
+            str(v).strip().lower() == "total" for v in spec.get("value_types", [])
+        ):
+            return "waterfall"
+        if spec.get("labels") and spec.get("values"):
+            return "bar"
+        return "bar"
+
+    # ── SVG Native path ────────────────────────────────────────────────
     if renderer == "svg_native":
         SVG_DATA_PROMPTS = {
             "waterfall": (
@@ -997,6 +1017,64 @@ def generate_chart():
                 "- Title must be an insight. BAD: 'Quarterly Breakdown'. GOOD: 'Product B is growing faster than A across all quarters'\n"
                 "- Strip currency symbols, use plain numbers\n"
             ),
+            "pie": (
+                "Extract structured data from this text for a pie chart. "
+                "Return ONLY valid JSON (no markdown, no explanation) with this exact shape: "
+                '{"labels": ["Segment A", ...], "values": [400, 250, ...], '
+                '"title": "Insight-driven title describing what the chart proves"}\n'
+                "Rules:\n"
+                "- Values must be positive numbers representing proportions\n"
+                "- Keep to 6 segments max — combine small items into 'Other' if needed\n"
+                "- Title must be an insight. BAD: 'Market Share'. GOOD: 'Enterprise accounts for 58% of total revenue'\n"
+                "- Strip currency symbols, use plain numbers\n"
+            ),
+            "donut": (
+                "Extract structured data from this text for a donut chart. "
+                "Return ONLY valid JSON (no markdown, no explanation) with this exact shape: "
+                '{"labels": ["Segment A", ...], "values": [400, 250, ...], '
+                '"title": "Insight-driven title describing what the chart proves"}\n'
+                "Rules:\n"
+                "- Values must be positive numbers representing proportions\n"
+                "- Keep to 6 segments max — combine small items into 'Other' if needed\n"
+                "- Title must be an insight. BAD: 'Cost Breakdown'. GOOD: 'Infrastructure costs dominate at 45% of total spend'\n"
+                "- Strip currency symbols, use plain numbers\n"
+            ),
+            "bar": (
+                "Extract structured data from this text for a vertical bar chart. "
+                "Return ONLY valid JSON (no markdown, no explanation) with this exact shape: "
+                '{"labels": ["Category A", ...], "values": [100, 250, ...], '
+                '"value_types": ["positive", "negative", "neutral", ...], '
+                '"title": "Insight-driven title describing what the chart proves"}\n'
+                "Rules:\n"
+                "- value_types is optional — use 'positive' for gains, 'negative' for losses, omit if not applicable\n"
+                "- Title must be an insight. BAD: 'Revenue by Region'. GOOD: 'North America drives 60% of total revenue'\n"
+                "- Strip currency symbols, use plain numbers\n"
+            ),
+            "line": (
+                "Extract structured data from this text for a line chart. "
+                "Return ONLY valid JSON (no markdown, no explanation) with this exact shape: "
+                '{"labels": ["Jan", "Feb", ...], "values": [100, 120, ...], '
+                '"title": "Insight-driven title describing what the chart proves"}\n'
+                "For multiple series use: "
+                '{"labels": [...], "series": [{"label": "Revenue", "values": [...]}, {"label": "Costs", "values": [...]}], "title": "..."}\n'
+                "Rules:\n"
+                "- Labels should be time periods or sequential categories\n"
+                "- Title must be an insight. BAD: 'Monthly Trend'. GOOD: 'Revenue grew 35% from Q1 to Q4'\n"
+                "- Strip currency symbols, use plain numbers\n"
+            ),
+            "auto": (
+                "Analyze this data and determine the best chart type, then extract structured data. "
+                "Return ONLY valid JSON (no markdown, no explanation).\n"
+                "Choose the chart type based on the data:\n"
+                "- Proportions/shares/percentages → pie: {\"labels\": [...], \"values\": [...], \"title\": \"...\"}\n"
+                "- Comparisons across categories → bar: {\"labels\": [...], \"values\": [...], \"title\": \"...\"}\n"
+                "- Trends over time → line: {\"labels\": [...], \"values\": [...], \"title\": \"...\"}\n"
+                "- Build-up/breakdown with running total → waterfall: {\"labels\": [...], \"values\": [...], \"value_types\": [\"total\",\"positive\",\"negative\",...], \"title\": \"...\"}\n"
+                "- Ranked items → horizontal_bar: {\"categories\": [...], \"values\": [...], \"status\": [\"verified\",...], \"title\": \"...\"}\n"
+                "IMPORTANT: Include a \"_chart_type\" field with the chosen type (pie, bar, line, waterfall, horizontal_bar, stacked_bar, donut).\n"
+                "Title must be an insight, not a label.\n"
+                "Strip currency symbols, use plain numbers.\n"
+            ),
         }
 
         prompt = SVG_DATA_PROMPTS.get(chart_type, "")
@@ -1016,15 +1094,18 @@ def generate_chart():
 
             import json as _json
             spec = _json.loads(raw_json)
-            spec["type"] = chart_type
+
+            # For auto-detected charts, validate or infer a safe SVG builder.
+            resolved_type = _resolve_svg_chart_type(chart_type, spec)
+            spec["type"] = resolved_type
 
             svg_code = generate_svg_chart(spec)
-            title = spec.get("title", f"{chart_type.replace('_', ' ').title()} Chart")
+            title = spec.get("title", f"{resolved_type.replace('_', ' ').title()} Chart")
 
             return jsonify({
                 "success": True,
                 "svg_code": svg_code,
-                "chart_type": chart_type,
+                "chart_type": resolved_type,
                 "renderer": "svg_native",
                 "title": title,
             })
@@ -1032,28 +1113,17 @@ def generate_chart():
             print(f"[CHART/SVG] Generation error: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
-    # ── Mermaid path (pie, bar, line, flowchart, auto) ────────────────────
-    CHART_PREAMBLE = (
+    # ── Mermaid path (flowchart only) ───────────────────────────────────
+    MERMAID_PROMPT = (
         "You are a Mermaid.js chart generator. Output ONLY valid Mermaid code inside a ```mermaid``` code block. "
         "RULES: 1) No explanation or text outside the code block. "
         "2) Keep labels SHORT (max 20 chars) — abbreviate or truncate long names. "
         "3) Never use special characters in labels that break Mermaid syntax (no quotes, colons, or brackets inside node text). "
-        "4) If data contains '[value not provided]' or 'NOT PROVIDED' or 'Unknown', EXCLUDE those entries from the chart entirely. "
-        "5) Use only simple numeric values — strip currency symbols before plotting. "
-        "6) The chart title MUST read like an insight, not a generic label. "
-        "Example: BAD='Revenue Breakdown'. GOOD='Revenue is concentrated in Enterprise accounts'. "
-        "The title should answer: what does this chart prove? "
+        "4) If data contains '[value not provided]' or 'NOT PROVIDED' or 'Unknown', EXCLUDE those entries entirely. "
+        "Create a Mermaid flowchart diagram showing the relationships and process flow in this data."
     )
-    CHART_PROMPTS = {
-        "pie": CHART_PREAMBLE + "Create a Mermaid pie chart showing the proportional breakdown of the numeric values in this data.",
-        "bar": CHART_PREAMBLE + "Create a Mermaid xychart-beta bar chart from the numeric values in this data.",
-        "line": CHART_PREAMBLE + "Create a Mermaid xychart-beta line chart from the numeric values in this data.",
-        "flowchart": CHART_PREAMBLE + "Create a Mermaid flowchart diagram showing the relationships and process flow in this data.",
-        "auto": CHART_PREAMBLE + "Analyze this data and create the most appropriate Mermaid visualization (pie for proportions, xychart-beta bar for comparisons, xychart-beta line for trends, flowchart for processes).",
-    }
 
-    prompt = CHART_PROMPTS.get(chart_type, CHART_PROMPTS["auto"])
-    prompt += f'\n\nDATA:\n{raw_data}'
+    prompt = MERMAID_PROMPT + f'\n\nDATA:\n{raw_data}'
 
     try:
         response = google_client.models.generate_content(
@@ -1069,11 +1139,11 @@ def generate_chart():
         return jsonify({
             "success": True,
             "mermaid_code": mermaid_code,
-            "chart_type": chart_type,
+            "chart_type": "flowchart",
             "renderer": "mermaid",
         })
     except Exception as e:
-        print(f"[CHART] Generation error: {e}")
+        print(f"[CHART/MERMAID] Generation error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
