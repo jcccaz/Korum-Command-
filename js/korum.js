@@ -1699,11 +1699,11 @@ const AIHealth = {
 
 const PROTOCOL_CONFIGS = {
     // --- GENERAL ---
-    "War Room": { openai: "strategist", anthropic: "containment", google: "takeover", perplexity: "scout", mistral: "analyst" },
+    "War Room": { openai: "strategist", anthropic: "containment", google: "takeover", perplexity: "scout", mistral: "validator" },
     "Deep Research": { openai: "analyst", anthropic: "researcher", google: "historian", perplexity: "scout", mistral: "validator" },
     "Creative Council": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative" },
     "Code Audit": { openai: "architect", anthropic: "integrity", google: "hacker", perplexity: "optimizer", mistral: "coding" },
-    "System Core": { openai: "visionary", anthropic: "architect", google: "critic", perplexity: "researcher", mistral: "analyst" },
+    "System Core": { openai: "visionary", anthropic: "architect", google: "critic", perplexity: "researcher", mistral: "validator" },
     // --- DOMAIN-SPECIFIC ---
     "Legal Review": { openai: "jurist", anthropic: "compliance", google: "critic", perplexity: "scout", mistral: "negotiator" },
     "Medical Council": { openai: "medical", anthropic: "bioethicist", google: "researcher", perplexity: "scout", mistral: "analyst" },
@@ -1711,7 +1711,7 @@ const PROTOCOL_CONFIGS = {
     "Science Panel": { openai: "physicist", anthropic: "biologist", google: "chemist", perplexity: "scout", mistral: "professor" },
     "Startup Launch": { openai: "bizstrat", anthropic: "product", google: "marketing", perplexity: "scout", mistral: "cfo" },
     "STARTUP_LAUNCH": { openai: "bizstrat", anthropic: "product", google: "marketing", perplexity: "scout", mistral: "cfo" },
-    "Tech Council": { openai: "strategist", anthropic: "analyst", google: "researcher", perplexity: "scout", mistral: "critic" },
+    "Tech Council": { openai: "strategist", anthropic: "architect", google: "critic", perplexity: "scout", mistral: "validator" },
     "Creative Council": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative" },
     "CREATIVE_COUNCIL": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative" },
     "SOCIAL_POST": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative" },

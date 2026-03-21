@@ -211,7 +211,7 @@ MATH_IDENTITIES = [
 # are triggered in the same sequence every time.
 # Format: [Phase 0, Phase 1, Phase 2, Phase 3, Phase 4]
 WORKFLOW_STEPS = {
-    "WAR_ROOM": ["openai-commander", "anthropic-tactician", "google-analyst", "perplexity-scout", "mistral-integrator"],
+    "WAR_ROOM": ["openai-commander", "anthropic-tactician", "google-analyst", "perplexity-scout", "mistral-validator"],
     "RESEARCH": ["openai-analyst", "anthropic-architect", "google-critic", "perplexity-scout", "mistral-validator"],
     "FINANCE": ["openai-cfo", "anthropic-auditor", "google-quant", "perplexity-researcher", "mistral-compliance"],
     "LEGAL": ["openai-counsel", "anthropic-analyst", "google-critic", "perplexity-researcher", "mistral-validator"],
@@ -223,9 +223,9 @@ WORKFLOW_STEPS = {
     "AUDIT": ["openai-auditor", "anthropic-compliance_lead", "google-skeptic", "perplexity-fact_checker", "mistral-validator"],
     "CREATIVE": ["openai-creative_director", "anthropic-brand_strategist", "google-critic", "perplexity-cultural_scout", "mistral-copywriter"],
     "SCIENCE": ["openai-principal_investigator", "anthropic-methodologist", "google-peer_reviewer", "perplexity-literature_scout", "mistral-statistician"],
-    "TECH": ["openai-cto", "anthropic-architect", "google-failure_analyst", "perplexity-tech_scout", "mistral-lead_engineer"],
+    "TECH": ["openai-cto", "anthropic-architect", "google-failure_analyst", "perplexity-tech_scout", "mistral-validator"],
     "INTEL": ["openai-collection_manager", "anthropic-analyst", "google-counterintel", "perplexity-osint_scout", "mistral-intelligence_officer"],
-    "SYSTEM": ["openai-sre_lead", "anthropic-architect", "google-diagnostic_analyst", "perplexity-metrics_scout", "mistral-operations_lead"],
+    "SYSTEM": ["openai-sre_lead", "anthropic-architect", "google-diagnostic_analyst", "perplexity-metrics_scout", "mistral-validator"],
     "SOCIAL_POST": ["openai-narrative_strategist", "anthropic-voice_analyst", "google-editor", "perplexity-trend_scout", "mistral-content_lead"],
     "EOM_STATEMENT": ["openai-forensic_accountant", "anthropic-financial_analyst", "google-cfo", "perplexity-variance_analyst", "mistral-auditor"],
     "PORTFOLIO_BUILDER": ["openai-macro_strategist", "anthropic-quant_analyst", "google-short_seller", "perplexity-risk_manager", "mistral-cio"],
