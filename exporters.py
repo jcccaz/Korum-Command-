@@ -1374,7 +1374,11 @@ class WordExporter:
         artifacts = _report_artifacts(intelligence_object)
 
         # Reorder sections to match canonical output_structure
-        section_items_pre = _reorder_sections(sections or {})
+        section_items_pre = [
+            (sid, content)
+            for sid, content in _reorder_sections(sections or {})
+            if _as_text(sid).strip().lower() != "final_assessment"
+        ]
         # Chart Standard: assign artifacts to their source nodes for inline placement
         node_artifacts = _assign_artifacts_to_nodes(artifacts, section_items_pre, contributors)
 
@@ -1463,7 +1467,7 @@ class WordExporter:
             WordExporter._add_spacing(doc)
 
         # 4. --- INTELLIGENCE NODES (full-width prose) ---
-        section_items = _reorder_sections(sections or {})
+        section_items = section_items_pre
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
             # Clean report mode: section title only — no node numbers, no provider names
