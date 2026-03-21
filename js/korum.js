@@ -1009,7 +1009,10 @@ const ResearchDock = {
     add(content, source = 'selection') {
         if (!content || content.trim().length < 3) return null;
 
-        const typeInfo = this.detectType(content);
+        let typeInfo = this.detectType(content);
+        if (source === 'visualization') {
+            typeInfo = { type: 'chart', icon: '📊', label: 'Chart' };
+        }
         const isReportReadyArtifact = source === 'visualization' || typeInfo.type === 'mermaid' || typeInfo.type === 'table' || typeInfo.type === 'csv';
         const snippet = {
             id: `snip-${Date.now()}`,
