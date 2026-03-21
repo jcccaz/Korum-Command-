@@ -97,7 +97,8 @@ _PHASE_TITLES = ["ANALYST", "ARCHITECT", "CRITIC", "INTEGRATOR", "COMPOSER"]
 # Canonical section order for RESEARCH reports (matches WORKFLOW_DNA output_structure)
 _RESEARCH_SECTION_ORDER = [
     "executive_summary", "key_signals", "system_context", "scenario_analysis",
-    "critical_challenges", "tradeoffs", "decision", "action_priorities",
+    "critical_challenges", "risks", "tradeoffs", "decision", "action_priorities",
+    "evidence",
     "execution_considerations", "confidence_assessment", "confidence",
     "final_assessment",
 ]
@@ -124,6 +125,326 @@ def _extract_parts(o):
     structured = o.get("structured_data") or {}
     interrogations = o.get("interrogations") or []
     verifications = o.get("verifications") or []
+    decision_packet = o.get("decision_packet") or {}
+    if decision_packet:
+        meta, sections, structured, interrogations, verifications = _packet_preferred_parts(
+            decision_packet,
+            meta,
+            sections,
+            structured,
+            interrogations,
+            verifications,
+        )
+    return meta, sections, structured, interrogations, verifications
+
+
+def _packet_list(items):
+    return items if isinstance(items, list) else []
+
+
+def _packet_dict(value):
+    return value if isinstance(value, dict) else {}
+
+
+def _packet_text_list(items, field_name=None):
+    values = []
+    for item in _packet_list(items):
+        if isinstance(item, dict):
+            if field_name:
+                text = _as_text(item.get(field_name))
+            else:
+                text = _as_text(item.get("text") or item.get("value") or item.get("title") or item.get("point"))
+        else:
+            text = _as_text(item)
+        if text:
+            values.append(text)
+    return values
+
+
+def _prefer_packet_value(packet_value, fallback_value=""):
+    packet_text = _as_text(packet_value)
+    if packet_text:
+        return packet_value
+    return fallback_value
+
+
+def _packet_score(packet, fallback_meta):
+    confidence = _packet_dict(packet.get("confidence"))
+    raw_score = confidence.get("score")
+    if raw_score is not None and raw_score != "":
+        try:
+            return _normalize_truth_score(raw_score)
+        except Exception:
+            return None
+
+    if not confidence:
+        fallback_score = fallback_meta.get("truth_score") or fallback_meta.get("composite_truth_score")
+        if fallback_score is not None and fallback_score != "":
+            return _normalize_truth_score(fallback_score)
+    return None
+
+
+def _packet_status(packet, score):
+    confidence = _packet_dict(packet.get("confidence"))
+    raw_band = _as_text(confidence.get("band")).upper()
+    if raw_band in ("HIGH", "MEDIUM", "LOW"):
+        if raw_band == "HIGH":
+            return "Recommended" if score >= 80 else "Conditional"
+        if raw_band == "MEDIUM":
+            return "Conditional"
+        return "Fail"
+    if score is not None:
+        return _confidence_status_from_score(score)
+    return ""
+
+
+def _packet_timeline_bucket(timeline_text):
+    value = _as_text(timeline_text).lower()
+    if not value:
+        return "Immediate"
+    if "mid" in value:
+        return "Mid-Term"
+    if "near" in value or "30" in value or "90" in value or "short" in value:
+        return "Near-Term"
+    if "immediate" in value or "now" in value or "week" in value or "day" in value:
+        return "Immediate"
+    return "Immediate"
+
+
+def _packet_action_priorities_text(actions):
+    grouped = {"Immediate": [], "Near-Term": [], "Mid-Term": []}
+    for item in _packet_list(actions):
+        if isinstance(item, dict):
+            action = _as_text(item.get("action"))
+            owner = _as_text(item.get("owner"))
+            if not action:
+                continue
+            line = action if not owner else f"{action} ({owner})"
+            bucket = _packet_timeline_bucket(item.get("timeline"))
+            grouped.setdefault(bucket, []).append(line)
+        else:
+            text = _as_text(item)
+            if text:
+                grouped["Immediate"].append(text)
+
+    lines = []
+    for heading in ("Immediate", "Near-Term", "Mid-Term"):
+        items = grouped.get(heading) or []
+        if not items:
+            continue
+        lines.append(f"**{heading.upper()}**")
+        lines.extend(f"- {item}" for item in items)
+    return "\n".join(lines).strip()
+
+
+def _packet_confidence_text(packet, score, status):
+    confidence = _packet_dict(packet.get("confidence"))
+    basis = _as_text(confidence.get("basis"))
+    assumptions = _packet_text_list(packet.get("assumptions"))
+    unknowns = _packet_text_list(packet.get("unknowns"))
+
+    lines = []
+    if score is not None:
+        lines.append(f"Score: {score} / 100")
+    if status:
+        lines.append(f"Status: {status}")
+    if basis:
+        if lines:
+            lines.append("")
+        lines.extend(["Key Drivers:", f"- {basis}"])
+    if assumptions:
+        if lines:
+            lines.append("")
+        lines.append("Assumptions:")
+        lines.extend(f"- {item}" for item in assumptions[:5])
+    if unknowns:
+        if lines:
+            lines.append("")
+        lines.append("Limitations:")
+        lines.extend(f"- {item}" for item in unknowns[:5])
+    return "\n".join(lines)
+
+
+def _packet_risk_text(packet):
+    risks = []
+    for item in _packet_list(packet.get("risk_vectors")):
+        if isinstance(item, dict):
+            title = _as_text(item.get("title"))
+            description = _as_text(item.get("description"))
+            mitigation = _as_text(item.get("mitigation"))
+            line = f"- {title}"
+            details = []
+            if description:
+                details.append(description)
+            if mitigation:
+                details.append(f"Mitigation: {mitigation}")
+            if details:
+                line = f"{line} {'. '.join(details)}"
+            risks.append(line)
+        else:
+            text = _as_text(item)
+            if text:
+                risks.append(f"- {text}")
+    return "\n".join(risks)
+
+
+def _packet_evidence_text(packet):
+    lines = []
+    for item in _packet_list(packet.get("evidence_trace")):
+        if isinstance(item, dict):
+            point = _as_text(item.get("point"))
+            support = _as_text(item.get("support"))
+            if point and support:
+                lines.append(f"- {point}: {support}")
+            elif point:
+                lines.append(f"- {point}")
+        else:
+            text = _as_text(item)
+            if text:
+                lines.append(f"- {text}")
+    return "\n".join(lines)
+
+
+def _packet_tradeoffs_text(packet):
+    lines = []
+    for item in _packet_list(packet.get("alternatives_rejected")):
+        if isinstance(item, dict):
+            option = _as_text(item.get("option"))
+            reason = _as_text(item.get("reason_rejected"))
+            if option and reason:
+                lines.append(f"- {option}: {reason}")
+            elif option:
+                lines.append(f"- {option}")
+        else:
+            text = _as_text(item)
+            if text:
+                lines.append(f"- {text}")
+    return "\n".join(lines)
+
+
+def _packet_execution_text(packet):
+    assumptions = _packet_text_list(packet.get("assumptions"))
+    unknowns = _packet_text_list(packet.get("unknowns"))
+    parts = []
+    if assumptions:
+        parts.append("**ASSUMPTIONS**")
+        parts.extend(f"- {item}" for item in assumptions[:5])
+    if unknowns:
+        if parts:
+            parts.append("")
+        parts.append("**UNKNOWNS**")
+        parts.extend(f"- {item}" for item in unknowns[:5])
+    return "\n".join(parts)
+
+
+def _packet_key_signals_text(packet):
+    claims = []
+    for item in _packet_list(packet.get("verified_claims"))[:4]:
+        if isinstance(item, dict):
+            claim = _as_text(item.get("claim"))
+            if claim:
+                claims.append(f"- {claim}")
+        else:
+            text = _as_text(item)
+            if text:
+                claims.append(f"- {text}")
+    return "\n".join(claims)
+
+
+def _packet_verification_blocks(packet):
+    blocks = []
+    for item in _packet_list(packet.get("verified_claims")):
+        if not isinstance(item, dict):
+            continue
+        claim = _as_text(item.get("claim"))
+        if not claim:
+            continue
+        source_ref = _as_text(item.get("source_ref"))
+        raw_status = _as_text(item.get("status")).upper() or "UNVERIFIED"
+        if raw_status in ("VERIFIED", "ACCURATE"):
+            status = "VERIFIED"
+            verdict = "ACCURATE"
+        elif raw_status in ("FALSE", "FLAGGED"):
+            status = "FLAGGED"
+            verdict = "INACCURATE"
+        else:
+            status = "CONDITIONAL"
+            verdict = "CONDITIONAL"
+        blocks.append({
+            "type": "evidence",
+            "label": "SOURCE VERIFICATION",
+            "status": status,
+            "claim": claim,
+            "verdict": verdict,
+            "evidence_points": [claim],
+            "sources": [source_ref] if source_ref else [],
+            "challenges": [],
+            "text": claim,
+        })
+    return blocks
+
+
+def _packet_preferred_parts(packet, fallback_meta, fallback_sections, fallback_structured, fallback_interrogations, fallback_verifications):
+    export_meta = _packet_dict(packet.get("export_metadata"))
+    score = _packet_score(packet, fallback_meta)
+    status = _packet_status(packet, score)
+    title = _as_text(_prefer_packet_value(packet.get("decision_headline"), fallback_meta.get("title")))
+    summary = _as_text(_prefer_packet_value(packet.get("executive_summary"), fallback_meta.get("summary")))
+    go_no_go = _packet_dict(packet.get("go_no_go_call"))
+    rationale = _as_text(go_no_go.get("rationale"))
+    decision_value = _as_text(go_no_go.get("decision"))
+
+    meta = dict(fallback_meta or {})
+    meta["title"] = title or meta.get("title")
+    meta["summary"] = summary or meta.get("summary")
+    meta["workflow"] = _as_text(
+        _prefer_packet_value(
+            export_meta.get("workflow") or export_meta.get("report_type"),
+            meta.get("workflow") or "RESEARCH",
+        )
+    )
+    meta["generated_at"] = _as_text(_prefer_packet_value(export_meta.get("generated_at"), meta.get("generated_at")))
+    meta["_export_packet_primary"] = True
+    if score is not None:
+        meta["composite_truth_score"] = score
+        meta["truth_score"] = score
+        meta["confidence_score"] = score
+    else:
+        meta.pop("composite_truth_score", None)
+        meta.pop("truth_score", None)
+        meta.pop("confidence_score", None)
+    if status:
+        meta["status"] = status
+    else:
+        meta.pop("status", None)
+
+    packet_risks = _packet_risk_text(packet)
+    sections = dict(fallback_sections or {})
+    sections.update({
+        "executive_summary": summary or sections.get("executive_summary", ""),
+        "key_signals": _packet_key_signals_text(packet) or sections.get("key_signals", ""),
+        "critical_challenges": sections.get("critical_challenges", "") if packet_risks else sections.get("critical_challenges", ""),
+        "risks": packet_risks or sections.get("risks", ""),
+        "tradeoffs": _packet_tradeoffs_text(packet) or sections.get("tradeoffs", ""),
+        "decision": "\n".join(filter(None, [f"Decision: {decision_value}" if decision_value else "", rationale])) or sections.get("decision", ""),
+        "action_priorities": _packet_action_priorities_text(packet.get("immediate_actions")) or sections.get("action_priorities", ""),
+        "evidence": _packet_evidence_text(packet) or sections.get("evidence", ""),
+        "execution_considerations": _packet_execution_text(packet) or sections.get("execution_considerations", ""),
+        "confidence_assessment": _packet_confidence_text(packet, score, status) or sections.get("confidence_assessment", ""),
+        "final_assessment": title or sections.get("final_assessment", ""),
+    })
+
+    structured = dict(fallback_structured or {})
+    if score is not None:
+        key_metrics = [{"metric": "Decision Score", "value": f"{score} / 100"}]
+    else:
+        key_metrics = []
+    structured["key_metrics"] = key_metrics
+    structured["action_items"] = structured.get("action_items") or _packet_list(packet.get("immediate_actions"))
+    structured["risks"] = structured.get("risks") or _packet_list(packet.get("risk_vectors"))
+
+    verifications = fallback_verifications or _packet_verification_blocks(packet)
+    interrogations = fallback_interrogations or []
     return meta, sections, structured, interrogations, verifications
 
 def _artifact_label(art):
@@ -908,6 +1229,8 @@ def _normalize_export_section_text(section_id, content, meta=None):
     if sid == "action_priorities":
         return _normalize_action_priorities_text(text)
     if sid in ("confidence", "confidence_assessment"):
+        if (meta or {}).get("_export_packet_primary"):
+            return text
         return _normalize_confidence_text(text, meta)
     return text
 
@@ -1142,13 +1465,6 @@ class ExecutiveMemoExporter:
                 if provider_table:
                     content_blocks.append(provider_table)
 
-            # Node label + thin rule (always full-width)
-            story.append(Paragraph(node_label, styles['ExecLabel']))
-            story.append(Spacer(1, 6))
-            story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
-                style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
-            story.append(Spacer(1, 10))
-
             # Collect chart images for this node (only those with imageData)
             node_arts = node_artifacts.get(idx, [])
             float_charts = []
@@ -1159,6 +1475,16 @@ class ExecutiveMemoExporter:
                     float_charts.append((art, chart_img))
                 else:
                     remaining_arts.append(art)
+
+            if not content_blocks and not float_charts and not remaining_arts:
+                continue
+
+            # Node label + thin rule (always full-width)
+            story.append(Paragraph(node_label, styles['ExecLabel']))
+            story.append(Spacer(1, 6))
+            story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
+                style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
+            story.append(Spacer(1, 10))
 
             # PDF reliability mode: render node prose full-width, then charts immediately after.
             # ReportLab cannot split tall table cells across pages; side-by-side float tables can
@@ -1610,11 +1936,6 @@ class WordExporter:
             # Flatten structured data (dicts/lists) into readable prose text
             content = _normalize_export_section_text(sid, _flatten_structured_value(content), meta)
 
-            n_p = doc.add_paragraph()
-            n_run = n_p.add_run(sec_title)
-            n_run.font.size = Pt(7)
-            n_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
-
             content_blocks = _extract_content_blocks(content)
             prov_key = prov_name.lower()
             prov_data = card_results.get(prov_key) or {}
@@ -1634,6 +1955,14 @@ class WordExporter:
                     float_charts.append((art, img_stream, img_w, img_h))
                 else:
                     remaining_arts.append(art)
+
+            if not content_blocks and not float_charts and not remaining_arts:
+                continue
+
+            n_p = doc.add_paragraph()
+            n_run = n_p.add_run(sec_title)
+            n_run.font.size = Pt(7)
+            n_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
 
             if float_charts:
                 # FLOAT MODE: 60/40 side-by-side — prose left, chart right
