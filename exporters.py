@@ -98,7 +98,8 @@ _PHASE_TITLES = ["ANALYST", "ARCHITECT", "CRITIC", "INTEGRATOR", "COMPOSER"]
 _RESEARCH_SECTION_ORDER = [
     "executive_summary", "key_signals", "system_context", "scenario_analysis",
     "critical_challenges", "tradeoffs", "decision", "action_priorities",
-    "confidence",
+    "execution_considerations", "confidence_assessment", "confidence",
+    "final_assessment",
 ]
 
 def _reorder_sections(sections, order=None):
