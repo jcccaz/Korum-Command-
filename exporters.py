@@ -1463,7 +1463,7 @@ class ExecutiveMemoExporter:
             story.append(Spacer(1, 30))
 
         # 4. --- INTELLIGENCE NODES (FULL-WIDTH PROSE) ---
-        section_items = _reorder_sections(sections or {})
+        section_items = list(section_items_pre)
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
             # Clean report mode: section title only — no node numbers, no provider names
