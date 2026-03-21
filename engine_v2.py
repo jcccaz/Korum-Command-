@@ -35,7 +35,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Balanced",
         "time_horizon": "Long-term strategic",
         "posture": "Decision Commander",
-        "output_structure": ["Executive Assessment", "Scenario Analysis", "Critical Challenges", "Tradeoff Analysis", "Decision and Action Plan"]
+        "output_structure": ["Executive Summary", "Key Signals", "System Context", "Scenario Analysis", "Critical Challenges", "Tradeoff Analysis", "Decision", "Action Priorities", "Execution Considerations", "Confidence Assessment", "Final Assessment"]
     },
     "FINANCE": {
         "goal": "Economic viability and downside protection.",
@@ -247,55 +247,99 @@ WORKFLOW_STEPS = {
 # language flexes to match the actual query topic.
 PHASE_DIRECTIVES = {
     0: {
-        "title": "INTAKE — Neutral Baseline",
+        "title": "ANALYST — Problem Framing",
         "instruction": (
-            "STRATEGIC RULE: Use [SIGNAL TAGS] (e.g. [CRITICAL], [VERIFIED], [ACTION REQUIRED]) to highlight key findings. "
-            "Default to Amber [TAGS]. Use Red [CRITICAL] only for high-threat signals. "
-
-            "You are the INTAKE analyst. Your job is to build a neutral, fact-based baseline from the raw query. "
-            "Strip assumptions. Identify the core entities, relationships, and unknowns. "
-            "Present ONLY verified facts, data points, and the key questions that need answering. "
-            "Do NOT offer opinions, strategies, or recommendations."
+            "You are the ANALYST. Your job is to frame the problem and establish the factual baseline.\n\n"
+            "MUST INCLUDE:\n"
+            "- Core entities and their roles in the situation\n"
+            "- Observed conditions (not 'Verified Facts' — use what is visible, allow light inference)\n"
+            "- 2-4 cause-oriented hypotheses for the situation\n"
+            "- Key risks and their directional severity\n"
+            "- Unknowns and data gaps (but do NOT overuse 'data not provided' — infer where reasonable)\n\n"
+            "MUST NOT INCLUDE:\n"
+            "- Scenarios, recommendations, or decisions\n"
+            "- Action plans or implementation steps\n"
+            "- Confidence scores or final judgments\n"
+            "- Tool/vendor recommendations\n\n"
+            "TONE: Neutral, structured, fact-forward. You are mapping the terrain, not choosing a direction."
         )
     },
     1: {
-        "title": "STRATEGIC INTERPRETATION — Scenario Analysis",
+        "title": "ARCHITECT — Scenario Modeling",
         "instruction": (
-            "STRATEGIC RULE: Use [SIGNAL TAGS] (e.g. [CRITICAL], [VERIFIED], [ACTION REQUIRED]) to highlight key findings. "
-            "Default to Amber [TAGS]. Use Red [CRITICAL] only for high-threat signals. "
-
-            "You are the STRATEGIC ANALYST. Interpet the baseline and estimate the MOST PLAUSIBLE scenario and the MOST DANGEROUS scenario. "
-            "Focus entirely on WHAT THEY MEAN. Offer 2-3 distinct strategic scenarios."
+            "You are the ARCHITECT. Your job is to model strategic scenarios from the Analyst's baseline.\n\n"
+            "MUST INCLUDE:\n"
+            "- Most Plausible scenario with progression timeline\n"
+            "- Most Dangerous scenario with escalation triggers\n"
+            "- Strategic Opportunity scenario (upside lens, not just downside)\n"
+            "- Implications for each scenario (one-sentence impact statement)\n\n"
+            "MUST NOT INCLUDE:\n"
+            "- Extreme stacked worst-case outcomes in a single scenario\n"
+            "- Unsupported precise numbers (e.g., '37.2% revenue loss') — use directional ranges\n"
+            "- Blanket 'high confidence' claims without grounding\n"
+            "- Final decisions or action plans\n"
+            "- Tool/vendor lists or implementation details\n\n"
+            "TONE: Strategic, not alarmist. Keep the opportunity lens. "
+            "Avoid synthetic precision like '25-40% churn' unless the input data supports it."
         )
     },
     2: {
-        "title": "COUNTERINTELLIGENCE CHALLENGE — Assumption Attack",
+        "title": "CRITIC — Assumption Challenge",
         "instruction": (
-            "STRATEGIC RULE: Use [SIGNAL TAGS] (e.g. [CRITICAL], [VERIFIED], [ACTION REQUIRED]) to highlight key findings. "
-            "Default to Amber [TAGS]. Use Red [CRITICAL] only for high-threat signals. "
-
-            "You are the COUNTERINTELLIGENCE OFFICER. Your SOLE job is to ATTACK the assumptions made so far. "
-            "Look for deception, blind spots, and alternative explanations. DO NOT reinforce prior analysis."
+            "You are the CRITIC. Your job is to stress-test the Architect's scenarios and assumptions.\n\n"
+            "MUST INCLUDE:\n"
+            "- Prioritized challenges (High Impact first, then Secondary)\n"
+            "- WHY each challenge matters (not just what is wrong)\n"
+            "- What specific data or validation would resolve each challenge\n"
+            "- A synthesis line: do uncertainties outweigh the risk of inaction?\n\n"
+            "MUST NOT INCLUDE:\n"
+            "- Final decisions (you challenge, you do NOT decide)\n"
+            "- 'DECISION: No' or 'DECISION: Halt' labels — use 'Challenge' / 'Constraint' / 'Validation Required'\n"
+            "- Analysis of the report itself (no references to 'the Executive Summary section' or 'Key Signals')\n"
+            "- Recommendations, action plans, or implementation steps\n"
+            "- New scenarios or strategic options\n\n"
+            "TONE: Constructive adversarial. You are the quality gate, not the decision-maker."
         )
     },
     3: {
-        "title": "OPERATIONS — Actionable Implementation Plan",
+        "title": "INTEGRATOR — Decision Synthesis",
         "instruction": (
-            "STRATEGIC RULE: Use [SIGNAL TAGS] (e.g. [CRITICAL], [VERIFIED], [ACTION REQUIRED]) to highlight key findings. "
-            "Default to Amber [TAGS]. Use Red [CRITICAL] only for high-threat signals. "
-
-            "You are the OPERATIONS lead. Translate ALL prior analysis into IMMEDIATE, ACTIONABLE steps. "
-            "Be specific. Name concrete tools, methods, partners, and timelines."
+            "You are the INTEGRATOR. You are the SOLE decision authority. "
+            "Resolve tensions between Analyst, Architect, and Critic into ONE clear decision.\n\n"
+            "MUST INCLUDE:\n"
+            "- The final decision (one clear sentence)\n"
+            "- Rationale (3-5 bullet points)\n"
+            "- Key tradeoffs considered\n"
+            "- High-level action priorities (2-3 per time horizon: Immediate, Near-Term, Mid-Term)\n"
+            "- Confidence assessment with reasoning\n\n"
+            "MUST NOT INCLUDE:\n"
+            "- Step-by-step procedures or project-management timelines\n"
+            "- Methodology tutorials or framework explanations\n"
+            "- Micro-level execution plans (no 'Day 1-3' schedules)\n"
+            "- Tool/vendor lists unless absolutely essential to the decision\n"
+            "- Detailed staffing, budgets, or operational checklists\n\n"
+            "TONE: Decisive executive. You own the call. This is NOT an ops playbook — "
+            "it is a decision with enough context to act on."
         )
     },
     4: {
-        "title": "VALIDATION — Standards & Confidence Assessment",
+        "title": "COMPOSER — Executive Narrative",
         "instruction": (
-            "STRATEGIC RULE: Use [SIGNAL TAGS] (e.g. [CRITICAL], [VERIFIED], [ACTION REQUIRED]) to highlight key findings. "
-            "Default to Amber [TAGS]. Use Red [CRITICAL] only for high-threat signals. "
-
-            "You are the VALIDATION ANALYST. Assess the quality of the entire analysis and map it to relevant standards. "
-            "Provide a final confidence assessment and flag residual risks."
+            "You are the REPORT COMPOSER. Your job is to unify ALL prior analysis into one polished executive artifact.\n\n"
+            "MUST:\n"
+            "- Write in ONE unified senior consultant voice\n"
+            "- Lead with the decision in the Executive Summary\n"
+            "- Follow the output_structure exactly (all sections, in order)\n"
+            "- Keep actions high-level (max 2-3 per time horizon)\n"
+            "- Use directional confidence aligned with actual data support\n\n"
+            "MUST NOT:\n"
+            "- Expose node numbers, model names, or provider identities\n"
+            "- Use internal tags like [VERIFIED], [CRITICAL], [ACTION REQUIRED]\n"
+            "- Include citations ([1][2][3]) in body text\n"
+            "- Create day-by-day timelines or tool/vendor spam\n"
+            "- Write in chat transcript or engineering SOP style\n"
+            "- Say 'this model said' or 'the council found' — say 'analysis shows'\n\n"
+            "VOICE: Senior strategy consultant delivering a decision memo to leadership."
         )
     }
 }
@@ -2616,43 +2660,81 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
 
     # Section-specific synthesis directives — tell the LLM exactly what each section should contain
     SECTION_DIRECTIVES = {
-        "executive_assessment": (
-            "Open with the decision. State the recommended action in the FIRST sentence. "
-            "Then summarize the key finding, primary risk, and confidence level in 2-3 paragraphs. "
-            "No hedging on the recommendation — be direct. "
-            "End with a **DECISION:** line stating the action and a **RATIONALE:** line stating why. "
-            "After the rationale, include a 'KEY SIGNALS' sub-section: a bullet list of 4-6 concrete "
-            "indicators from the data that drive the decision (metrics, trends, thresholds crossed). "
-            "These must come from the council discussion, not invented."
+        "executive_summary": (
+            "FORMAT: Situation → Decision → Rationale → Confidence. "
+            "SITUATION: 1-2 sentences on what is happening. "
+            "DECISION: State the recommended action clearly — no hedging. "
+            "RATIONALE: 2-3 sentences on why this decision wins over alternatives. "
+            "CONFIDENCE: State the band (High/Moderate/Low) with a brief justification. "
+            "MAX: 4-5 sentences total. Must answer: What should leadership do now? "
+            "VOICE: Senior strategy consultant. Direct, not conversational."
+        ),
+        "key_signals": (
+            "List 4-6 concrete data-driven indicators that support the decision. "
+            "Format as a bullet list. Each signal must cite a specific metric, trend, or threshold. "
+            "NO invented data. NO generic statements like 'market conditions remain uncertain'. "
+            "Use directional language where exact numbers are unavailable. "
+            "These must come from the council discussion, not fabricated."
+        ),
+        "system_context": (
+            "Identify the core entities involved and their roles in 3-5 bullets. "
+            "Who or what is involved? What is their function in this decision? "
+            "Keep it structural, not narrative. No elaboration — just entity + role. "
+            "Example: 'Regional Fiber Network — degrading infrastructure layer under financial constraint'"
         ),
         "scenario_analysis": (
-            "Begin with a brief 'SYSTEM CONTEXT' block: identify the Core Entities involved "
-            "(e.g., the organization, the infrastructure, the decision-makers) and their roles in "
-            "the situation — 3-5 bullet points max, no elaboration. "
-            "Then present 2-3 scenarios with severity tags (CRITICAL/AMBER/GREEN). "
-            "Each scenario needs: a name, description, progression timeline, and an 'Implication:' line. "
-            "Include Most Plausible, Most Dangerous, and Strategic Opportunity where applicable. "
-            "Use concrete language, not abstract summaries."
+            "Present 2-3 scenarios: Most Plausible, Most Dangerous, and (if applicable) Strategic Opportunity. "
+            "Each scenario needs: a name, 2-3 sentence description, directional progression timeline "
+            "(e.g., 'within 6-12 months' — NOT day-by-day), and an Implication line (one sentence). "
+            "Use concrete language. NO abstract summaries. NO stacked extreme outcomes in one scenario. "
+            "Avoid synthetic precision — use directional ranges unless the data supports exact numbers."
         ),
         "critical_challenges": (
-            "Stress-test the assumptions underlying the analysis. "
-            "List High Impact challenges and Secondary Considerations separately. "
-            "End with a conclusion on whether uncertainties outweigh the risk of inaction. "
-            "This is the adversarial section — challenge the council's own conclusions."
+            "Stress-test the decision. Present in two groups: "
+            "HIGH IMPACT CHALLENGES (2-3 items) and SECONDARY CONSIDERATIONS (2-3 items). "
+            "For each challenge: state what it is, why it matters, and what would resolve it. "
+            "End with a one-sentence synthesis: do the uncertainties outweigh the risk of inaction?"
         ),
         "tradeoff_analysis": (
-            "Build a structured comparison across dimensions (Operational, Financial, Customer, Strategic). "
-            "Use a [STRUCTURED_TABLE] with columns: Dimension | Option A (short-term) | Option B (long-term). "
-            "Each cell should be a concise statement, not a paragraph."
+            "Build a structured comparison using [STRUCTURED_TABLE] format. "
+            "Columns: Dimension | Short-Term Option | Long-Term Option. "
+            "Dimensions: Operational, Financial, Customer/User, Strategic. "
+            "Each cell: concise statement (1-2 sentences max). No paragraphs in cells."
         ),
-        "decision_and_action_plan": (
-            "State the decision clearly in one sentence. Provide rationale as bullet points. "
-            "Then break execution into time phases: Immediate (0-30 days), Near-Term (30-90 days), "
-            "Mid-Term (90+ days) with 2-4 concrete steps in each phase. "
-            "End with execution considerations (constraints, resource needs, data gaps)."
+        "decision": (
+            "State the decision in ONE clear sentence. Then provide rationale as 3-5 bullet points. "
+            "NO hedging. NO 'it depends'. This is the final call. "
+            "Format: DECISION: [Clear action statement] followed by RATIONALE: bullet list."
+        ),
+        "action_priorities": (
+            "Break execution into 3 time horizons with 2-3 HIGH-LEVEL actions each:\n"
+            "IMMEDIATE (0-30 days): 2-3 actions\n"
+            "NEAR-TERM (30-90 days): 2-3 actions\n"
+            "MID-TERM (90+ days): 2-3 actions\n"
+            "Actions must be executive-level decisions, NOT detailed playbooks. "
+            "NO tool/vendor lists. NO day-by-day timelines. NO staffing plans. "
+            "Example: 'Identify and prioritize high-risk network segments for stabilization'"
+        ),
+        "execution_considerations": (
+            "Identify 3-5 constraints, resource needs, or data gaps that affect execution. "
+            "Format as bullet points. Focus on what could block or slow the decision. "
+            "Keep it brief — one line per consideration."
+        ),
+        "confidence_assessment": (
+            "OVERALL CONFIDENCE: State the band — High (direction and basis strong), "
+            "Moderate (direction strong but quantification incomplete), or "
+            "Low (claim is weak or highly assumption-dependent). "
+            "KEY ASSUMPTIONS: 3-5 bullet points. "
+            "LIMITATIONS: 2-3 bullet points on data gaps or unresolved questions. "
+            "Confidence must reflect actual data quality, not optimism or default patterns."
+        ),
+        "final_assessment": (
+            "Closing statement in 2-3 sentences. Reinforce the decision and primary rationale. "
+            "End with a forward-looking implication or next decision milestone. "
+            "NO new information. This is the capstone, not a new section."
         ),
     }
-    default_directive = "3-5 detailed paragraphs synthesizing council findings for this section. Include specific data, frameworks, and recommendations."
+    default_directive = "2-3 concise paragraphs synthesizing the council's findings for this section. Use specific data from the discussion. No filler."
     schema_sections = {
         section.lower().replace(" ", "_"): SECTION_DIRECTIVES.get(section.lower().replace(" ", "_"), default_directive)
         for section in dna["output_structure"]
@@ -2680,6 +2762,16 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
        - Separate "must pause" items from "can proceed" items
        - Frame recommendations as a decision gradient, not binary go/no-go
        VIOLATION: Any recommendation that says "halt all", "stop everything", "cease operations", or "suspend all decisions" without offering actionable alternatives is rejected. Decision intelligence means enabling decisions under uncertainty, not preventing them.
+    8. CLEAN REPORT MODE: The final output MUST be a unified executive narrative.
+       - Write in ONE voice — senior strategy consultant delivering a decision memo
+       - NEVER expose internal labels: no node numbers, no model names (GPT-4, Claude, Gemini), no provider names (OpenAI, Anthropic, Google), no agent references
+       - NEVER use "the council found" or "this model said" — use "analysis shows", "scenario modeling indicates", "key challenges include"
+       - STRIP all internal tags from final text: [VERIFIED], [CRITICAL], [ACTION REQUIRED], [TRUTH_BOMB], [RISK_VECTOR], [DECISION_CANDIDATE], [METRIC_ANCHOR]
+       - NO citations in body text (no [1][2][3] references)
+       - NO tool/vendor stacks or methodology tutorials unless the input specifically requests them
+       - NO day-by-day timelines, "Day 1-3" schedules, or micro-execution plans
+       - Prefer directional ranges over dramatic precision (say "significant increase" not "37.2% rise" unless data supports it)
+       - Confidence must reflect actual data quality — do NOT default to "high" or "low" by pattern
 
     COUNCIL DISCUSSION:
     {history_text}
@@ -2843,6 +2935,9 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
             if m.strip() not in data["intelligence_tags"]["metrics"]:
                 data["intelligence_tags"]["metrics"].append(m.strip())
 
+        # Clean report validation — log warnings (non-blocking)
+        validate_clean_report(data, workflow=context.workflow)
+
         return data
     except Exception as e:
         print(f"[SYNTHESIS ERROR] {e}")
@@ -2914,6 +3009,52 @@ def generate_presentation_preview(synthesized_data, classification, user_id=None
     except Exception as e:
         print(f"[PRESENTATION PREVIEW ERROR] {e}")
         return {"error": "Failed to generate presentation preview.", "slides": []}
+
+# --- PRE-EXPORT VALIDATION (Clean Report Mode) ---
+
+def validate_clean_report(synthesis_result, workflow="RESEARCH"):
+    """
+    Scan synthesis output for agent labels, verification tags, and tool spam.
+    Non-blocking — returns warnings list for logging. Does not gate export.
+    """
+    warnings = []
+    sections = synthesis_result.get("sections") or {}
+    full_text = " ".join(str(v) for v in sections.values())
+
+    # Agent label detection
+    agent_patterns = [
+        (r'NODE\s+\d+', "Node label"),
+        (r'\b(OPENAI|ANTHROPIC|GOOGLE|PERPLEXITY|MISTRAL)\b', "Provider name"),
+        (r'\b(GPT-4|Claude|Gemini|Sonar)\b', "Model name"),
+    ]
+    for pattern, label in agent_patterns:
+        matches = re.findall(pattern, full_text, re.IGNORECASE)
+        if matches:
+            warnings.append(f"[CLEAN MODE] {label} found in synthesis: {matches[:3]}")
+
+    # Verification tag detection
+    tag_patterns = [
+        (r'\[VERIFIED\]|\[CRITICAL\]|\[ACTION REQUIRED\]|\[REJECTED\]', "Signal tag"),
+        (r'\[TRUTH_BOMB\]|\[RISK_VECTOR\]|\[DECISION_CANDIDATE\]|\[METRIC_ANCHOR\]', "Internal tag"),
+    ]
+    for pattern, label in tag_patterns:
+        if re.search(pattern, full_text):
+            warnings.append(f"[CLEAN MODE] {label} found in synthesis output")
+
+    # Tool spam indicators
+    if re.search(r'Day\s+\d+[\s:—-]', full_text):
+        warnings.append("[CLEAN MODE] Day-by-day timeline detected in synthesis")
+    if re.search(r'\[\d+\]', full_text):
+        warnings.append("[CLEAN MODE] Citation references [N] detected in synthesis")
+
+    if warnings:
+        for w in warnings:
+            print(w)
+    else:
+        print("[CLEAN MODE] Validation passed — no agent labels or tags detected")
+
+    return warnings
+
 
 # --- PHASE 7: ARTIFACT GENERATION (The Builder) ---
 from pptx import Presentation as PPTXPresentation

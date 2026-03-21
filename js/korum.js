@@ -2769,11 +2769,11 @@ function renderChainResults(result) {
 
     // Full phase content cards
     const phases = [
-        { label: 'DECONSTRUCTION', content: result.constraints, metric: result.metrics?.deconstruct, provider: 'anthropic' },
-        { label: 'ARCHITECTURE', content: result.standard_solution, metric: result.metrics?.build, provider: 'openai' },
-        { label: 'STRESS TEST', content: result.failure_analysis, metric: result.metrics?.stress, provider: 'google' },
-        { label: 'SCOUT RECON', content: result.scout_intel, metric: result.metrics?.scout, provider: 'perplexity' },
-        { label: 'EXECUTION', content: result.final_artifact, metric: result.metrics?.synthesize, provider: 'openai' }
+        { label: 'ANALYST', content: result.constraints, metric: result.metrics?.deconstruct, provider: 'openai' },
+        { label: 'ARCHITECT', content: result.standard_solution, metric: result.metrics?.build, provider: 'anthropic' },
+        { label: 'CRITIC', content: result.failure_analysis, metric: result.metrics?.stress, provider: 'google' },
+        { label: 'INTEGRATOR', content: result.scout_intel, metric: result.metrics?.scout, provider: 'perplexity' },
+        { label: 'COMPOSER', content: result.final_artifact, metric: result.metrics?.synthesize, provider: 'mistral' }
     ];
     phases.forEach(p => {
         if (!p.content) return;
@@ -2799,14 +2799,14 @@ function renderChainResults(result) {
 
     // Build providerRecords for workspace dock (roster / reader / inspector)
     const v2Phases = [
-        { provider: 'anthropic', label: 'DECONSTRUCTION', providerMeta: 'Claude 3.5 Sonnet | Constraint Analysis', model: 'Claude 3.5 Sonnet', content: result.constraints, metric: result.metrics?.deconstruct },
-        { provider: 'openai', label: 'ARCHITECTURE', providerMeta: 'GPT-4o | Standard Model', model: 'GPT-4o', content: result.standard_solution, metric: result.metrics?.build },
-        { provider: 'google', label: 'STRESS TEST', providerMeta: 'Gemini 2.5 | Failure Physics', model: 'Gemini 2.5', content: result.failure_analysis, metric: result.metrics?.stress },
-        { provider: 'perplexity', label: 'SCOUT RECON', providerMeta: 'Perplexity Sonar | Live Intelligence', model: 'Perplexity Sonar', content: result.scout_intel, metric: result.metrics?.scout },
-        { provider: 'openai_exec', label: 'EXECUTION', providerMeta: 'GPT-4o General | Executive Directive', model: 'GPT-4o General', content: result.final_artifact, metric: result.metrics?.synthesize }
+        { provider: 'openai', label: 'ANALYST', providerMeta: 'Problem Framing', model: 'Analyst', content: result.constraints, metric: result.metrics?.deconstruct },
+        { provider: 'anthropic', label: 'ARCHITECT', providerMeta: 'Scenario Modeling', model: 'Architect', content: result.standard_solution, metric: result.metrics?.build },
+        { provider: 'google', label: 'CRITIC', providerMeta: 'Assumption Challenge', model: 'Critic', content: result.failure_analysis, metric: result.metrics?.stress },
+        { provider: 'perplexity', label: 'INTEGRATOR', providerMeta: 'Decision Synthesis', model: 'Integrator', content: result.scout_intel, metric: result.metrics?.scout },
+        { provider: 'mistral', label: 'COMPOSER', providerMeta: 'Executive Narrative', model: 'Composer', content: result.final_artifact, metric: result.metrics?.synthesize }
     ];
     if (result.exploit_poc) {
-        v2Phases.splice(3, 0, { provider: 'red_team', label: 'RED TEAM', providerMeta: 'Gemini Flash | Exploit Generation', model: 'Gemini Flash', content: result.exploit_poc, metric: result.metrics?.hacker });
+        v2Phases.splice(3, 0, { provider: 'red_team', label: 'RED TEAM', providerMeta: 'Adversarial Analysis', model: 'Red Team', content: result.exploit_poc, metric: result.metrics?.hacker });
     }
 
     const providerRecords = v2Phases.filter(p => p.content).map(p => {

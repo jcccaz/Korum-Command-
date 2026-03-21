@@ -817,7 +817,7 @@ class ExecutiveMemoExporter:
 
         doc._session_id = _as_text(meta.get('session_id') or meta.get('id') or 'KO-INT-9999').upper()
         contributors = intelligence_object.get("council_contributors") or []
-        divergence = intelligence_object.get("divergence_analysis") or {}
+        # divergence_analysis no longer rendered in clean report mode
         mission_ctx = intelligence_object.get("_mission_context") or {}
         client_name = _as_text(mission_ctx.get("client", "")).strip() or "DECISION COMMANDER ALPHA"
         artifacts = _report_artifacts(intelligence_object)
@@ -913,14 +913,15 @@ class ExecutiveMemoExporter:
         section_items = list(sections.items())
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
+            # Clean report mode: section title only — no node numbers, no provider names
+            node_label = sec_title
+
+            # Still resolve provider internally for claim lookups (not displayed)
             prov_name = "KORUM"
             prov_role = ""
             if idx < len(contributors):
                 prov_name = _as_text(contributors[idx].get('provider', '')).upper()
                 prov_role = _as_text(contributors[idx].get('role', ''))
-
-            role_suffix = f" | {escape(prov_role)}" if prov_role else ""
-            node_id = f"{sec_title} | NODE {idx+1:02d} - {prov_name}{role_suffix}"
 
             content_blocks = _extract_content_blocks(content)
 
@@ -933,7 +934,7 @@ class ExecutiveMemoExporter:
                     content_blocks.append(provider_table)
 
             # Node label + thin rule (always full-width)
-            story.append(Paragraph(node_id, styles['ExecLabel']))
+            story.append(Paragraph(node_label, styles['ExecLabel']))
             story.append(Spacer(1, 6))
             story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
                 style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
@@ -1001,15 +1002,18 @@ class ExecutiveMemoExporter:
 
             story.append(Spacer(1, 16))
 
-        # 5. --- COUNCIL CONTRIBUTORS STRIP ---
+        # 5. --- ANALYSIS PHASES (anonymized — no provider names) ---
         if contributors:
-            story.append(Paragraph("COUNCIL CONTRIBUTORS", styles['ExecLabel']))
+            story.append(Spacer(1, 10))
+            story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
+                style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
+            story.append(Spacer(1, 8))
+            story.append(Paragraph("ANALYSIS PHASES", styles['ExecLabel']))
             story.append(Spacer(1, 6))
-            contrib_cells = []
+            phase_cells = []
             for contrib in contributors[:5]:
-                c_prov = _as_text(contrib.get('provider', '')).upper()
-                c_role = _as_text(contrib.get('role', ''))
-                c_data = card_results.get(c_prov.lower()) or {}
+                c_phase = _as_text(contrib.get('phase', 'Analysis'))
+                c_data = card_results.get(_as_text(contrib.get('provider','')).lower()) or {}
                 c_claims = c_data.get("verified_claims") or []
                 if any(_as_text(cl.get('status','')).lower() in ('flagged','challenged') for cl in c_claims):
                     stamp, stamp_color = "FLAGGED", SEM_RED
@@ -1017,46 +1021,35 @@ class ExecutiveMemoExporter:
                     stamp, stamp_color = "VERIFIED", SEM_GREEN
                 else:
                     stamp, stamp_color = "CONDITIONAL", SEM_AMBER
-                cell_content = [
-                    Paragraph(f"<b>{escape(c_prov)}</b>", styles['ExecAudit']),
-                    Paragraph(escape(c_role), styles['ExecAudit']),
-                    Paragraph(f"<font color='{stamp_color}'>{stamp}</font>", styles['ExecAudit']),
-                ]
-                contrib_cells.append(cell_content)
-            col_w = 540 / len(contrib_cells)
-            contrib_tab = Table([contrib_cells], colWidths=[col_w] * len(contrib_cells))
-            agent_style_cmds = [
-                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                cell_content = Paragraph(
+                    f"<b>{escape(c_phase)}</b><br/><font color='{stamp_color}' size='5'>{stamp}</font>",
+                    styles['ExecAudit']
+                )
+                phase_cells.append(cell_content)
+            n_phases = len(phase_cells) or 1
+            phase_w = 540 / n_phases
+            phase_tab = Table([phase_cells], colWidths=[phase_w] * n_phases, style=[
+                ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(SEM_RULE)),
                 ('TOPPADDING', (0,0), (-1,-1), 6),
                 ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-                ('LEFTPADDING', (0,0), (-1,-1), 8),
-            ]
-            for ci, contrib in enumerate(contributors[:5]):
-                agent_color = AGENT_COLORS.get(_as_text(contrib.get('provider','')).upper(), SEM_BLUE)
-                agent_style_cmds.append(('LINEBEFORE', (ci,0), (ci,-1), 2.5, colors.HexColor(agent_color)))
-            contrib_tab.setStyle(TableStyle(agent_style_cmds))
-            story.append(contrib_tab)
-            story.append(Spacer(1, 20))
+                ('LEFTPADDING', (0,0), (-1,-1), 4),
+                ('RIGHTPADDING', (0,0), (-1,-1), 4),
+            ])
+            story.append(phase_tab)
+            story.append(Spacer(1, 16))
 
-        # 6. --- CONSENSUS FOOTER ---
+        # 6. --- CONSENSUS FOOTER (compact — no blue background) ---
         truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
-        consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Council reached operational consensus."
-        cons_data = [
-            [Paragraph("COUNCIL CONSENSUS", styles['ExecLabel']), Paragraph("", styles['Cons'])],
-            [Paragraph(f"<i>{escape(consensus_summary)}</i>", styles['Cons']),
-             Paragraph(f"<b>{truth_int}</b><br/><font size='7'>TRUTH SCORE / 100</font>", styles['ConsScore'])]
-        ]
-        cons_tab = Table(cons_data, colWidths=[410, 130])
-        cons_tab.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_BLUE)),
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('TOPPADDING', (0,0), (-1,-1), 8),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-            ('LEFTPADDING', (0,0), (-1,-1), 15),
-            ('RIGHTPADDING', (0,0), (-1,-1), 15),
-            ('SPAN', (0,0), (1,0)),
-        ]))
-        story.append(cons_tab)
+        story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
+            style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(
+            f"CONFIDENCE SCORE: <b>{truth_int}</b> / 100",
+            styles['ExecImpact']
+        ))
+        story.append(Spacer(1, 8))
+        story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
+            style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
         story.append(Spacer(1, 10))
 
         closer_head, closer_legal, closer_meta = _closing_stamp_parts(doc._session_id)
@@ -1283,7 +1276,7 @@ class WordExporter:
         client_name = _as_text(mission_ctx.get("client", "")).strip() or "DECISION COMMANDER ALPHA"
         card_results = intelligence_object.get("_card_results") or {}
         contributors = intelligence_object.get("council_contributors") or []
-        divergence = intelligence_object.get("divergence_analysis") or {}
+        # divergence_analysis no longer rendered in clean report mode
         artifacts = _report_artifacts(intelligence_object)
         session_id = _resolve_session_id(meta, intelligence_object)
 
@@ -1365,15 +1358,15 @@ class WordExporter:
         section_items = list(sections.items())
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
+            # Clean report mode: section title only — no node numbers, no provider names
             prov_name = "KORUM"
             prov_role = ""
             if idx < len(contributors):
                 prov_name = _as_text(contributors[idx].get('provider', '')).upper()
                 prov_role = _as_text(contributors[idx].get('role', ''))
 
-            role_suffix = f" \u00b7 {prov_role}" if prov_role else ""
             n_p = doc.add_paragraph()
-            n_run = n_p.add_run(f"{sec_title} \u00b7 NODE {idx+1:02d} \u2014 {prov_name}{role_suffix}")
+            n_run = n_p.add_run(sec_title)
             n_run.font.size = Pt(7)
             n_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
 
@@ -1470,14 +1463,13 @@ class WordExporter:
 
             WordExporter._add_spacing(doc)
 
-        # 5. --- COUNCIL CONTRIBUTORS STRIP ---
+        # 5. --- ANALYSIS PHASES (anonymized — no provider names) ---
         if contributors:
-            WordExporter._add_paragraph(doc, "COUNCIL CONTRIBUTORS", size=7, bold=True, color=DIM_GRAY)
+            WordExporter._add_paragraph(doc, "ANALYSIS PHASES", size=7, bold=True, color=DIM_GRAY)
             c_tab = doc.add_table(rows=1, cols=min(5, len(contributors)))
             for ci, contrib in enumerate(contributors[:5]):
-                c_prov = _as_text(contrib.get('provider', '')).upper()
-                c_role = _as_text(contrib.get('role', ''))
-                c_data = card_results.get(c_prov.lower()) or {}
+                c_phase = _as_text(contrib.get('phase', 'Analysis'))
+                c_data = card_results.get(_as_text(contrib.get('provider','')).lower()) or {}
                 c_claims = c_data.get("verified_claims") or []
                 if any(_as_text(cl.get('status','')).lower() in ('flagged','challenged') for cl in c_claims):
                     stamp = "\u2691 Flagged"
@@ -1486,25 +1478,13 @@ class WordExporter:
                 else:
                     stamp = "\u25ce Conditional"
                 cell = c_tab.rows[0].cells[ci]
-                WordExporter._add_paragraph(cell, c_prov, size=7, bold=True, color=tc["text"])
-                WordExporter._add_paragraph(cell, c_role, size=7, color=DIM_GRAY)
+                WordExporter._add_paragraph(cell, c_phase, size=7, bold=True, color=tc["text"])
                 WordExporter._add_paragraph(cell, stamp, size=7, color=tc["text"])
             WordExporter._add_spacing(doc)
 
-        # 6. --- CONSENSUS FOOTER ---
+        # 6. --- CONFIDENCE FOOTER (compact — no blue background) ---
         truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
-        consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Council reached operational consensus."
-        cons_tab = doc.add_table(rows=1, cols=2)
-        cons_tab.columns[0].width = Inches(4.5)
-        cons_tab.columns[1].width = Inches(2.0)
-        left_cell = cons_tab.rows[0].cells[0]
-        right_cell = cons_tab.rows[0].cells[1]
-        WordExporter._set_cell_background(left_cell, SEM_BLUE.lstrip('#'))
-        WordExporter._set_cell_background(right_cell, SEM_BLUE.lstrip('#'))
-        WordExporter._add_paragraph(left_cell, "COUNCIL CONSENSUS", size=7, bold=True, color="FFFFFF")
-        WordExporter._add_paragraph(left_cell, consensus_summary, size=8, italic=True, color="FFFFFF")
-        WordExporter._add_paragraph(right_cell, f"{truth_int}", size=19, bold=True, color="FFFFFF", align=WD_ALIGN_PARAGRAPH.RIGHT)
-        WordExporter._add_paragraph(right_cell, "TRUTH SCORE / 100", size=7, bold=True, color="FFFFFF", align=WD_ALIGN_PARAGRAPH.RIGHT)
+        WordExporter._add_paragraph(doc, f"CONFIDENCE SCORE: {truth_int} / 100", size=10, bold=True, color=tc["accent_dark"])
 
         closer_head, closer_legal, closer_meta = _closing_stamp_parts(session_id)
         WordExporter._add_spacing(doc)
