@@ -293,9 +293,36 @@ def _decode_image_bytes(data_url, max_width_inches=4.5, max_height_inches=3.5):
         return None, None, None
 
 
-def _artifact_matches(label, section_title, provider_name):
-    text = _as_text(label).upper()
-    return section_title in text or provider_name in text
+def _artifact_matches(art, section_title, provider_name):
+    """Check if an artifact belongs next to a given node by matching content keywords."""
+    label = _artifact_label(art).upper()
+    content = _as_text(art.get('content', '')).upper()[:500]
+    sec = section_title.upper()
+    prov = provider_name.upper()
+    # Match if artifact label/content mentions the provider or section topic
+    return (prov and prov != 'KORUM' and (prov in label or prov in content)) or \
+           (sec and len(sec) > 3 and (sec in label or sec in content))
+
+
+def _assign_artifacts_to_nodes(artifacts, section_items, contributors):
+    """Map each artifact to its best-matching node index. Returns {node_idx: [art, ...], -1: [unmatched]}."""
+    assigned = {i: [] for i in range(len(section_items))}
+    assigned[-1] = []  # unmatched bucket
+    remaining = list(artifacts)
+    for i, (sid, _content) in enumerate(section_items):
+        sec_title = sid.replace("_", " ").upper()
+        prov_name = "KORUM"
+        if i < len(contributors):
+            prov_name = _as_text(contributors[i].get('provider', '')).upper()
+        matched = [a for a in remaining if _artifact_matches(a, sec_title, prov_name)]
+        for a in matched:
+            assigned[i].append(a)
+            remaining.remove(a)
+    # Unmatched artifacts go to the last node (closest to their data), not a separate section
+    if remaining:
+        last_idx = len(section_items) - 1 if section_items else -1
+        assigned[last_idx].extend(remaining)
+    return assigned
 
 
 def _pdf_col_widths(total_width, column_count):
@@ -536,6 +563,10 @@ class ExecutiveMemoExporter:
         artifacts = _report_artifacts(intelligence_object)
         card_results = intelligence_object.get("_card_results") or {}
 
+        # Chart Standard: assign artifacts to their source nodes for inline placement
+        section_items_pre = list((sections or {}).items())
+        node_artifacts = _assign_artifacts_to_nodes(artifacts, section_items_pre, contributors)
+
         story = []
 
         # 1. --- STRATEGIC HEADER ---
@@ -660,6 +691,22 @@ class ExecutiveMemoExporter:
                 story.append(pq)
                 story.append(Spacer(1, 8))
 
+            # Chart Standard Rule 1: charts sit next to their source data
+            for art in node_artifacts.get(idx, []):
+                art_label = _artifact_label(art)
+                if art_label:
+                    story.append(Paragraph(art_label, styles['ExecSectionSubhead']))
+                    story.append(Spacer(1, 4))
+                chart_img = _decode_image_data(art.get('imageData'), max_width=480, max_height=300)
+                if chart_img:
+                    story.append(chart_img)
+                else:
+                    art_content = _as_text(art.get('content', ''))
+                    if art_content:
+                        art_blocks = _extract_content_blocks(art_content)
+                        story.extend(_render_pdf_blocks(art_blocks, styles, 540, tc))
+                story.append(Spacer(1, 10))
+
             story.append(Spacer(1, 16))
 
         # 5. --- COUNCIL CONTRIBUTORS STRIP ---
@@ -699,28 +746,7 @@ class ExecutiveMemoExporter:
             story.append(contrib_tab)
             story.append(Spacer(1, 20))
 
-        # 6. --- DOCKED ARTIFACTS ---
-        if artifacts:
-            story.append(Paragraph("DOCKED ARTIFACTS", styles['ExecLabel']))
-            story.append(Spacer(1, 6))
-            story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
-                style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
-            story.append(Spacer(1, 10))
-            for art in artifacts:
-                art_label = _artifact_label(art)
-                art_content = _as_text(art.get('content', ''))
-                if art_label:
-                    story.append(Paragraph(art_label, styles['ExecSectionSubhead']))
-                    story.append(Spacer(1, 4))
-                chart_img = _decode_image_data(art.get('imageData'), max_width=480, max_height=300)
-                if chart_img:
-                    story.append(chart_img)
-                elif art_content:
-                    art_blocks = _extract_content_blocks(art_content)
-                    story.extend(_render_pdf_blocks(art_blocks, styles, 540, tc))
-                story.append(Spacer(1, 12))
-
-        # 7. --- CONSENSUS FOOTER ---
+        # 6. --- CONSENSUS FOOTER ---
         truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
         consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Council reached operational consensus."
         cons_data = [
@@ -846,6 +872,10 @@ class WordExporter:
         artifacts = _report_artifacts(intelligence_object)
         session_id = _resolve_session_id(meta, intelligence_object)
 
+        # Chart Standard: assign artifacts to their source nodes for inline placement
+        section_items_pre = list((sections or {}).items())
+        node_artifacts = _assign_artifacts_to_nodes(artifacts, section_items_pre, contributors)
+
         # 1. --- PREMIUM HEADER ---
         h_tab = doc.add_table(rows=1, cols=2)
         h_tab.columns[0].width = Inches(3.8)
@@ -953,6 +983,27 @@ class WordExporter:
                 role_part = f" \u00b7 {prov_role}" if prov_role else ""
                 WordExporter._add_paragraph(pq_cell, f"\u2014 {prov_name}{role_part} \u00b7 {session_id}", size=6.5, color=SEM_MUTED)
 
+            # Chart Standard Rule 1: charts sit next to their source data
+            for art in node_artifacts.get(idx, []):
+                art_label = _artifact_label(art)
+                if art_label:
+                    WordExporter._add_paragraph(doc, art_label, size=8, bold=True, italic=True, color=tc["accent_dark"])
+                img_stream, img_w, img_h = _decode_image_bytes(art.get('imageData'))
+                if img_stream:
+                    pic_kwargs = {}
+                    if img_w:
+                        pic_kwargs['width'] = Inches(img_w)
+                    if img_h:
+                        pic_kwargs['height'] = Inches(img_h)
+                    if not pic_kwargs:
+                        pic_kwargs['width'] = Inches(4.5)
+                    doc.add_picture(img_stream, **pic_kwargs)
+                else:
+                    art_content = _as_text(art.get('content', ''))
+                    if art_content:
+                        art_blocks = _extract_content_blocks(art_content)
+                        WordExporter._render_word_blocks(doc, art_blocks, tc)
+
             WordExporter._add_spacing(doc)
 
         # 5. --- COUNCIL CONTRIBUTORS STRIP ---
@@ -976,30 +1027,7 @@ class WordExporter:
                 WordExporter._add_paragraph(cell, stamp, size=7, color=tc["text"])
             WordExporter._add_spacing(doc)
 
-        # 6. --- DOCKED ARTIFACTS ---
-        if artifacts:
-            WordExporter._add_paragraph(doc, "DOCKED ARTIFACTS", size=7, bold=True, color=DIM_GRAY)
-            for art in artifacts:
-                art_label = _artifact_label(art)
-                art_content = _as_text(art.get('content', ''))
-                if art_label:
-                    WordExporter._add_paragraph(doc, art_label, size=8, bold=True, italic=True, color=tc["accent_dark"])
-                img_stream, img_w, img_h = _decode_image_bytes(art.get('imageData'))
-                if img_stream:
-                    pic_kwargs = {}
-                    if img_w:
-                        pic_kwargs['width'] = Inches(img_w)
-                    if img_h:
-                        pic_kwargs['height'] = Inches(img_h)
-                    if not pic_kwargs:
-                        pic_kwargs['width'] = Inches(4.5)
-                    doc.add_picture(img_stream, **pic_kwargs)
-                elif art_content:
-                    art_blocks = _extract_content_blocks(art_content)
-                    WordExporter._render_word_blocks(doc, art_blocks, tc)
-            WordExporter._add_spacing(doc)
-
-        # 7. --- CONSENSUS FOOTER ---
+        # 6. --- CONSENSUS FOOTER ---
         truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
         consensus_summary = _as_text(divergence.get("divergence_summary", "")) or "Council reached operational consensus."
         cons_tab = doc.add_table(rows=1, cols=2)

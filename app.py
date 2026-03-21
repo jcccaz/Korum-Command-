@@ -959,6 +959,9 @@ def generate_chart():
         "3) Never use special characters in labels that break Mermaid syntax (no quotes, colons, or brackets inside node text). "
         "4) If data contains '[value not provided]' or 'NOT PROVIDED' or 'Unknown', EXCLUDE those entries from the chart entirely. "
         "5) Use only simple numeric values — strip currency symbols before plotting. "
+        "6) The chart title MUST read like an insight, not a generic label. "
+        "Example: BAD='Revenue Breakdown'. GOOD='Revenue is concentrated in Enterprise accounts'. "
+        "The title should answer: what does this chart prove? "
     )
     CHART_PROMPTS = {
         "pie": CHART_PREAMBLE + "Create a Mermaid pie chart showing the proportional breakdown of the numeric values in this data.",
