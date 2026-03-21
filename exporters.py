@@ -671,15 +671,51 @@ class ExecutiveMemoExporter:
                 if provider_table:
                     content_blocks.append(provider_table)
 
-            # Node label + thin rule
+            # Node label + thin rule (always full-width)
             story.append(Paragraph(node_id, styles['ExecLabel']))
             story.append(Spacer(1, 6))
             story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
                 style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
             story.append(Spacer(1, 10))
 
-            # Render all blocks full-width: prose, tables inline
-            story.extend(_render_pdf_blocks(content_blocks, styles, 540, tc))
+            # Collect chart images for this node (only those with imageData)
+            node_arts = node_artifacts.get(idx, [])
+            float_charts = []
+            remaining_arts = []
+            for art in node_arts:
+                chart_img = _decode_image_data(art.get('imageData'), max_width=200, max_height=220)
+                if chart_img:
+                    float_charts.append((art, chart_img))
+                else:
+                    remaining_arts.append(art)
+
+            if float_charts:
+                # FLOAT MODE: 60/40 side-by-side — prose left, chart right
+                left_col = _render_pdf_blocks(content_blocks, styles, 310, tc)
+
+                # Build right column: chart(s) stacked with labels
+                right_col = []
+                for art, chart_img in float_charts:
+                    art_label = _artifact_label(art)
+                    if art_label:
+                        right_col.append(Paragraph(art_label, styles['StatCaption']))
+                        right_col.append(Spacer(1, 4))
+                    right_col.append(chart_img)
+                    right_col.append(Spacer(1, 8))
+
+                float_tab = Table([[left_col, right_col]], colWidths=[324, 216])
+                float_tab.setStyle(TableStyle([
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('LEFTPADDING', (0,0), (0,-1), 0),
+                    ('RIGHTPADDING', (0,0), (0,-1), 8),
+                    ('LEFTPADDING', (1,0), (1,-1), 10),
+                    ('RIGHTPADDING', (1,0), (1,-1), 0),
+                    ('TOPPADDING', (0,0), (-1,-1), 0),
+                ]))
+                story.append(float_tab)
+            else:
+                # No chart — full-width prose as normal
+                story.extend(_render_pdf_blocks(content_blocks, styles, 540, tc))
 
             # Inline pull quotes from verified claims (skip trivial/duplicate)
             claims = prov_data.get("verified_claims") or []
@@ -696,20 +732,16 @@ class ExecutiveMemoExporter:
                 story.append(pq)
                 story.append(Spacer(1, 8))
 
-            # Chart Standard Rule 1: charts sit next to their source data
-            for art in node_artifacts.get(idx, []):
+            # Remaining artifacts without imageData — render below as text
+            for art in remaining_arts:
                 art_label = _artifact_label(art)
+                art_content = _as_text(art.get('content', ''))
                 if art_label:
                     story.append(Paragraph(art_label, styles['ExecSectionSubhead']))
                     story.append(Spacer(1, 4))
-                chart_img = _decode_image_data(art.get('imageData'), max_width=480, max_height=300)
-                if chart_img:
-                    story.append(chart_img)
-                else:
-                    art_content = _as_text(art.get('content', ''))
-                    if art_content:
-                        art_blocks = _extract_content_blocks(art_content)
-                        story.extend(_render_pdf_blocks(art_blocks, styles, 540, tc))
+                if art_content:
+                    art_blocks = _extract_content_blocks(art_content)
+                    story.extend(_render_pdf_blocks(art_blocks, styles, 540, tc))
                 story.append(Spacer(1, 10))
 
             story.append(Spacer(1, 16))
@@ -967,7 +999,46 @@ class WordExporter:
                 if provider_table:
                     content_blocks.append(provider_table)
 
-            WordExporter._render_word_blocks(doc, content_blocks, tc)
+            # Collect chart images for this node
+            node_arts = node_artifacts.get(idx, [])
+            float_charts = []
+            remaining_arts = []
+            for art in node_arts:
+                img_stream, img_w, img_h = _decode_image_bytes(art.get('imageData'), max_width_inches=2.4, max_height_inches=2.5)
+                if img_stream:
+                    float_charts.append((art, img_stream, img_w, img_h))
+                else:
+                    remaining_arts.append(art)
+
+            if float_charts:
+                # FLOAT MODE: 60/40 side-by-side — prose left, chart right
+                float_tab = doc.add_table(rows=1, cols=2)
+                float_tab.columns[0].width = Inches(3.6)
+                float_tab.columns[1].width = Inches(2.4)
+                left_cell = float_tab.rows[0].cells[0]
+                right_cell = float_tab.rows[0].cells[1]
+
+                # Left: prose content
+                WordExporter._render_word_blocks(left_cell, content_blocks, tc)
+
+                # Right: chart image(s) with labels
+                for art, img_stream, img_w, img_h in float_charts:
+                    art_label = _artifact_label(art)
+                    if art_label:
+                        WordExporter._add_paragraph(right_cell, art_label, size=7, bold=True, italic=True, color=tc["accent_dark"])
+                    pic_kwargs = {}
+                    if img_w:
+                        pic_kwargs['width'] = Inches(img_w)
+                    if img_h:
+                        pic_kwargs['height'] = Inches(img_h)
+                    if not pic_kwargs:
+                        pic_kwargs['width'] = Inches(2.2)
+                    p = right_cell.add_paragraph()
+                    r = p.add_run()
+                    r.add_picture(img_stream, **pic_kwargs)
+            else:
+                # No chart — full-width prose
+                WordExporter._render_word_blocks(doc, content_blocks, tc)
 
             # Inline pull quotes (skip trivial/duplicate)
             claims = prov_data.get("verified_claims") or []
@@ -993,26 +1064,15 @@ class WordExporter:
                 role_part = f" \u00b7 {prov_role}" if prov_role else ""
                 WordExporter._add_paragraph(pq_cell, f"\u2014 {prov_name}{role_part} \u00b7 {session_id}", size=6.5, color=SEM_MUTED)
 
-            # Chart Standard Rule 1: charts sit next to their source data
-            for art in node_artifacts.get(idx, []):
+            # Remaining text-only artifacts — render below full-width
+            for art in remaining_arts:
                 art_label = _artifact_label(art)
+                art_content = _as_text(art.get('content', ''))
                 if art_label:
                     WordExporter._add_paragraph(doc, art_label, size=8, bold=True, italic=True, color=tc["accent_dark"])
-                img_stream, img_w, img_h = _decode_image_bytes(art.get('imageData'))
-                if img_stream:
-                    pic_kwargs = {}
-                    if img_w:
-                        pic_kwargs['width'] = Inches(img_w)
-                    if img_h:
-                        pic_kwargs['height'] = Inches(img_h)
-                    if not pic_kwargs:
-                        pic_kwargs['width'] = Inches(4.5)
-                    doc.add_picture(img_stream, **pic_kwargs)
-                else:
-                    art_content = _as_text(art.get('content', ''))
-                    if art_content:
-                        art_blocks = _extract_content_blocks(art_content)
-                        WordExporter._render_word_blocks(doc, art_blocks, tc)
+                if art_content:
+                    art_blocks = _extract_content_blocks(art_content)
+                    WordExporter._render_word_blocks(doc, art_blocks, tc)
 
             WordExporter._add_spacing(doc)
 
