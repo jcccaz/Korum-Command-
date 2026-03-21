@@ -50,9 +50,12 @@ def _extract_parts(o):
 
 def _artifact_label(art):
     label = _as_text(art.get('title') or art.get('name') or '').strip()
+    raw_content = _as_text(art.get('content', '')).lstrip()
+    if raw_content.startswith('<svg'):
+        return 'CHART'
     if not label:
         art_type = _as_text(art.get('type') or '').upper()
-        if art_type in ('VISUALIZATION', 'MERMAID', 'CHART'):
+        if art_type in ('VISUALIZATION', 'MERMAID', 'CHART', 'SVG'):
             label = 'CHART'
         elif art_type in ('CSV', 'TABLE', 'DATA'):
             label = 'DATA TABLE'
@@ -60,6 +63,10 @@ def _artifact_label(art):
             # Only use recognized types — suppress stray labels like CODE, TEXT, etc.
             label = ''
     return label.upper()
+
+
+def _is_raw_svg_artifact(art):
+    return _as_text((art or {}).get('content', '')).lstrip().startswith('<svg')
 
 def _report_artifacts(o):
     """Filter snippets for inclusion in the report."""
@@ -74,6 +81,19 @@ def _normalize_theme(theme_id):
 
 def _safe_paragraph(text, style):
     return Paragraph(escape(_as_text(text)).replace("\n", "<br/>"), style)
+
+
+def _artifact_unavailable_note(styles):
+    return Paragraph("Chart artifact unavailable for export capture.", styles['ExecAudit'])
+
+
+def _closing_stamp_parts(session_id):
+    timestamp = datetime.now().strftime("%B %d, %Y %I:%M %p")
+    return (
+        "Produced by KorumOS Decision Intelligence",
+        "Proprietary \u00b7 Confidential",
+        f"SESSION {session_id} \u00b7 {timestamp}",
+    )
 
 
 def _clean_cell_text(text):
@@ -797,7 +817,7 @@ class ExecutiveMemoExporter:
         
         # Header Metadata (Top Line)
         top_meta = [
-            [[Paragraph(f"INTELLIGENCE DOSSIER &middot; CONFIDENTIAL &middot; {workflow_label}", styles['ExecLabel'])], 
+            [[Paragraph(f"INTELLIGENCE DOSSIER \u00b7 CONFIDENTIAL \u00b7 {workflow_label}", styles['ExecLabel'])], 
              [Paragraph(f"<b>KORUM-OS</b><br/>{client_name}<br/>SESSION {doc._session_id}<br/>COUNCIL: {len(contributors)} AGENTS", styles['ExecSig'])]]
         ]
         top_tab = Table(top_meta, colWidths=[360, 180])
@@ -829,10 +849,11 @@ class ExecutiveMemoExporter:
                     chart_img,
                 ]
             else:
+                fallback_note = _artifact_unavailable_note(styles) if _is_raw_svg_artifact(top_visual) else Paragraph(escape(_as_text(top_visual.get('content',''))[:150]).replace("\n","<br/>"), styles['ExecAudit'])
                 visual_col = [
                     Paragraph(_artifact_label(top_visual), styles['StatCaption']),
                     Spacer(1, 5),
-                    Paragraph(escape(_as_text(top_visual.get('content',''))[:150]).replace("\n","<br/>"), styles['ExecAudit'])
+                    fallback_note
                 ]
             summary_tab = Table([[[summary_p], visual_col]], colWidths=[324, 216])
             summary_tab.setStyle(TableStyle([
@@ -956,6 +977,14 @@ class ExecutiveMemoExporter:
 
             # Remaining artifacts without imageData — render below as text (skip empty)
             for art in remaining_arts:
+                if _is_raw_svg_artifact(art):
+                    art_label = _artifact_label(art)
+                    if art_label:
+                        story.append(Paragraph(art_label, styles['ExecSectionSubhead']))
+                        story.append(Spacer(1, 4))
+                    story.append(_artifact_unavailable_note(styles))
+                    story.append(Spacer(1, 10))
+                    continue
                 art_content = _as_text(art.get('content', '')).strip()
                 if not art_content:
                     continue  # skip artifacts with no content and no image — bare labels
@@ -1018,13 +1047,38 @@ class ExecutiveMemoExporter:
         cons_tab.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_BLUE)),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('TOPPADDING', (0,0), (-1,-1), 12),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
             ('LEFTPADDING', (0,0), (-1,-1), 15),
             ('RIGHTPADDING', (0,0), (-1,-1), 15),
             ('SPAN', (0,0), (1,0)),
         ]))
         story.append(cons_tab)
+        story.append(Spacer(1, 10))
+
+        closer_head, closer_legal, closer_meta = _closing_stamp_parts(doc._session_id)
+        closer_left = [
+            Paragraph(closer_head, styles['ExecLabel']),
+            Spacer(1, 2),
+            Paragraph(closer_legal, styles['ExecAudit']),
+        ]
+        closer_right = [
+            Paragraph(closer_meta, styles['ExecSig']),
+            Spacer(1, 2),
+            Paragraph("EXPORT STATUS \u00b7 DECISION ARTIFACT", styles['ExecSig']),
+        ]
+        closer_tab = Table([[closer_left, closer_right]], colWidths=[340, 200])
+        closer_tab.setStyle(TableStyle([
+            ('LINEABOVE', (0,0), (-1,0), 0.6, colors.HexColor(SEM_RULE)),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ('LEFTPADDING', (0,0), (0,-1), 0),
+            ('RIGHTPADDING', (0,0), (0,-1), 6),
+            ('LEFTPADDING', (1,0), (1,-1), 6),
+            ('RIGHTPADDING', (1,0), (1,-1), 0),
+        ]))
+        story.append(closer_tab)
 
         try:
             doc.build(story, onFirstPage=_dark_page_bg, onLaterPages=_dark_page_bg)
@@ -1211,6 +1265,8 @@ class WordExporter:
     def generate(intelligence_object, output_dir=None):
         meta, sections, structured, _, _ = _extract_parts(intelligence_object)
         doc = Document()
+        from docx.oxml import parse_xml
+        from docx.oxml.ns import nsdecls
         
         # DNA: SHARED THEME - specialist dynamic resolution
         theme_id = _normalize_theme(meta.get('theme', 'BONE_FIELD'))
@@ -1238,7 +1294,7 @@ class WordExporter:
         h_tab.columns[1].width = Inches(2.2)
         
         l_p = h_tab.rows[0].cells[0].paragraphs[0]
-        l_run = l_p.add_run(f"INTELLIGENCE DOSSIER  &middot;  CONFIDENTIAL  &middot;  {_as_text(meta.get('workflow')).upper() or 'STRATEGIC_INTEL'}")
+        l_run = l_p.add_run(f"INTELLIGENCE DOSSIER  \u00b7  CONFIDENTIAL  \u00b7  {_as_text(meta.get('workflow')).upper() or 'STRATEGIC_INTEL'}")
         l_run.font.size = Pt(6.5)
         l_run.font.bold = True
         l_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
@@ -1394,6 +1450,12 @@ class WordExporter:
 
             # Remaining text-only artifacts — render below full-width (skip empty)
             for art in remaining_arts:
+                if _is_raw_svg_artifact(art):
+                    art_label = _artifact_label(art)
+                    if art_label:
+                        WordExporter._add_paragraph(doc, art_label, size=8, bold=True, italic=True, color=tc["accent_dark"])
+                    WordExporter._add_paragraph(doc, "Chart artifact unavailable for export capture.", size=8, italic=True, color=DIM_GRAY)
+                    continue
                 art_content = _as_text(art.get('content', '')).strip()
                 if not art_content:
                     continue  # skip artifacts with no content and no image — bare labels
@@ -1437,9 +1499,27 @@ class WordExporter:
         WordExporter._set_cell_background(left_cell, SEM_BLUE.lstrip('#'))
         WordExporter._set_cell_background(right_cell, SEM_BLUE.lstrip('#'))
         WordExporter._add_paragraph(left_cell, "COUNCIL CONSENSUS", size=7, bold=True, color="FFFFFF")
-        WordExporter._add_paragraph(left_cell, consensus_summary, size=9, italic=True, color="FFFFFF")
-        WordExporter._add_paragraph(right_cell, f"{truth_int}", size=22, bold=True, color="FFFFFF", align=WD_ALIGN_PARAGRAPH.RIGHT)
+        WordExporter._add_paragraph(left_cell, consensus_summary, size=8, italic=True, color="FFFFFF")
+        WordExporter._add_paragraph(right_cell, f"{truth_int}", size=19, bold=True, color="FFFFFF", align=WD_ALIGN_PARAGRAPH.RIGHT)
         WordExporter._add_paragraph(right_cell, "TRUTH SCORE / 100", size=7, bold=True, color="FFFFFF", align=WD_ALIGN_PARAGRAPH.RIGHT)
+
+        closer_head, closer_legal, closer_meta = _closing_stamp_parts(session_id)
+        WordExporter._add_spacing(doc)
+        closer_tab = doc.add_table(rows=1, cols=2)
+        closer_tab.columns[0].width = Inches(4.6)
+        closer_tab.columns[1].width = Inches(1.9)
+        for cell in closer_tab.rows[0].cells:
+            tc_pr = cell._tc.get_or_add_tcPr()
+            top_border = parse_xml(
+                f'<w:tcBorders {nsdecls("w")}>'
+                f'<w:top w:val="single" w:sz="8" w:space="0" w:color="{tc["line"].lstrip("#")}"/>'
+                f'</w:tcBorders>'
+            )
+            tc_pr.append(top_border)
+        WordExporter._add_paragraph(closer_tab.rows[0].cells[0], closer_head, size=7, bold=True, color=DIM_GRAY)
+        WordExporter._add_paragraph(closer_tab.rows[0].cells[0], closer_legal, size=7, color=DIM_GRAY)
+        WordExporter._add_paragraph(closer_tab.rows[0].cells[1], closer_meta, size=6.5, color=DIM_GRAY, align=WD_ALIGN_PARAGRAPH.RIGHT)
+        WordExporter._add_paragraph(closer_tab.rows[0].cells[1], "EXPORT STATUS \u00b7 DECISION ARTIFACT", size=6.5, bold=True, color=tc["accent_dark"], align=WD_ALIGN_PARAGRAPH.RIGHT)
         
         filename = f"KORUM-OS_DOSSIER_{_safe_filename_part(meta.get('title'))}_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
