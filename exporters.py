@@ -199,26 +199,34 @@ def _extract_content_blocks(text):
             blocks.extend(_extract_content_blocks(raw_text[last_end:]))
         return blocks
 
-    # Detect verification/interrogation sections — group header + body into one block
-    _EVIDENCE_HEADER = re.compile(
-        r"^(SOURCE VERIFICATION|VERIFICATION|INTERROGATION)\s*\[([^\]]+)\]",
-        re.IGNORECASE | re.MULTILINE
+    # Pre-pass: extract full evidence blocks (SOURCE VERIFICATION / INTERROGATION)
+    # These span multiple paragraphs — capture from header to next header or end
+    _EV_BLOCK = re.compile(
+        r"((?:SOURCE VERIFICATION|VERIFICATION|INTERROGATION)\s*\[[^\]]+\][\s\S]*?)(?=(?:SOURCE VERIFICATION|VERIFICATION|INTERROGATION)\s*\[|$)",
+        re.IGNORECASE
     )
+    ev_regions = []
+    for ev_match in _EV_BLOCK.finditer(raw_text):
+        ev_text = ev_match.group(1).strip()
+        if len(ev_text) > 30:  # skip trivially short matches
+            ev_regions.append((ev_match.start(), ev_match.end(), ev_text))
+
+    # If we found evidence blocks, extract them and process remaining text separately
+    if ev_regions:
+        cursor = 0
+        for start, end, ev_text in ev_regions:
+            if start > cursor:
+                # Process non-evidence text before this block
+                blocks.extend(_extract_content_blocks(raw_text[cursor:start]))
+            blocks.append(_parse_evidence_block(ev_text))
+            cursor = end
+        if cursor < len(raw_text):
+            blocks.extend(_extract_content_blocks(raw_text[cursor:]))
+        return blocks
 
     for chunk in re.split(r"\n\s*\n", raw_text):
         chunk = chunk.strip()
         if not chunk:
-            continue
-
-        # Evidence blocks: SOURCE VERIFICATION [ACCURATE], INTERROGATION [FLAGGED], etc.
-        ev_match = _EVIDENCE_HEADER.match(chunk)
-        if ev_match:
-            blocks.append({
-                "type": "evidence",
-                "status": ev_match.group(2).strip().upper(),
-                "label": ev_match.group(1).strip().upper(),
-                "text": chunk,
-            })
             continue
 
         markdown_table = _parse_markdown_table_block(chunk)
@@ -247,6 +255,97 @@ def _extract_content_blocks(text):
         blocks.append({"type": "paragraph", "text": chunk})
 
     return blocks
+
+
+def _parse_evidence_block(text):
+    """Parse a SOURCE VERIFICATION / INTERROGATION block into structured fields."""
+    lines = text.split("\n")
+
+    # Extract header status
+    header_match = re.match(
+        r"(SOURCE VERIFICATION|VERIFICATION|INTERROGATION)\s*\[([^\]]+)\]",
+        lines[0].strip(), re.IGNORECASE
+    )
+    status = header_match.group(2).strip().upper() if header_match else "UNKNOWN"
+    label = header_match.group(1).strip().upper() if header_match else "VERIFICATION"
+
+    claim = ""
+    verdict = ""
+    evidence_points = []
+    sources = []
+    challenges = []
+    current_section = "body"  # body, evidence, sources
+
+    for line in lines[1:]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        clean_text = stripped.replace("**", "").replace("*", "").strip()
+        clean_lower = clean_text.lower()
+
+        # Claim line
+        if stripped.lower().startswith("claim:"):
+            claim_text = stripped[6:].strip().strip('"').strip("'")
+            claim = claim_text
+            continue
+
+        # Verdict line: **ACCURATE.** or **INACCURATE.**
+        if (
+            stripped.startswith("**")
+            and stripped.endswith("**")
+            and len(stripped) < 40
+            and ":" not in clean_text
+            and re.match(
+                r"^(ACCURATE|INACCURATE|PARTIALLY ACCURATE|MIXED|CONDITIONAL|FLAGGED|UNCERTAIN)\.?$",
+                clean_text,
+                re.IGNORECASE,
+            )
+        ):
+            verdict = clean_text.rstrip(".")
+            continue
+
+        # Section markers — must look like a header line ("Sources:", "Authoritative references:")
+        source_header = re.match(r"^sources?\s*:\s*(.*)", clean_lower)
+        if "authoritative reference" in clean_lower or source_header:
+            current_section = "sources"
+            # If there's inline content after "Source: <value>", capture it
+            if source_header:
+                inline_val = clean_text[source_header.start(1):].strip()
+                if inline_val:
+                    sources.append(inline_val)
+            continue
+        if "challenged by" in clean_lower or "challenge:" in clean_lower:
+            challenge_text = clean_text.lstrip("⚑").strip()
+            challenges.append(challenge_text)
+            continue
+
+        # Bullet points
+        if stripped.startswith("- "):
+            clean = stripped[2:].strip().replace("**", "")
+            if current_section == "sources":
+                sources.append(clean)
+            else:
+                evidence_points.append(clean)
+                current_section = "evidence"
+            continue
+
+        # Continuation text
+        if current_section == "sources":
+            sources.append(clean_text)
+        elif current_section == "evidence":
+            evidence_points.append(clean_text)
+
+    return {
+        "type": "evidence",
+        "status": status,
+        "label": label,
+        "claim": claim,
+        "verdict": verdict,
+        "evidence_points": evidence_points,
+        "sources": sources,
+        "challenges": challenges,
+        "text": text,  # raw fallback
+    }
 
 
 def _first_table_block(text):
@@ -442,48 +541,103 @@ def _render_pdf_blocks(blocks, styles, total_width, palette):
 
 
 def _build_pdf_evidence_block(block, styles, total_width, palette):
-    """Render SOURCE VERIFICATION / INTERROGATION as indented block with left border."""
+    """KORUM-style evidence block: claim strip + status + evidence + provenance."""
     status = block.get("status", "").upper()
-    text = block.get("text", "")
+    claim = block.get("claim", "")
+    evidence_points = block.get("evidence_points", [])
+    sources = block.get("sources", [])
+    challenges = block.get("challenges", [])
 
     if status in ("INACCURATE", "FLAGGED", "CHALLENGED"):
         border_color = colors.HexColor("#A45A52")
+        status_symbol = "\u2717"
+        status_label = "FLAGGED"
+        bg_color = colors.HexColor("#FDF6F5")
     elif status in ("ACCURATE", "VERIFIED"):
         border_color = colors.HexColor("#5B7F5E")
+        status_symbol = "\u2713"
+        status_label = "VERIFIED"
+        bg_color = colors.HexColor("#F4F8F5")
     else:
         border_color = colors.HexColor("#4A6A7A")
+        status_symbol = "\u25ce"
+        status_label = "CONDITIONAL"
+        bg_color = colors.HexColor("#F0F3FA")
 
-    # Build content paragraphs
-    content_parts = []
-    lines = text.split("\n")
-    first = True
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        clean = line.replace("**", "")
-        if first:
-            content_parts.append(Paragraph(f"<b>{escape(clean)}</b>", styles["ExecAudit"]))
-            first = False
-        elif line.startswith("Claim:"):
-            content_parts.append(Paragraph(f"<i>{escape(clean)}</i>", styles["ExecBody"]))
-        else:
-            content_parts.append(Paragraph(escape(clean), styles["ExecBody"]))
-        content_parts.append(Spacer(1, 3))
+    flowables = [Spacer(1, 6)]
 
-    # Wrap in a table with left-border cell for visual indent
-    indent_width = total_width - 40  # 40pt left margin
-    ev_tab = Table([[content_parts]], colWidths=[indent_width])
-    ev_tab.setStyle(TableStyle([
-        ('LEFTPADDING', (0, 0), (-1, -1), 15),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LINEBEFORE', (0, 0), (0, -1), 2.5, border_color),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    # ── 1. CLAIM STRIP (left-bordered) ───────────────────────────────
+    if claim:
+        claim_parts = [
+            Paragraph(f"<b><i>{escape(claim)}</i></b>", styles["ExecBody"]),
+            Spacer(1, 3),
+            Paragraph(f"\u2014 {status_label} CLAIM", styles["ExecAudit"]),
+        ]
+        claim_tab = Table([[claim_parts]], colWidths=[total_width - 30])
+        claim_tab.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 15),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LINEBEFORE', (0, 0), (0, -1), 3, border_color),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        flowables.append(claim_tab)
+        flowables.append(Spacer(1, 6))
+
+    # ── 2. STATUS STRIP ──────────────────────────────────────────────
+    status_text = f"SOURCE VERIFICATION   {status_symbol} {status_label}"
+    status_tab = Table([[Paragraph(f"<b>{escape(status_text)}</b>", styles["ExecAudit"])]], colWidths=[total_width - 30])
+    status_tab.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), bg_color),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
     ]))
+    flowables.append(status_tab)
+    flowables.append(Spacer(1, 6))
 
-    return [Spacer(1, 6), ev_tab, Spacer(1, 10)]
+    # ── 3. CHALLENGES ────────────────────────────────────────────────
+    for challenge in challenges[:2]:
+        ch_parts = [Paragraph(f"<i>{escape(challenge)}</i>", styles["ExecAudit"])]
+        ch_tab = Table([[ch_parts]], colWidths=[total_width - 30])
+        ch_tab.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 15),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LINEBEFORE', (0, 0), (0, -1), 2, colors.HexColor("#A45A52")),
+        ]))
+        flowables.append(ch_tab)
+        flowables.append(Spacer(1, 4))
+
+    # ── 4. WHY THIS HOLDS ────────────────────────────────────────────
+    if evidence_points:
+        flowables.append(Paragraph(f"<b>WHY THIS HOLDS:</b>", styles["ExecAudit"]))
+        flowables.append(Spacer(1, 3))
+        for point in evidence_points[:5]:
+            flowables.append(Paragraph(f"\u2022 {escape(point)}", styles["ExecBody"]))
+            flowables.append(Spacer(1, 2))
+        flowables.append(Spacer(1, 4))
+
+    # ── 5. PROVENANCE ────────────────────────────────────────────────
+    if sources:
+        source_summary = " \u00b7 ".join(s[:60] for s in sources[:3])
+        challenge_status = "PASSED" if status in ("ACCURATE", "VERIFIED") else "FAILED" if status in ("INACCURATE", "FLAGGED") else "PENDING"
+        prov_parts = [
+            Paragraph(f"SOURCE: {escape(source_summary)}", styles["ExecAudit"]),
+            Spacer(1, 2),
+            Paragraph(f"<b>STATUS: {status_symbol} {status_label}   CHALLENGE: {challenge_status}</b>", styles["ExecAudit"]),
+        ]
+        prov_tab = Table([[prov_parts]], colWidths=[total_width - 30])
+        prov_tab.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), bg_color),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        flowables.append(prov_tab)
+
+    flowables.append(Spacer(1, 12))
+    return flowables
 
 
 def _resolve_session_id(meta, intelligence_object):
@@ -955,66 +1109,96 @@ class WordExporter:
 
     @staticmethod
     def _render_evidence_block(container, block, theme):
-        """Render SOURCE VERIFICATION / INTERROGATION as indented block with left border."""
+        """KORUM-style evidence block: claim strip + status + evidence + provenance."""
         from docx.oxml import parse_xml
         from docx.oxml.ns import nsdecls
 
         status = block.get("status", "").upper()
-        text = block.get("text", "")
+        claim = block.get("claim", "")
+        evidence_points = block.get("evidence_points", [])
+        sources = block.get("sources", [])
+        challenges = block.get("challenges", [])
 
-        # Status-based border color
+        # Status-based colors
         if status in ("INACCURATE", "FLAGGED", "CHALLENGED"):
-            border_color = "A45A52"  # dusty clay
+            border_color = "A45A52"
+            status_symbol = "\u2717"  # ✗
+            status_label = "FLAGGED"
+            bg_hex = "FDF6F5"
         elif status in ("ACCURATE", "VERIFIED"):
-            border_color = "5B7F5E"  # sage
+            border_color = "5B7F5E"
+            status_symbol = "\u2713"  # ✓
+            status_label = "VERIFIED"
+            bg_hex = "F4F8F5"
         else:
-            border_color = "4A6A7A"  # steel slate
+            border_color = "4A6A7A"
+            status_symbol = "\u25ce"  # ◎
+            status_label = "CONDITIONAL"
+            bg_hex = "F0F3FA"
 
-        # Create indented table with left border
-        ev_tab = container.add_table(rows=1, cols=1) if hasattr(container, 'add_table') else None
-        if not ev_tab:
-            # Fallback for table cells — just render as indented paragraphs
-            for line in text.split("\n"):
-                line = line.strip()
-                if line:
-                    p = WordExporter._add_paragraph(container, line, size=8, color=theme["text"])
-                    if p:
-                        p.paragraph_format.left_indent = Inches(0.4)
+        # Fallback for table cells — simplified rendering
+        if not hasattr(container, 'add_table'):
+            if claim:
+                p = WordExporter._add_paragraph(container, claim, size=8, italic=True, color=theme["text"])
+                if p:
+                    p.paragraph_format.left_indent = Inches(0.3)
             return
 
-        ev_cell = ev_tab.rows[0].cells[0]
+        # ── 1. CLAIM STRIP (left-bordered, prominent) ────────────────────
+        if claim:
+            claim_tab = container.add_table(rows=1, cols=1)
+            claim_cell = claim_tab.rows[0].cells[0]
+            tc_pr = claim_cell._tc.get_or_add_tcPr()
+            borders = parse_xml(
+                f'<w:tcBorders {nsdecls("w")}>'
+                f'<w:left w:val="single" w:sz="18" w:space="0" w:color="{border_color}"/>'
+                f'<w:top w:val="none" w:sz="0" w:space="0"/>'
+                f'<w:bottom w:val="none" w:sz="0" w:space="0"/>'
+                f'<w:right w:val="none" w:sz="0" w:space="0"/>'
+                f'</w:tcBorders>'
+            )
+            tc_pr.append(borders)
+            WordExporter._add_paragraph(claim_cell, claim, size=9, bold=True, italic=True, color=theme["text"])
+            WordExporter._add_paragraph(claim_cell, f"\u2014 {status_label} CLAIM", size=7, color=border_color)
 
-        # Left border via XML
-        tc_pr = ev_cell._tc.get_or_add_tcPr()
-        borders = parse_xml(
-            f'<w:tcBorders {nsdecls("w")}>'
-            f'<w:left w:val="single" w:sz="12" w:space="0" w:color="{border_color}"/>'
-            f'<w:top w:val="none" w:sz="0" w:space="0"/>'
-            f'<w:bottom w:val="none" w:sz="0" w:space="0"/>'
-            f'<w:right w:val="none" w:sz="0" w:space="0"/>'
-            f'</w:tcBorders>'
-        )
-        tc_pr.append(borders)
+        # ── 2. STATUS STRIP ──────────────────────────────────────────────
+        status_tab = container.add_table(rows=1, cols=1)
+        status_cell = status_tab.rows[0].cells[0]
+        WordExporter._set_cell_background(status_cell, bg_hex)
+        status_text = f"SOURCE VERIFICATION   {status_symbol} {status_label}"
+        WordExporter._add_paragraph(status_cell, status_text, size=7, bold=True, color=border_color)
 
-        # Render content lines inside the cell
-        lines = text.split("\n")
-        first = True
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            if first:
-                # Header line — bold, slightly larger
-                WordExporter._add_paragraph(ev_cell, line, size=8, bold=True, color=border_color)
-                first = False
-            elif line.startswith("**") and line.endswith("**"):
-                # Status verdict — bold
-                clean = line.strip("*").strip()
-                WordExporter._add_paragraph(ev_cell, clean, size=8, bold=True, color=border_color)
-            elif line.startswith("Claim:") or line.startswith("- **"):
-                WordExporter._add_paragraph(ev_cell, line.replace("**", ""), size=8, italic=True, color=theme["text"])
-            else:
-                WordExporter._add_paragraph(ev_cell, line.replace("**", ""), size=8, color=theme["text"])
+        # ── 3. CHALLENGES (if any) ───────────────────────────────────────
+        for challenge in challenges[:2]:
+            ch_tab = container.add_table(rows=1, cols=1)
+            ch_cell = ch_tab.rows[0].cells[0]
+            tc_pr = ch_cell._tc.get_or_add_tcPr()
+            borders = parse_xml(
+                f'<w:tcBorders {nsdecls("w")}>'
+                f'<w:left w:val="single" w:sz="8" w:space="0" w:color="A45A52"/>'
+                f'<w:top w:val="none" w:sz="0" w:space="0"/>'
+                f'<w:bottom w:val="none" w:sz="0" w:space="0"/>'
+                f'<w:right w:val="none" w:sz="0" w:space="0"/>'
+                f'</w:tcBorders>'
+            )
+            tc_pr.append(borders)
+            WordExporter._add_paragraph(ch_cell, challenge, size=8, italic=True, color="A45A52")
+
+        # ── 4. WHY THIS HOLDS (evidence points) ─────────────────────────
+        if evidence_points:
+            WordExporter._add_paragraph(container, "WHY THIS HOLDS:", size=7, bold=True, color=border_color)
+            for point in evidence_points[:5]:
+                WordExporter._add_paragraph(container, f"\u2022 {point}", size=8, color=theme["text"])
+
+        # ── 5. PROVENANCE (compact sources) ──────────────────────────────
+        if sources:
+            source_summary = " \u00b7 ".join(s[:60] for s in sources[:3])
+            prov_tab = container.add_table(rows=1, cols=1)
+            prov_cell = prov_tab.rows[0].cells[0]
+            WordExporter._set_cell_background(prov_cell, bg_hex)
+            WordExporter._add_paragraph(prov_cell, f"SOURCE: {source_summary}", size=6.5, color=SEM_MUTED)
+            challenge_status = "PASSED" if status in ("ACCURATE", "VERIFIED") else "FAILED" if status in ("INACCURATE", "FLAGGED") else "PENDING"
+            WordExporter._add_paragraph(prov_cell, f"STATUS: {status_symbol} {status_label}   CHALLENGE: {challenge_status}", size=6.5, bold=True, color=border_color)
 
     @staticmethod
     def _add_spacing(doc, count=1):

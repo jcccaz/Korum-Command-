@@ -1020,8 +1020,89 @@
 
     <!-- SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-    <script>mermaid.initialize({ startOnLoad: false, theme: 'dark' });</script>
-    <script src="js/korum.js?v=20260317b"></script>
+    <script>
+        window.KORUM_MERMAID_CONFIG = {
+            startOnLoad: false,
+            theme: 'base',
+            themeVariables: {
+                background: '#141414',
+                primaryColor: '#2A2622',
+                primaryTextColor: '#E8E8EC',
+                primaryBorderColor: '#C47D00',
+                secondaryColor: '#223228',
+                secondaryTextColor: '#E8E8EC',
+                secondaryBorderColor: '#4CAF7D',
+                tertiaryColor: '#33281F',
+                tertiaryTextColor: '#E8E8EC',
+                tertiaryBorderColor: '#A89478',
+                lineColor: '#A89478',
+                defaultLinkColor: '#A89478',
+                edgeLabelBackground: '#1E1A17',
+                clusterBkg: '#1E1A17',
+                clusterBorder: '#6B5A48',
+                titleColor: '#FFD166',
+                actorBkg: '#2A2622',
+                actorBorder: '#C47D00',
+                actorTextColor: '#E8E8EC',
+                signalColor: '#C8C8CC',
+                signalTextColor: '#E8E8EC',
+                labelBoxBkgColor: '#1E1A17',
+                labelTextColor: '#E8E8EC',
+                noteBkgColor: '#33281F',
+                noteTextColor: '#E8E8EC',
+                noteBorderColor: '#C47D00',
+                pie1: '#4CAF7D',
+                pie2: '#F5A800',
+                pie3: '#A89478',
+                pie4: '#6B5A48',
+                pie5: '#C47D00',
+                pieTitleTextColor: '#E8E8EC',
+                pieSectionTextColor: '#141414',
+                fontFamily: 'Inter, sans-serif'
+            }
+        };
+        window.KORUM_MERMAID_EXPORT_CONFIG = {
+            theme: 'base',
+            themeVariables: {
+                background: '#F5EFE3',
+                primaryColor: '#E7DCC8',
+                primaryTextColor: '#2A2118',
+                primaryBorderColor: '#8C6239',
+                secondaryColor: '#D9E3D4',
+                secondaryTextColor: '#2A2118',
+                secondaryBorderColor: '#5D7A61',
+                tertiaryColor: '#E6D7C3',
+                tertiaryTextColor: '#2A2118',
+                tertiaryBorderColor: '#A89478',
+                lineColor: '#8A765E',
+                defaultLinkColor: '#8A765E',
+                edgeLabelBackground: '#F5EFE3',
+                clusterBkg: '#EFE5D6',
+                clusterBorder: '#B49A7A',
+                titleColor: '#6E4B1F',
+                actorBkg: '#E7DCC8',
+                actorBorder: '#8C6239',
+                actorTextColor: '#2A2118',
+                signalColor: '#5E554B',
+                signalTextColor: '#2A2118',
+                labelBoxBkgColor: '#F5EFE3',
+                labelTextColor: '#2A2118',
+                noteBkgColor: '#F0E1CC',
+                noteTextColor: '#2A2118',
+                noteBorderColor: '#8C6239',
+                pie1: '#6E8B68',
+                pie2: '#C08A2B',
+                pie3: '#A89478',
+                pie4: '#8C6239',
+                pie5: '#CBB79C',
+                pieTitleTextColor: '#2A2118',
+                pieSectionTextColor: '#2A2118',
+                fontFamily: 'Inter, sans-serif'
+            }
+        };
+        mermaid.initialize(window.KORUM_MERMAID_CONFIG);
+    </script>
+    <script src="js/korum.js?v=20260321a"></script>
     <script src="js/korum_editor.js?v=20260317b"></script>
 </body>
 

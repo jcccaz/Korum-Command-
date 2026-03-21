@@ -4583,7 +4583,23 @@ async function generateCardChart(data, chartType = 'auto', cardEl = null) {
             // ── Mermaid capture (re-render with light theme) ────────────
             else {
                 try {
-                    const lightCode = `%%{init: {'theme':'default'}}%%\n${result.mermaid_code}`;
+                    const exportConfig = window.KORUM_MERMAID_EXPORT_CONFIG || {
+                        theme: 'base',
+                        themeVariables: {
+                            background: '#F5EFE3',
+                            primaryColor: '#E7DCC8',
+                            primaryTextColor: '#2A2118',
+                            primaryBorderColor: '#8C6239',
+                            lineColor: '#8A765E',
+                            pie1: '#6E8B68',
+                            pie2: '#C08A2B',
+                            pie3: '#A89478',
+                            pie4: '#8C6239',
+                            pie5: '#CBB79C',
+                            fontFamily: 'Inter, sans-serif'
+                        }
+                    };
+                    const lightCode = `%%{init: ${JSON.stringify(exportConfig)}}%%\n${result.mermaid_code}`;
                     const renderDiv = document.createElement('div');
                     renderDiv.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;padding:20px;';
                     document.body.appendChild(renderDiv);
