@@ -7336,7 +7336,6 @@ async function handleDocExport(format, themeOverride = null) {
     if (!format) return;
 
     const select = document.getElementById('exportDoc');
-    const themeSelect = document.getElementById('themeSelect');
     const formatNames = {
         'paper-docx': 'Research Paper (Word)', paper: 'Research Paper', pdf: 'Board Brief', 'pdf-memo': 'Executive Memo (PDF)', 
         docx: 'Executive Memo', xlsx: 'Intelligence Workbook',
@@ -7360,62 +7359,12 @@ async function handleDocExport(format, themeOverride = null) {
     logTelemetry(`DEPLOYING ASSET: ${format.toUpperCase()}...`, "process");
 
     try {
-        const data = lastCouncilData || {};
-        let intelligenceObj = data.synthesis ? { ...data.synthesis } : null;
-        const normalizeExportTheme = (theme) => {
-            const map = {
-                ARCHITECT: 'IRON_DISPATCH',
-                STEEL_RUBY: 'IRON_DISPATCH',
-                CARBON_STEEL: 'DEEP_WATER',
-                NEON_DESERT: 'BONE_FIELD',
-                IRON_DISPATCH: 'IRON_DISPATCH',
-                DEEP_WATER: 'DEEP_WATER',
-                BONE_FIELD: 'BONE_FIELD'
-            };
-            return map[(theme || '').toUpperCase()] || 'BONE_FIELD';
-        };
-        const themeVal = normalizeExportTheme(themeOverride || themeSelect?.value || intelligenceObj?.meta?.theme || 'BONE_FIELD');
+        const payload = buildExportIntelligencePayload(themeOverride);
+        const intelligenceObj = payload.intelligence_object;
+        const themeVal = payload.theme;
 
-        // --- LEGACY FALLBACK: Support older final results without synthesis blocks ---
-        if (!intelligenceObj) {
-            logTelemetry("Building intelligence object from legacy data...", "warning");
-            intelligenceObj = {
-                meta: {
-                    title: data.roleName || (sessionState.originalQuery || 'Korum Intelligence Brief').substring(0, 80),
-                    summary: data.consensus || "Automated intelligence briefing.",
-                    generated_at: new Date().toISOString(),
-                    workflow: sessionState.missionContext?.workflow || 'RESEARCH',
-                    theme: themeVal
-                },
-                sections: {
-                    executive_summary: data.consensus || data.final_artifact || "No summary provided."
-                },
-                structured_data: {
-                    key_metrics: [],
-                    risks: [],
-                    actions: []
-                }
-            };
-        }
-
-        // Inject divergence data into intelligence object for exporters
-        if (data.divergence) {
-            intelligenceObj.divergence_analysis = data.divergence;
-        }
-
-        // Inject research dock snippets
-        if (typeof ResearchDock !== 'undefined' && ResearchDock.snippets && ResearchDock.snippets.length > 0) {
-            intelligenceObj.docked_snippets = ResearchDock.getReportArtifacts();
-        }
-        
         logTelemetry(`Exporting: ${intelligenceObj.meta?.title || 'Untitled'} | Theme: ${themeVal}`, "process");
-        const payload = {
-            intelligence_object: intelligenceObj,
-            card_results: data.results || {},
-            format: format,
-            theme: themeVal,
-            mission_context: sessionState.missionContext || null
-        };
+        payload.format = format;
 
         const response = await authFetch('/api/deploy_intelligence', {
             method: 'POST',
@@ -7462,6 +7411,65 @@ async function handleDocExport(format, themeOverride = null) {
         select.disabled = false;
         select.selectedIndex = 0;
     }
+}
+
+function normalizeExportTheme(theme) {
+    const map = {
+        ARCHITECT: 'IRON_DISPATCH',
+        STEEL_RUBY: 'IRON_DISPATCH',
+        CARBON_STEEL: 'DEEP_WATER',
+        NEON_DESERT: 'BONE_FIELD',
+        IRON_DISPATCH: 'IRON_DISPATCH',
+        DEEP_WATER: 'DEEP_WATER',
+        BONE_FIELD: 'BONE_FIELD'
+    };
+    return map[(theme || '').toUpperCase()] || 'BONE_FIELD';
+}
+
+function buildExportIntelligencePayload(themeOverride = null) {
+    const data = lastCouncilData || {};
+    const themeSelect = document.getElementById('themeSelect');
+    let intelligenceObj = data.synthesis ? JSON.parse(JSON.stringify(data.synthesis)) : null;
+    const themeVal = normalizeExportTheme(themeOverride || themeSelect?.value || intelligenceObj?.meta?.theme || 'BONE_FIELD');
+
+    if (!intelligenceObj) {
+        logTelemetry("Building intelligence object from legacy data...", "warning");
+        intelligenceObj = {
+            meta: {
+                title: data.roleName || (sessionState.originalQuery || 'Korum Intelligence Brief').substring(0, 80),
+                summary: data.consensus || "Automated intelligence briefing.",
+                generated_at: new Date().toISOString(),
+                workflow: sessionState.missionContext?.workflow || 'RESEARCH',
+                theme: themeVal
+            },
+            sections: {
+                executive_summary: data.consensus || data.final_artifact || "No summary provided."
+            },
+            structured_data: {
+                key_metrics: [],
+                risks: [],
+                actions: []
+            }
+        };
+    }
+
+    if (!intelligenceObj.meta) intelligenceObj.meta = {};
+    intelligenceObj.meta.theme = themeVal;
+
+    if (data.divergence) {
+        intelligenceObj.divergence_analysis = data.divergence;
+    }
+
+    if (typeof ResearchDock !== 'undefined' && ResearchDock.snippets && ResearchDock.snippets.length > 0) {
+        intelligenceObj.docked_snippets = ResearchDock.getReportArtifacts().map(snippet => ({ ...snippet }));
+    }
+
+    return {
+        intelligence_object: intelligenceObj,
+        card_results: data.results || {},
+        theme: themeVal,
+        mission_context: sessionState.missionContext || null
+    };
 }
 
 async function exportThemeSet(format) {
@@ -7853,11 +7861,13 @@ const PreviewManager = {
     },
 
     open() {
-        if (!lastCouncilData || !lastCouncilData.synthesis) {
+        const hasSynthesis = !!(lastCouncilData && lastCouncilData.synthesis);
+        const hasDock = !!(typeof ResearchDock !== 'undefined' && ResearchDock.snippets && ResearchDock.snippets.length > 0);
+        if (!hasSynthesis && !hasDock) {
             showProcessingToast("No synthesized intelligence available.");
             return;
         }
-        this.populate(lastCouncilData.synthesis, lastCouncilData);
+        this.populate(buildExportIntelligencePayload(), lastCouncilData || {});
         const modal = document.getElementById('clientPackagePreview');
         modal.style.display = 'flex';
         setTimeout(() => modal.classList.add('visible'), 10);
@@ -7870,72 +7880,262 @@ const PreviewManager = {
         setTimeout(() => modal.style.display = 'none', 300);
     },
 
-    populate(synthesis, fullData) {
-        const meta = synthesis.meta || {};
-        const sections = synthesis.sections || {};
-        const structured = synthesis.structured_data || {};
-        const tags = synthesis.intelligence_tags || {};
+    _scoreValue(meta = {}) {
+        let score = meta.composite_truth_score ?? meta.consensus_score ?? null;
+        if (score === undefined || score === null || score === '') return null;
+        score = parseFloat(score);
+        if (!Number.isFinite(score)) return null;
+        if (score <= 1) score = Math.round(score * 100);
+        return Math.round(score);
+    },
 
-        document.getElementById('previewTitle').textContent = meta.title || "INTELLIGENCE PACKAGE";
-        document.getElementById('previewWorkflow').textContent = meta.workflow || "RESEARCH";
-        document.getElementById('previewMeta').textContent = `Mission ID: ${Math.random().toString(36).substr(2, 9).toUpperCase()} | ${meta.generated_at || new Date().toISOString()}`;
+    _scoreBand(score) {
+        if (score === null || score === undefined) return 'Unscored';
+        if (score >= 80) return 'Recommended';
+        if (score >= 70) return 'Conditional';
+        return 'Failed';
+    },
 
-        // 1. Executive View — Synthesis + All Agent Responses
-        let execHtml = `<h2>EXECUTIVE SUMMARY</h2><p>${meta.summary || "No summary available."}</p>`;
-        for (const [title, content] of Object.entries(sections)) {
-            const displayTitle = title.replace(/_/g, ' ').toUpperCase();
-            execHtml += `<div style="margin-top:25px;"><h3 style="color:var(--accent-green); border-bottom:1px solid rgba(0,255,157,0.1); padding-bottom:10px;">${displayTitle}</h3><div style="margin-top:10px;">${formatText(content)}</div></div>`;
+    _displayTitle(key) {
+        return String(key || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    },
+
+    _artifactLabel(artifact) {
+        const label = artifact?.title || artifact?.name || '';
+        if (label) return label;
+        const type = String(artifact?.type || '').toUpperCase();
+        if (type.includes('SVG') || type.includes('CHART') || type.includes('VISUAL')) return 'Chart Artifact';
+        if (type.includes('TABLE') || type.includes('CSV')) return 'Data Artifact';
+        return 'Artifact';
+    },
+
+    _artifactMatches(artifact, sectionTitle, providerName) {
+        const label = this._artifactLabel(artifact).toUpperCase();
+        const content = String(artifact?.content || '').toUpperCase().slice(0, 500);
+        const section = String(sectionTitle || '').toUpperCase();
+        const provider = String(providerName || '').toUpperCase();
+        return (provider && provider !== 'KORUM' && (label.includes(provider) || content.includes(provider))) ||
+            (section && section.length > 3 && (label.includes(section) || content.includes(section)));
+    },
+
+    _assignArtifacts(artifacts, sectionEntries, contributors) {
+        const assigned = {};
+        sectionEntries.forEach((_, idx) => { assigned[idx] = []; });
+        assigned[-1] = [];
+        const claimed = new Set();
+
+        sectionEntries.forEach(([sectionId], idx) => {
+            const sectionTitle = sectionId.replace(/_/g, ' ').toUpperCase();
+            const providerName = contributors[idx]?.provider || 'KORUM';
+            artifacts.forEach((artifact, artifactIdx) => {
+                if (!claimed.has(artifactIdx) && this._artifactMatches(artifact, sectionTitle, providerName)) {
+                    assigned[idx].push(artifact);
+                    claimed.add(artifactIdx);
+                }
+            });
+        });
+
+        artifacts.forEach((artifact, idx) => {
+            if (!claimed.has(idx)) {
+                const fallbackIdx = sectionEntries.length ? sectionEntries.length - 1 : -1;
+                assigned[fallbackIdx].push(artifact);
+            }
+        });
+
+        return assigned;
+    },
+
+    _deriveDecisionCall(meta, sections) {
+        return sections.decision_call || meta.summary || meta.title || 'Decision artifact available for review.';
+    },
+
+    _deriveWhyWins(structured, sections) {
+        const wins = [];
+        (structured.key_metrics || []).slice(0, 3).forEach(metric => {
+            const label = [metric.metric, metric.value].filter(Boolean).join(': ');
+            if (label) wins.push(label);
+        });
+        Object.entries(sections || {}).forEach(([key, value]) => {
+            if (wins.length >= 5 || !value) return;
+            const sentence = String(value).replace(/\s+/g, ' ').split(/(?<=[.!?])\s/)[0].trim();
+            if (sentence) wins.push(sentence);
+        });
+        return wins.slice(0, 5);
+    },
+
+    _renderArtifact(artifact) {
+        const label = this._artifactLabel(artifact);
+        const content = artifact?.content || '';
+        let body = `<div class="report-preview-empty">Artifact preview unavailable.</div>`;
+
+        if (typeof content === 'string' && content.trim().startsWith('<svg')) {
+            body = `<div class="report-preview-artifact-body">${content}</div>`;
+        } else if (artifact?.imageData) {
+            body = `<div class="report-preview-artifact-body"><img src="${artifact.imageData}" alt="${escapeHtml(label)}" style="width:100%; height:auto; display:block; border-radius:8px; background:#fff;"></div>`;
+        } else if (typeof content === 'string' && content.trim()) {
+            body = `<div class="report-preview-body">${formatText(content)}</div>`;
         }
 
-        // Add individual agent responses if available
-        const responses = fullData?.responses || fullData?.phases || fullData?.results || {};
-        const responseEntries = Object.entries(responses).filter(([, v]) => v && (v.response || v.content || v.text));
-        if (responseEntries.length > 0) {
-            execHtml += `<div style="margin-top:40px; border-top:1px solid rgba(255,255,255,0.08); padding-top:30px;">
-                <h2 style="color:var(--accent-green); margin-bottom:20px;">AGENT INTELLIGENCE</h2>`;
-            responseEntries.forEach(([agent, data]) => {
-                const content = data.response || data.content || data.text || '';
-                const role = data.role || agent.toUpperCase();
-                const score = data.truth_score || data.score || null;
-                const agentName = agent.toUpperCase();
-                execHtml += `
-                    <div style="margin-bottom:25px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-left:3px solid rgba(0,255,157,0.4); border-radius:8px; padding:20px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                            <div>
-                                <span style="font-size:10px; color:var(--accent-green); font-weight:700; letter-spacing:0.1em;">${agentName}</span>
-                                <span style="font-size:10px; color:#666; margin-left:10px;">${role}</span>
+        return `
+            <div class="report-preview-artifact">
+                <div class="report-preview-artifact-label">${escapeHtml(label)}</div>
+                ${body}
+            </div>`;
+    },
+
+    populate(payload, fullData) {
+        const intelligenceObj = payload?.intelligence_object || {};
+        const meta = intelligenceObj.meta || {};
+        const sections = intelligenceObj.sections || {};
+        const structured = intelligenceObj.structured_data || {};
+        const tags = intelligenceObj.intelligence_tags || {};
+        const contributors = intelligenceObj.council_contributors || [];
+        const artifacts = intelligenceObj.docked_snippets || [];
+        const sectionEntries = Object.entries(sections).filter(([, value]) => value && value !== 'Full narrative text...');
+        const artifactMap = this._assignArtifacts(artifacts, sectionEntries, contributors);
+        const score = this._scoreValue(meta);
+        const band = this._scoreBand(score);
+        const decisionCall = this._deriveDecisionCall(meta, sections);
+        const whyWins = this._deriveWhyWins(structured, sections);
+        const actions = (structured.action_items || structured.actions || []).slice(0, 3);
+        const risks = (structured.risks || []).slice(0, 3);
+        const metrics = (structured.key_metrics || []).slice(0, 3);
+
+        document.getElementById('previewTitle').textContent = meta.title || "KORUM REPORT PREVIEW";
+        document.getElementById('previewWorkflow').textContent = meta.workflow || "RESEARCH";
+        document.getElementById('previewMeta').textContent = `Theme: ${payload?.theme || meta.theme || 'BONE_FIELD'} | Generated: ${meta.generated_at || new Date().toISOString()}`;
+
+        let execHtml = `
+            <div class="report-preview-shell">
+                <div class="report-preview-page">
+                    <div class="report-preview-kicker">Decision Artifact Preview</div>
+                    <div class="report-preview-headline">${escapeHtml(decisionCall)}</div>
+                    <div class="report-preview-meta-row">
+                        <div class="report-preview-badge score">${score !== null ? `${score}/100` : 'UNSCORED'}</div>
+                        <div class="report-preview-badge">${escapeHtml(band)}</div>
+                        <div class="report-preview-badge">${escapeHtml(meta.workflow || 'Research')}</div>
+                        <div class="report-preview-badge">${contributors.length} Contributors</div>
+                    </div>
+                    <div class="report-preview-summary-grid">
+                        <div class="report-preview-summary">${formatText(meta.summary || 'No executive summary available.')}</div>
+                        <div class="report-preview-panel">
+                            <h3>Decision Readiness</h3>
+                            <div class="report-preview-body">
+                                ${score !== null ? `Composite Truth Score is ${score}, which places this artifact in the ${band} band.` : 'Composite score is not available yet.'}
                             </div>
-                            ${score ? `<span style="font-size:10px; background:rgba(0,255,157,0.1); color:var(--accent-green); padding:2px 8px; border-radius:4px;">${score}/100</span>` : ''}
                         </div>
-                        <div style="font-size:13px; line-height:1.7; color:#ccc;">${formatText(content)}</div>
+                    </div>`;
+
+        if (metrics.length) {
+            execHtml += `<div class="report-preview-stat-strip">`;
+            metrics.forEach(metric => {
+                execHtml += `
+                    <div class="report-preview-stat">
+                        <div class="report-preview-stat-value">${escapeHtml(metric.value || '—')}</div>
+                        <div class="report-preview-stat-label">${escapeHtml(metric.metric || 'Metric')}</div>
                     </div>`;
             });
             execHtml += `</div>`;
         }
 
+        execHtml += `<div class="report-preview-two-col">`;
+        execHtml += `
+            <div class="report-preview-panel report-preview-column">
+                <h3>Why It Wins</h3>
+                <div class="report-preview-list">
+                    ${(whyWins.length ? whyWins : ['Decision support not yet structured.']).map(item => `
+                        <div class="report-preview-list-item">${formatText(item)}</div>
+                    `).join('')}
+                </div>
+            </div>`;
+        execHtml += `
+            <div class="report-preview-panel report-preview-column">
+                <h3>Top Risks</h3>
+                <div class="report-preview-list">
+                    ${(risks.length ? risks : [{ risk: 'No structured risks available yet.', severity: '' }]).map(risk => `
+                        <div class="report-preview-list-item risk">
+                            <strong>${escapeHtml(risk.risk || 'Risk')}</strong>${risk.severity ? ` · ${escapeHtml(risk.severity)}` : ''}
+                            ${risk.mitigation ? `<div class="report-preview-provenance">Mitigation: ${escapeHtml(risk.mitigation)}</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`;
+        execHtml += `</div>`;
+
+        if (actions.length) {
+            execHtml += `
+                <div class="report-preview-section">
+                    <h3>Monday Morning Actions</h3>
+                    <div class="report-preview-list">
+                        ${actions.map((action, idx) => `
+                            <div class="report-preview-list-item action">
+                                <strong>${idx + 1}.</strong> ${escapeHtml(action.task || action.action || 'Action pending')}
+                                ${action.timeline ? `<div class="report-preview-provenance">${escapeHtml(action.timeline)}</div>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+        }
+
+        sectionEntries.forEach(([sectionId, content], idx) => {
+            const provider = contributors[idx]?.provider || 'KORUM';
+            const role = contributors[idx]?.phase || contributors[idx]?.role || '';
+            execHtml += `
+                <div class="report-preview-section">
+                    <div class="report-preview-section-title">${escapeHtml(this._displayTitle(sectionId))}</div>
+                    <div class="report-preview-body">${formatText(content)}</div>
+                    <div class="report-preview-provenance">Origin: ${escapeHtml(provider)}${role ? ` · ${escapeHtml(role)}` : ''}${contributors[idx]?.status ? ` · ${escapeHtml(contributors[idx].status)}` : ''}</div>
+                    ${(artifactMap[idx] && artifactMap[idx].length) ? `
+                        <div class="report-preview-artifacts">
+                            ${artifactMap[idx].map(artifact => this._renderArtifact(artifact)).join('')}
+                        </div>` : ''}
+                </div>`;
+        });
+
+        execHtml += `</div></div>`;
         document.getElementById('execPreviewContent').innerHTML = execHtml;
 
-        // 2. Data & Metrics
-        let dataHtml = `<h2>STRATEGIC INTELLIGENCE</h2>`;
-
-        if (structured.key_metrics?.length) {
-            dataHtml += `<h3 style="color:#FFF;">KEY METRICS</h3><div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-top:15px;">`;
-            structured.key_metrics.forEach(m => {
-                dataHtml += `<div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:8px;">
-                    <div style="font-size:10px; color:#888;">${m.metric}</div>
-                    <div style="font-size:18px; color:var(--accent-green); font-weight:700; margin:5px 0;">${m.value}</div>
-                    <div style="font-size:11px; color:#666;">${m.context || ""}</div>
-                </div>`;
-            });
-            dataHtml += `</div>`;
-        }
-
-        if (tags.decisions?.length) {
-            dataHtml += `<h3 style="color:#FFF; margin-top:30px;">DECISION CANDIDATES</h3><ul style="margin-top:15px; color:#CCC;">`;
-            tags.decisions.forEach(d => dataHtml += `<li style="margin-bottom:10px; border-left:2px solid var(--accent-gold); padding-left:15px;">${d}</li>`);
-            dataHtml += `</ul>`;
-        }
-
+        let dataHtml = `<div class="report-preview-data-grid">`;
+        dataHtml += `
+            <div class="report-preview-data-card">
+                <h2>Decision Packet</h2>
+                <div class="report-preview-body">Theme: ${escapeHtml(payload?.theme || meta.theme || 'BONE_FIELD')}</div>
+                <div class="report-preview-body">Sections: ${sectionEntries.length}</div>
+                <div class="report-preview-body">Artifacts: ${artifacts.length}</div>
+                <div class="report-preview-body">Contributors: ${contributors.length}</div>
+            </div>`;
+        dataHtml += `
+            <div class="report-preview-data-card">
+                <h2>Key Metrics</h2>
+                <div class="report-preview-list">
+                    ${(structured.key_metrics?.length ? structured.key_metrics : [{ metric: 'No metrics', value: '—' }]).map(metric => `
+                        <div class="report-preview-list-item">${escapeHtml(metric.metric || 'Metric')}: ${escapeHtml(metric.value || '—')}</div>
+                    `).join('')}
+                </div>
+            </div>`;
+        dataHtml += `
+            <div class="report-preview-data-card">
+                <h2>Contributors</h2>
+                <div class="report-preview-contributors">
+                    ${(contributors.length ? contributors : [{ provider: 'KORUM', phase: 'Assembly', status: 'Pending' }]).map(contributor => `
+                        <div class="report-preview-contributor">
+                            <span>${escapeHtml(contributor.provider || contributor.name || 'Agent')}</span>
+                            <span>${escapeHtml(contributor.phase || contributor.role || 'Role')}</span>
+                            <span class="report-preview-status">${escapeHtml(contributor.status || 'active')}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`;
+        dataHtml += `
+            <div class="report-preview-data-card">
+                <h2>Decision Signals</h2>
+                <div class="report-preview-list">
+                    ${(tags.decisions?.length ? tags.decisions : ['No tagged decision signals']).map(signal => `
+                        <div class="report-preview-list-item">${formatText(signal)}</div>
+                    `).join('')}
+                </div>
+            </div>`;
+        dataHtml += `</div>`;
         document.getElementById('dataPreviewContent').innerHTML = dataHtml;
 
         // 3. Slides Preview
