@@ -35,7 +35,7 @@ WORKFLOW_DNA = {
         "risk_bias": "Balanced",
         "time_horizon": "Long-term strategic",
         "posture": "Decision Commander",
-        "output_structure": ["Executive Summary", "Key Signals", "System Context", "Scenario Analysis", "Critical Challenges", "Tradeoff Analysis", "Decision", "Action Priorities", "Execution Considerations", "Confidence Assessment", "Final Assessment"]
+        "output_structure": ["Executive Summary", "Key Signals", "System Context", "Scenario Analysis", "Critical Challenges", "Tradeoffs", "Decision", "Action Priorities", "Confidence"]
     },
     "FINANCE": {
         "goal": "Economic viability and downside protection.",
@@ -2663,19 +2663,20 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     # Section-specific synthesis directives — tell the LLM exactly what each section should contain
     SECTION_DIRECTIVES = {
         "executive_summary": (
-            "FORMAT: Situation → Decision → Rationale → Confidence. "
-            "SITUATION: 1-2 sentences on what is happening. "
-            "DECISION: State the recommended action clearly — no hedging. "
-            "RATIONALE: 2-3 sentences on why this decision wins over alternatives. "
-            "CONFIDENCE: State the band (High/Moderate/Low) with a brief justification. "
-            "MAX: 4-5 sentences total. Must answer: What should leadership do now? "
-            "VOICE: Senior strategy consultant. Direct, not conversational."
+            "FORMAT: Situation → Decision → Rationale → Confidence. Write as flowing prose, NOT labeled fields. "
+            "Open with 1-2 sentences on the situation and what trends indicate. "
+            "State the decision as a clear sentence: 'Decision: [action].' "
+            "Follow with 1-2 sentences of rationale explaining why early intervention matters. "
+            "Close with a confidence statement using bands like 'Moderate-High' with brief justification. "
+            "MAX: 5-6 sentences total. VOICE: Senior strategy consultant writing a decision memo. "
+            "NO fabricated percentages. NO specific dollar amounts unless in user data. "
+            "Use directional language: 'elevated latency', 'rising outage frequency', 'growing risk'."
         ),
         "key_signals": (
-            "List 4-6 concrete data-driven indicators that support the decision. "
-            "Format as a bullet list. Each signal must cite a specific metric, trend, or threshold. "
-            "NO invented data. NO generic statements like 'market conditions remain uncertain'. "
-            "Use directional language where exact numbers are unavailable. "
+            "List 4-6 concrete indicators that support the decision. "
+            "Format as a bullet list. Each signal must reference a real trend or condition from the discussion. "
+            "NO invented numbers — use directional language: 'sustained increase', 'upward trend', 'growing gap'. "
+            "NO generic filler like 'market conditions remain uncertain'. "
             "These must come from the council discussion, not fabricated."
         ),
         "system_context": (
@@ -2687,17 +2688,18 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
         "scenario_analysis": (
             "Present 2-3 scenarios: Most Plausible, Most Dangerous, and (if applicable) Strategic Opportunity. "
             "Each scenario needs: a name, 2-3 sentence description, directional progression timeline "
-            "(e.g., 'within 6-12 months' — NOT day-by-day), and an Implication line (one sentence). "
-            "Use concrete language. NO abstract summaries. NO stacked extreme outcomes in one scenario. "
-            "Avoid synthetic precision — use directional ranges unless the data supports exact numbers."
+            "(e.g., 'near-term', 'mid-term' — NOT month-by-month or day-by-day), and an Implication line. "
+            "NO fabricated precision — do NOT invent specific percentages like '30-35%' or timeframes like '12-48 hours'. "
+            "Use directional language: 'elevated latency levels', 'extended outages', 'significantly higher costs'. "
+            "NO stacked extreme outcomes in one scenario."
         ),
         "critical_challenges": (
             "Stress-test the decision. Present in two groups: "
-            "HIGH IMPACT CHALLENGES (2-3 items) and SECONDARY CONSIDERATIONS (2-3 items). "
+            "HIGH IMPACT (2-3 items) and SECONDARY CONSIDERATIONS (2-3 items). "
             "For each challenge: state what it is, why it matters, and what would resolve it. "
             "End with a one-sentence synthesis: do the uncertainties outweigh the risk of inaction?"
         ),
-        "tradeoff_analysis": (
+        "tradeoffs": (
             "Build a structured comparison using [STRUCTURED_TABLE] format. "
             "Columns: Dimension | Short-Term Option | Long-Term Option. "
             "Dimensions: Operational, Financial, Customer/User, Strategic. "
@@ -2706,34 +2708,28 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
         "decision": (
             "State the decision in ONE clear sentence. Then provide rationale as 3-5 bullet points. "
             "NO hedging. NO 'it depends'. This is the final call. "
-            "Format: DECISION: [Clear action statement] followed by RATIONALE: bullet list."
+            "Format: 'Decision: [Clear action statement]' followed by rationale bullets. "
+            "NO fabricated cost figures or ROI percentages."
         ),
         "action_priorities": (
-            "Break execution into 3 time horizons with 2-3 HIGH-LEVEL actions each:\n"
-            "IMMEDIATE (0-30 days): 2-3 actions\n"
-            "NEAR-TERM (30-90 days): 2-3 actions\n"
-            "MID-TERM (90+ days): 2-3 actions\n"
+            "Break execution into 3 HIGH-LEVEL phases:\n"
+            "Immediate: 1-2 actions\n"
+            "Near-Term: 1-2 actions\n"
+            "Mid-Term: 1-2 actions\n"
             "Actions must be executive-level decisions, NOT detailed playbooks. "
-            "NO tool/vendor lists. NO day-by-day timelines. NO staffing plans. "
-            "Example: 'Identify and prioritize high-risk network segments for stabilization'"
+            "NO tool/vendor lists. NO day-by-day or month-by-month timelines. NO staffing plans. "
+            "NO specific date ranges like '0-30 days' — use 'Immediate', 'Near-Term', 'Mid-Term'. "
+            "Example good actions: "
+            "'Identify and stabilize highest-risk network segments', "
+            "'Upgrade core infrastructure in high-traffic areas', "
+            "'Improve monitoring and network resilience'"
         ),
-        "execution_considerations": (
-            "Identify 3-5 constraints, resource needs, or data gaps that affect execution. "
-            "Format as bullet points. Focus on what could block or slow the decision. "
-            "Keep it brief — one line per consideration."
-        ),
-        "confidence_assessment": (
-            "OVERALL CONFIDENCE: State the band — High (direction and basis strong), "
-            "Moderate (direction strong but quantification incomplete), or "
-            "Low (claim is weak or highly assumption-dependent). "
-            "KEY ASSUMPTIONS: 3-5 bullet points. "
+        "confidence": (
+            "State the confidence band: High, Moderate-High, Moderate, or Low. "
+            "KEY ASSUMPTIONS: 3-5 bullet points on what must hold true. "
             "LIMITATIONS: 2-3 bullet points on data gaps or unresolved questions. "
-            "Confidence must reflect actual data quality, not optimism or default patterns."
-        ),
-        "final_assessment": (
-            "Closing statement in 2-3 sentences. Reinforce the decision and primary rationale. "
-            "End with a forward-looking implication or next decision milestone. "
-            "NO new information. This is the capstone, not a new section."
+            "Confidence must reflect actual data quality, not optimism. "
+            "If financial details or baselines are missing, confidence cannot be 'High' — use 'Moderate-High' at most."
         ),
     }
     default_directive = "2-3 concise paragraphs synthesizing the council's findings for this section. Use specific data from the discussion. No filler."
@@ -2767,13 +2763,19 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     8. CLEAN REPORT MODE: The final output MUST be a unified executive narrative.
        - Write in ONE voice — senior strategy consultant delivering a decision memo
        - NEVER expose internal labels: no node numbers, no model names (GPT-4, Claude, Gemini), no provider names (OpenAI, Anthropic, Google), no agent references
+       - NEVER use phase labels like ANALYST, ARCHITECT, CRITIC, INTEGRATOR in the output
        - NEVER use "the council found" or "this model said" — use "analysis shows", "scenario modeling indicates", "key challenges include"
-       - STRIP all internal tags from final text: [VERIFIED], [CRITICAL], [ACTION REQUIRED], [TRUTH_BOMB], [RISK_VECTOR], [DECISION_CANDIDATE], [METRIC_ANCHOR]
+       - STRIP all internal tags: [VERIFIED], [CRITICAL], [ACTION REQUIRED], [TRUTH_BOMB], [RISK_VECTOR], [DECISION_CANDIDATE], [METRIC_ANCHOR]
        - NO citations in body text (no [1][2][3] references)
-       - NO tool/vendor stacks or methodology tutorials unless the input specifically requests them
-       - NO day-by-day timelines, "Day 1-3" schedules, or micro-execution plans
-       - Prefer directional ranges over dramatic precision (say "significant increase" not "37.2% rise" unless data supports it)
-       - Confidence must reflect actual data quality — do NOT default to "high" or "low" by pattern
+       - NO tool/vendor stacks or methodology tutorials
+       - NO day-by-day timelines, "Month 1-3" schedules, or micro-execution plans — use "Immediate", "Near-Term", "Mid-Term"
+       - NO FAKE PRECISION: Do NOT invent specific percentages, dollar amounts, or timeframes not in the user's data.
+         Replace fabricated numbers with directional language:
+         BAD: "30-35% latency increase" → GOOD: "elevated latency levels"
+         BAD: "12-48 hours" → GOOD: "extended outages"
+         BAD: "15-20% cost increase" → GOOD: "higher total costs"
+         BAD: "3-4x cost multiplier" → GOOD: "significantly higher costs"
+       - Confidence must reflect actual data quality — if baselines or financials are unquantified, use "Moderate-High" not "High"
 
     COUNCIL DISCUSSION:
     {history_text}
@@ -2946,10 +2948,11 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
                 (_cf.compile(r'NODE\s+\d+\s*[-—:]?\s*', _cf.IGNORECASE), ''),                  # NODE 01 —
                 (_cf.compile(r'\b(OPENAI|ANTHROPIC|GOOGLE|PERPLEXITY|MISTRAL)\b', _cf.IGNORECASE), ''),  # provider names
                 (_cf.compile(r'\b(GPT-4o?|Claude\s*\d*\.?\d*\s*\w*|Gemini\s*\d*\.?\d*|Sonar)\b', _cf.IGNORECASE), ''),  # model names
+                (_cf.compile(r'\b(ANALYST|ARCHITECT|CRITIC|INTEGRATOR|COMPOSER)\b'), ''),        # phase labels
                 (_cf.compile(r'\[(?:VERIFIED|CRITICAL|ACTION REQUIRED|REJECTED|AMBER|WARNING|RISK)\]'), ''),  # signal tags
-                (_cf.compile(r'\[(?:TRUTH_BOMB|RISK_VECTOR|DECISION_CANDIDATE|METRIC_ANCHOR)\]'), ''),  # internal tags
-                (_cf.compile(r'\[/(?:TRUTH_BOMB|RISK_VECTOR|DECISION_CANDIDATE|METRIC_ANCHOR)\]'), ''),  # closing tags
+                (_cf.compile(r'\[/?(?:TRUTH_BOMB|RISK_VECTOR|DECISION_CANDIDATE|METRIC_ANCHOR)\]'), ''),  # internal/closing tags
                 (_cf.compile(r'\[\d+\]'), ''),                                                    # citation refs [1][2]
+                (_cf.compile(r'KO-INT-\d+', _cf.IGNORECASE), ''),                                # session IDs
                 (_cf.compile(r'(?:the\s+)?council\s+(?:found|determined|agreed|concluded)', _cf.IGNORECASE), 'analysis indicates'),  # council refs
                 (_cf.compile(r'this\s+model\s+(?:said|found|concluded)', _cf.IGNORECASE), 'analysis shows'),  # model refs
             ]

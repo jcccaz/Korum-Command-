@@ -95,8 +95,8 @@ _PHASE_TITLES = ["ANALYST", "ARCHITECT", "CRITIC", "INTEGRATOR", "COMPOSER"]
 # Canonical section order for RESEARCH reports (matches WORKFLOW_DNA output_structure)
 _RESEARCH_SECTION_ORDER = [
     "executive_summary", "key_signals", "system_context", "scenario_analysis",
-    "critical_challenges", "tradeoff_analysis", "decision", "action_priorities",
-    "execution_considerations", "confidence_assessment", "final_assessment",
+    "critical_challenges", "tradeoffs", "decision", "action_priorities",
+    "confidence",
 ]
 
 def _reorder_sections(sections, order=None):
@@ -906,8 +906,8 @@ class ExecutiveMemoExporter:
         
         # Header Metadata (Top Line)
         top_meta = [
-            [[Paragraph(f"INTELLIGENCE DOSSIER | CONFIDENTIAL | {workflow_label}", styles['ExecLabel'])], 
-             [Paragraph(f"<b>KORUM-OS</b><br/>{client_name}<br/>SESSION {doc._session_id}<br/>COUNCIL: {len(contributors)} AGENTS", styles['ExecSig'])]]
+            [[Paragraph(f"INTELLIGENCE DOSSIER | CONFIDENTIAL | {workflow_label}", styles['ExecLabel'])],
+             [Paragraph(f"<b>KORUM-OS</b><br/>{client_name}", styles['ExecSig'])]]
         ]
         top_tab = Table(top_meta, colWidths=[360, 180])
         top_tab.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 12)]))
@@ -985,7 +985,6 @@ class ExecutiveMemoExporter:
             story.append(Spacer(1, 30))
 
         # 4. --- INTELLIGENCE NODES (FULL-WIDTH PROSE) ---
-        seen_claims = set()  # Deduplicate claims across nodes
         section_items = _reorder_sections(sections or {})
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
@@ -1040,22 +1039,7 @@ class ExecutiveMemoExporter:
                     story.append(chart_img)
                     story.append(Spacer(1, 8))
 
-            # Inline pull quotes from verified claims (skip trivial/duplicate)
-            claims = prov_data.get("verified_claims") or []
-            for claim in claims[:2]:
-                claim_text = _as_text(claim.get('claim', ''))
-                if not claim_text or len(claim_text) < 25:
-                    continue
-                claim_key = claim_text.strip().lower()
-                if claim_key in seen_claims:
-                    continue
-                seen_claims.add(claim_key)
-                claim_status = _as_text(claim.get('status', 'strategic'))
-                # Anonymize: use phase title instead of provider name
-                phase_label = _PHASE_TITLES[idx] if idx < len(_PHASE_TITLES) else "ANALYSIS"
-                pq = _build_pull_quote(claim_text, claim_status, phase_label, "", doc._session_id, styles)
-                story.append(pq)
-                story.append(Spacer(1, 8))
+            # Pull quotes removed — clean report mode, no system leakage
 
             # Remaining artifacts without imageData — render below as text (skip empty)
             for art in remaining_arts:
@@ -1080,79 +1064,9 @@ class ExecutiveMemoExporter:
 
             story.append(Spacer(1, 16))
 
-        # 5. --- ANALYSIS PHASES (anonymized — no provider names) ---
-        if contributors:
-            story.append(Spacer(1, 10))
-            story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
-                style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
-            story.append(Spacer(1, 8))
-            story.append(Paragraph("ANALYSIS PHASES", styles['ExecLabel']))
-            story.append(Spacer(1, 6))
-            phase_cells = []
-            for contrib in contributors[:5]:
-                c_phase = _as_text(contrib.get('phase', 'Analysis'))
-                c_data = card_results.get(_as_text(contrib.get('provider','')).lower()) or {}
-                c_claims = c_data.get("verified_claims") or []
-                if any(_as_text(cl.get('status','')).lower() in ('flagged','challenged') for cl in c_claims):
-                    stamp, stamp_color = "FLAGGED", SEM_RED
-                elif any(_as_text(cl.get('status','')).lower() in ('confirmed', 'supported', 'verified') for cl in c_claims):
-                    stamp, stamp_color = "VERIFIED", SEM_GREEN
-                else:
-                    stamp, stamp_color = "CONDITIONAL", SEM_AMBER
-                cell_content = Paragraph(
-                    f"<b>{escape(c_phase)}</b><br/><font color='{stamp_color}' size='5'>{stamp}</font>",
-                    styles['ExecAudit']
-                )
-                phase_cells.append(cell_content)
-            n_phases = len(phase_cells) or 1
-            phase_w = 540 / n_phases
-            phase_tab = Table([phase_cells], colWidths=[phase_w] * n_phases, style=[
-                ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor(SEM_RULE)),
-                ('TOPPADDING', (0,0), (-1,-1), 6),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-                ('LEFTPADDING', (0,0), (-1,-1), 4),
-                ('RIGHTPADDING', (0,0), (-1,-1), 4),
-            ])
-            story.append(phase_tab)
-            story.append(Spacer(1, 16))
-
-        # 6. --- CONSENSUS FOOTER (compact — no blue background) ---
-        truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
-        story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
-            style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
-        story.append(Spacer(1, 8))
-        story.append(Paragraph(
-            f"CONFIDENCE SCORE: <b>{truth_int}</b> / 100",
-            styles['ExecImpact']
-        ))
-        story.append(Spacer(1, 8))
-        story.append(Table([[""]],  colWidths=[540], rowHeights=[1],
-            style=[('BACKGROUND', (0,0), (-1,-1), colors.HexColor(SEM_RULE))]))
-        story.append(Spacer(1, 10))
-
-        closer_head, closer_legal, closer_meta = _closing_stamp_parts(doc._session_id)
-        closer_left = [
-            Paragraph(closer_head, styles['ExecLabel']),
-            Spacer(1, 2),
-            Paragraph(closer_legal.replace(" \u00b7 ", " | "), styles['ExecAudit']),
-        ]
-        closer_right = [
-            Paragraph(closer_meta.replace(" \u00b7 ", " | "), styles['ExecSig']),
-            Spacer(1, 2),
-            Paragraph("EXPORT STATUS | DECISION ARTIFACT", styles['ExecSig']),
-        ]
-        closer_tab = Table([[closer_left, closer_right]], colWidths=[340, 200])
-        closer_tab.setStyle(TableStyle([
-            ('LINEABOVE', (0,0), (-1,0), 0.6, colors.HexColor(SEM_RULE)),
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('TOPPADDING', (0,0), (-1,-1), 8),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-            ('LEFTPADDING', (0,0), (0,-1), 0),
-            ('RIGHTPADDING', (0,0), (0,-1), 6),
-            ('LEFTPADDING', (1,0), (1,-1), 6),
-            ('RIGHTPADDING', (1,0), (1,-1), 0),
-        ]))
-        story.append(closer_tab)
+        # Clean report mode: no ANALYSIS PHASES, no CONFIDENCE SCORE, no closing stamp
+        # These are internal system artifacts — not part of the decision document
+        story.append(Spacer(1, 20))
 
         try:
             doc.build(story, onFirstPage=_dark_page_bg, onLaterPages=_dark_page_bg)
@@ -1377,7 +1291,6 @@ class WordExporter:
         contributors = intelligence_object.get("council_contributors") or []
         # divergence_analysis no longer rendered in clean report mode
         artifacts = _report_artifacts(intelligence_object)
-        session_id = _resolve_session_id(meta, intelligence_object)
 
         # Reorder sections to match canonical output_structure
         section_items_pre = _reorder_sections(sections or {})
@@ -1397,7 +1310,7 @@ class WordExporter:
         
         r_p = h_tab.rows[0].cells[1].paragraphs[0]
         r_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        r_run = r_p.add_run(f"KORUM-OS\n{client_name}\nSESSION {session_id}\nCOUNCIL: {len(contributors)} AGENTS")
+        r_run = r_p.add_run(f"KORUM-OS\n{client_name}")
         r_run.font.size = Pt(7)
         r_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
         
@@ -1469,7 +1382,6 @@ class WordExporter:
             WordExporter._add_spacing(doc)
 
         # 4. --- INTELLIGENCE NODES (full-width prose) ---
-        seen_claims = set()  # Deduplicate claims across nodes
         section_items = _reorder_sections(sections or {})
         for idx, (sid, content) in enumerate(section_items):
             sec_title = sid.replace("_", " ").upper()
@@ -1536,43 +1448,7 @@ class WordExporter:
                 # No chart — full-width prose
                 WordExporter._render_word_blocks(doc, content_blocks, tc)
 
-            # Inline pull quotes (skip trivial/duplicate)
-            claims = prov_data.get("verified_claims") or []
-            for claim in claims[:2]:
-                claim_text = _as_text(claim.get('claim', ''))
-                if not claim_text or len(claim_text) < 25:
-                    continue
-                claim_key = claim_text.strip().lower()
-                if claim_key in seen_claims:
-                    continue
-                seen_claims.add(claim_key)
-                claim_status = _as_text(claim.get('status', 'strategic')).lower()
-                if claim_status in ('flagged', 'challenged'):
-                    border_hex, bg_hex = SEM_RED, "FDF2F2"
-                elif claim_status == 'verified':
-                    border_hex, bg_hex = SEM_GREEN, "F2F8F4"
-                else:
-                    border_hex, bg_hex = SEM_BLUE, "F0F3FA"
-                pq_tab = doc.add_table(rows=1, cols=1)
-                WordExporter._clear_table_borders(pq_tab)
-                pq_cell = pq_tab.rows[0].cells[0]
-                # Thin left accent border only
-                from docx.oxml import parse_xml as _px
-                from docx.oxml.ns import nsdecls as _ns
-                _tc_pr = pq_cell._tc.get_or_add_tcPr()
-                _tc_pr.append(_px(
-                    f'<w:tcBorders {_ns("w")}>'
-                    f'<w:left w:val="single" w:sz="12" w:space="0" w:color="{border_hex.lstrip("#")}"/>'
-                    f'<w:top w:val="none" w:sz="0" w:space="0"/>'
-                    f'<w:bottom w:val="none" w:sz="0" w:space="0"/>'
-                    f'<w:right w:val="none" w:sz="0" w:space="0"/>'
-                    f'</w:tcBorders>'
-                ))
-                WordExporter._set_cell_background(pq_cell, bg_hex)
-                WordExporter._add_paragraph(pq_cell, f"\u201c{claim_text}\u201d", size=8, italic=True, color=tc["text"])
-                # Anonymize: use phase title instead of provider name
-                phase_label = _PHASE_TITLES[idx] if idx < len(_PHASE_TITLES) else "ANALYSIS"
-                WordExporter._add_paragraph(pq_cell, f"\u2014 {phase_label} \u00b7 {session_id}", size=6.5, color=SEM_MUTED)
+            # Pull quotes removed — clean report mode, no system leakage
 
             # Remaining text-only artifacts — render below full-width (skip empty)
             for art in remaining_arts:
@@ -1593,47 +1469,10 @@ class WordExporter:
 
             WordExporter._add_spacing(doc)
 
-        # 5. --- ANALYSIS PHASES (anonymized — no provider names) ---
-        if contributors:
-            WordExporter._add_paragraph(doc, "ANALYSIS PHASES", size=7, bold=True, color=DIM_GRAY)
-            c_tab = doc.add_table(rows=1, cols=min(5, len(contributors)))
-            for ci, contrib in enumerate(contributors[:5]):
-                c_phase = _as_text(contrib.get('phase', 'Analysis'))
-                c_data = card_results.get(_as_text(contrib.get('provider','')).lower()) or {}
-                c_claims = c_data.get("verified_claims") or []
-                if any(_as_text(cl.get('status','')).lower() in ('flagged','challenged') for cl in c_claims):
-                    stamp = "\u2691 Flagged"
-                elif any(_as_text(cl.get('status','')).lower() in ('confirmed', 'supported', 'verified') for cl in c_claims):
-                    stamp = "\u2713 Verified"
-                else:
-                    stamp = "\u25ce Conditional"
-                cell = c_tab.rows[0].cells[ci]
-                WordExporter._add_paragraph(cell, c_phase, size=7, bold=True, color=tc["text"])
-                WordExporter._add_paragraph(cell, stamp, size=7, color=tc["text"])
-            WordExporter._add_spacing(doc)
-
-        # 6. --- CONFIDENCE FOOTER (compact — no blue background) ---
-        truth_int = _normalize_truth_score(meta.get("composite_truth_score"))
-        WordExporter._add_paragraph(doc, f"CONFIDENCE SCORE: {truth_int} / 100", size=10, bold=True, color=tc["accent_dark"])
-
-        closer_head, closer_legal, closer_meta = _closing_stamp_parts(session_id)
+        # Clean report mode: no ANALYSIS PHASES, no CONFIDENCE SCORE, no closing stamp
+        # These are internal system artifacts — not part of the decision document
         WordExporter._add_spacing(doc)
-        closer_tab = doc.add_table(rows=1, cols=2)
-        closer_tab.columns[0].width = Inches(4.6)
-        closer_tab.columns[1].width = Inches(1.9)
-        for cell in closer_tab.rows[0].cells:
-            tc_pr = cell._tc.get_or_add_tcPr()
-            top_border = parse_xml(
-                f'<w:tcBorders {nsdecls("w")}>'
-                f'<w:top w:val="single" w:sz="8" w:space="0" w:color="{tc["line"].lstrip("#")}"/>'
-                f'</w:tcBorders>'
-            )
-            tc_pr.append(top_border)
-        WordExporter._add_paragraph(closer_tab.rows[0].cells[0], closer_head, size=7, bold=True, color=DIM_GRAY)
-        WordExporter._add_paragraph(closer_tab.rows[0].cells[0], closer_legal, size=7, color=DIM_GRAY)
-        WordExporter._add_paragraph(closer_tab.rows[0].cells[1], closer_meta, size=6.5, color=DIM_GRAY, align=WD_ALIGN_PARAGRAPH.RIGHT)
-        WordExporter._add_paragraph(closer_tab.rows[0].cells[1], "EXPORT STATUS \u00b7 DECISION ARTIFACT", size=6.5, bold=True, color=tc["accent_dark"], align=WD_ALIGN_PARAGRAPH.RIGHT)
-        
+
         filename = f"KORUM-OS_DOSSIER_{_safe_filename_part(meta.get('title'))}_{_timestamp()}.docx"
         filepath = _output_path(filename, output_dir)
         doc.save(filepath)
