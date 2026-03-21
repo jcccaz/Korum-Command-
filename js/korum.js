@@ -3953,9 +3953,9 @@ function showInterrogationPicker(targetName, defenderRole, targetResponse) {
 
 // ── SCALPEL MODE: SOURCE VERIFICATION ────────────────────────────────────
 window.executeVerify = async function (claimText, providerName) {
-    // If full response passed, truncate to selected text or first 500 chars
-    const selection = window.getSelection()?.toString().trim();
-    const claim = selection && selection.length > 10 ? selection : claimText.substring(0, 500);
+    // Use exactly what was passed — card action bar sends full response,
+    // highlight toolbar sends the selected excerpt. No cross-contamination.
+    const claim = (claimText || '').substring(0, 500);
 
     logTelemetry(`🔎 VERIFY: "${claim.slice(0, 60)}..."`, "user");
     sentinelChat.appendMessage(`SOURCE CHECK: "${claim.slice(0, 80)}..."`, 'user');
