@@ -15,7 +15,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, Preformatted
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from xml.sax.saxutils import escape
 from docx import Document
@@ -26,6 +26,24 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 def _timestamp():
     return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def clean_text_for_export(text):
+    if not isinstance(text, str):
+        return text
+    cleaned = (
+        text.replace("**", "")
+        .replace("##", "")
+        .replace("```", "")
+        .replace("`", "")
+        .strip()
+    )
+    cleaned = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", cleaned)
+    return cleaned
+
+
+def clean_text(text):
+    return clean_text_for_export(text)
 
 def _safe_filename_part(s):
     if not s: return "UNTITLED"
@@ -40,6 +58,8 @@ def _output_path(filename, output_dir=None):
 
 def _as_text(val):
     if val is None: return ""
+    if isinstance(val, str):
+        return clean_text(val)
     return str(val).strip()
 
 def _flatten_structured_value(val):
@@ -47,7 +67,7 @@ def _flatten_structured_value(val):
     if val is None:
         return ""
     if isinstance(val, str):
-        return val
+        return clean_text_for_export(val)
     if isinstance(val, list):
         lines = []
         for item in val:
@@ -539,7 +559,7 @@ def _pdf_status_label(status):
 
 
 def _clean_cell_text(text):
-    t = _as_text(text)
+    t = clean_text(_as_text(text))
     t = re.sub(r"\[/?METRIC_ANCHOR\]", "", t)
     t = re.sub(r"^#{1,6}\s*", "", t, flags=re.MULTILINE)       # markdown headers
     t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)                     # bold (paired)
@@ -645,7 +665,7 @@ def _parse_key_value_block(lines):
 
 
 def _extract_content_blocks(text):
-    raw_text = _as_text(text)
+    raw_text = clean_text(_as_text(text))
     if not raw_text:
         return []
 
@@ -1107,6 +1127,108 @@ def _build_pdf_evidence_block(block, styles, total_width, palette):
     return flowables
 
 
+def _extract_red_team_alert_fields(raw_text):
+    cleaned = clean_text_for_export(_as_text(raw_text))
+    if not cleaned:
+        return None
+
+    def _find(label):
+        match = re.search(rf"{label}\s*:\s*(.+?)(?=(?:Vulnerability|Exploit|Mechanism|Impact|Attack Vectors|Immediate Defensive Action)\s*:|$)", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        return clean_text_for_export(match.group(1)) if match else ""
+
+    vulnerability = _find("Vulnerability")
+    exploit = _find("Exploit")
+    mechanism = _find("Mechanism")
+    impact = _find("Impact")
+    attack_vectors = _find("Attack Vectors")
+
+    primary_vulnerability = vulnerability or attack_vectors or cleaned.split(".")[0]
+    attack_path = exploit or mechanism or attack_vectors or primary_vulnerability
+
+    impact_lines = []
+    if impact:
+        impact_lines.append(impact)
+    for line in re.split(r"[\n;]+", cleaned):
+        line = clean_text_for_export(line)
+        if not line:
+            continue
+        lower = line.lower()
+        if "impact" in lower or "breach" in lower or "exfiltrat" in lower or "disrupt" in lower:
+            if line not in impact_lines:
+                impact_lines.append(line)
+        if len(impact_lines) >= 3:
+            break
+    if not impact_lines:
+        impact_lines = ["Operational exposure is materially elevated.", "Business disruption risk is active."]
+
+    actions = []
+    for line in re.split(r"[\n;]+", cleaned):
+        line = clean_text_for_export(line)
+        lower = line.lower()
+        if not line:
+            continue
+        if any(term in lower for term in ("isolate", "block", "monitor", "patch", "revoke", "contain", "validate", "stabilize")):
+            if line not in actions:
+                actions.append(line)
+        if len(actions) >= 3:
+            break
+    if not actions:
+        actions = [
+            "Isolate exposed systems and validate monitoring baselines.",
+            "Investigate exploit path assumptions before further exposure.",
+        ]
+
+    return {
+        "threat_level": "HIGH",
+        "exploitability": "MEDIUM",
+        "primary_vulnerability": primary_vulnerability,
+        "attack_path": attack_path,
+        "business_impact": impact_lines[:3],
+        "immediate_actions": actions[:2],
+    }
+
+
+def _get_red_team_text(intelligence_object, sections):
+    candidates = [
+        (sections or {}).get("red_team_analysis"),
+        (intelligence_object or {}).get("red_team_analysis"),
+        (intelligence_object or {}).get("exploit_poc"),
+        ((intelligence_object or {}).get("sections") or {}).get("red_team_analysis"),
+    ]
+    for value in candidates:
+        text = clean_text_for_export(_as_text(value))
+        if text:
+            return text
+    return ""
+
+
+def _build_pdf_red_team_alert(raw_text, styles, total_width):
+    fields = _extract_red_team_alert_fields(raw_text)
+    if not fields:
+        return []
+    metadata_text = (
+        f"<b>THREAT LEVEL:</b> {escape(fields.get('threat_level', 'HIGH'))}<br/>"
+        f"<b>EXPLOITABILITY:</b> {escape(fields.get('exploitability', 'MEDIUM'))}"
+    )
+    flowables = [
+        Spacer(1, 10),
+        Paragraph("RED TEAM ALERT - ACTIVE EXPLOIT PATHS IDENTIFIED", styles["RedTeamAlertHeader"]),
+        Paragraph(metadata_text, styles["RedTeamMetadataBlock"]),
+        Paragraph("PRIMARY VULNERABILITY:", styles["AlertSubcap"]),
+        Paragraph(f"- {escape(fields.get('primary_vulnerability', 'Threat path not summarized.'))}", styles["ExecBody"]),
+        Paragraph("ATTACK PATH:", styles["AlertSubcap"]),
+        Preformatted(f"- {clean_text_for_export(fields.get('attack_path', 'Attack path unavailable.'))}", styles["TerminalMonospace"]),
+        Paragraph("BUSINESS IMPACT:", styles["AlertSubcap"]),
+    ]
+    for item in fields.get("business_impact", [])[:3]:
+        flowables.append(Paragraph(f"- {escape(item)}", styles["ExecBody"]))
+    flowables.append(Paragraph("IMMEDIATE DEFENSIVE ACTION:", styles["AlertSubcap"]))
+    for item in fields.get("immediate_actions", [])[:2]:
+        flowables.append(Paragraph(f"- {escape(item)}", styles["ExecBody"]))
+    flowables.append(Spacer(1, 12))
+    return flowables
+
+
 def _resolve_session_id(meta, intelligence_object):
     mission_ctx = intelligence_object.get("_mission_context") or {}
     return _as_text(
@@ -1375,6 +1497,14 @@ class ExecutiveMemoExporter:
         styles.add(ParagraphStyle('PullQuoteInline', fontSize=8, leading=11, textColor=colors.HexColor(TEXT_HEX), fontName='Helvetica-Oblique'))
         styles.add(ParagraphStyle('Cons', fontSize=9, leading=13, textColor=colors.white, fontName='Helvetica-Oblique'))
         styles.add(ParagraphStyle('ConsScore', fontSize=22, leading=24, textColor=colors.white, fontName='Helvetica-Bold', alignment=TA_RIGHT))
+        if 'RedTeamAlertHeader' not in styles.byName:
+            styles.add(ParagraphStyle('RedTeamAlertHeader', parent=styles['Heading2'], textColor=colors.HexColor('#C00000'), fontSize=18, leading=22, fontName='Helvetica-Bold', spaceAfter=12))
+        if 'RedTeamMetadataBlock' not in styles.byName:
+            styles.add(ParagraphStyle('RedTeamMetadataBlock', parent=styles['BodyText'], backColor=colors.HexColor('#EEEEEE'), leftIndent=0, rightIndent=0, borderPadding=6, leading=14, spaceAfter=10))
+        if 'AlertSubcap' not in styles.byName:
+            styles.add(ParagraphStyle('AlertSubcap', parent=styles['BodyText'], fontName='Helvetica-Bold', fontSize=10, spaceBefore=8, spaceAfter=4))
+        if 'TerminalMonospace' not in styles.byName:
+            styles.add(ParagraphStyle('TerminalMonospace', parent=styles['BodyText'], fontName='Courier', fontSize=10, textColor=colors.HexColor('#00AA00'), leftIndent=15, leading=12))
 
         doc._session_id = _as_text(meta.get('session_id') or meta.get('id') or 'KO-INT-9999').upper()
         contributors = intelligence_object.get("council_contributors") or []
@@ -1383,6 +1513,7 @@ class ExecutiveMemoExporter:
         client_name = _as_text(mission_ctx.get("client", "")).strip() or "DECISION COMMANDER ALPHA"
         artifacts = _report_artifacts(intelligence_object)
         card_results = intelligence_object.get("_card_results") or {}
+        red_team_text = _get_red_team_text(intelligence_object, sections)
 
         story = []
 
@@ -1408,7 +1539,7 @@ class ExecutiveMemoExporter:
         story.append(Spacer(1, 30))
 
         # 2. --- EXECUTIVE SUMMARY ---
-        summary_text = meta.get("summary") or "Intel synthesis required."
+        summary_text = clean_text_for_export(meta.get("summary") or "Intel synthesis required.")
         summary_p = Paragraph(f"<b>{escape(summary_text)}</b>", styles['ExecImpact'])
 
         top_visual = None
@@ -1473,6 +1604,8 @@ class ExecutiveMemoExporter:
         # 4. --- INTELLIGENCE NODES (FULL-WIDTH PROSE) ---
         section_items = list(section_items_pre)
         for idx, (sid, content) in enumerate(section_items):
+            if sid.strip().lower() == "red_team_analysis":
+                continue
             # --- RISKS / CRITICAL CHALLENGES render gate ---
             if sid.strip().lower() == "critical_challenges":
                 if _packet_backed_risks_mode(intelligence_object, sections):
@@ -1534,6 +1667,8 @@ class ExecutiveMemoExporter:
             # ReportLab cannot split tall table cells across pages; side-by-side float tables can
             # hard-fail export on long nodes. Stacking preserves proximity without breaking export.
             story.extend(_render_pdf_blocks(content_blocks, styles, 540, tc))
+            if sid.strip().lower() == "risks" and red_team_text:
+                story.extend(_build_pdf_red_team_alert(red_team_text, styles, 540))
             if float_charts:
                 for art, chart_img in float_charts:
                     art_label = _artifact_label(art)
@@ -1632,6 +1767,32 @@ class WordExporter:
         run = p.add_run(_as_text(text))
         WordExporter._set_run_style(run, size=size, bold=bold, italic=italic, color=color)
         return p
+
+    @staticmethod
+    def _render_red_team_alert(container, raw_text):
+        fields = _extract_red_team_alert_fields(raw_text)
+        if not fields:
+            return
+        p = container.add_paragraph()
+        run = p.add_run("RED TEAM ALERT - ACTIVE EXPLOIT PATHS IDENTIFIED")
+        run.bold = True
+        run.font.size = Pt(12)
+        run.font.color.rgb = RGBColor(192, 0, 0)
+        WordExporter._add_paragraph(container, f"THREAT LEVEL: {fields.get('threat_level', 'HIGH')}", size=8, bold=True, color="C00000")
+        WordExporter._add_paragraph(container, f"EXPLOITABILITY: {fields.get('exploitability', 'MEDIUM')}", size=8, bold=True, color="C00000")
+        WordExporter._add_paragraph(container, "PRIMARY VULNERABILITY:", size=8, bold=True, color="C00000")
+        WordExporter._add_paragraph(container, f"- {fields.get('primary_vulnerability', 'Threat path not summarized.')}", size=8.5, color="8B1A1A")
+        WordExporter._add_paragraph(container, "ATTACK PATH:", size=8, bold=True, color="C00000")
+        ap = container.add_paragraph()
+        ar = ap.add_run(f"- {fields.get('attack_path', 'Attack path unavailable.')}")
+        WordExporter._set_run_style(ar, size=8.5, color="00AA00")
+        ar.font.name = "Courier New"
+        WordExporter._add_paragraph(container, "BUSINESS IMPACT:", size=8, bold=True, color="C00000")
+        for item in fields.get("business_impact", [])[:3]:
+            WordExporter._add_paragraph(container, f"- {item}", size=8.5, color="8B1A1A")
+        WordExporter._add_paragraph(container, "IMMEDIATE DEFENSIVE ACTION:", size=8, bold=True, color="C00000")
+        for item in fields.get("immediate_actions", [])[:2]:
+            WordExporter._add_paragraph(container, f"- {item}", size=8.5, color="8B1A1A")
 
     @staticmethod
     def _render_word_table(container, block, theme):
@@ -1874,6 +2035,7 @@ class WordExporter:
         contributors = intelligence_object.get("council_contributors") or []
         # divergence_analysis no longer rendered in clean report mode
         artifacts = _report_artifacts(intelligence_object)
+        red_team_text = _get_red_team_text(intelligence_object, sections)
 
         # Reorder sections to match canonical output_structure
         section_items_pre = [
@@ -1925,7 +2087,7 @@ class WordExporter:
         doc.add_paragraph() # Spacer
 
         # 2. --- EXECUTIVE SUMMARY ---
-        summary_text = meta.get("summary") or "Intel synthesis required."
+        summary_text = clean_text_for_export(meta.get("summary") or "Intel synthesis required.")
         s_p = doc.add_paragraph()
         s_run = s_p.add_run(summary_text)
         s_run.bold = True
@@ -1971,6 +2133,8 @@ class WordExporter:
         # 4. --- INTELLIGENCE NODES (full-width prose) ---
         section_items = section_items_pre
         for idx, (sid, content) in enumerate(section_items):
+            if sid.strip().lower() == "red_team_analysis":
+                continue
             # --- RISKS / CRITICAL CHALLENGES render gate ---
             if sid.strip().lower() == "critical_challenges":
                 if _packet_backed_risks_mode(intelligence_object, sections):
@@ -2052,6 +2216,9 @@ class WordExporter:
             else:
                 # No chart — full-width prose
                 WordExporter._render_word_blocks(doc, content_blocks, tc)
+
+            if sid.strip().lower() == "risks" and red_team_text:
+                WordExporter._render_red_team_alert(doc, red_team_text)
 
             # Pull quotes removed — clean report mode, no system leakage
 
