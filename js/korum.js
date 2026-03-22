@@ -7419,7 +7419,7 @@ function renderExportToolbar(container, _data) {
                     <span class="export-theme-swatch deep-water"></span>
                     <span class="export-theme-copy">
                         <strong>Deep Water</strong>
-                        <span>Navy paper with restrained teal accents</span>
+                        <span>Graphite stock with muted olive structure</span>
                     </span>
                 </button>
                 <button type="button" class="export-theme-card" data-theme-value="BONE_FIELD">

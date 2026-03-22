@@ -1416,15 +1416,15 @@ IRON_DISPATCH = {
 }
 
 DEEP_WATER = {
-    "accent": "#16b7c8",
-    "accent_dark": "#263d73",
-    "text": "#1f2f44",
-    "label": "#708399",
-    "bg_shade": "#e7edf3",
-    "shade_alt": "#d2dce7",
-    "paper": "#f4f7fa",
-    "line": "#bfd0de",
-    "line_strong": "#16b7c8",
+    "accent": "#7f9863",
+    "accent_dark": "#434d3b",
+    "text": "#242622",
+    "label": "#676c63",
+    "bg_shade": "#ebe6dc",
+    "shade_alt": "#d8d0bf",
+    "paper": "#f3eee4",
+    "line": "#b9b19f",
+    "line_strong": "#7f9863",
 }
 
 BONE_FIELD = {
