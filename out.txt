@@ -1,0 +1,9 @@
+100: "critical_challenges", "risks", "tradeoffs", "decision", "action_priorities",
+269: risks = []
+283: risks.append(line)
+287: risks.append(f"- {text}")
+288: return "\n".join(risks)
+421: packet_risks = _packet_risk_text(packet)
+426: "critical_challenges": sections.get("critical_challenges", "") if packet_risks else sections.get("critical_challenges", ""),
+427: "risks": packet_risks or sections.get("risks", ""),
+444: structured["risks"] = structured.get("risks") or _packet_list(packet.get("risk_vectors"))
