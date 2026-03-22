@@ -2724,12 +2724,18 @@ function renderChainResults(result) {
         classification: result.classification || {},
         divergence: result.divergence || {},
         falcon: result.falcon || null,
+        red_team_findings: result.red_team_findings || null,
         roleName: 'V2 Reasoning Chain',
         pipeline_result: result
     };
 
     // Export toolbar
     renderExportToolbar(councilPane, lastCouncilData);
+
+    // Red Team Strike Card (if findings exist)
+    if (lastCouncilData.red_team_findings) {
+        renderRedTeamStrikeCard(councilPane, lastCouncilData.red_team_findings);
+    }
 
     // ANALYSIS tab — cross-phase comparison + full content cards
     const analysisGrid = document.createElement("div");
@@ -5904,6 +5910,10 @@ function renderResults(data, roleName) {
 
     // EXPORT COMMAND CENTER (Phase 6)
     if (councilPane) renderExportToolbar(councilPane, data);
+    // Red Team Strike Card (if findings exist)
+    if (councilPane && data.red_team_findings) {
+        renderRedTeamStrikeCard(councilPane, data.red_team_findings);
+    }
     if (councilPane) renderCouncilWorkspace(councilPane, data, providerRecords, {
         truthScore: stageTruth,
         modelCount: providerRecords.filter(record => record.provider !== 'red_team').length,
@@ -7372,6 +7382,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // updateSystemStatusText defined earlier (line ~1447)
 
+// --- RED TEAM STRIKE CARD ---
+function renderRedTeamStrikeCard(container, findings) {
+    if (!findings || typeof findings !== 'object') return;
+    const existing = container.querySelector('.rt-strike-card');
+    if (existing) existing.remove();
+
+    const status = String(findings.red_team_status || '').toUpperCase();
+    const isFail = status.includes('FAIL') || status.includes('INSUFFICIENT');
+    const statusClass = isFail ? 'rt-fail' : 'rt-pass';
+    const statusLabel = isFail ? 'FAIL' : 'PASS';
+
+    const field = (label, value, icon) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return '';
+        const content = Array.isArray(value)
+            ? value.map(v => `<li>${escapeHtml(String(v))}</li>`).join('')
+            : escapeHtml(String(value));
+        const body = Array.isArray(value) ? `<ul class="rt-strike-list">${content}</ul>` : `<p class="rt-strike-text">${content}</p>`;
+        return `<div class="rt-strike-field">
+            <div class="rt-strike-label">${icon} ${escapeHtml(label)}</div>
+            ${body}
+        </div>`;
+    };
+
+    const card = document.createElement('div');
+    card.className = `rt-strike-card ${statusClass}`;
+    card.innerHTML = `
+        <div class="rt-strike-header">
+            <div class="rt-strike-title">RED TEAM STRIKE CARD</div>
+            <div class="rt-strike-badge ${statusClass}">${statusLabel}</div>
+        </div>
+        <div class="rt-strike-target">${escapeHtml(findings.decision_targeted || 'No target specified')}</div>
+        <div class="rt-strike-body">
+            ${field('WEAKEST ASSUMPTION', findings.weakest_assumption, '\u26A0')}
+            ${field('CONFIDENCE ATTACK', findings.confidence_attack, '\u2694')}
+            ${field('EXECUTION RISKS', findings.execution_risks, '\u2622')}
+            ${field('ALTERNATIVE STRATEGY', findings.alternative_strategy, '\u21BB')}
+            ${field('MISSING EVIDENCE', findings.missing_evidence, '\u2753')}
+            ${field('UNSUPPORTED CLAIMS', findings.unsupported_claims, '\u2718')}
+            ${field('REVERSAL TRIGGER', findings.reversal_trigger, '\u23F1')}
+        </div>
+        ${findings.bottom_line ? `<div class="rt-strike-bottom-line">${escapeHtml(String(findings.bottom_line))}</div>` : ''}
+        ${findings.failure_reasons ? `<div class="rt-strike-failures"><strong>VALIDATION FAILURES:</strong><ul class="rt-strike-list">${findings.failure_reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul></div>` : ''}
+    `;
+    container.appendChild(card);
+}
+
 // --- EXPORT TOOLBAR (Rendered in RESULTS PANEL for immediate visibility) ---
 function renderExportToolbar(container, _data) {
     const existing = document.querySelector('.export-command-center');
@@ -7569,6 +7625,19 @@ async function handleDocExport(format, themeOverride = null) {
         return;
     }
 
+    // --- EXPORT GATE: Block if Red Team failed validation ---
+    const rtFindings = lastCouncilData?.red_team_findings || lastCouncilData?.synthesis?.red_team_findings;
+    if (rtFindings && typeof rtFindings === 'object') {
+        const rtStatus = String(rtFindings.red_team_status || '').toUpperCase();
+        if (rtStatus.includes('FAIL') || rtStatus.includes('INSUFFICIENT')) {
+            showProcessingToast("SYSTEM FAILURE: RED TEAM INSUFFICIENT — Export blocked. Decision system has not produced sufficient adversarial analysis.");
+            logTelemetry("EXPORT BLOCKED: Red Team FAIL", "error");
+            if (select) select.selectedIndex = 0;
+            if (select) select.disabled = false;
+            return;
+        }
+    }
+
     // Visual feedback: disable dropdown and show building state
     if (select) select.disabled = true;
     const buildingToast = `Building ${formatNames[format] || format.toUpperCase()}...`;
@@ -7614,13 +7683,18 @@ async function handleDocExport(format, themeOverride = null) {
             setMissionStep(6, 'active');
         } else {
             const err = await response.json();
-            throw new Error(err.error || "Server failed to build asset");
+            // Red Team export gate — show specific failure message
+            if (response.status === 403 && err.red_team_status) {
+                showProcessingToast(`EXPORT BLOCKED: ${err.error || 'RED TEAM INSUFFICIENT'}`);
+                logTelemetry(`EXPORT GATE: ${err.error} | Reasons: ${(err.failure_reasons || []).join(', ')}`, "error");
+            } else {
+                throw new Error(err.error || "Server failed to build asset");
+            }
         }
     } catch (error) {
         console.error("Deployment Error", error);
         logTelemetry(`Deployment Error: ${error.message}`, "error");
-        logTelemetry(`Export error: ${error.message}`, "error");
-        showProcessingToast("Export could not be completed. Please try again.");
+        showProcessingToast(error.message.includes('RED TEAM') ? error.message : "Export could not be completed. Please try again.");
     }
 
     // Re-enable and reset dropdown
@@ -7685,7 +7759,8 @@ function buildExportIntelligencePayload(themeOverride = null) {
         intelligence_object: intelligenceObj,
         card_results: data.results || {},
         theme: themeVal,
-        mission_context: sessionState.missionContext || null
+        mission_context: sessionState.missionContext || null,
+        red_team_findings: data.red_team_findings || null
     };
 }
 

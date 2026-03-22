@@ -593,6 +593,87 @@ OUTPUT FORMAT MUST BE JSON ONLY. No markdown fencing. No text outside the JSON o
 }}"""
 
 
+# --- Red Team Arbiter: Validation + Parsing ---
+_RT_AGREEMENT_PHRASES = ("sound", "valid", "reasonable", "aligned", "correct", "strategically sound", "well-founded")
+
+def _validate_red_team_output(rt_data):
+    """
+    Server-side enforcement: verify Red Team JSON isn't fake structure.
+    Returns (is_valid, failure_reasons).
+    Empty/weak values = FAIL regardless of model self-report.
+    """
+    if not isinstance(rt_data, dict):
+        return False, ["Red Team output is not structured JSON"]
+
+    failures = []
+
+    # Required fields with minimum substance
+    for field, min_len in [
+        ("weakest_assumption", 20),
+        ("alternative_strategy", 20),
+        ("confidence_attack", 20),
+    ]:
+        val = str(rt_data.get(field, "")).strip()
+        if not val or len(val) < min_len:
+            failures.append(f"{field} is empty or too short ({len(val)} chars, need {min_len})")
+
+    # Required list fields must have items
+    for field in ("execution_risks", "missing_evidence"):
+        val = rt_data.get(field)
+        if not val or not isinstance(val, list) or len(val) == 0:
+            failures.append(f"{field} is empty")
+
+    # Agreement-without-critique detection
+    all_text = " ".join(str(v) for v in rt_data.values() if isinstance(v, str)).lower()
+    for phrase in _RT_AGREEMENT_PHRASES:
+        if phrase in all_text:
+            # Check if phrase appears without surrounding critique
+            # Simple heuristic: if agreement phrase exists but no critique markers nearby
+            critique_markers = ("however", "but", "risk", "fail", "weak", "flaw", "miss", "gap", "lack", "insufficient", "inflated")
+            if not any(m in all_text for m in critique_markers):
+                failures.append(f"agreement phrase '{phrase}' found without critique context")
+                break
+
+    return len(failures) == 0, failures
+
+
+def _parse_red_team_findings(rt_response_text):
+    """
+    Parse Red Team JSON from model response. Validate structure.
+    Returns dict with red_team_status and parsed fields, or FAIL dict.
+    """
+    if not rt_response_text or not isinstance(rt_response_text, str):
+        return {"red_team_status": "SYSTEM FAILURE: RED TEAM INSUFFICIENT", "failure_reasons": ["No response text"]}
+
+    import json as _json
+    import re as _re
+
+    try:
+        json_match = _re.search(r'\{[\s\S]*\}', rt_response_text)
+        if not json_match:
+            return {"red_team_status": "SYSTEM FAILURE: RED TEAM INSUFFICIENT", "failure_reasons": ["No JSON found in response"]}
+
+        rt_data = _json.loads(json_match.group(0))
+    except (_json.JSONDecodeError, ValueError):
+        return {"red_team_status": "SYSTEM FAILURE: RED TEAM INSUFFICIENT", "failure_reasons": ["Invalid JSON in response"]}
+
+    # Validate substance
+    is_valid, failure_reasons = _validate_red_team_output(rt_data)
+
+    if not is_valid:
+        rt_data["red_team_status"] = "SYSTEM FAILURE: RED TEAM INSUFFICIENT"
+        rt_data["failure_reasons"] = failure_reasons
+    else:
+        # Model may self-report PASS or FAIL — trust FAIL, verify PASS
+        model_status = str(rt_data.get("red_team_status", "")).upper().strip()
+        if "FAIL" in model_status:
+            rt_data["red_team_status"] = "FAIL"
+        else:
+            rt_data["red_team_status"] = "PASS"
+
+    return rt_data
+
+
 # --- Exports Directory ---
 EXPORTS_DIR = os.path.join(os.getcwd(), 'exports')
 os.makedirs(EXPORTS_DIR, exist_ok=True)
@@ -608,6 +689,19 @@ def deploy_intelligence():
 
     if not intelligence_object:
         return jsonify({"error": "Missing intelligence data"}), 400
+
+    # --- EXPORT GATE: Block if Red Team status is FAIL ---
+    rt_findings = data.get('red_team_findings') or intelligence_object.get('_red_team_findings') or {}
+    rt_status = str(rt_findings.get('red_team_status', '')).upper() if isinstance(rt_findings, dict) else ''
+    if 'FAIL' in rt_status or 'INSUFFICIENT' in rt_status:
+        failure_reasons = rt_findings.get('failure_reasons', []) if isinstance(rt_findings, dict) else []
+        print(f"🚨 EXPORT BLOCKED: Red Team status = {rt_status}")
+        return jsonify({
+            "error": "SYSTEM FAILURE: RED TEAM INSUFFICIENT",
+            "detail": "Export is blocked because the Red Team assessment failed validation. The decision system has not produced sufficient adversarial analysis to certify this report.",
+            "failure_reasons": failure_reasons,
+            "red_team_status": rt_status,
+        }), 403
 
     # Attach card results so exporters can include per-provider analysis
     intelligence_object['_card_results'] = card_results
@@ -2228,6 +2322,16 @@ def ask_council():
             if rt_res.get('usage'):
                 v2_response['execution_metrics']['run_cost'] += rt_res['usage'].get('cost', 0)
                 v2_response['execution_metrics']['ai_cost_breakdown']['google'] = v2_response['execution_metrics']['ai_cost_breakdown'].get('google', 0) + rt_res['usage'].get('cost', 0)
+            # --- RED TEAM ARBITER: Parse, validate, attach findings ---
+            rt_text = rt_res.get('response', '') if isinstance(rt_res, dict) else ''
+            rt_findings = _parse_red_team_findings(rt_text)
+            v2_response['red_team_findings'] = rt_findings
+            rt_status = str(rt_findings.get('red_team_status', '')).upper()
+            if 'FAIL' in rt_status or 'INSUFFICIENT' in rt_status:
+                v2_response['consensus'] += " [RED TEAM STATUS: FAIL — EXPORT BLOCKED]"
+                print(f"🚨 RED TEAM ARBITER: FAIL — {rt_findings.get('failure_reasons', [])}")
+            else:
+                print(f"✅ RED TEAM ARBITER: PASS")
 
         # Include raw SerpAPI data if used
         if use_serp and serp_raw:
@@ -2338,6 +2442,9 @@ def ask_council():
         exploit_prompt = _build_red_team_prompt(query, workflow=workflow)
         red_team_output = call_google_gemini(exploit_prompt, "red_team_adversary", user_id=user_id)
         results['red_team'] = red_team_output
+        # --- RED TEAM ARBITER ---
+        rt_text = red_team_output.get('response', '') if isinstance(red_team_output, dict) else ''
+        results['_red_team_findings'] = _parse_red_team_findings(rt_text)
 
     # Determine Consensus
     consensus_msg = "COUNCIL CONVENED."
@@ -2783,7 +2890,14 @@ def _run_council_job(job_id, query, personas, workflow, active_models, user_id,
             if hacker_mode:
                 print("🛡️ RED TEAM INJECTION (Chain)")
                 exploit_prompt = _build_red_team_prompt(query, json.dumps(results['results']), workflow=workflow)
-                results['results']['red_team'] = call_google_gemini(exploit_prompt, "red_team_adversary", user_id=user_id)
+                rt_res_chain = call_google_gemini(exploit_prompt, "red_team_adversary", user_id=user_id)
+                results['results']['red_team'] = rt_res_chain
+                # --- RED TEAM ARBITER ---
+                rt_text_chain = rt_res_chain.get('response', '') if isinstance(rt_res_chain, dict) else ''
+                results['_red_team_findings'] = _parse_red_team_findings(rt_text_chain)
+                rt_chain_status = str(results['_red_team_findings'].get('red_team_status', '')).upper()
+                if 'FAIL' in rt_chain_status or 'INSUFFICIENT' in rt_chain_status:
+                    print(f"🚨 RED TEAM ARBITER (Chain): FAIL")
 
             # --- Phase: Response Assembly ---
             _job_set_status(job_id, "processing", phase="finalizing")
@@ -2908,7 +3022,8 @@ def _run_council_job(job_id, query, personas, workflow, active_models, user_id,
                     "scout": {"cost": _f_metric('perplexity').get('cost', 0.0), "time": _f_metric('perplexity').get('latency', 0) / 1000},
                     "synthesize": {"cost": results.get('metrics', {}).get('run_cost', 0.0), "time": results.get('metrics', {}).get('latency_ms', 0) / 1000}
                 },
-                "execution_metrics": results.get('metrics', {})
+                "execution_metrics": results.get('metrics', {}),
+                "red_team_findings": results.get('_red_team_findings') if hacker_mode else None,
             }
 
             response_data = {

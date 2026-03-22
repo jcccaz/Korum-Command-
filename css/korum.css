@@ -8593,3 +8593,169 @@ body.report-library-open .results-container {
         font-size: 14px !important;
     }
 }
+
+/* ===== RED TEAM STRIKE CARD ===== */
+.rt-strike-card {
+    background: rgba(255, 40, 40, 0.04);
+    border: 1px solid rgba(255, 40, 40, 0.25);
+    border-radius: 8px;
+    margin: 12px 0;
+    padding: 16px 20px;
+    font-family: var(--font-body);
+}
+
+.rt-strike-card.rt-fail {
+    border-color: rgba(255, 40, 40, 0.5);
+    background: rgba(255, 40, 40, 0.08);
+    box-shadow: 0 0 20px rgba(255, 40, 40, 0.1);
+}
+
+.rt-strike-card.rt-pass {
+    border-color: rgba(76, 175, 125, 0.4);
+    background: rgba(76, 175, 125, 0.04);
+}
+
+.rt-strike-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.rt-strike-title {
+    font-family: var(--font-head);
+    font-size: 12px;
+    font-weight: 700;
+    color: #FF5555;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+.rt-strike-card.rt-pass .rt-strike-title {
+    color: #4CAF7D;
+}
+
+.rt-strike-badge {
+    font-family: var(--font-head);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.rt-strike-badge.rt-fail {
+    background: rgba(255, 40, 40, 0.2);
+    color: #FF5555;
+    border: 1px solid rgba(255, 40, 40, 0.4);
+    animation: redTeamPulse 2.5s ease-in-out infinite;
+}
+
+.rt-strike-badge.rt-pass {
+    background: rgba(76, 175, 125, 0.15);
+    color: #4CAF7D;
+    border: 1px solid rgba(76, 175, 125, 0.3);
+}
+
+.rt-strike-target {
+    font-size: 11px;
+    color: #b0b0b0;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-style: italic;
+}
+
+.rt-strike-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.rt-strike-field {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.rt-strike-label {
+    font-family: var(--font-head);
+    font-size: 9px;
+    font-weight: 700;
+    color: #FF8888;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.rt-strike-card.rt-pass .rt-strike-label {
+    color: #7ecfa5;
+}
+
+.rt-strike-text {
+    font-size: 11px;
+    color: #ccc;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.rt-strike-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.rt-strike-list li {
+    font-size: 11px;
+    color: #ccc;
+    line-height: 1.5;
+    padding-left: 12px;
+    position: relative;
+}
+
+.rt-strike-list li::before {
+    content: "\2022";
+    position: absolute;
+    left: 0;
+    color: #FF5555;
+}
+
+.rt-strike-card.rt-pass .rt-strike-list li::before {
+    color: #4CAF7D;
+}
+
+.rt-strike-bottom-line {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+    color: #e6edf3;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.rt-strike-failures {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 40, 40, 0.1);
+    border: 1px solid rgba(255, 40, 40, 0.3);
+    border-radius: 6px;
+    font-size: 11px;
+    color: #FF8888;
+}
+
+.rt-strike-failures strong {
+    font-family: var(--font-head);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    display: block;
+    margin-bottom: 6px;
+}
+
+@media (max-width: 768px) {
+    .rt-strike-body {
+        grid-template-columns: 1fr;
+    }
+}

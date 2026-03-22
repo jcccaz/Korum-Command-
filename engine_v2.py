@@ -2570,6 +2570,197 @@ def _packet_confidence_status(score):
     return "Fail"
 
 
+def _verified_fact_count(verified_claims):
+    count = 0
+    for claim in verified_claims or []:
+        if not isinstance(claim, dict):
+            continue
+        status = str(claim.get("status") or "").strip().upper()
+        if status in ("VERIFIED", "ACCURATE"):
+            count += 1
+    return count
+
+
+def _critical_data_missing(verified_claims, evidence_trace, unknowns):
+    verified_count = _verified_fact_count(verified_claims)
+    evidence_count = len([item for item in (evidence_trace or []) if str(item).strip()])
+    if verified_count == 0 or evidence_count == 0:
+        return True
+
+    unknown_text = " ".join(str(item).strip().lower() for item in (unknowns or []) if str(item).strip())
+    critical_markers = (
+        "baseline", "probability", "projection", "forecast", "cost", "budget",
+        "timeline", "frequency", "churn", "latency", "outage", "failure threshold",
+    )
+    return any(marker in unknown_text for marker in critical_markers)
+
+
+def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
+    """
+    Confidence Governor — enforces dual-confidence model with hard caps.
+
+    Returns: (score, status, basis, fact_confidence, decision_confidence)
+
+    fact_confidence   = how certain we are about the root cause (0.0–1.0)
+    decision_confidence = how confident we are in the ACTION (0.0–1.0)
+
+    Governor rules cap these independently. Both cannot be HIGH without strong evidence.
+    """
+    verified_claims = packet.get("verified_claims") or []
+    evidence_trace = packet.get("evidence_trace") or []
+    unknowns = [str(item).strip() for item in (packet.get("unknowns") or []) if str(item).strip()]
+    assumptions = [str(item).strip() for item in (packet.get("assumptions") or []) if str(item).strip()]
+    verified_count = _verified_fact_count(verified_claims)
+    unknown_count = len(unknowns)
+    assumption_count = len(assumptions)
+    quantified = _has_quantified_support(verified_claims, evidence_trace)
+    critical_missing = _critical_data_missing(verified_claims, evidence_trace, unknowns)
+    notes = []
+
+    # --- FACT CONFIDENCE GOVERNOR ---
+    fact_confidence = 0.8  # Start optimistic, apply caps
+
+    # No telemetry/metrics in evidence → max 0.5
+    if not quantified:
+        fact_confidence = min(fact_confidence, 0.5)
+        notes.append("no quantified telemetry in evidence")
+
+    # Root cause not directly observed → max 0.3
+    if critical_missing:
+        fact_confidence = min(fact_confidence, 0.3)
+        notes.append("root cause not directly observed")
+
+    # No verified facts at all → max 0.2
+    if verified_count == 0:
+        fact_confidence = min(fact_confidence, 0.2)
+        notes.append("zero verified facts")
+
+    # --- DECISION CONFIDENCE GOVERNOR ---
+    decision_confidence = 0.8  # Start optimistic, apply deductions
+
+    # Per major assumption → subtract 0.05–0.10
+    if assumption_count > 0:
+        assumption_penalty = min(assumption_count * 0.07, 0.35)
+        decision_confidence -= assumption_penalty
+        notes.append(f"{assumption_count} assumptions penalize confidence")
+
+    # Unknowns > 3 → subtract 0.10
+    if unknown_count > 3:
+        decision_confidence -= 0.10
+        notes.append("more than 3 unknowns")
+
+    # Unknowns exceed verified facts → hard cap
+    if unknown_count > verified_count:
+        decision_confidence = min(decision_confidence, 0.6)
+        notes.append("unknowns exceed verified facts")
+
+    # Red Team findings apply additional pressure
+    if red_team_findings and isinstance(red_team_findings, dict):
+        rt_status = str(red_team_findings.get("red_team_status", "")).upper()
+        # Viable alternative strategy → subtract 0.15
+        alt = str(red_team_findings.get("alternative_strategy", "")).strip()
+        if alt and len(alt) >= 20:
+            decision_confidence -= 0.15
+            notes.append("Red Team identified viable alternative")
+        # Missing evidence items reduce fact confidence
+        missing = red_team_findings.get("missing_evidence") or []
+        if len(missing) >= 2:
+            fact_confidence = min(fact_confidence, fact_confidence - 0.10)
+            notes.append("Red Team identified missing evidence")
+        # Unsupported claims reduce decision confidence
+        unsupported = red_team_findings.get("unsupported_claims") or []
+        if len(unsupported) >= 2:
+            decision_confidence -= 0.10
+            notes.append("Red Team identified unsupported claims")
+        # FAIL status → hard caps
+        if "FAIL" in rt_status:
+            decision_confidence = min(decision_confidence, 0.5)
+            notes.append("Red Team status is FAIL")
+
+    # Clamp to [0.0, 1.0]
+    fact_confidence = max(0.0, min(1.0, round(fact_confidence, 2)))
+    decision_confidence = max(0.0, min(1.0, round(decision_confidence, 2)))
+
+    # Never allow both to be HIGH without strong evidence
+    if fact_confidence >= 0.8 and decision_confidence >= 0.8:
+        if not quantified or critical_missing or unknown_count > verified_count:
+            decision_confidence = min(decision_confidence, 0.7)
+            notes.append("dual-high blocked without strong evidence")
+
+    # --- ASSUMPTION FIREWALL ---
+    # If decision depends on unverified assumptions → force CONDITIONAL
+    go_no_go = packet.get("go_no_go_call") or {}
+    decision_text = str(go_no_go.get("decision") or "").strip().upper()
+    if decision_text == "GO" and assumption_count > 0 and verified_count < assumption_count:
+        # More assumptions than verified facts → cannot be GO
+        go_no_go["decision"] = "CONDITIONAL GO"
+        notes.append("assumption firewall: GO blocked, assumptions exceed verified facts")
+
+    # --- MAP TO LEGACY SCORE ---
+    # Legacy score (0-100) = weighted average of both confidences
+    combined = (fact_confidence * 0.4 + decision_confidence * 0.6) * 100
+    score = min(score, int(round(combined)))
+
+    if notes:
+        note_text = "Confidence Governor: " + "; ".join(notes) + "."
+        basis = f"{basis} {note_text}".strip() if basis else note_text
+
+    return score, _packet_confidence_status(score), basis, fact_confidence, decision_confidence
+
+
+def _has_quantified_support(verified_claims, evidence_trace):
+    texts = []
+    for claim in verified_claims or []:
+        if isinstance(claim, dict):
+            texts.extend([
+                str(claim.get("claim") or ""),
+                str(claim.get("source_ref") or ""),
+            ])
+        else:
+            texts.append(str(claim))
+    for item in evidence_trace or []:
+        if isinstance(item, dict):
+            texts.extend([
+                str(item.get("point") or ""),
+                str(item.get("detail") or ""),
+                str(item.get("source") or ""),
+            ])
+        else:
+            texts.append(str(item))
+    blob = " ".join(t for t in texts if t).lower()
+    return bool(re.search(r"\b\d+(?:\.\d+)?%?\b", blob))
+
+
+def _requires_diagnostic_first(packet):
+    verified_claims = packet.get("verified_claims") or []
+    evidence_trace = packet.get("evidence_trace") or []
+    unknowns = [str(item).strip() for item in (packet.get("unknowns") or []) if str(item).strip()]
+    verified_count = _verified_fact_count(verified_claims)
+    evidence_count = len([item for item in evidence_trace if str(item).strip()])
+    unknown_count = len(unknowns)
+    quantified_support = _has_quantified_support(verified_claims, evidence_trace)
+    critical_missing = _critical_data_missing(verified_claims, evidence_trace, unknowns)
+
+    reasons = []
+    if verified_count < 2:
+        reasons.append("fewer than two verified facts")
+    if evidence_count < 2:
+        reasons.append("fewer than two supporting evidence points")
+    if unknown_count > verified_count:
+        reasons.append("unknowns outweigh verified facts")
+    if critical_missing:
+        reasons.append("critical baseline data is missing")
+    if not quantified_support and critical_missing:
+        reasons.append("no quantified baseline support is available")
+
+    gate = (
+        (verified_count < 2 and evidence_count < 2)
+        or (critical_missing and unknown_count >= verified_count)
+        or (critical_missing and not quantified_support)
+    )
+    return gate, reasons
+
+
 def _packet_timeline_bucket(timeline):
     tl = str(timeline or "").strip().lower()
     if any(term in tl for term in ("immediate", "now", "urgent", "day 0")):
@@ -2631,11 +2822,27 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
         score = int(round(float(raw_score)))
     except (TypeError, ValueError):
         score = 82
-    status = _packet_confidence_status(score)
     basis = str(confidence.get("basis") or "").strip()
+    red_team_findings = packet.get("_red_team_findings")
+    score, status, basis, fact_confidence, decision_confidence = _calibrate_packet_confidence(
+        packet, score, basis, red_team_findings=red_team_findings
+    )
+    diagnostic_first, diagnostic_reasons = _requires_diagnostic_first(packet)
 
     decision_text = str(go_no_go.get("decision") or "CONDITIONAL GO").strip().upper()
     rationale_text = str(go_no_go.get("rationale") or "").strip()
+    if diagnostic_first and decision_text == "GO":
+        decision_text = "CONDITIONAL GO"
+    if diagnostic_first:
+        diagnostic_note = "INSUFFICIENT EVIDENCE for root-cause attribution. Collect baseline diagnostics before committing to irreversible remediation."
+        rationale_text = f"{diagnostic_note} {rationale_text}".strip() if rationale_text else diagnostic_note
+        score = min(score, 65)
+        if diagnostic_reasons:
+            basis_note = "Diagnostic-first gating applied because " + ", ".join(dict.fromkeys(diagnostic_reasons)) + "."
+            basis = f"{basis} {basis_note}".strip() if basis else basis_note
+    if diagnostic_first and decision_text == "CONDITIONAL GO":
+        score = 70
+    status = _packet_confidence_status(score)
 
     key_signals = []
     for claim in verified_claims[:4]:
@@ -2739,18 +2946,30 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
     ).strip()
     if not final_assessment:
         final_assessment = "Proceed on the strongest defensible path while monitoring the exposed risks and unresolved assumptions."
+    if diagnostic_first:
+        final_assessment = "Do not commit to irreversible remediation until baseline diagnostics confirm the primary constraint."
+
+    summary_text = str(packet.get("executive_summary") or "").strip() or final_assessment
+    if diagnostic_first:
+        summary_text = (
+            "Current evidence is insufficient to attribute the problem to a single root cause with confidence. "
+            "Leadership should hold major remediation to a diagnostic-first path until baseline telemetry and operating constraints are verified. "
+            "The recommendation remains conditional because unknowns outweigh the verified evidence."
+        )
 
     legacy = {
         "meta": {
             "title": str(packet.get("decision_headline") or "Decision Packet").strip() or "Decision Packet",
             "generated_at": export_meta.get("generated_at") or datetime.now().isoformat(),
-            "summary": str(packet.get("executive_summary") or "").strip() or final_assessment,
+            "summary": summary_text,
             "workflow": export_meta.get("workflow") or workflow,
             "composite_truth_score": score,
             "truth_score": score,
+            "fact_confidence": fact_confidence,
+            "decision_confidence": decision_confidence,
         },
         "sections": {
-            "executive_summary": str(packet.get("executive_summary") or "").strip() or final_assessment,
+            "executive_summary": summary_text,
             "key_signals": _packet_bullet_lines(key_signals),
             "critical_challenges": "\n\n".join(part for part in critical_challenges_parts if part),
             "tradeoffs": "\n".join(tradeoff_lines),
@@ -2763,6 +2982,8 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
         "structured_data": {
             "key_metrics": [
                 {"metric": "Decision Score", "value": f"{score} / 100", "context": status},
+                {"metric": "Fact Confidence", "value": f"{fact_confidence}", "context": "Root cause certainty"},
+                {"metric": "Decision Confidence", "value": f"{decision_confidence}", "context": "Action certainty"},
             ],
             "action_items": [
                 {
@@ -2969,7 +3190,8 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
             "KEY ASSUMPTIONS: 3-5 bullet points on what must hold true. "
             "LIMITATIONS: 2-3 bullet points on data gaps or unresolved questions. "
             "Confidence must reflect actual data quality, not optimism. "
-            "If financial details or baselines are missing, confidence cannot be 'High' — use 'Moderate-High' at most."
+            "If financial details or baselines are missing, confidence cannot be 'High' — use 'Moderate-High' at most. "
+            "If UNKNOWNs outnumber VERIFIED facts, confidence cannot exceed Medium and score cannot exceed 70."
         ),
     }
     default_directive = "2-3 concise paragraphs synthesizing the council's findings for this section. Use specific data from the discussion. No filler."
@@ -2997,19 +3219,23 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
        - STRIP all internal tags: [VERIFIED], [CRITICAL] from text strings.
        - NO FAKE PRECISION: Do not invent percentages or timelines not found in user data.
     6. DECISION DISCIPLINE: No role may hide uncertainty. If evidence is insufficient, state 'INSUFFICIENT EVIDENCE'.
+    7. CONFIDENCE CAP: If UNKNOWNs > VERIFIED facts, confidence MUST be MEDIUM or LOW and score MUST be <= 70.
+    8. MISSING-DATA CAP: If critical data is missing, confidence MUST be LOW or CONDITIONAL.
+    9. NO UNSOURCED PROJECTIONS: No timeline, probability, or numeric projection may appear unless it is explicitly supported in verified_claims or evidence_trace. If support is absent, classify it as an unknown instead.
+    10. DIAGNOSTIC-FIRST RULE: If the prompt lacks quantified baselines, trend data, or verified root-cause evidence, do NOT force a specific root-cause fix. Emit a diagnostic-first recommendation and keep the decision at CONDITIONAL GO or NO-GO until evidence improves.
 
     FIELD INSTRUCTIONS:
     - decision_headline: One clear actionable sentence. NO hedging.
     - executive_summary: Situation -> Decision -> Rationale -> Confidence. 4-6 sentences max. No labeled fields in the text.
-    - go_no_go_call.decision: Must strictly be GO, NO-GO, or CONDITIONAL GO.
-    - confidence: Must explicitly label band (HIGH | MEDIUM | LOW), a 0-100 score, and a 1-sentence basis.
+    - go_no_go_call.decision: Must strictly be GO, NO-GO, or CONDITIONAL GO. If evidence is sparse or baselines are missing, use CONDITIONAL GO or NO-GO and direct leadership to diagnostics first.
+    - confidence: Must explicitly label band (HIGH | MEDIUM | LOW), a 0-100 score, and a 1-sentence basis. If UNKNOWNs > VERIFIED facts, band cannot exceed MEDIUM and score cannot exceed 70.
     - risk_vectors: Present the critical challenges and failure modes. High impact challenges only.
     - assumptions: List 3-5 baseline assumptions.
     - unknowns: List 2-3 critical unknowns.
     - immediate_actions: Break execution down. What happens Monday morning?
     - alternatives_rejected: What options were considered and explicitly killed by the Integrator?
     - verified_claims: claims verified from tags.
-    - evidence_trace: critical data points mapping to source details.
+    - evidence_trace: critical data points mapping to source details. Any timeline, probability, or numeric projection used anywhere else in the packet must be supported here or in verified_claims.
 
     COUNCIL DISCUSSION:
     {history_text}
