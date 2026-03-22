@@ -3196,6 +3196,15 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
         "decision_packet_version": export_meta.get("schema_version", "1.0"),
     }
 
+    # --- GOVERNOR OVERRIDE: Stamp calibrated score into the packet ---
+    # The LLM writes its own score in confidence.score — the Governor overrides it.
+    # Without this, exporters read the LLM's self-assessed score instead of the Governor's.
+    if isinstance(packet.get("confidence"), dict):
+        packet["confidence"]["score"] = score
+        packet["confidence"]["band"] = (
+            "HIGH" if score >= 75 else "MEDIUM" if score >= 50 else "LOW"
+        )
+
     # --- PROVENANCE: Pass through from packet, or build fallback ---
     _prov = packet.get("provenance")
     if _prov and isinstance(_prov, dict):
