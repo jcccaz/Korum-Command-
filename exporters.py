@@ -1132,10 +1132,28 @@ def _extract_red_team_alert_fields(raw_text):
     if not cleaned:
         return None
 
+    # Ordered labels for section boundary detection
+    _SECTION_LABELS = [
+        "Threat Level", "Exploitability", "Vulnerability", "Exploit",
+        "Mechanism", "Impact", "Attack Vectors", "Immediate Defensive Action",
+    ]
+    _boundary = "|".join(re.escape(lbl) for lbl in _SECTION_LABELS)
+
     def _find(label):
-        match = re.search(rf"{label}\s*:\s*(.+?)(?=(?:Vulnerability|Exploit|Mechanism|Impact|Attack Vectors|Immediate Defensive Action)\s*:|$)", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        match = re.search(
+            rf"{re.escape(label)}\s*:\s*(.+?)(?=(?:{_boundary})\s*:|$)",
+            cleaned, flags=re.IGNORECASE | re.DOTALL,
+        )
         return clean_text_for_export(match.group(1)) if match else ""
 
+    # --- Extract threat metadata (dynamic, not hardcoded) ---
+    raw_threat = _find("Threat Level").upper().strip()
+    threat_level = raw_threat if raw_threat in ("CRITICAL", "HIGH", "MEDIUM", "LOW") else "HIGH"
+
+    raw_exploit = _find("Exploitability").upper().strip()
+    exploitability = raw_exploit if raw_exploit in ("HIGH", "MEDIUM", "LOW") else "MEDIUM"
+
+    # --- Extract core fields ---
     vulnerability = _find("Vulnerability")
     exploit = _find("Exploit")
     mechanism = _find("Mechanism")
@@ -1143,7 +1161,18 @@ def _extract_red_team_alert_fields(raw_text):
     attack_vectors = _find("Attack Vectors")
 
     primary_vulnerability = vulnerability or attack_vectors or cleaned.split(".")[0]
-    attack_path = exploit or mechanism or attack_vectors or primary_vulnerability
+    # Mechanism is the preferred attack path; fall back through alternatives
+    # but NEVER duplicate primary_vulnerability as attack_path
+    attack_path_candidates = [mechanism, exploit, attack_vectors]
+    attack_path = ""
+    for candidate in attack_path_candidates:
+        if candidate and candidate != primary_vulnerability:
+            attack_path = candidate
+            break
+    if not attack_path:
+        # All candidates matched primary_vulnerability or were empty —
+        # use mechanism even if duplicate rather than showing nothing
+        attack_path = mechanism or exploit or attack_vectors or primary_vulnerability
 
     impact_lines = []
     if impact:
@@ -1153,7 +1182,7 @@ def _extract_red_team_alert_fields(raw_text):
         if not line:
             continue
         lower = line.lower()
-        if "impact" in lower or "breach" in lower or "exfiltrat" in lower or "disrupt" in lower:
+        if any(kw in lower for kw in ("impact", "breach", "exfiltrat", "disrupt", "revenue", "reputation", "churn", "loss")):
             if line not in impact_lines:
                 impact_lines.append(line)
         if len(impact_lines) >= 3:
@@ -1162,16 +1191,26 @@ def _extract_red_team_alert_fields(raw_text):
         impact_lines = ["Operational exposure is materially elevated.", "Business disruption risk is active."]
 
     actions = []
-    for line in re.split(r"[\n;]+", cleaned):
-        line = clean_text_for_export(line)
-        lower = line.lower()
-        if not line:
-            continue
-        if any(term in lower for term in ("isolate", "block", "monitor", "patch", "revoke", "contain", "validate", "stabilize")):
-            if line not in actions:
+    defensive_action = _find("Immediate Defensive Action")
+    if defensive_action:
+        # Split multi-sentence defensive actions into individual items
+        for line in re.split(r"[\n;]+|\d+\.\s+", defensive_action):
+            line = clean_text_for_export(line)
+            if line and line not in actions:
                 actions.append(line)
-        if len(actions) >= 3:
-            break
+            if len(actions) >= 3:
+                break
+    if not actions:
+        for line in re.split(r"[\n;]+", cleaned):
+            line = clean_text_for_export(line)
+            lower = line.lower()
+            if not line:
+                continue
+            if any(term in lower for term in ("isolate", "block", "monitor", "patch", "revoke", "contain", "validate", "stabilize")):
+                if line not in actions:
+                    actions.append(line)
+            if len(actions) >= 3:
+                break
     if not actions:
         actions = [
             "Isolate exposed systems and validate monitoring baselines.",
@@ -1179,8 +1218,8 @@ def _extract_red_team_alert_fields(raw_text):
         ]
 
     return {
-        "threat_level": "HIGH",
-        "exploitability": "MEDIUM",
+        "threat_level": threat_level,
+        "exploitability": exploitability,
         "primary_vulnerability": primary_vulnerability,
         "attack_path": attack_path,
         "business_impact": impact_lines[:3],

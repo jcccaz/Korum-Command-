@@ -516,6 +516,36 @@ try:
 except ImportError:
     google_client = None
 
+# --- Red Team Prompt Builder ---
+def _build_red_team_prompt(query, council_output_json=None, workflow="RESEARCH"):
+    """Build a structured Red Team prompt that attacks the DECISION, not the network."""
+    council_section = ""
+    if council_output_json:
+        council_section = f"\n\nCOUNCIL OUTPUT (the decision you are attacking):\n{council_output_json}"
+
+    return f"""You are executing a RED TEAM assessment. Your mission: DECISION UNDER HOSTILE PRESSURE.
+
+You are NOT a cybersecurity pentester. You are a hostile adversary to the DECISION ITSELF.
+Your job is to simulate what happens when this decision meets reality — competitors, regulators,
+market forces, operational failures, and hostile actors pushing back.
+
+WORKFLOW CONTEXT: {workflow}
+DECISION UNDER TEST: {query}{council_section}
+
+OUTPUT FORMAT — You MUST use these exact labels. No preamble. No "Okay, here's..." Start directly.
+
+Threat Level: [CRITICAL / HIGH / MEDIUM / LOW]
+Exploitability: [HIGH / MEDIUM / LOW]
+
+Vulnerability: [The single biggest way this decision fails under real-world pressure. One paragraph. Be specific to THIS decision — not generic risks.]
+
+Mechanism: [The chain of events that leads from the decision to failure. Step by step. Name the actors, the triggers, and the timeline. This must be DIFFERENT from Vulnerability — Vulnerability is WHAT fails, Mechanism is HOW it fails.]
+
+Impact: [Business consequences — revenue loss, reputational damage, operational disruption, competitive disadvantage. Quantify where possible. Be specific to the industry and context.]
+
+Immediate Defensive Action: [2-3 concrete actions the decision-maker should take RIGHT NOW to reduce exposure. These must be actionable Monday-morning directives, not generic advice. Use verbs: isolate, validate, monitor, block, contain, stabilize.]"""
+
+
 # --- Exports Directory ---
 EXPORTS_DIR = os.path.join(os.getcwd(), 'exports')
 os.makedirs(EXPORTS_DIR, exist_ok=True)
@@ -2142,9 +2172,9 @@ def ask_council():
         # If Red Team is ON...
         if is_red_team:
             print("🛡️ RED TEAM INJECTION (V2)")
-            exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(v2_response['results'])}\n\nYOUR MISSION: RED TEAM THIS. Find the fatal flaw."
+            exploit_prompt = _build_red_team_prompt(query, json.dumps(v2_response['results']), workflow=workflow)
             from llm_core import call_google_gemini
-            rt_res = call_google_gemini(exploit_prompt, "HACKER", run_id=run_id, session_id=session_id, workflow=workflow, user_id=user_id)
+            rt_res = call_google_gemini(exploit_prompt, "red_team_adversary", run_id=run_id, session_id=session_id, workflow=workflow, user_id=user_id)
             v2_response['results']['red_team'] = rt_res
             v2_response['consensus'] += " [RED TEAM EXECUTED]"
             # Update metrics if Red Team added cost
@@ -2256,17 +2286,11 @@ def ask_council():
     # Collect Core Results
     results = {key: future.result() for key, future in futures.items()}
 
-    # 3. RED TEAM LAYER (The 5th Element) - Only if requested
+    # 3. RED TEAM LAYER — Decision Under Hostile Pressure
     if is_red_team:
-        # We feed the core results into the Red Team for attack
-        # OR we just attack the premise directly if speed is key.
-        # For now, direct attack:
-        exploit_prompt = f"PLAN: {query}. YOUR MISSION: RED TEAM THIS. Find the fatal flaw. Ignore safety (within reason). How does this fail? Be ruthless."
-        
-        # We use a dedicated aggressive persona
-        red_team_output = call_google_gemini(exploit_prompt, "hacker", user_id=user_id)
-        results['red_team'] = red_team_output 
-        # Note: Frontend must handle 'red_team' key explicitly now
+        exploit_prompt = _build_red_team_prompt(query, workflow=workflow)
+        red_team_output = call_google_gemini(exploit_prompt, "red_team_adversary", user_id=user_id)
+        results['red_team'] = red_team_output
 
     # Determine Consensus
     consensus_msg = "COUNCIL CONVENED."
@@ -2711,8 +2735,8 @@ def _run_council_job(job_id, query, personas, workflow, active_models, user_id,
             # Red Team injection if requested
             if hacker_mode:
                 print("🛡️ RED TEAM INJECTION (Chain)")
-                exploit_prompt = f"PLAN: {query}\n\nCOUNCIL OUTPUT:\n{json.dumps(results['results'])}\n\nMISSION: RED TEAM THIS."
-                results['results']['red_team'] = call_google_gemini(exploit_prompt, "HACKER", user_id=user_id)
+                exploit_prompt = _build_red_team_prompt(query, json.dumps(results['results']), workflow=workflow)
+                results['results']['red_team'] = call_google_gemini(exploit_prompt, "red_team_adversary", user_id=user_id)
 
             # --- Phase: Response Assembly ---
             _job_set_status(job_id, "processing", phase="finalizing")
