@@ -1141,15 +1141,40 @@ def verify_claims(claims, council_history):
                 agreement_count += 1
                 anchors.append(entry['ai'])
 
+        # --- EVIDENCE GROUNDING CHECK ---
+        # Cross-phase agreement alone is consensus, not confirmation.
+        # A claim is "grounded" only if it contains quantified evidence,
+        # specific data points, source references, or measurable metrics.
+        # Without grounding, phases agreeing with each other is an echo chamber.
+        _grounding_signals = re.compile(
+            r'(\d+\.?\d*\s*%|\$\d|\d+\s*(ms|mbps|gbps|mhz|ghz|users|customers|'
+            r'nodes|servers|sites|hours|days|months|incidents|complaints|'
+            r'latency|throughput|uptime|downtime))|'
+            r'(according to|source:|per |measured|observed|recorded|logged|'
+            r'data shows|report shows|audit found|survey|sample size)',
+            re.IGNORECASE
+        )
+        is_grounded = bool(_grounding_signals.search(claim_text))
+
         # Scoring Logic — with claim-level contribution tracking
         if agreement_count >= 2:
-            status = "CONFIRMED"
-            score += 40
-            contribution += 5   # confirmed claims boost truth
+            if is_grounded:
+                status = "CONFIRMED"
+                score += 40
+                contribution += 5   # confirmed AND grounded = real truth
+            else:
+                status = "CONSENSUS"
+                score += 15
+                contribution += 1   # consensus without evidence = weak signal
         elif agreement_count == 1:
-            status = "SUPPORTED"
-            score += 25
-            contribution += 2   # partial support — modest boost
+            if is_grounded:
+                status = "SUPPORTED"
+                score += 25
+                contribution += 2   # partial support with evidence
+            else:
+                status = "SUPPORTED"
+                score += 10
+                contribution += 0   # agreement without evidence = neutral
         else:
             # UNVERIFIED — no cross-provider support
             contribution -= 3   # unverified claims drag truth down
@@ -1927,6 +1952,23 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             verified = verify_claims(claims, context.history)
             results[provider]['truth_meter'] = calculate_truth_score(verified)
             results[provider]['verified_claims'] = verified
+
+        # --- EVIDENCE CEILING: Prevent echo chamber inflation ---
+        # If the council has no quantified data, cap all card scores.
+        # Phases agreeing with each other ≠ truth. Truth requires evidence.
+        _all_texts = " ".join(r.get('response', '') for r in results.values() if isinstance(r, dict))
+        _has_real_data = bool(re.search(
+            r'(\d+\.?\d*\s*%|\$\d|\d+\s*(ms|mbps|gbps|mhz|users|customers|'
+            r'incidents|complaints|latency|throughput|uptime|downtime))|'
+            r'(measured|observed|recorded|logged|data shows|report shows|audit found)',
+            _all_texts, re.IGNORECASE
+        ))
+        if not _has_real_data:
+            _evidence_cap = 70  # No quantified evidence across entire council → cap at 70
+            for provider in results:
+                if isinstance(results[provider], dict) and results[provider].get('truth_meter', 0) > _evidence_cap:
+                    results[provider]['truth_meter'] = _evidence_cap
+            print(f"[COUNCIL] Evidence ceiling applied: no quantified data found, all cards capped at {_evidence_cap}")
 
         # --- DIVERGENCE ANALYSIS (Resilient) ---
         print(f"[COUNCIL] Resilience check: Identifying Divergence...")
