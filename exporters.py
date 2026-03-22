@@ -1128,11 +1128,86 @@ def _build_pdf_evidence_block(block, styles, total_width, palette):
 
 
 def _extract_red_team_alert_fields(raw_text):
+    """Extract Red Team alert fields from JSON output (preferred) or labeled plaintext (fallback)."""
     cleaned = clean_text_for_export(_as_text(raw_text))
     if not cleaned:
         return None
 
-    # Ordered labels for section boundary detection
+    # --- PRIMARY PATH: Parse structured JSON from red_team_adversary ---
+    import json as _json
+    try:
+        # Strip markdown fencing if model wraps in ```json ... ```
+        json_match = re.search(r'\{[\s\S]*\}', cleaned)
+        if json_match:
+            rt = _json.loads(json_match.group(0))
+            if isinstance(rt, dict) and any(k in rt for k in ("weakest_assumption", "execution_risks", "decision_targeted")):
+                # Valid JSON Red Team output — map to export fields
+
+                # Primary vulnerability = weakest assumption
+                primary_vuln = clean_text_for_export(
+                    rt.get("weakest_assumption", "")
+                ) or cleaned.split(".")[0]
+
+                # Attack path = execution risks joined, distinct from vulnerability
+                exec_risks = rt.get("execution_risks") or []
+                if isinstance(exec_risks, list):
+                    attack_path = " ".join(clean_text_for_export(str(r)) for r in exec_risks[:2] if str(r).strip())
+                else:
+                    attack_path = clean_text_for_export(str(exec_risks))
+                if not attack_path or attack_path == primary_vuln:
+                    attack_path = clean_text_for_export(rt.get("alternative_strategy", "")) or primary_vuln
+
+                # Impact = reversal_trigger + confidence_attack + unsupported_claims
+                impact_lines = []
+                reversal = clean_text_for_export(rt.get("reversal_trigger", ""))
+                conf_attack = clean_text_for_export(rt.get("confidence_attack", ""))
+                if reversal:
+                    impact_lines.append(reversal)
+                if conf_attack:
+                    impact_lines.append(conf_attack)
+                for claim in (rt.get("unsupported_claims") or [])[:2]:
+                    claim_text = clean_text_for_export(str(claim))
+                    if claim_text and claim_text not in impact_lines:
+                        impact_lines.append(claim_text)
+                if not impact_lines:
+                    impact_lines = ["Operational exposure is materially elevated.", "Business disruption risk is active."]
+
+                # Immediate actions = missing_evidence reframed as action items
+                actions = []
+                bottom_line = clean_text_for_export(rt.get("bottom_line", ""))
+                if bottom_line:
+                    actions.append(bottom_line)
+                for item in (rt.get("missing_evidence") or [])[:3]:
+                    item_text = clean_text_for_export(str(item))
+                    if item_text and item_text not in actions:
+                        actions.append(f"Validate: {item_text}")
+                if not actions:
+                    actions = [
+                        "Isolate exposed systems and validate monitoring baselines.",
+                        "Investigate exploit path assumptions before further exposure.",
+                    ]
+
+                # Determine threat level from red_team_status + content
+                rt_status = str(rt.get("red_team_status", "")).upper().strip()
+                # FAIL status = CRITICAL threat, PASS = assess from content
+                if rt_status == "FAIL":
+                    threat_level = "CRITICAL"
+                else:
+                    threat_level = "HIGH"
+                exploitability = "HIGH" if len(exec_risks) >= 2 else "MEDIUM"
+
+                return {
+                    "threat_level": threat_level,
+                    "exploitability": exploitability,
+                    "primary_vulnerability": primary_vuln,
+                    "attack_path": attack_path,
+                    "business_impact": impact_lines[:3],
+                    "immediate_actions": actions[:2],
+                }
+    except (_json.JSONDecodeError, ValueError, TypeError):
+        pass  # Fall through to legacy plaintext parser
+
+    # --- FALLBACK: Legacy labeled-plaintext extraction ---
     _SECTION_LABELS = [
         "Threat Level", "Exploitability", "Vulnerability", "Exploit",
         "Mechanism", "Impact", "Attack Vectors", "Immediate Defensive Action",
@@ -1146,14 +1221,12 @@ def _extract_red_team_alert_fields(raw_text):
         )
         return clean_text_for_export(match.group(1)) if match else ""
 
-    # --- Extract threat metadata (dynamic, not hardcoded) ---
     raw_threat = _find("Threat Level").upper().strip()
     threat_level = raw_threat if raw_threat in ("CRITICAL", "HIGH", "MEDIUM", "LOW") else "HIGH"
 
     raw_exploit = _find("Exploitability").upper().strip()
     exploitability = raw_exploit if raw_exploit in ("HIGH", "MEDIUM", "LOW") else "MEDIUM"
 
-    # --- Extract core fields ---
     vulnerability = _find("Vulnerability")
     exploit = _find("Exploit")
     mechanism = _find("Mechanism")
@@ -1161,8 +1234,6 @@ def _extract_red_team_alert_fields(raw_text):
     attack_vectors = _find("Attack Vectors")
 
     primary_vulnerability = vulnerability or attack_vectors or cleaned.split(".")[0]
-    # Mechanism is the preferred attack path; fall back through alternatives
-    # but NEVER duplicate primary_vulnerability as attack_path
     attack_path_candidates = [mechanism, exploit, attack_vectors]
     attack_path = ""
     for candidate in attack_path_candidates:
@@ -1170,8 +1241,6 @@ def _extract_red_team_alert_fields(raw_text):
             attack_path = candidate
             break
     if not attack_path:
-        # All candidates matched primary_vulnerability or were empty —
-        # use mechanism even if duplicate rather than showing nothing
         attack_path = mechanism or exploit or attack_vectors or primary_vulnerability
 
     impact_lines = []
@@ -1193,7 +1262,6 @@ def _extract_red_team_alert_fields(raw_text):
     actions = []
     defensive_action = _find("Immediate Defensive Action")
     if defensive_action:
-        # Split multi-sentence defensive actions into individual items
         for line in re.split(r"[\n;]+|\d+\.\s+", defensive_action):
             line = clean_text_for_export(line)
             if line and line not in actions:

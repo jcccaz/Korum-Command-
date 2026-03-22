@@ -523,27 +523,74 @@ def _build_red_team_prompt(query, council_output_json=None, workflow="RESEARCH")
     if council_output_json:
         council_section = f"\n\nCOUNCIL OUTPUT (the decision you are attacking):\n{council_output_json}"
 
-    return f"""You are executing a RED TEAM assessment. Your mission: DECISION UNDER HOSTILE PRESSURE.
+    return f"""RED TEAM DIRECTIVE — ADVERSARIAL MODE
 
-You are NOT a cybersecurity pentester. You are a hostile adversary to the DECISION ITSELF.
-Your job is to simulate what happens when this decision meets reality — competitors, regulators,
-market forces, operational failures, and hostile actors pushing back.
+You are NOT a collaborator.
+You are NOT part of the council.
+You are an independent adversarial reviewer.
+
+Your sole objective is to BREAK the proposed decision.
+
+You must assume:
+- The decision may be wrong
+- The reasoning may contain hidden assumptions
+- The confidence may be inflated
+- The execution may fail
 
 WORKFLOW CONTEXT: {workflow}
 DECISION UNDER TEST: {query}{council_section}
 
-OUTPUT FORMAT — You MUST use these exact labels. No preamble. No "Okay, here's..." Start directly.
+---
 
-Threat Level: [CRITICAL / HIGH / MEDIUM / LOW]
-Exploitability: [HIGH / MEDIUM / LOW]
+REQUIRED ACTIONS:
 
-Vulnerability: [The single biggest way this decision fails under real-world pressure. One paragraph. Be specific to THIS decision — not generic risks.]
+1. Name the DECISION you are targeting.
+2. Identify the SINGLE WEAKEST ASSUMPTION in the decision.
+3. List any UNSUPPORTED CLAIMS — assertions without evidence.
+4. Identify EXECUTION RISKS that could cause failure even if the strategy is correct.
+5. Propose ONE ALTERNATIVE STRATEGY leadership should consider.
+6. ATTACK the stated confidence level — is it earned or inflated?
+7. List MISSING EVIDENCE that could change or reverse the decision.
+8. Name the REVERSAL TRIGGER — the single event that would force leadership to reverse course.
+9. State your BOTTOM LINE — one sentence, the Red Team verdict.
 
-Mechanism: [The chain of events that leads from the decision to failure. Step by step. Name the actors, the triggers, and the timeline. This must be DIFFERENT from Vulnerability — Vulnerability is WHAT fails, Mechanism is HOW it fails.]
+---
 
-Impact: [Business consequences — revenue loss, reputational damage, operational disruption, competitive disadvantage. Quantify where possible. Be specific to the industry and context.]
+RULES:
 
-Immediate Defensive Action: [2-3 concrete actions the decision-maker should take RIGHT NOW to reduce exposure. These must be actionable Monday-morning directives, not generic advice. Use verbs: isolate, validate, monitor, block, contain, stabilize.]"""
+- Agreement without critique = FAILURE
+- Generic language = FAILURE
+- Empty fields = FAILURE
+- Do NOT restate the recommendation unless attacking it
+- If decision is directionally correct → attack timing, confidence, scope, or risk
+- Do NOT use conversational preamble ("Okay, here's...", "Let me analyze...")
+
+RED TEAM FAILURE CONDITIONS — Mark red_team_status = "FAIL" if ANY of the following:
+- weakest_assumption is empty
+- execution_risks is empty
+- alternative_strategy is empty
+- confidence_attack is empty
+- missing_evidence is empty
+- Output contains agreement phrases WITHOUT critique: ("sound", "valid", "reasonable", "aligned", "correct")
+- Output is generic or vague
+- Output does not directly challenge the decision
+
+---
+
+OUTPUT FORMAT MUST BE JSON ONLY. No markdown fencing. No text outside the JSON object.
+
+{{
+  "red_team_status": "PASS or FAIL — self-assess against failure conditions above",
+  "decision_targeted": "Name the specific decision being attacked",
+  "weakest_assumption": "The single assumption most likely to be wrong. One paragraph, specific to THIS decision.",
+  "unsupported_claims": ["Claim 1 that lacks evidence", "Claim 2"],
+  "execution_risks": ["Risk 1: how implementation fails even if strategy is correct", "Risk 2"],
+  "alternative_strategy": "One alternative path leadership should consider instead",
+  "confidence_attack": "Why the stated confidence is inflated. What evidence is missing to justify it?",
+  "missing_evidence": ["Evidence item 1 that could change the decision", "Evidence item 2", "Evidence item 3"],
+  "reversal_trigger": "The single event or discovery that would force leadership to reverse this decision",
+  "bottom_line": "One sentence — the Red Team verdict on this decision"
+}}"""
 
 
 # --- Exports Directory ---
