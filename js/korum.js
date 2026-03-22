@@ -4128,7 +4128,7 @@ window.executeVerify = async function (claimText, providerName) {
         // Push to Intel Feed
         if (typeof IntelFeed !== 'undefined') {
             const verdictStr = result.verdict ? ` [${result.verdict.replace('_', ' ')}]` : '';
-            IntelFeed.push('verification', `Source Verification${verdictStr}`, `Claim: "${claim}"\n\n${result.verification || 'No details returned.'}`);
+            IntelFeed.push('verification', `Source Verification${verdictStr}`, `Claim: "${claim}"\n\n${result.verification || 'No details returned.'}`, result.score_delta || null);
         }
         updateRevisionSummary({
             latestFollowup: claim.length > 96 ? `${claim.slice(0, 96)}...` : claim,
@@ -4300,7 +4300,7 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
         if (typeof IntelFeed !== 'undefined') {
             const atkText = result.attacker ? result.attacker.response : '';
             const defText = result.defender ? result.defender.response : '';
-            IntelFeed.push('interrogation', `${attackerRole.replace(/_/g,' ')} vs ${defenderRole.replace(/_/g,' ')}`, `ATTACKER (${attackerRole.replace(/_/g,' ')}):\n${atkText}\n\nDEFENDER (${defenderRole.replace(/_/g,' ')}):\n${defText}`);
+            IntelFeed.push('interrogation', `${attackerRole.replace(/_/g,' ')} vs ${defenderRole.replace(/_/g,' ')}`, `ATTACKER (${attackerRole.replace(/_/g,' ')}):\n${atkText}\n\nDEFENDER (${defenderRole.replace(/_/g,' ')}):\n${defText}`, result.score_delta || null);
         }
         updateRevisionSummary({
             latestFollowup: `${attackerRole.replace(/_/g, ' ')} vs ${defenderRole.replace(/_/g, ' ')}`,
@@ -9475,11 +9475,12 @@ const IntelFeed = {
         }
     },
 
-    push(type, title, content) {
+    push(type, title, content, scoreDelta = null) {
         this.items.unshift({
             type,
             title,
             content,
+            scoreDelta,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             docked: false,
         });
@@ -9534,12 +9535,21 @@ const IntelFeed = {
                 ? '<button class="intel-feed-dock-btn docked" disabled>DOCKED</button>'
                 : `<button class="intel-feed-dock-btn" onclick="IntelFeed.dockItem(${i})">DOCK</button>`;
 
+            // Score delta pill
+            let deltaPill = '';
+            if (item.scoreDelta !== null && item.scoreDelta !== undefined && item.scoreDelta !== 0) {
+                const sign = item.scoreDelta > 0 ? '+' : '';
+                const deltaClass = item.scoreDelta > 0 ? 'delta-up' : 'delta-down';
+                deltaPill = `<span class="intel-feed-delta ${deltaClass}">${sign}${item.scoreDelta}</span>`;
+            }
+
             // Escape content for safe display
             const safeContent = this._esc(item.content).replace(/\n/g, '<br>');
 
             html += `<div class="intel-feed-card type-${item.type}">
                 <div class="intel-feed-card-header">
                     <span class="intel-feed-badge badge-${item.type}">${badge}</span>
+                    ${deltaPill}
                     <span class="intel-feed-title">${this._esc(item.title)}</span>
                     <span class="intel-feed-time">${item.timestamp}</span>
                     ${dockBtnHtml}

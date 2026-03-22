@@ -9622,6 +9622,24 @@ body.report-library-open .results-container {
     cursor: default;
 }
 
+/* Score Delta Pills */
+.intel-feed-delta {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.intel-feed-delta.delta-up {
+    background: rgba(0,255,157,0.12);
+    color: #00FF9D;
+}
+.intel-feed-delta.delta-down {
+    background: rgba(255,68,68,0.12);
+    color: #FF4444;
+}
+
 .intel-feed-card-body {
     padding: 12px 16px;
     font-size: 13px;
