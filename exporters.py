@@ -2485,8 +2485,17 @@ class WordExporter:
                 ("Ledger Decision ID", _as_text(_prov.get("ledger_decision_id", "UNKNOWN"))),
                 ("Scoring Source", _as_text(_prov.get("scoring_source", "UNKNOWN"))),
                 ("Synthesis Model", _as_text(_prov.get("synthesis_model", "UNKNOWN"))),
-                ("Red Team Model", _as_text(_prov.get("red_team_model") or "N/A")),
             ]
+            # Red Team — structured object with status + model
+            _rt = _prov.get("red_team") or {}
+            if isinstance(_rt, dict) and _rt.get("status"):
+                _rt_status = _as_text(_rt.get("status", "UNKNOWN"))
+                _rt_model = _as_text(_rt.get("model", "UNKNOWN"))
+                _prov_fields.append(("Red Team", f"{_rt_status} — {_rt_model}"))
+            elif _prov.get("red_team_model"):
+                _prov_fields.append(("Red Team Model", _as_text(_prov["red_team_model"])))
+            else:
+                _prov_fields.append(("Red Team", "NOT INVOKED"))
             for _pk, _pv in _prov_fields:
                 WordExporter._add_paragraph(doc, f"{_pk}: {_pv}",
                                             size=8.5, color=tc.get("text", "333333"))

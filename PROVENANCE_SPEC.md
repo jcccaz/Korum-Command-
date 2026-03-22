@@ -16,7 +16,10 @@ Every KorumOS decision must be traceable to the **actual runtime participants** 
   "ledger_decision_id": "string (same as decision_id)",
   "scoring_source": "RULE_ENGINE | MODEL | HYBRID",
   "synthesis_model": "string (actual model that ran synthesis)",
-  "red_team_model": "string | null",
+  "red_team": {
+    "status": "INVOKED | NOT_INVOKED",
+    "model": "string (actual or expected model)"
+  },
   "council": [
     {
       "role": "string (e.g. STRATEGIST)",
@@ -56,7 +59,8 @@ Every KorumOS decision must be traceable to the **actual runtime participants** 
 
 - Missing `provenance` block entirely → section is skipped (no crash)
 - Missing individual fields → display `"UNKNOWN"`
-- No Red Team → Red Team Model shows `"N/A"`
+- No Red Team → Red Team shows `"NOT_INVOKED — gemini-2.0-flash"` (expected model)
+- Red Team ran → Red Team shows `"INVOKED — gemini-2.0-flash"` (actual model)
 - Empty council array → metadata still renders, table is skipped
 
 ## Export Appearance
@@ -68,7 +72,7 @@ Decision ID:        a1b2c3d4-e5f6-7890-abcd-ef1234567890
 Ledger Decision ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
 Scoring Source:     RULE_ENGINE
 Synthesis Model:    gpt-4o
-Red Team Model:     gemini-2.0-flash
+Red Team:           INVOKED — gemini-2.0-flash
 
 ┌──────────────┬──────────┬──────────────────┬───────────────────┐
 │ Role         │ Provider │ Model            │ Response Hash     │

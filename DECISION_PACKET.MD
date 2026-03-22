@@ -79,7 +79,10 @@ Every Korum-OS Decision Packet MUST map exactly to the JSON shape below. Extra k
     "ledger_decision_id": "string (same as decision_id)",
     "scoring_source": "RULE_ENGINE | MODEL | HYBRID",
     "synthesis_model": "string (actual model that ran synthesis)",
-    "red_team_model": "string | null",
+    "red_team": {
+      "status": "INVOKED | NOT_INVOKED",
+      "model": "string (actual or expected model)"
+    },
     "council": [
       {
         "role": "string (e.g. STRATEGIST)",

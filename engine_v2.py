@@ -3224,7 +3224,10 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
             "ledger_decision_id": "UNKNOWN",
             "scoring_source": "RULE_ENGINE",
             "synthesis_model": "UNKNOWN",
-            "red_team_model": None,
+            "red_team": {
+                "status": "NOT_INVOKED",
+                "model": "UNKNOWN",
+            },
             "council": [],
         }
 
@@ -3622,7 +3625,10 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
             "ledger_decision_id": context.run_id or "UNKNOWN",
             "scoring_source": "RULE_ENGINE",
             "synthesis_model": resp.get("model", "UNKNOWN"),
-            "red_team_model": None,
+            "red_team": {
+                "status": "NOT_INVOKED",
+                "model": "gemini-2.0-flash",
+            },
             "council": _prov_council,
         }
         print(f"[SYNTHESIS] Provenance: {len(_prov_council)} participants, synthesis={data['provenance']['synthesis_model']}")
