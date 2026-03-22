@@ -134,6 +134,8 @@ const KorumAuth = {
         } else {
             statusEl.style.display = 'none';
         }
+        // ATL Dashboard: show button for admin/compliance only
+        if (typeof AtlDashboard !== 'undefined') AtlDashboard.updateVisibility();
     },
 
     initListeners() {
@@ -1700,7 +1702,7 @@ const AIHealth = {
 const PROTOCOL_CONFIGS = {
     // --- GENERAL ---
     "War Room": { openai: "strategist", anthropic: "containment", google: "takeover", perplexity: "scout", mistral: "validator", local: "crisis_commander" },
-    "Deep Research": { openai: "analyst", anthropic: "researcher", google: "historian", perplexity: "scout", mistral: "validator", local: "professor" },
+    "Deep Research": { openai: "analyst", anthropic: "researcher", google: "historian", perplexity: "deep_seeker", mistral: "validator", local: "professor" },
     "Creative Council": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative", local: "brand_psychologist" },
     "Code Audit": { openai: "architect", anthropic: "integrity", google: "hacker", perplexity: "optimizer", mistral: "coding", local: "security_engineer" },
     "System Core": { openai: "visionary", anthropic: "architect", google: "critic", perplexity: "researcher", mistral: "validator", local: "oracle" },
@@ -1733,10 +1735,55 @@ const AVAILABLE_ROLES = {
     openai: ["STRATEGIST", "ANALYST", "WRITER", "ARCHITECT", "VISIONARY", "JURIST", "MEDICAL", "CFO", "PHYSICIST", "BIZSTRAT", "AI_ARCHITECT", "NETWORK", "HEDGE_FUND", "DEFENSE_OPS", "CYBER_OPS", "INTEL_ANALYST", "DEFENSE_ACQ", "CRYPTOGRAPHER", "ZERO_TRUST"],
     anthropic: ["CONTAINMENT", "RESEARCHER", "INNOVATOR", "INTEGRITY", "ARCHITECT", "COMPLIANCE", "BIOETHICIST", "AUDITOR", "BIOLOGIST", "PRODUCT", "NETWORK", "TELECOM", "HEDGE_FUND", "CYBER_OPS", "COUNTERINTEL", "INTEL_ANALYST", "DEFENSE_ACQ", "CRYPTOGRAPHER", "ZERO_TRUST"],
     google: ["TAKEOVER", "HISTORIAN", "MARKETING", "HACKER", "CRITIC", "ECONOMIST", "CHEMIST", "RESEARCHER", "NETWORK", "TELECOM", "HEDGE_FUND", "DEFENSE_OPS", "CYBER_OPS", "SIGINT", "INTEL_ANALYST", "CRYPTOGRAPHER", "ZERO_TRUST"],
-    perplexity: ["SCOUT", "SOCIAL", "OPTIMIZER", "RESEARCHER", "INTEL_ANALYST"],
+    perplexity: ["SCOUT", "DEEP_SEEKER", "SOCIAL", "OPTIMIZER", "RESEARCHER", "INTEL_ANALYST"],
     mistral: ["ANALYST", "STRATEGIST", "CODING", "CREATIVE", "VALIDATOR", "NEGOTIATOR", "TAX", "PROFESSOR", "CFO", "WEB_DESIGNER", "HACKER", "HEDGE_FUND", "CYBER_OPS", "DEFENSE_OPS", "SIGINT", "CRYPTOGRAPHER", "ZERO_TRUST"],
-    local: ["ORACLE", "TELECOM_ENGINEER", "ECONOMIST", "PROFESSOR", "CRYPTOGRAPHER", "ZERO_TRUST", "SIGINT", "TAX", "SOCIAL", "REGULATORY_AFFAIRS", "CLINICAL_OPS", "SECURITY_ENGINEER", "CRISIS_COMMANDER", "VENTURE_CAPITAL", "LAB_DIRECTOR", "BRAND_PSYCHOLOGIST", "GEOPOLITICAL"]
+    local: ["ORACLE", "GENEALOGY", "TELECOM_ENGINEER", "ECONOMIST", "PROFESSOR", "CRYPTOGRAPHER", "ZERO_TRUST", "SIGINT", "TAX", "SOCIAL", "REGULATORY_AFFAIRS", "CLINICAL_OPS", "SECURITY_ENGINEER", "CRISIS_COMMANDER", "VENTURE_CAPITAL", "LAB_DIRECTOR", "BRAND_PSYCHOLOGIST", "GEOPOLITICAL"]
 };
+
+const GENEALOGY_QUERY_PATTERNS = [
+    /\bbiograph(?:y|ical)\b/i,
+    /\bbiographical profile\b/i,
+    /\bprofile of\b/i,
+    /\bwho (?:is|was)\b/i,
+    /\bgenealog(?:y|ical)\b/i,
+    /\blineage\b/i,
+    /\bancestor\b/i,
+    /\brelative\b/i,
+    /\bfamily history\b/i,
+    /\bpaternal\b/i,
+    /\bmaternal\b/i
+];
+
+function isGenealogyQuery(query = '') {
+    const text = String(query || '').trim();
+    if (!text) return false;
+
+    if (GENEALOGY_QUERY_PATTERNS.some(pattern => pattern.test(text))) {
+        return true;
+    }
+
+    const hasNamedPersonShape = /\b(?:general|colonel|president|minister|doctor|dr\.|mr\.|mrs\.|ms\.)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}\b/.test(text);
+    const hasLookupLanguage = /\b(?:look up|research|investigate|background on|history of)\b/i.test(text);
+    return hasNamedPersonShape && hasLookupLanguage;
+}
+
+function applyQueryAwareSpecialists(query, workflowLabel, roleConfig) {
+    const nextConfig = { ...(roleConfig || {}) };
+    const isResearchWorkflow = workflowLabel === 'Deep Research' || workflowLabel === 'RESEARCH';
+    const currentLocal = String(nextConfig.local || '').toLowerCase();
+
+    if (isResearchWorkflow && isGenealogyQuery(query) && ['', 'oracle', 'professor', 'genealogy'].includes(currentLocal)) {
+        nextConfig.local = 'genealogy';
+        const localLabel = document.getElementById('roleLabel-local');
+        if (localLabel) localLabel.innerText = 'GENEALOGY';
+        const localCard = document.querySelector('.deck-card.local');
+        if (localCard && localCard.classList.contains('silenced')) {
+            localCard.classList.remove('silenced');
+        }
+    }
+
+    return nextConfig;
+}
 
 let customRolesActive = false;
 let actionBindingsInitialized = false;
@@ -2529,6 +2576,7 @@ async function executeReasoningChain(query) {
         roleConfig = PROTOCOL_CONFIGS[activeRoleName] || PROTOCOL_CONFIGS['System Core'];
         if (!roleConfig.mistral) roleConfig.mistral = "analyst";
         if (!roleConfig.local) roleConfig.local = "oracle";
+        roleConfig = applyQueryAwareSpecialists(query, activeRoleName, roleConfig);
     }
 
     const payload = {
@@ -3783,7 +3831,7 @@ const ATTACKER_CATEGORIES = {
         'jurist', 'compliance', 'integrity'
     ],
     "RESEARCH & VALIDATION": [
-        'researcher', 'scout', 'historian', 'validator'
+        'researcher', 'scout', 'deep_seeker', 'historian', 'validator', 'genealogy'
     ],
     "CREATIVE & COMMS": [
         'writer', 'innovator', 'marketing', 'social', 'creative', 'web_designer'
@@ -3840,6 +3888,8 @@ const ATTACKER_SUGGESTIONS = {
     // Research & Validation
     'researcher':     ['critic', 'validator', 'historian'],
     'scout':          ['counterintel', 'analyst', 'validator'],
+    'deep_seeker':    ['counterintel', 'historian', 'validator'],
+    'genealogy':      ['historian', 'validator', 'counterintel'],
     'historian':      ['critic', 'innovator', 'economist'],
     'validator':      ['hacker', 'critic', 'innovator'],
     // Creative & Comms
@@ -5282,6 +5332,7 @@ async function executeCouncil(query, roleName) {
         // Ensure mistral/local defaults are set if not in protocol
         if (!roleConfig.mistral) roleConfig.mistral = "analyst";
         if (!roleConfig.local) roleConfig.local = "oracle";
+        roleConfig = applyQueryAwareSpecialists(query, roleName, roleConfig);
     }
 
     // MODE FLAGS
@@ -8811,6 +8862,275 @@ const BillingLedger = {
 // Initialize after DOM load
 document.addEventListener('DOMContentLoaded', () => {
     BillingLedger.init();
+});
+
+// ============================================================
+// ATL DASHBOARD — Decision Ledger Audit Transparency Layer
+// ============================================================
+const AtlDashboard = {
+    overlay: null,
+    missions: [],
+    currentTab: 'witness',
+
+    init() {
+        this.overlay = document.getElementById('atlDashOverlay');
+        const openBtn = document.getElementById('atlNavBtn');
+        const closeBtn = document.getElementById('atlCloseBtn');
+        const backBtn = document.getElementById('atlBackBtn');
+
+        if (openBtn) openBtn.addEventListener('click', () => this.open());
+        if (closeBtn) closeBtn.addEventListener('click', () => this.close());
+        if (backBtn) backBtn.addEventListener('click', () => this.showMissionList());
+
+        // Tab switching
+        document.querySelectorAll('.atl-tab').forEach(tab => {
+            tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
+        });
+
+        // Evidence reveal
+        const revealBtn = document.getElementById('atlRevealBtn');
+        if (revealBtn) revealBtn.addEventListener('click', () => this.revealEvidence());
+
+        // Verify all
+        const verifyAllBtn = document.getElementById('atlVerifyAllBtn');
+        if (verifyAllBtn) verifyAllBtn.addEventListener('click', () => this.verifyAll());
+
+        // Overlay click to close
+        if (this.overlay) {
+            this.overlay.addEventListener('click', (e) => {
+                if (e.target === this.overlay) this.close();
+            });
+        }
+    },
+
+    updateVisibility() {
+        const btn = document.getElementById('atlNavBtn');
+        if (!btn) return;
+        const user = AuthManager.user;
+        if (user && (user.role === 'admin' || user.role === 'compliance')) {
+            btn.style.display = '';
+        } else {
+            btn.style.display = 'none';
+        }
+    },
+
+    open() {
+        if (this.overlay) this.overlay.style.display = 'flex';
+        this.switchTab('witness');
+        this.loadMissions();
+    },
+
+    close() {
+        if (this.overlay) this.overlay.style.display = 'none';
+    },
+
+    switchTab(tabName) {
+        this.currentTab = tabName;
+        document.querySelectorAll('.atl-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+        document.querySelectorAll('.atl-tab-panel').forEach(p => p.classList.remove('active'));
+        const tabMap = { witness: 'atlTabWitness', integrity: 'atlTabIntegrity', evidence: 'atlTabEvidence' };
+        const panel = document.getElementById(tabMap[tabName]);
+        if (panel) panel.classList.add('active');
+    },
+
+    async loadMissions() {
+        const container = document.getElementById('atlMissionList');
+        if (!container) return;
+        container.innerHTML = '<p class="atl-loading">Loading missions...</p>';
+
+        try {
+            const res = await authFetch('/api/ledger/missions');
+            const data = await res.json();
+            if (!data.success || !data.missions.length) {
+                container.innerHTML = '<p class="atl-empty">No ledger events recorded yet.</p>';
+                return;
+            }
+            this.missions = data.missions;
+            this.renderMissionTable(container);
+        } catch (e) {
+            container.innerHTML = '<p class="atl-error">Failed to load missions.</p>';
+        }
+    },
+
+    renderMissionTable(container) {
+        const rows = this.missions.map(m => {
+            const validClass = m.chain_valid ? 'atl-badge-valid' : 'atl-badge-tampered';
+            const validText = m.chain_valid ? 'VALID' : 'TAMPERED';
+            const ts = m.last_activity ? new Date(m.last_activity).toLocaleString() : 'N/A';
+            return `<tr class="atl-mission-row" data-mission="${m.mission_id}">
+                <td class="atl-hash" title="${m.mission_id}">${m.mission_id.substring(0, 8)}...</td>
+                <td>${this._esc(m.title)}</td>
+                <td>${m.event_count}</td>
+                <td>${m.decision_count}</td>
+                <td>${ts}</td>
+                <td><span class="${validClass}">${validText}</span></td>
+            </tr>`;
+        }).join('');
+
+        container.innerHTML = `<table class="atl-table">
+            <thead><tr>
+                <th>MISSION ID</th><th>TITLE</th><th>EVENTS</th><th>DECISIONS</th><th>LAST ACTIVITY</th><th>INTEGRITY</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+
+        // Click handler for mission rows
+        container.querySelectorAll('.atl-mission-row').forEach(row => {
+            row.addEventListener('click', () => this.viewMission(row.dataset.mission));
+        });
+    },
+
+    async viewMission(missionId) {
+        const listEl = document.getElementById('atlMissionList');
+        const detailEl = document.getElementById('atlChainDetail');
+        const titleEl = document.getElementById('atlChainTitle');
+        const eventsEl = document.getElementById('atlChainEvents');
+        if (!listEl || !detailEl) return;
+
+        listEl.style.display = 'none';
+        detailEl.style.display = '';
+
+        const mission = this.missions.find(m => m.mission_id === missionId);
+        if (titleEl) titleEl.textContent = mission ? mission.title : missionId.substring(0, 8);
+        if (eventsEl) eventsEl.innerHTML = '<p class="atl-loading">Loading chain...</p>';
+
+        try {
+            const res = await authFetch(`/api/ledger/${missionId}`);
+            const data = await res.json();
+            if (!data.success || !data.events.length) {
+                eventsEl.innerHTML = '<p class="atl-empty">No events in this mission.</p>';
+                return;
+            }
+            this.renderChainEvents(eventsEl, data.events);
+        } catch (e) {
+            eventsEl.innerHTML = '<p class="atl-error">Failed to load chain.</p>';
+        }
+    },
+
+    renderChainEvents(container, events) {
+        const html = events.map((evt, i) => {
+            const typeClass = `atl-evt-${evt.event_type.replace(/[^a-z_]/g, '')}`;
+            const ts = evt.timestamp ? new Date(evt.timestamp).toLocaleString() : 'N/A';
+            const prevHash = evt.previous_hash === 'GENESIS' ? 'GENESIS' : (evt.previous_hash || '').substring(0, 12) + '...';
+            const hmacStatus = evt.signature_hmac ? 'SIGNED' : 'UNSIGNED';
+            return `<div class="atl-chain-event ${typeClass}">
+                <div class="atl-chain-seq">
+                    ${i > 0 ? '<div class="atl-chain-arrow"></div>' : '<div class="atl-chain-genesis">GENESIS</div>'}
+                    <div class="atl-chain-seq-num">${evt.sequence}</div>
+                </div>
+                <div class="atl-chain-body">
+                    <div class="atl-chain-event-header">
+                        <span class="atl-event-type">${evt.event_type}</span>
+                        <span class="atl-event-ts">${ts}</span>
+                    </div>
+                    <div class="atl-chain-meta">
+                        <span>Decision: <span class="atl-hash" title="${evt.decision_id}">${(evt.decision_id || '').substring(0, 8)}...</span></span>
+                        <span>Payload: <span class="atl-hash" title="${evt.payload_hash}">${(evt.payload_hash || '').substring(0, 12)}...</span></span>
+                        <span>Prev: <span class="atl-hash">${prevHash}</span></span>
+                        <span class="atl-hmac-badge">${hmacStatus}</span>
+                    </div>
+                    <div class="atl-chain-record-hash">
+                        Record Hash: <span class="atl-hash" title="${evt.record_hash}">${(evt.record_hash || '').substring(0, 16)}...</span>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+        container.innerHTML = html;
+    },
+
+    showMissionList() {
+        const listEl = document.getElementById('atlMissionList');
+        const detailEl = document.getElementById('atlChainDetail');
+        if (listEl) listEl.style.display = '';
+        if (detailEl) detailEl.style.display = 'none';
+    },
+
+    async verifyAll() {
+        const statusEl = document.getElementById('atlIntegrityStatus');
+        const resultsEl = document.getElementById('atlIntegrityResults');
+        if (statusEl) statusEl.innerHTML = '<span class="atl-loading">Verifying all chains...</span>';
+        if (resultsEl) resultsEl.innerHTML = '';
+
+        try {
+            const res = await authFetch('/api/ledger/missions');
+            const data = await res.json();
+            if (!data.success) { statusEl.innerHTML = '<span class="atl-error">Failed to load.</span>'; return; }
+
+            let valid = 0, tampered = 0;
+            const rows = data.missions.map(m => {
+                if (m.chain_valid) valid++; else tampered++;
+                const badge = m.chain_valid ? '<span class="atl-badge-valid">VALID</span>' : '<span class="atl-badge-tampered">TAMPERED</span>';
+                const failures = m.failures && m.failures.length ? m.failures.map(f => `<div class="atl-failure">${f.details || 'Unknown failure'} (decision: ${(f.decision_id || '').substring(0, 8)}...)</div>`).join('') : '';
+                return `<div class="atl-integrity-row">
+                    <span class="atl-hash" title="${m.mission_id}">${m.mission_id.substring(0, 8)}...</span>
+                    <span>${this._esc(m.title)}</span>
+                    <span>${m.decision_count} decisions, ${m.event_count} events</span>
+                    ${badge}
+                    ${failures}
+                </div>`;
+            }).join('');
+
+            statusEl.innerHTML = `<span class="atl-badge-valid">${valid} VALID</span> <span class="${tampered ? 'atl-badge-tampered' : 'atl-badge-valid'}">${tampered} TAMPERED</span>`;
+            resultsEl.innerHTML = rows;
+            this.updateFooter(tampered === 0);
+        } catch (e) {
+            statusEl.innerHTML = '<span class="atl-error">Verification failed.</span>';
+        }
+    },
+
+    async revealEvidence() {
+        const hashInput = document.getElementById('atlEvidenceHash');
+        const outputEl = document.getElementById('atlEvidenceOutput');
+        if (!hashInput || !outputEl) return;
+
+        const hash = hashInput.value.trim();
+        if (!hash) { outputEl.innerHTML = '<p class="atl-error">Enter a payload hash.</p>'; return; }
+
+        outputEl.innerHTML = '<p class="atl-loading">Revealing...</p>';
+
+        try {
+            const res = await authFetch('/api/ledger/reveal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload_hash: hash })
+            });
+            const data = await res.json();
+            if (!data.success) {
+                outputEl.innerHTML = `<p class="atl-error">${data.error || 'Access denied or not found.'}</p>`;
+                return;
+            }
+            const content = typeof data.content === 'object' ? JSON.stringify(data.content, null, 2) : data.content;
+            outputEl.innerHTML = `<div class="atl-evidence-meta">
+                <span>Data Class: <strong>${data.data_class || 'NONE'}</strong></span>
+                <span>Archived: ${data.created_at ? new Date(data.created_at).toLocaleString() : 'N/A'}</span>
+            </div>
+            <pre class="atl-evidence-block">${this._esc(content)}</pre>`;
+        } catch (e) {
+            outputEl.innerHTML = '<p class="atl-error">Failed to reveal evidence. Compliance access required.</p>';
+        }
+    },
+
+    updateFooter(allValid) {
+        const footer = document.getElementById('atlFooterStatus');
+        if (!footer) return;
+        if (allValid) {
+            footer.textContent = 'SYSTEM INTEGRITY: ALL CHAINS VERIFIED';
+            footer.className = 'atl-footer-status atl-footer-valid';
+        } else {
+            footer.textContent = 'SYSTEM INTEGRITY: TAMPERING DETECTED';
+            footer.className = 'atl-footer-status atl-footer-tampered';
+        }
+    },
+
+    _esc(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    AtlDashboard.init();
 });
 
 // End of KorumOS Sentinel Logic

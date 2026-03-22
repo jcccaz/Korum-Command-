@@ -75,6 +75,11 @@
                             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                         </svg>
                     </button>
+                    <button class="atl-nav-btn" id="atlNavBtn" title="Decision Ledger" style="display:none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                    </button>
                 </div>
 
                 <div class="nav-right" id="hamburgerBtn" title="Saved Reports">
@@ -1023,6 +1028,61 @@
             <div class="billing-modal-footer">
                 <div class="footer-badge">FINANCIAL INTEGRITY VERIFIED</div>
                 <div class="footer-timestamp" id="billingLastUpdate">LAST SYNC: N/A</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ATL DASHBOARD MODAL -->
+    <div class="atl-dashboard-overlay" id="atlDashOverlay" style="display:none;">
+        <div class="atl-dashboard">
+            <div class="atl-header">
+                <div class="atl-header-left">
+                    <h3>DECISION LEDGER</h3>
+                    <p>AUDIT TRANSPARENCY LAYER</p>
+                </div>
+                <button class="atl-close-btn" id="atlCloseBtn">&times;</button>
+            </div>
+            <div class="atl-tab-bar">
+                <button class="atl-tab active" data-tab="witness">WITNESS LEDGER</button>
+                <button class="atl-tab" data-tab="integrity">CHAIN INTEGRITY</button>
+                <button class="atl-tab" data-tab="evidence">EVIDENCE VAULT</button>
+            </div>
+            <div class="atl-content">
+                <!-- Tab 1: Witness Ledger -->
+                <div class="atl-tab-panel active" id="atlTabWitness">
+                    <div class="atl-mission-list" id="atlMissionList">
+                        <p class="atl-loading">Loading missions...</p>
+                    </div>
+                    <div class="atl-chain-detail" id="atlChainDetail" style="display:none;">
+                        <div class="atl-chain-header">
+                            <button class="atl-back-btn" id="atlBackBtn">&larr; Back to missions</button>
+                            <span class="atl-chain-title" id="atlChainTitle"></span>
+                        </div>
+                        <div class="atl-chain-events" id="atlChainEvents"></div>
+                    </div>
+                </div>
+                <!-- Tab 2: Chain Integrity -->
+                <div class="atl-tab-panel" id="atlTabIntegrity">
+                    <div class="atl-integrity-controls">
+                        <button class="atl-verify-all-btn" id="atlVerifyAllBtn">VERIFY ALL CHAINS</button>
+                        <div class="atl-integrity-status" id="atlIntegrityStatus"></div>
+                    </div>
+                    <div class="atl-integrity-results" id="atlIntegrityResults"></div>
+                </div>
+                <!-- Tab 3: Evidence Vault -->
+                <div class="atl-tab-panel" id="atlTabEvidence">
+                    <div class="atl-evidence-controls">
+                        <label class="atl-evidence-label">PAYLOAD HASH</label>
+                        <div class="atl-evidence-input-row">
+                            <input type="text" class="atl-evidence-input" id="atlEvidenceHash" placeholder="Enter SHA-256 payload hash...">
+                            <button class="atl-reveal-btn" id="atlRevealBtn">REVEAL</button>
+                        </div>
+                    </div>
+                    <div class="atl-evidence-output" id="atlEvidenceOutput"></div>
+                </div>
+            </div>
+            <div class="atl-footer">
+                <span class="atl-footer-status" id="atlFooterStatus">SYSTEM INTEGRITY: STANDBY</span>
             </div>
         </div>
     </div>

@@ -3404,6 +3404,43 @@ def reveal_evidence():
         "created_at": evidence.created_at.isoformat() if evidence.created_at else None
     })
 
+@app.route('/api/ledger/missions', methods=['GET'])
+@auth_required
+def get_ledger_missions():
+    """ATL Dashboard: list all missions with chain status. Admin/compliance only."""
+    if not (getattr(current_user, 'role', '') in ('admin', 'compliance')):
+        return jsonify({"success": False, "error": "Admin or compliance access required"}), 403
+
+    from sqlalchemy import func
+    rows = db.session.query(
+        DecisionLedger.mission_id,
+        func.count(DecisionLedger.id).label('event_count'),
+        func.count(func.distinct(DecisionLedger.decision_id)).label('decision_count'),
+        func.max(DecisionLedger.timestamp).label('last_activity'),
+    ).group_by(DecisionLedger.mission_id).order_by(func.max(DecisionLedger.timestamp).desc()).all()
+
+    missions = []
+    for row in rows:
+        # Get thread title if available
+        thread = Thread.query.filter_by(thread_id=row.mission_id).first()
+        title = thread.title if thread else "Unknown Mission"
+
+        # Verify chain integrity
+        verification = LedgerService.verify_mission(row.mission_id)
+
+        missions.append({
+            "mission_id": row.mission_id,
+            "title": title,
+            "event_count": row.event_count,
+            "decision_count": row.decision_count,
+            "last_activity": row.last_activity.isoformat() if row.last_activity else None,
+            "chain_valid": verification.get("valid", False),
+            "failures": verification.get("failures", []),
+        })
+
+    return jsonify({"success": True, "missions": missions})
+
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     # Respect Node/JS convention if present

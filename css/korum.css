@@ -8783,3 +8783,378 @@ body.report-library-open .results-container {
         grid-template-columns: 1fr;
     }
 }
+
+/* ============================================================
+   ATL DASHBOARD — Decision Ledger Audit Transparency Layer
+   ============================================================ */
+
+.atl-nav-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #C47D00;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+.atl-nav-btn:hover {
+    background: rgba(196,125,0,0.15);
+    border-color: #C47D00;
+}
+
+.atl-dashboard-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.atl-dashboard {
+    width: 90vw;
+    max-width: 1100px;
+    height: 85vh;
+    background: #111118;
+    border: 1px solid rgba(196,125,0,0.3);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.atl-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px 12px;
+    border-bottom: 1px solid rgba(196,125,0,0.25);
+}
+.atl-header h3 {
+    margin: 0;
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: #C47D00;
+}
+.atl-header p {
+    margin: 2px 0 0;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.4);
+}
+.atl-close-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+.atl-close-btn:hover { color: #fff; }
+
+.atl-tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 0 24px;
+}
+.atl-tab {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    padding: 12px 20px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.atl-tab:hover { color: rgba(255,255,255,0.7); }
+.atl-tab.active {
+    color: #C47D00;
+    border-bottom-color: #C47D00;
+}
+
+.atl-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+}
+
+.atl-tab-panel { display: none; }
+.atl-tab-panel.active { display: block; }
+
+/* Tables */
+.atl-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.atl-table thead th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.4);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.atl-table tbody td {
+    padding: 10px 12px;
+    color: rgba(255,255,255,0.8);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.atl-mission-row { cursor: pointer; transition: background 0.15s; }
+.atl-mission-row:hover { background: rgba(196,125,0,0.08); }
+
+/* Hash display */
+.atl-hash {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    opacity: 0.7;
+    color: #C47D00;
+}
+
+/* Status badges */
+.atl-badge-valid {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    background: rgba(68,255,136,0.12);
+    color: #44FF88;
+    border: 1px solid rgba(68,255,136,0.25);
+}
+.atl-badge-tampered {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    background: rgba(255,68,68,0.12);
+    color: #FF4444;
+    border: 1px solid rgba(255,68,68,0.25);
+}
+
+/* Chain detail */
+.atl-chain-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.atl-back-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+.atl-back-btn:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+.atl-chain-title {
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 1px;
+}
+
+/* Chain event cards */
+.atl-chain-event {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 4px;
+}
+.atl-chain-seq {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 40px;
+}
+.atl-chain-seq-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(196,125,0,0.15);
+    border: 1px solid rgba(196,125,0,0.4);
+    color: #C47D00;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+}
+.atl-chain-arrow {
+    width: 2px;
+    height: 20px;
+    background: rgba(196,125,0,0.25);
+    margin-bottom: 4px;
+}
+.atl-chain-genesis {
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: rgba(196,125,0,0.5);
+    margin-bottom: 4px;
+}
+.atl-chain-body {
+    flex: 1;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+}
+.atl-chain-event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.atl-event-type {
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #C47D00;
+    font-weight: 600;
+}
+.atl-event-ts {
+    font-size: 10px;
+    color: rgba(255,255,255,0.35);
+}
+.atl-chain-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 6px;
+}
+.atl-hmac-badge {
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(68,255,136,0.1);
+    color: #44FF88;
+}
+.atl-chain-record-hash {
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+}
+
+/* Integrity tab */
+.atl-integrity-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+.atl-verify-all-btn {
+    background: rgba(196,125,0,0.15);
+    border: 1px solid rgba(196,125,0,0.4);
+    color: #C47D00;
+    padding: 10px 20px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+.atl-verify-all-btn:hover {
+    background: rgba(196,125,0,0.25);
+}
+.atl-integrity-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+}
+.atl-failure {
+    font-size: 11px;
+    color: #FF4444;
+    margin-top: 4px;
+    padding-left: 12px;
+}
+
+/* Evidence vault tab */
+.atl-evidence-controls {
+    margin-bottom: 20px;
+}
+.atl-evidence-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.4);
+    display: block;
+    margin-bottom: 8px;
+}
+.atl-evidence-input-row {
+    display: flex;
+    gap: 8px;
+}
+.atl-evidence-input {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #C47D00;
+    padding: 10px 14px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    border-radius: 4px;
+}
+.atl-evidence-input:focus {
+    outline: none;
+    border-color: rgba(196,125,0,0.4);
+}
+.atl-reveal-btn {
+    background: rgba(196,125,0,0.15);
+    border: 1px solid rgba(196,125,0,0.4);
+    color: #C47D00;
+    padding: 10px 20px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.atl-reveal-btn:hover { background: rgba(196,125,0,0.25); }
+.atl-evidence-meta {
+    display: flex;
+    gap: 24px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 12px;
+}
+.atl-evidence-block {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 16px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Footer */
+.atl-footer {
+    padding: 12px 24px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    text-align: right;
+}
+.atl-footer-status {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.3);
+}
+.atl-footer-valid { color: #44FF88; }
+.atl-footer-tampered { color: #FF4444; }
+
+/* Utility */
+.atl-loading { color: rgba(255,255,255,0.4); font-size: 12px; }
+.atl-empty { color: rgba(255,255,255,0.3); font-size: 12px; font-style: italic; }
+.atl-error { color: #FF4444; font-size: 12px; }
