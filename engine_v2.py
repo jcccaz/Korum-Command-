@@ -2637,6 +2637,33 @@ def _critical_data_missing(verified_claims, evidence_trace, unknowns):
     return any(marker in unknown_text for marker in critical_markers)
 
 
+def _count_unresolved_core_claims(verified_claims):
+    count = 0
+    core_claim_markers = (
+        "root cause", "caused by", "because", "will reduce", "reduce complaints",
+        "improve", "increase", "decrease", "roi", "return on investment",
+        "payback", "months", "timeline", "forecast", "projection",
+    )
+    for claim in verified_claims or []:
+        if not isinstance(claim, dict):
+            continue
+        status = str(claim.get("status") or "").strip().upper()
+        if status in ("VERIFIED", "ACCURATE"):
+            continue
+
+        claim_type = str(claim.get("type") or "").strip().lower()
+        claim_text = str(claim.get("claim") or "").strip().lower()
+        is_core_type = claim_type in {"causal", "forecast", "financial_forecast"}
+        has_core_marker = any(marker in claim_text for marker in core_claim_markers)
+        quantified_projection = bool(re.search(r"\b\d+(?:\.\d+)?%?\b", claim_text)) and any(
+            marker in claim_text for marker in ("roi", "month", "reduce", "increase", "decrease", "improve")
+        )
+
+        if is_core_type or has_core_marker or quantified_projection:
+            count += 1
+    return count
+
+
 def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
     """
     Confidence Governor — enforces dual-confidence model with hard caps.
@@ -2657,6 +2684,7 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
     assumption_count = len(assumptions)
     quantified = _has_quantified_support(verified_claims, evidence_trace)
     critical_missing = _critical_data_missing(verified_claims, evidence_trace, unknowns)
+    unresolved_core_claims = _count_unresolved_core_claims(verified_claims)
     notes = []
 
     # --- FACT CONFIDENCE GOVERNOR ---
@@ -2677,6 +2705,10 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
         fact_confidence = min(fact_confidence, 0.2)
         notes.append("zero verified facts")
 
+    if unresolved_core_claims >= 2:
+        fact_confidence = min(fact_confidence, 0.2)
+        notes.append(f"{unresolved_core_claims} core claims remain unverified")
+
     # --- DECISION CONFIDENCE GOVERNOR ---
     decision_confidence = 0.8  # Start optimistic, apply deductions
 
@@ -2695,6 +2727,17 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
     if unknown_count > verified_count:
         decision_confidence = min(decision_confidence, 0.6)
         notes.append("unknowns exceed verified facts")
+
+    if critical_missing and not quantified:
+        decision_confidence = min(decision_confidence, 0.45)
+        notes.append("missing quantified baseline evidence")
+
+    if unresolved_core_claims:
+        unresolved_penalty = min(0.12 * unresolved_core_claims, 0.36)
+        decision_confidence -= unresolved_penalty
+        notes.append(f"{unresolved_core_claims} unresolved core decision claims")
+        if unresolved_core_claims >= 2:
+            decision_confidence = min(decision_confidence, 0.4)
 
     # Red Team findings apply additional pressure
     if red_team_findings and isinstance(red_team_findings, dict):
@@ -2718,6 +2761,7 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
         unsupported = red_team_findings.get("unsupported_claims") or []
         if len(unsupported) >= 2:
             decision_confidence -= 0.10
+            decision_confidence = min(decision_confidence, 0.45)
             notes.append("Red Team identified unsupported claims")
         # FAIL status → hard caps
         if "FAIL" in rt_status:
@@ -2769,10 +2813,12 @@ def _has_quantified_support(verified_claims, evidence_trace):
     texts = []
     for claim in verified_claims or []:
         if isinstance(claim, dict):
-            texts.extend([
-                str(claim.get("claim") or ""),
-                str(claim.get("source_ref") or ""),
-            ])
+            status = str(claim.get("status") or "").strip().upper()
+            if status in ("VERIFIED", "ACCURATE", "PARTIAL"):
+                texts.extend([
+                    str(claim.get("claim") or ""),
+                    str(claim.get("source_ref") or ""),
+                ])
         else:
             texts.append(str(claim))
     for item in evidence_trace or []:
@@ -2893,12 +2939,14 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
     if diagnostic_first:
         diagnostic_note = "INSUFFICIENT EVIDENCE for root-cause attribution. Collect baseline diagnostics before committing to irreversible remediation."
         rationale_text = f"{diagnostic_note} {rationale_text}".strip() if rationale_text else diagnostic_note
-        score = min(score, 65)
+        score = min(score, 55)
+        if _count_unresolved_core_claims(verified_claims) >= 2:
+            score = min(score, 45)
         if diagnostic_reasons:
             basis_note = "Diagnostic-first gating applied because " + ", ".join(dict.fromkeys(diagnostic_reasons)) + "."
             basis = f"{basis} {basis_note}".strip() if basis else basis_note
     if diagnostic_first and decision_text == "CONDITIONAL GO":
-        score = 70
+        score = min(score, 55)
     status = _packet_confidence_status(score)
 
     key_signals = []
@@ -3250,7 +3298,8 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
             "LIMITATIONS: 2-3 bullet points on data gaps or unresolved questions. "
             "Confidence must reflect actual data quality, not optimism. "
             "If financial details or baselines are missing, confidence cannot be 'High' — use 'Moderate-High' at most. "
-            "If UNKNOWNs outnumber VERIFIED facts, confidence cannot exceed Medium and score cannot exceed 70."
+            "If UNKNOWNs outnumber VERIFIED facts, confidence cannot exceed Medium and score cannot exceed 70. "
+            "If root cause, projected impact, or ROI claims are unverified, confidence must be Low and score must not exceed 45."
         ),
     }
     default_directive = "2-3 concise paragraphs synthesizing the council's findings for this section. Use specific data from the discussion. No filler."
@@ -3279,15 +3328,16 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
        - NO FAKE PRECISION: Do not invent percentages or timelines not found in user data.
     6. DECISION DISCIPLINE: No role may hide uncertainty. If evidence is insufficient, state 'INSUFFICIENT EVIDENCE'.
     7. CONFIDENCE CAP: If UNKNOWNs > VERIFIED facts, confidence MUST be MEDIUM or LOW and score MUST be <= 70.
-    8. MISSING-DATA CAP: If critical data is missing, confidence MUST be LOW or CONDITIONAL.
+    8. MISSING-DATA CAP: If critical data is missing, confidence MUST be LOW and score MUST be <= 55.
     9. NO UNSOURCED PROJECTIONS: No timeline, probability, or numeric projection may appear unless it is explicitly supported in verified_claims or evidence_trace. If support is absent, classify it as an unknown instead.
     10. DIAGNOSTIC-FIRST RULE: If the prompt lacks quantified baselines, trend data, or verified root-cause evidence, do NOT force a specific root-cause fix. Emit a diagnostic-first recommendation and keep the decision at CONDITIONAL GO or NO-GO until evidence improves.
+    11. CORE-CLAIM CAP: If 2 or more core decision claims (cause, impact, ROI, timeline) are unverified, confidence MUST be LOW and score MUST be <= 45.
 
     FIELD INSTRUCTIONS:
     - decision_headline: One clear actionable sentence. NO hedging.
     - executive_summary: Situation -> Decision -> Rationale -> Confidence. 4-6 sentences max. No labeled fields in the text.
     - go_no_go_call.decision: Must strictly be GO, NO-GO, or CONDITIONAL GO. If evidence is sparse or baselines are missing, use CONDITIONAL GO or NO-GO and direct leadership to diagnostics first.
-    - confidence: Must explicitly label band (HIGH | MEDIUM | LOW), a 0-100 score, and a 1-sentence basis. If UNKNOWNs > VERIFIED facts, band cannot exceed MEDIUM and score cannot exceed 70.
+    - confidence: Must explicitly label band (HIGH | MEDIUM | LOW), a 0-100 score, and a 1-sentence basis. If UNKNOWNs > VERIFIED facts, band cannot exceed MEDIUM and score cannot exceed 70. If 2 or more core decision claims are unverified, band must be LOW and score must be <= 45.
     - risk_vectors: Present the critical challenges and failure modes. High impact challenges only.
     - assumptions: List 3-5 baseline assumptions.
     - unknowns: List 2-3 critical unknowns.

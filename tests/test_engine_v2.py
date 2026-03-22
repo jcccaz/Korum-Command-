@@ -6,7 +6,7 @@ import os
 # Adapt path to import engine_v2
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from engine_v2 import synthesize_results, CouncilContext
+from engine_v2 import adapt_decision_packet_to_legacy_shape, synthesize_results, CouncilContext
 
 # Mock LLM Call to avoid real API usage during test
 # In a real scenario, we'd use unittest.mock
@@ -123,6 +123,130 @@ class TestSynthesizer(unittest.TestCase):
             self.assertIn("Perplexity: Found trend X", prompt_sent_to_openai)
             
             print("\n[TEST] Verified that Step 2 (OpenAI) received Context from Step 1 (Perplexity).")
+
+    def test_diagnostic_first_packet_forces_low_score_when_core_claims_are_unverified(self):
+        packet = {
+            "decision_headline": "Do not proceed with the $2M telecom upgrade.",
+            "executive_summary": "Evidence is insufficient to justify capital deployment.",
+            "go_no_go_call": {
+                "decision": "NO-GO",
+                "rationale": "Root cause, impact, and ROI claims remain unverified."
+            },
+            "confidence": {
+                "band": "MEDIUM",
+                "score": 70,
+                "basis": "Initial draft overstated the evidence quality."
+            },
+            "verified_claims": [
+                {
+                    "claim": "Slow speeds are caused by outdated hardware.",
+                    "status": "UNVERIFIED",
+                    "source_ref": "Internal belief",
+                    "type": "causal"
+                },
+                {
+                    "claim": "Upgrading equipment will reduce complaints by at least 40%.",
+                    "status": "UNVERIFIED",
+                    "source_ref": "Internal forecast",
+                    "type": "forecast"
+                },
+                {
+                    "claim": "Estimated ROI within 18 months.",
+                    "status": "UNVERIFIED",
+                    "source_ref": "Internal forecast",
+                    "type": "financial_forecast"
+                }
+            ],
+            "risk_vectors": [],
+            "assumptions": [
+                "Current hardware is the main bottleneck.",
+                "Customer complaints map directly to access-layer speed constraints.",
+                "Traffic engineering will not materially improve speeds.",
+                "The upgrade will deliver the expected ROI."
+            ],
+            "unknowns": [
+                "No detailed root cause analysis has been completed.",
+                "No recent traffic engineering or routing optimization has been attempted.",
+                "Limited telemetry exists on congestion versus routing inefficiency."
+            ],
+            "immediate_actions": [
+                {"action": "Run root cause analysis", "owner": "Network Operations", "timeline": "Immediate"}
+            ],
+            "alternatives_rejected": [],
+            "evidence_trace": [
+                {"point": "Customer complaints reference slow speeds.", "support": "Complaint summaries only"}
+            ],
+            "export_metadata": {
+                "report_type": "telecom_dossier",
+                "workflow": "RESEARCH",
+                "generated_at": "2026-03-22T14:00:00",
+                "schema_version": "1.0"
+            }
+        }
+
+        adapted = adapt_decision_packet_to_legacy_shape(packet)
+
+        self.assertLessEqual(adapted["meta"]["composite_truth_score"], 45)
+        self.assertEqual(adapted["meta"]["confidence_score_source"], "RULE_ENGINE")
+        self.assertEqual(adapted["structured_data"]["key_metrics"][0]["context"], "Fail")
+        self.assertIn("INSUFFICIENT EVIDENCE", adapted["sections"]["decision"])
+
+    def test_verified_packet_retains_recommended_score(self):
+        packet = {
+            "decision_headline": "Proceed with the targeted remediation plan.",
+            "executive_summary": "Verified telemetry supports the recommended action.",
+            "go_no_go_call": {
+                "decision": "GO",
+                "rationale": "Measured degradation and validated remediation economics support immediate action."
+            },
+            "confidence": {
+                "band": "HIGH",
+                "score": 92,
+                "basis": "Telemetry and operating baselines are verified."
+            },
+            "verified_claims": [
+                {
+                    "claim": "Peak latency increased 38% across three validated markets.",
+                    "status": "VERIFIED",
+                    "source_ref": "Network telemetry",
+                    "type": "metric"
+                },
+                {
+                    "claim": "Targeted edge upgrades cut repeat complaints by 44% in the pilot region.",
+                    "status": "VERIFIED",
+                    "source_ref": "Pilot results",
+                    "type": "metric"
+                },
+                {
+                    "claim": "The remediation plan reaches payback in 14 months.",
+                    "status": "VERIFIED",
+                    "source_ref": "Finance model v3",
+                    "type": "financial_forecast"
+                }
+            ],
+            "risk_vectors": [],
+            "assumptions": [],
+            "unknowns": [],
+            "immediate_actions": [
+                {"action": "Deploy approved remediation", "owner": "Network Operations", "timeline": "Immediate"}
+            ],
+            "alternatives_rejected": [],
+            "evidence_trace": [
+                {"point": "Latency rose from 42 ms to 58 ms in validated markets.", "support": "Telemetry dashboard"},
+                {"point": "Pilot remediation reduced repeat complaints by 44%.", "support": "Pilot scorecard"}
+            ],
+            "export_metadata": {
+                "report_type": "telecom_dossier",
+                "workflow": "RESEARCH",
+                "generated_at": "2026-03-22T14:00:00",
+                "schema_version": "1.0"
+            }
+        }
+
+        adapted = adapt_decision_packet_to_legacy_shape(packet)
+
+        self.assertGreaterEqual(adapted["meta"]["composite_truth_score"], 80)
+        self.assertEqual(adapted["structured_data"]["key_metrics"][0]["context"], "Recommended")
 
 if __name__ == '__main__':
     unittest.main()
