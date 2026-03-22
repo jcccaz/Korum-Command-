@@ -3024,6 +3024,7 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
             "truth_score": score,
             "fact_confidence": fact_confidence,
             "decision_confidence": decision_confidence,
+            "confidence_score_source": "RULE_ENGINE",
         },
         "sections": {
             "executive_summary": summary_text,
@@ -3041,6 +3042,7 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
                 {"metric": "Decision Score", "value": f"{score} / 100", "context": status},
                 {"metric": "Fact Confidence", "value": f"{fact_confidence}", "context": "Root cause certainty"},
                 {"metric": "Decision Confidence", "value": f"{decision_confidence}", "context": "Action certainty"},
+                {"metric": "Score Source", "value": "RULE_ENGINE", "context": "Confidence Governor — not raw model output"},
             ],
             "action_items": [
                 {

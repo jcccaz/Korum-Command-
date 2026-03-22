@@ -2330,6 +2330,22 @@ def ask_council():
             if 'FAIL' in rt_status or 'INSUFFICIENT' in rt_status:
                 v2_response['consensus'] += " [RED TEAM STATUS: FAIL — EXPORT BLOCKED]"
                 print(f"🚨 RED TEAM ARBITER: FAIL — {rt_findings.get('failure_reasons', [])}")
+                # --- DECISION LEDGER: Record contested decision ---
+                try:
+                    LedgerService.write_event(
+                        event_type='decision_contested_by_redteam',
+                        mission_id=_ledger_mission_id,
+                        decision_id=_decision_id,
+                        operator_id=_operator_id,
+                        payload={
+                            "red_team_status": rt_status,
+                            "failure_count": len(rt_findings.get('failure_reasons', [])),
+                            "has_confidence_attack": bool(str(rt_findings.get('confidence_attack', '')).strip()),
+                            "export_blocked": True,
+                        },
+                    )
+                except Exception as ledger_err:
+                    print(f"[LEDGER] Warning: contested event write failed: {ledger_err}")
             else:
                 print(f"✅ RED TEAM ARBITER: PASS")
 
@@ -2898,6 +2914,7 @@ def _run_council_job(job_id, query, personas, workflow, active_models, user_id,
                 rt_chain_status = str(results['_red_team_findings'].get('red_team_status', '')).upper()
                 if 'FAIL' in rt_chain_status or 'INSUFFICIENT' in rt_chain_status:
                     print(f"🚨 RED TEAM ARBITER (Chain): FAIL")
+                    # TODO: Wire decision_contested_by_redteam ledger event when chain jobs get ledger IDs
 
             # --- Phase: Response Assembly ---
             _job_set_status(job_id, "processing", phase="finalizing")

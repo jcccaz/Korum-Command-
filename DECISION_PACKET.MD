@@ -28,6 +28,7 @@ Every Korum-OS Decision Packet MUST map exactly to the JSON shape below. Extra k
   "confidence": {
     "band": "HIGH | MEDIUM | LOW",
     "score": 0,
+    "confidence_score_source": "RULE_ENGINE | MODEL | HYBRID",
     "basis": "string"
   },
   "verified_claims": [
