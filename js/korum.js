@@ -264,7 +264,7 @@ const PROVIDER_MYTHICAL_LABELS = {
     "google": "Heimdall / Gemini",
     "perplexity": "Huginn / Perplexity",
     "mistral": "Mimir / Mistral",
-    "local": "Oracle / Local AI"
+    "local": "Domain Specialist"
 };
 
 function resolveProviderKey(name) {
@@ -1699,34 +1699,33 @@ const AIHealth = {
 
 const PROTOCOL_CONFIGS = {
     // --- GENERAL ---
-    "War Room": { openai: "strategist", anthropic: "containment", google: "takeover", perplexity: "scout", mistral: "validator" },
-    "Deep Research": { openai: "analyst", anthropic: "researcher", google: "historian", perplexity: "scout", mistral: "validator" },
-    "Creative Council": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative" },
-    "Code Audit": { openai: "architect", anthropic: "integrity", google: "hacker", perplexity: "optimizer", mistral: "coding" },
-    "System Core": { openai: "visionary", anthropic: "architect", google: "critic", perplexity: "researcher", mistral: "validator" },
+    "War Room": { openai: "strategist", anthropic: "containment", google: "takeover", perplexity: "scout", mistral: "validator", local: "crisis_commander" },
+    "Deep Research": { openai: "analyst", anthropic: "researcher", google: "historian", perplexity: "scout", mistral: "validator", local: "professor" },
+    "Creative Council": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative", local: "brand_psychologist" },
+    "Code Audit": { openai: "architect", anthropic: "integrity", google: "hacker", perplexity: "optimizer", mistral: "coding", local: "security_engineer" },
+    "System Core": { openai: "visionary", anthropic: "architect", google: "critic", perplexity: "researcher", mistral: "validator", local: "oracle" },
     // --- DOMAIN-SPECIFIC ---
-    "Legal Review": { openai: "jurist", anthropic: "compliance", google: "critic", perplexity: "scout", mistral: "negotiator" },
-    "Medical Council": { openai: "medical", anthropic: "bioethicist", google: "researcher", perplexity: "scout", mistral: "analyst" },
-    "Finance Desk": { openai: "cfo", anthropic: "auditor", google: "hedge_fund", perplexity: "scout", mistral: "tax" },
-    "Science Panel": { openai: "physicist", anthropic: "biologist", google: "chemist", perplexity: "scout", mistral: "professor" },
-    "Startup Launch": { openai: "bizstrat", anthropic: "product", google: "marketing", perplexity: "scout", mistral: "cfo" },
-    "STARTUP_LAUNCH": { openai: "bizstrat", anthropic: "product", google: "marketing", perplexity: "scout", mistral: "cfo" },
-    "Tech Council": { openai: "strategist", anthropic: "architect", google: "critic", perplexity: "scout", mistral: "validator" },
-    "Creative Council": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative" },
-    "CREATIVE_COUNCIL": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative" },
-    "SOCIAL_POST": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative" },
-    "CODE_AUDIT": { openai: "architect", anthropic: "integrity", google: "hacker", perplexity: "optimizer", mistral: "coding" },
-    "CYBER_COMMAND": { openai: "cyber_ops", anthropic: "counterintel", google: "sigint", perplexity: "intel_analyst", mistral: "hacker" },
-    "DEFENSE_COUNCIL": { openai: "defense_ops", anthropic: "cyber_ops", google: "intel_analyst", perplexity: "scout", mistral: "hacker" },
-    "INTEL_BRIEF": { openai: "intel_analyst", anthropic: "counterintel", google: "defense_ops", perplexity: "scout", mistral: "sigint" },
-    "SCIENCE_PANEL": { openai: "physicist", anthropic: "biologist", google: "chemist", perplexity: "scout", mistral: "professor" },
+    "Legal Review": { openai: "jurist", anthropic: "compliance", google: "critic", perplexity: "scout", mistral: "negotiator", local: "regulatory_affairs" },
+    "Medical Council": { openai: "medical", anthropic: "bioethicist", google: "researcher", perplexity: "scout", mistral: "analyst", local: "clinical_ops" },
+    "Finance Desk": { openai: "cfo", anthropic: "auditor", google: "hedge_fund", perplexity: "scout", mistral: "tax", local: "economist" },
+    "Science Panel": { openai: "physicist", anthropic: "biologist", google: "chemist", perplexity: "scout", mistral: "professor", local: "lab_director" },
+    "Startup Launch": { openai: "bizstrat", anthropic: "product", google: "marketing", perplexity: "scout", mistral: "cfo", local: "venture_capital" },
+    "STARTUP_LAUNCH": { openai: "bizstrat", anthropic: "product", google: "marketing", perplexity: "scout", mistral: "cfo", local: "venture_capital" },
+    "Tech Council": { openai: "strategist", anthropic: "architect", google: "critic", perplexity: "scout", mistral: "validator", local: "telecom_engineer" },
+    "CREATIVE_COUNCIL": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative", local: "brand_psychologist" },
+    "SOCIAL_POST": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative", local: "social" },
+    "CODE_AUDIT": { openai: "architect", anthropic: "integrity", google: "hacker", perplexity: "optimizer", mistral: "coding", local: "security_engineer" },
+    "CYBER_COMMAND": { openai: "cyber_ops", anthropic: "counterintel", google: "sigint", perplexity: "intel_analyst", mistral: "hacker", local: "zero_trust" },
+    "DEFENSE_COUNCIL": { openai: "defense_ops", anthropic: "cyber_ops", google: "intel_analyst", perplexity: "scout", mistral: "hacker", local: "sigint" },
+    "INTEL_BRIEF": { openai: "intel_analyst", anthropic: "counterintel", google: "defense_ops", perplexity: "scout", mistral: "sigint", local: "geopolitical" },
+    "SCIENCE_PANEL": { openai: "physicist", anthropic: "biologist", google: "chemist", perplexity: "scout", mistral: "professor", local: "lab_director" },
     // --- DEFENSE & INTELLIGENCE ---
-    "Defense Council": { openai: "defense_ops", anthropic: "cyber_ops", google: "intel_analyst", perplexity: "scout", mistral: "hacker" },
-    "Cyber Command": { openai: "cyber_ops", anthropic: "counterintel", google: "sigint", perplexity: "intel_analyst", mistral: "hacker" },
-    "Quantum Security": { openai: "zero_trust", anthropic: "cryptographer", google: "compliance", perplexity: "ai_architect", mistral: "hacker" },
-    "Intel Brief": { openai: "intel_analyst", anthropic: "counterintel", google: "defense_ops", perplexity: "scout", mistral: "sigint" },
-    "EOM_STATEMENT": { openai: "cfo", anthropic: "auditor", google: "analyst", perplexity: "scout", mistral: "tax" },
-    "PORTFOLIO_BUILDER": { openai: "hedge_fund", anthropic: "hedge_fund", google: "hedge_fund", perplexity: "scout", mistral: "hedge_fund" }
+    "Defense Council": { openai: "defense_ops", anthropic: "cyber_ops", google: "intel_analyst", perplexity: "scout", mistral: "hacker", local: "sigint" },
+    "Cyber Command": { openai: "cyber_ops", anthropic: "counterintel", google: "sigint", perplexity: "intel_analyst", mistral: "hacker", local: "zero_trust" },
+    "Quantum Security": { openai: "zero_trust", anthropic: "cryptographer", google: "compliance", perplexity: "ai_architect", mistral: "hacker", local: "cryptographer" },
+    "Intel Brief": { openai: "intel_analyst", anthropic: "counterintel", google: "defense_ops", perplexity: "scout", mistral: "sigint", local: "geopolitical" },
+    "EOM_STATEMENT": { openai: "cfo", anthropic: "auditor", google: "analyst", perplexity: "scout", mistral: "tax", local: "economist" },
+    "PORTFOLIO_BUILDER": { openai: "hedge_fund", anthropic: "hedge_fund", google: "hedge_fund", perplexity: "scout", mistral: "hedge_fund", local: "economist" }
 };
 
 // Available Roles for Manual Cycling
@@ -1736,7 +1735,7 @@ const AVAILABLE_ROLES = {
     google: ["TAKEOVER", "HISTORIAN", "MARKETING", "HACKER", "CRITIC", "ECONOMIST", "CHEMIST", "RESEARCHER", "NETWORK", "TELECOM", "HEDGE_FUND", "DEFENSE_OPS", "CYBER_OPS", "SIGINT", "INTEL_ANALYST", "CRYPTOGRAPHER", "ZERO_TRUST"],
     perplexity: ["SCOUT", "SOCIAL", "OPTIMIZER", "RESEARCHER", "INTEL_ANALYST"],
     mistral: ["ANALYST", "STRATEGIST", "CODING", "CREATIVE", "VALIDATOR", "NEGOTIATOR", "TAX", "PROFESSOR", "CFO", "WEB_DESIGNER", "HACKER", "HEDGE_FUND", "CYBER_OPS", "DEFENSE_OPS", "SIGINT", "CRYPTOGRAPHER", "ZERO_TRUST"],
-    local: ["ORACLE", "GUARDIAN", "OFFLINE"]
+    local: ["ORACLE", "TELECOM_ENGINEER", "ECONOMIST", "PROFESSOR", "CRYPTOGRAPHER", "ZERO_TRUST", "SIGINT", "TAX", "SOCIAL", "REGULATORY_AFFAIRS", "CLINICAL_OPS", "SECURITY_ENGINEER", "CRISIS_COMMANDER", "VENTURE_CAPITAL", "LAB_DIRECTOR", "BRAND_PSYCHOLOGIST", "GEOPOLITICAL"]
 };
 
 let customRolesActive = false;
@@ -1977,6 +1976,18 @@ function setupActionBindings() {
                 document.getElementById('roleLabel-google').innerText = config.google.toUpperCase();
                 document.getElementById('roleLabel-perplexity').innerText = config.perplexity.toUpperCase();
                 if (config.mistral) document.getElementById('roleLabel-mistral').innerText = config.mistral.toUpperCase();
+                // SPECIALIST CARD: Auto-assign and activate LOCAL when workflow defines a specialist
+                if (config.local) {
+                    document.getElementById('roleLabel-local').innerText = config.local.toUpperCase();
+                    const localCard = document.querySelector('.deck-card.local');
+                    if (localCard && config.local !== 'oracle') {
+                        // Auto-activate specialist — they're the $500/hr SME for this domain
+                        if (localCard.classList.contains('silenced')) {
+                            localCard.classList.remove('silenced');
+                            logTelemetry(`SPECIALIST ACTIVATED: ${config.local.toUpperCase()}`, "success");
+                        }
+                    }
+                }
                 customRolesActive = false;
             }
             // NEW: Progress Evaluation Track
@@ -7023,7 +7034,7 @@ window.onload = async function () {
 };
 
 // UTILS
-function getProviderName(key) { const names = { openai: "Strategic Core", anthropic: "Architect", google: "Critic", perplexity: "Intel", mistral: "Analyst", local: "Oracle", red_team: "Red Team" }; return names[key] || key; }
+function getProviderName(key) { const names = { openai: "Strategic Core", anthropic: "Architect", google: "Critic", perplexity: "Intel", mistral: "Analyst", local: "Specialist", red_team: "Red Team" }; return names[key] || key; }
 function formatText(text) {
     if (!text) return "";
     if (typeof text !== 'string') text = String(text);
@@ -7406,25 +7417,34 @@ function renderRedTeamStrikeCard(container, findings) {
     };
 
     const card = document.createElement('div');
-    card.className = `rt-strike-card ${statusClass}`;
+    card.className = `rt-strike-card ${statusClass} rt-collapsed`;
     card.innerHTML = `
-        <div class="rt-strike-header">
+        <div class="rt-strike-header" style="cursor:pointer;" title="Click to expand/collapse">
             <div class="rt-strike-title">RED TEAM STRIKE CARD</div>
-            <div class="rt-strike-badge ${statusClass}">${statusLabel}</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="rt-strike-toggle">\u25BC</span>
+                <div class="rt-strike-badge ${statusClass}">${statusLabel}</div>
+            </div>
         </div>
-        <div class="rt-strike-target">${escapeHtml(findings.decision_targeted || 'No target specified')}</div>
-        <div class="rt-strike-body">
-            ${field('WEAKEST ASSUMPTION', findings.weakest_assumption, '\u26A0')}
-            ${field('CONFIDENCE ATTACK', findings.confidence_attack, '\u2694')}
-            ${field('EXECUTION RISKS', findings.execution_risks, '\u2622')}
-            ${field('ALTERNATIVE STRATEGY', findings.alternative_strategy, '\u21BB')}
-            ${field('MISSING EVIDENCE', findings.missing_evidence, '\u2753')}
-            ${field('UNSUPPORTED CLAIMS', findings.unsupported_claims, '\u2718')}
-            ${field('REVERSAL TRIGGER', findings.reversal_trigger, '\u23F1')}
+        <div class="rt-strike-detail">
+            <div class="rt-strike-target">${escapeHtml(findings.decision_targeted || 'No target specified')}</div>
+            <div class="rt-strike-body">
+                ${field('WEAKEST ASSUMPTION', findings.weakest_assumption, '\u26A0')}
+                ${field('CONFIDENCE ATTACK', findings.confidence_attack, '\u2694')}
+                ${field('EXECUTION RISKS', findings.execution_risks, '\u2622')}
+                ${field('ALTERNATIVE STRATEGY', findings.alternative_strategy, '\u21BB')}
+                ${field('MISSING EVIDENCE', findings.missing_evidence, '\u2753')}
+                ${field('UNSUPPORTED CLAIMS', findings.unsupported_claims, '\u2718')}
+                ${field('REVERSAL TRIGGER', findings.reversal_trigger, '\u23F1')}
+            </div>
+            ${findings.bottom_line ? `<div class="rt-strike-bottom-line">${escapeHtml(String(findings.bottom_line))}</div>` : ''}
+            ${findings.failure_reasons ? `<div class="rt-strike-failures"><strong>VALIDATION FAILURES:</strong><ul class="rt-strike-list">${findings.failure_reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul></div>` : ''}
         </div>
-        ${findings.bottom_line ? `<div class="rt-strike-bottom-line">${escapeHtml(String(findings.bottom_line))}</div>` : ''}
-        ${findings.failure_reasons ? `<div class="rt-strike-failures"><strong>VALIDATION FAILURES:</strong><ul class="rt-strike-list">${findings.failure_reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul></div>` : ''}
     `;
+    // Toggle collapse on header click
+    card.querySelector('.rt-strike-header').addEventListener('click', () => {
+        card.classList.toggle('rt-collapsed');
+    });
     container.appendChild(card);
 }
 
@@ -8646,7 +8666,7 @@ function renderExecutionDashboard(metrics) {
                 "google": "Heimdall / Gemini",
                 "perplexity": "Huginn / Perplexity",
                 "mistral": "Mimir / Mistral",
-                "local": "Oracle / Local AI"
+                "local": "Domain Specialist"
             };
             const displayName = PROVIDER_MYTHICAL_LABELS[p] || p.toUpperCase();
             

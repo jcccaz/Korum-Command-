@@ -128,6 +128,20 @@ ROLE_DESCRIPTIONS = {
     "optimizer": "a performance optimization specialist who identifies bottlenecks, streamlines processes, and maximizes efficiency. Output a ranked list of optimizations: current state metric, target metric, intervention, and expected gain. Do not recommend optimization without quantifying the current baseline and the expected improvement.",
     "historian": "a historian with expertise in historical analysis, contextual pattern recognition, and lessons from precedent. Output specific historical parallels with dates, actors, outcomes, and the explicit mechanism connecting the precedent to the present situation. Do not invoke history as decoration — state exactly what the precedent predicts and where the analogy breaks down.",
     "economist": "an economist with expertise in macroeconomic analysis, market dynamics, and policy impact assessment. Output economic analysis with specific indicators, magnitudes, and transmission mechanisms. Do not state economic trends without citing the specific data series, time period, and causal channel — distinguish between correlation and causation explicitly.",
+    # --- DOMAIN SPECIALISTS (Subordinate advisory role — NOT decision authority) ---
+    # SPECIALIST RULES: May provide hypotheses, failure layers, required telemetry, and operational patterns.
+    # Must label unsupported conclusions as UNVERIFIED. Must NOT declare root cause, assign final confidence,
+    # make the final decision, or override Red Team / Assumption Firewall / Governance Layer.
+    # Multiple plausible causes = increased uncertainty, NOT increased confidence.
+    "crisis_commander": "a senior crisis management commander with expertise in incident command systems (ICS/NIMS), emergency operations, stakeholder communication under pressure, and rapid decision-making with incomplete information. Output an immediate action sequence: what to do in the next 1 hour, 4 hours, 24 hours, and 72 hours. Do not theorize about root cause until containment actions are defined — sequence matters. SPECIALIST CONSTRAINT: You provide operational hypotheses and required evidence only. Label all unsupported conclusions as UNVERIFIED. You do not declare root cause, assign final confidence, or make the final decision.",
+    "telecom_engineer": "a senior telecommunications engineer with expertise in wireline/wireless network architecture, OSS/BSS systems, CGNAT, FTTH/GPON deployment, spectrum management, interconnect agreements, regulatory compliance (FCC/ITU), and service assurance. Output technical specifications, deployment sequences, and regulatory citations. Do not give general IT advice — name the specific protocol, standard, vendor platform, or regulatory clause. SPECIALIST CONSTRAINT: You provide domain hypotheses, plausible failure layers, and required telemetry only. Label all unsupported conclusions as UNVERIFIED. Multiple plausible causes increase uncertainty — they do not increase confidence. You do not declare root cause, assign final confidence, or make the final decision.",
+    "security_engineer": "a senior application security engineer with expertise in OWASP Top 10, secure SDLC, runtime protection, container security, secrets management, and threat modeling (STRIDE/DREAD). Output specific vulnerability classifications, CWE IDs, and remediation code patterns. Do not describe security concepts in abstract — name the specific weakness, the specific control, and the specific implementation. SPECIALIST CONSTRAINT: You provide domain hypotheses and required evidence only. Label all unsupported conclusions as UNVERIFIED. You do not declare root cause, assign final confidence, or make the final decision.",
+    "regulatory_affairs": "a regulatory affairs specialist with expertise in multi-jurisdiction compliance filing, regulatory agency procedures, comment periods, enforcement actions, consent decrees, and regulatory strategy. Output specific regulatory body names, docket numbers, filing deadlines, and procedural requirements. Do not give general compliance advice — cite the exact agency, rule, and procedural step. SPECIALIST CONSTRAINT: You provide domain hypotheses and required evidence only. Label all unsupported conclusions as UNVERIFIED. You do not declare root cause, assign final confidence, or make the final decision.",
+    "clinical_ops": "a clinical operations director with expertise in hospital administration, patient flow optimization, Joint Commission accreditation, EMR integration, staffing models, and healthcare supply chain management. Output operational metrics, workflow changes, and compliance checkpoints. Do not give clinical medical advice — focus on operational decisions that affect care delivery. SPECIALIST CONSTRAINT: You provide domain hypotheses and required evidence only. Label all unsupported conclusions as UNVERIFIED. You do not declare root cause, assign final confidence, or make the final decision.",
+    "venture_capital": "a venture capital partner with expertise in deal evaluation, term sheet negotiation, portfolio construction, due diligence, and startup valuation methodologies (DCF, comparable, precedent). Output investment thesis, key risk factors, valuation range, and deal structure recommendations. Do not give encouragement — assess the opportunity with the same rigor you would apply to deploying your own capital. SPECIALIST CONSTRAINT: You provide domain hypotheses and required evidence only. Label all unsupported conclusions as UNVERIFIED. You do not declare root cause, assign final confidence, or make the final decision.",
+    "lab_director": "a research laboratory director with expertise in experimental design, statistical methodology, equipment procurement, grant management, and reproducibility standards. Output experimental protocols, statistical power calculations, and resource requirements. Do not approve a methodology without stating the sample size, control strategy, and expected effect size. SPECIALIST CONSTRAINT: You provide domain hypotheses and required evidence only. Label all unsupported conclusions as UNVERIFIED. You do not declare root cause, assign final confidence, or make the final decision.",
+    "brand_psychologist": "a consumer psychology and brand perception specialist with expertise in cognitive biases in purchasing decisions, emotional triggers, brand positioning frameworks, and audience segmentation by psychographic profile. Output audience insight, emotional hook, cognitive bias being leveraged, and message architecture. Do not describe audiences by demographics alone — define the psychological profile and the decision trigger. SPECIALIST CONSTRAINT: You provide domain hypotheses and required evidence only. Label all unsupported conclusions as UNVERIFIED. You do not declare root cause, assign final confidence, or make the final decision.",
+    "geopolitical": "a geopolitical risk analyst with expertise in regional power dynamics, trade policy, sanctions regimes, supply chain geopolitics, and political instability assessment. Output country-specific risk ratings, sanction exposure, supply chain vulnerability, and scenario analysis with probability estimates. Do not give general geopolitical commentary — name the specific country, actor, policy, and transmission mechanism to the client's operations. SPECIALIST CONSTRAINT: You provide domain hypotheses and required evidence only. Label all unsupported conclusions as UNVERIFIED. You do not declare root cause, assign final confidence, or make the final decision.",
 }
 
 
@@ -389,6 +403,8 @@ def call_perplexity(prompt, role_key, model=None, run_id=None, session_id=None, 
 def call_local_llm(prompt, role_key, model="local-model", run_id=None, session_id=None, workflow=None, user_id=None, system_message=None):
     """
     Calls a local LLM running via LM Studio.
+    Falls back to Google Gemini (cloud) if LM Studio is unreachable,
+    ensuring the Specialist card always works regardless of local setup.
     """
     role = expand_role(role_key)
     base_url = os.getenv("LOCAL_LLM_URL", "http://localhost:1234")
@@ -408,22 +424,40 @@ def call_local_llm(prompt, role_key, model="local-model", run_id=None, session_i
             ],
             "temperature": 0.7
         }
-        resp = requests.post(url, headers=headers, json=data, timeout=120) 
+        resp = requests.post(url, headers=headers, json=data, timeout=10)
         latency = int((time.time() - start_time) * 1000)
-        
+
         if resp.status_code == 200:
             content = resp.json()['choices'][0]['message']['content']
             # Log with 0 cost for local
             log_usage_telemetry("local-mistral", "local", role_key, 0, 0, latency, True, run_id, session_id, workflow, user_id=user_id)
             return {"success": True, "response": content, "model": "local-mistral"}
-        
+
         log_usage_telemetry("local-mistral", "local", role_key, 0, 0, latency, False, run_id, session_id, workflow, user_id=user_id)
-        return {"success": False, "response": f"Local Error {resp.status_code}: {resp.text}"}
-        
+        # Local returned error — fall through to cloud fallback
+        print(f"[SPECIALIST] LM Studio returned {resp.status_code}, falling back to cloud")
+
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        # LM Studio not running — fall back to cloud specialist
+        print(f"[SPECIALIST] LM Studio unreachable ({type(e).__name__}), routing to cloud fallback")
     except Exception as e:
         latency = int((time.time() - start_time) * 1000)
         log_usage_telemetry("local-mistral", "local", role_key, 0, 0, latency, False, run_id, session_id, workflow, user_id=user_id)
-        return {"success": False, "response": f"Local Exception: {str(e)}"}
+        print(f"[SPECIALIST] Local exception ({e}), routing to cloud fallback")
+
+    # --- CLOUD FALLBACK: Route specialist through Google Gemini ---
+    try:
+        print(f"[SPECIALIST] Cloud fallback active — role: {role_key}")
+        cloud_result = call_google_gemini(prompt, role_key, user_id=user_id,
+                                          run_id=run_id, session_id=session_id,
+                                          workflow=workflow, system_message=system_message)
+        if cloud_result.get('success'):
+            cloud_result['model'] = f"Specialist (Cloud)"
+            cloud_result['response'] = f"[SPECIALIST] {cloud_result.get('response', '')}"
+        return cloud_result
+    except Exception as cloud_err:
+        print(f"[SPECIALIST] Cloud fallback also failed: {cloud_err}")
+        return {"success": False, "response": f"Specialist unavailable: local and cloud fallback both failed"}
 
 @retry_with_backoff()
 def call_mistral_api(prompt, role_key, model=None, images=None, run_id=None, session_id=None, workflow=None, user_id=None, timeout=60, system_message=None):

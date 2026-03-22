@@ -8615,6 +8615,30 @@ body.report-library-open .results-container {
     background: rgba(76, 175, 125, 0.04);
 }
 
+.rt-strike-detail {
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    overflow: hidden;
+}
+
+.rt-strike-card.rt-collapsed .rt-strike-detail {
+    max-height: 0;
+    opacity: 0;
+}
+
+.rt-strike-toggle {
+    font-size: 10px;
+    color: #888;
+    transition: transform 0.3s ease;
+}
+
+.rt-strike-card.rt-collapsed .rt-strike-toggle {
+    transform: rotate(-90deg);
+}
+
+.rt-strike-card.rt-collapsed .rt-strike-header {
+    margin-bottom: 0;
+}
+
 .rt-strike-header {
     display: flex;
     align-items: center;
