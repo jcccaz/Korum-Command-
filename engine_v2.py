@@ -15,6 +15,28 @@ from llm_core import call_openai_gpt4
 # I will assume `llm_core.py` was created successfully in the previous step.
 # Import the other providers:
 from llm_core import call_anthropic_claude, call_google_gemini, call_perplexity, call_local_llm, call_mistral_api
+
+# --- LANGUAGE DETECTION (Prompt-Language Mirroring) ---
+_LANG_PATTERNS = {
+    "Spanish": re.compile(r'\b(qué|cómo|cuál|dónde|quién|por qué|cuándo|análisis|investigar|información|empresa|gobierno|historia|sobre|también|según|entre|durante|después|antes|porque|desde|hasta|puede|tiene|están|hacer|como|para|donde|cuando|quien|esta|este|estos|estas|pero|más|todo|cada|otro|otra|cual|sino)\b', re.IGNORECASE),
+    "Portuguese": re.compile(r'\b(também|análise|informação|empresa|governo|história|sobre|segundo|entre|durante|depois|antes|porque|desde|até|pode|fazer|como|para|onde|quando|quem|esta|este|estes|estas|mas|mais|tudo|cada|outro|outra|qual|são|não|uma|você)\b', re.IGNORECASE),
+    "French": re.compile(r'\b(analyse|enquête|entreprise|gouvernement|histoire|aussi|selon|entre|pendant|après|avant|parce|depuis|jusqu|peut|faire|comme|pour|où|quand|qui|cette|mais|plus|tout|chaque|autre|quel|sont|dans|avec|une|les|des|que)\b', re.IGNORECASE),
+}
+
+def _detect_language(text):
+    """Detect if prompt is in a non-English language. Returns language name or None."""
+    if not text or len(text) < 10:
+        return None
+    sample = text[:500].lower()
+    scores = {}
+    for lang, pattern in _LANG_PATTERNS.items():
+        matches = pattern.findall(sample)
+        if len(matches) >= 3:
+            scores[lang] = len(matches)
+    if scores:
+        return max(scores, key=scores.get)
+    return None
+
 # --- WORKFLOW DNA REGISTRY (The Elite Logic Layer) ---
 WORKFLOW_DNA = {
     "WAR_ROOM": {
@@ -2200,6 +2222,9 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
             prompt += "\n" + _build_mimir_block(context.ghost_map, context.residual_report)
         prompt += "\nProvide comprehensive, well-sourced research and data. Focus on facts, metrics, and technical details."
         prompt += "\nNEVER invent bracket-notation placeholders like [CURRENCY_AMOUNT_XXXX] or [ENTITY_TYPE_HASH]. Use real values from the source material. If unknown, say so."
+        detected_lang = _detect_language(core_objective)
+        if detected_lang:
+            prompt += f"\nLANGUAGE: The user's query is in {detected_lang}. Respond entirely in {detected_lang}."
         return prompt
     # --- Determine which phase directive applies ---
     # Map position to phase (if more than 5 steps, later steps get the closest directive)
@@ -2272,6 +2297,10 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     {decision_enforcement}
     {data_integrity}
     """
+    # Language mirroring: respond in the same language as the prompt
+    detected_lang = _detect_language(core_objective)
+    if detected_lang:
+        prompt += f"\n## LANGUAGE DIRECTIVE\nThe user's query is in {detected_lang}. You MUST respond entirely in {detected_lang}. All analysis, recommendations, headings, and conclusions must be in {detected_lang}. System tags ([DECISION_CANDIDATE], etc.) remain in English.\n"
     if research_depth_block:
         prompt += f"\n{research_depth_block}\n"
     # Inject prior session context for follow-up queries
@@ -3426,6 +3455,16 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     - For genealogy, parentage, or lineage gaps, explicitly say UNKNOWN rather than implying likely family relationships.
     COUNCIL DISCUSSION:
     {history_text}
+    """
+    # Language mirroring for synthesis output
+    detected_lang = _detect_language(context.query)
+    if detected_lang:
+        prompt += f"""
+    ## LANGUAGE DIRECTIVE
+    The original query was in {detected_lang}. All text fields in the JSON output (decision_headline, executive_summary,
+    descriptions, rationale, actions, claims, etc.) MUST be written in {detected_lang}. JSON keys remain in English.
+    """
+    prompt += f"""
     Return ONLY a single valid JSON object mapped exactly to this schema:
     {{
       "decision_headline": "string",
