@@ -136,6 +136,8 @@ const KorumAuth = {
         }
         // ATL Dashboard: show button for admin/compliance only
         if (typeof AtlDashboard !== 'undefined') AtlDashboard.updateVisibility();
+        // Settings: show gear for all authenticated users
+        if (typeof SettingsPanel !== 'undefined') SettingsPanel.updateVisibility();
     },
 
     initListeners() {
@@ -8906,7 +8908,7 @@ const AtlDashboard = {
     updateVisibility() {
         const btn = document.getElementById('atlNavBtn');
         if (!btn) return;
-        const user = AuthManager.user;
+        const user = KorumAuth.user;
         if (user && (user.role === 'admin' || user.role === 'compliance')) {
             btn.style.display = '';
         } else {
@@ -9129,8 +9131,279 @@ const AtlDashboard = {
     }
 };
 
+// ---------------------------------------------------------------------------
+// SETTINGS PANEL
+// ---------------------------------------------------------------------------
+const SettingsPanel = {
+    overlay: null,
+    currentTab: 'profile',
+    falconConfig: null,
+
+    init() {
+        this.overlay = document.getElementById('settingsOverlay');
+        const openBtn = document.getElementById('settingsNavBtn');
+        const closeBtn = document.getElementById('settingsCloseBtn');
+
+        if (openBtn) openBtn.addEventListener('click', () => this.open());
+        if (closeBtn) closeBtn.addEventListener('click', () => this.close());
+
+        // Tab switching
+        document.querySelectorAll('.settings-tab').forEach(tab => {
+            tab.addEventListener('click', () => this.switchTab(tab.dataset.stab));
+        });
+
+        // Password change
+        const pwBtn = document.getElementById('settingsSavePwBtn');
+        if (pwBtn) pwBtn.addEventListener('click', () => this.savePassword());
+
+        // Falcon config save
+        const falconBtn = document.getElementById('settingsSaveFalconBtn');
+        if (falconBtn) falconBtn.addEventListener('click', () => this.saveFalconConfig());
+
+        // Click outside to close
+        if (this.overlay) {
+            this.overlay.addEventListener('click', (e) => {
+                if (e.target === this.overlay) this.close();
+            });
+        }
+    },
+
+    updateVisibility() {
+        const btn = document.getElementById('settingsNavBtn');
+        if (!btn) return;
+        const user = KorumAuth.user;
+        if (user) {
+            btn.style.display = '';
+            // Show admin tab only for admins
+            const adminTab = document.getElementById('settingsAdminTab');
+            if (adminTab) {
+                adminTab.style.display = (user.role === 'admin') ? '' : 'none';
+            }
+        } else {
+            btn.style.display = 'none';
+        }
+    },
+
+    open() {
+        if (this.overlay) this.overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        this.switchTab('profile');
+        this.loadProfile();
+    },
+
+    close() {
+        if (this.overlay) this.overlay.style.display = 'none';
+        document.body.style.overflow = '';
+    },
+
+    switchTab(tab) {
+        this.currentTab = tab;
+        document.querySelectorAll('.settings-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.stab === tab);
+        });
+        document.getElementById('settingsTabProfile').style.display = (tab === 'profile') ? 'block' : 'none';
+        document.getElementById('settingsTabAdmin').style.display = (tab === 'admin') ? 'block' : 'none';
+        if (tab === 'admin') {
+            this.loadUsers();
+            this.loadApiStatus();
+            this.loadFalconConfig();
+        }
+    },
+
+    async loadProfile() {
+        try {
+            const resp = await authFetch('/api/settings/profile');
+            const data = await resp.json();
+            if (data.success) {
+                const p = data.profile;
+                document.getElementById('settingsEmail').textContent = p.email;
+                document.getElementById('settingsRole').textContent = p.role.toUpperCase();
+                document.getElementById('settingsRole').className = 'settings-value settings-role-badge role-' + p.role;
+                document.getElementById('settingsCreated').textContent = p.created_at ? new Date(p.created_at).toLocaleDateString() : '—';
+            }
+        } catch (e) { console.error('Settings profile load failed:', e); }
+    },
+
+    async savePassword() {
+        const msgEl = document.getElementById('settingsPwMsg');
+        const currentPw = document.getElementById('settingsCurrentPw').value;
+        const newPw = document.getElementById('settingsNewPw').value;
+        const confirmPw = document.getElementById('settingsConfirmPw').value;
+
+        if (!currentPw || !newPw) {
+            msgEl.textContent = 'All fields required.';
+            msgEl.className = 'settings-msg error';
+            return;
+        }
+        if (newPw !== confirmPw) {
+            msgEl.textContent = 'New passwords do not match.';
+            msgEl.className = 'settings-msg error';
+            return;
+        }
+        if (newPw.length < 8) {
+            msgEl.textContent = 'Password must be at least 8 characters.';
+            msgEl.className = 'settings-msg error';
+            return;
+        }
+        try {
+            const resp = await authFetch('/api/settings/password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ current_password: currentPw, new_password: newPw })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                msgEl.textContent = 'Password updated.';
+                msgEl.className = 'settings-msg success';
+                document.getElementById('settingsCurrentPw').value = '';
+                document.getElementById('settingsNewPw').value = '';
+                document.getElementById('settingsConfirmPw').value = '';
+            } else {
+                msgEl.textContent = data.error || 'Failed to update password.';
+                msgEl.className = 'settings-msg error';
+            }
+        } catch (e) {
+            msgEl.textContent = 'Network error.';
+            msgEl.className = 'settings-msg error';
+        }
+    },
+
+    async loadUsers() {
+        const container = document.getElementById('settingsUserTable');
+        try {
+            const resp = await authFetch('/api/admin/users');
+            const data = await resp.json();
+            if (!data.success) { container.innerHTML = '<p class="settings-error">Access denied</p>'; return; }
+
+            let html = '<table class="settings-table"><thead><tr><th>EMAIL</th><th>ROLE</th><th>LAST LOGIN</th><th>JOINED</th></tr></thead><tbody>';
+            for (const u of data.users) {
+                const isSelf = KorumAuth.user && u.id === KorumAuth.user.id;
+                const roleSelect = isSelf
+                    ? `<span class="settings-role-badge role-${u.role}">${u.role.toUpperCase()}</span>`
+                    : `<select class="settings-role-select" data-uid="${u.id}" onchange="SettingsPanel.updateRole(${u.id}, this.value)">
+                        <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
+                        <option value="compliance" ${u.role === 'compliance' ? 'selected' : ''}>compliance</option>
+                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+                       </select>`;
+                const lastLogin = u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never';
+                const joined = u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
+                html += `<tr><td>${this._esc(u.email)}</td><td>${roleSelect}</td><td>${lastLogin}</td><td>${joined}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } catch (e) {
+            container.innerHTML = '<p class="settings-error">Failed to load users</p>';
+        }
+    },
+
+    async updateRole(userId, newRole) {
+        try {
+            const resp = await authFetch(`/api/admin/users/${userId}/role`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: newRole })
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                alert(data.error || 'Failed to update role');
+                this.loadUsers(); // Reload to revert select
+            }
+        } catch (e) { alert('Network error updating role'); }
+    },
+
+    async loadApiStatus() {
+        const container = document.getElementById('settingsApiGrid');
+        try {
+            const resp = await authFetch('/api/admin/api-status');
+            const data = await resp.json();
+            if (!data.success) { container.innerHTML = '<p class="settings-error">Access denied</p>'; return; }
+            let html = '';
+            const labels = { openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', perplexity: 'Perplexity', serpapi: 'SerpAPI' };
+            for (const [key, configured] of Object.entries(data.providers)) {
+                const status = configured ? 'active' : 'missing';
+                html += `<div class="settings-api-item">
+                    <span class="settings-api-dot ${status}"></span>
+                    <span class="settings-api-label">${labels[key] || key}</span>
+                    <span class="settings-api-status">${configured ? 'CONFIGURED' : 'NOT SET'}</span>
+                </div>`;
+            }
+            container.innerHTML = html;
+        } catch (e) {
+            container.innerHTML = '<p class="settings-error">Failed to load API status</p>';
+        }
+    },
+
+    async loadFalconConfig() {
+        const container = document.getElementById('settingsFalconConfig');
+        const saveBtn = document.getElementById('settingsSaveFalconBtn');
+        try {
+            const resp = await authFetch('/api/admin/falcon-config');
+            const data = await resp.json();
+            if (!data.success) { container.innerHTML = '<p class="settings-error">Access denied</p>'; return; }
+            this.falconConfig = data.config;
+            const sections = [
+                { key: 'protected_terms', label: 'Protected Terms' },
+                { key: 'protected_hostnames', label: 'Protected Hostnames' },
+                { key: 'protected_project_names', label: 'Protected Project Names' },
+                { key: 'protected_customer_names', label: 'Protected Customer Names' },
+            ];
+            let html = '';
+            for (const s of sections) {
+                const items = (data.config[s.key] || []).join('\n');
+                html += `<div class="settings-falcon-section">
+                    <label>${s.label}</label>
+                    <textarea class="settings-falcon-textarea" id="falcon_${s.key}" rows="3" placeholder="One per line">${this._esc(items)}</textarea>
+                </div>`;
+            }
+            container.innerHTML = html;
+            if (saveBtn) saveBtn.style.display = '';
+        } catch (e) {
+            container.innerHTML = '<p class="settings-error">Failed to load Falcon config</p>';
+        }
+    },
+
+    async saveFalconConfig() {
+        const msgEl = document.getElementById('settingsFalconMsg');
+        const config = {};
+        const keys = ['protected_terms', 'protected_hostnames', 'protected_project_names', 'protected_customer_names'];
+        for (const key of keys) {
+            const textarea = document.getElementById('falcon_' + key);
+            if (textarea) {
+                config[key] = textarea.value.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            } else {
+                config[key] = [];
+            }
+        }
+        try {
+            const resp = await authFetch('/api/admin/falcon-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                msgEl.textContent = 'Falcon config saved.';
+                msgEl.className = 'settings-msg success';
+            } else {
+                msgEl.textContent = data.error || 'Failed to save.';
+                msgEl.className = 'settings-msg error';
+            }
+        } catch (e) {
+            msgEl.textContent = 'Network error.';
+            msgEl.className = 'settings-msg error';
+        }
+    },
+
+    _esc(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     AtlDashboard.init();
+    SettingsPanel.init();
 });
 
 // End of KorumOS Sentinel Logic

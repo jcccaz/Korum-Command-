@@ -9158,3 +9158,273 @@ body.report-library-open .results-container {
 .atl-loading { color: rgba(255,255,255,0.4); font-size: 12px; }
 .atl-empty { color: rgba(255,255,255,0.3); font-size: 12px; font-style: italic; }
 .atl-error { color: #FF4444; font-size: 12px; }
+
+/* =========================================================================
+   SETTINGS PANEL
+   ========================================================================= */
+
+.settings-nav-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    padding: 6px;
+    transition: color 0.2s;
+}
+.settings-nav-btn:hover { color: #FFB020; }
+
+.settings-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-modal {
+    background: #1A1D24;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.settings-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #FFB020;
+}
+.settings-close-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.4);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0 4px;
+}
+.settings-close-btn:hover { color: #fff; }
+
+.settings-tab-bar {
+    display: flex;
+    gap: 0;
+    padding: 0 24px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.settings-tab {
+    padding: 12px 20px;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.settings-tab:hover { color: rgba(255,255,255,0.7); }
+.settings-tab.active {
+    color: #FFB020;
+    border-bottom-color: #FFB020;
+}
+
+.settings-content { padding: 20px 24px; }
+
+.settings-tab-panel { display: none; }
+.settings-tab-panel.active,
+.settings-tab-panel[style*="block"] { display: block; }
+
+.settings-section {
+    margin-bottom: 28px;
+}
+.settings-section h4 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.5);
+    margin: 0 0 14px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.settings-form-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.settings-form-group label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.5);
+    min-width: 160px;
+}
+.settings-value {
+    font-size: 13px;
+    color: rgba(255,255,255,0.85);
+}
+
+.settings-role-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 4px;
+}
+.role-admin { background: rgba(255,176,32,0.15); color: #FFB020; }
+.role-compliance { background: rgba(68,255,136,0.12); color: #44FF88; }
+.role-user { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
+
+.settings-input {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #fff;
+    font-size: 13px;
+    width: 280px;
+    transition: border-color 0.2s;
+}
+.settings-input:focus {
+    outline: none;
+    border-color: #FFB020;
+}
+
+.settings-save-btn {
+    background: #FFB020;
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.2s;
+}
+.settings-save-btn:hover { background: #FFC040; }
+
+.settings-msg {
+    font-size: 12px;
+    margin-top: 8px;
+    min-height: 18px;
+}
+.settings-msg.success { color: #44FF88; }
+.settings-msg.error { color: #FF4444; }
+
+/* API Status Grid */
+.settings-api-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.settings-api-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.settings-api-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.settings-api-dot.active { background: #44FF88; box-shadow: 0 0 6px rgba(68,255,136,0.4); }
+.settings-api-dot.missing { background: #FF4444; box-shadow: 0 0 6px rgba(255,68,68,0.3); }
+.settings-api-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.8);
+    flex: 1;
+}
+.settings-api-status {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.4);
+}
+
+/* User Management Table */
+.settings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.settings-table th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.4);
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.settings-table td {
+    padding: 10px;
+    color: rgba(255,255,255,0.8);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.settings-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+.settings-role-select {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px;
+    color: #fff;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+.settings-role-select:focus { outline: none; border-color: #FFB020; }
+
+/* Falcon Config */
+.settings-falcon-section {
+    margin-bottom: 14px;
+}
+.settings-falcon-section label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 4px;
+}
+.settings-falcon-textarea {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.85);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 8px 12px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+.settings-falcon-textarea:focus {
+    outline: none;
+    border-color: #FFB020;
+}
+
+/* Utility */
+.settings-loading { color: rgba(255,255,255,0.4); font-size: 12px; }
+.settings-error { color: #FF4444; font-size: 12px; }

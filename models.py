@@ -4,6 +4,7 @@
 
 from db import db
 from datetime import datetime
+import json
 import uuid
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_login import UserMixin
@@ -18,8 +19,18 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), nullable=False, default="user")  # admin, compliance, user
     mfa_secret = db.Column(db.String(32), nullable=True)  # TOTP secret for MFA
     mfa_enabled = db.Column(db.Boolean, default=False)
+    preferences = db.Column(db.Text, default='{}')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
+
+    def get_preferences(self) -> dict:
+        try:
+            return json.loads(self.preferences or '{}')
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_preferences(self, prefs: dict) -> None:
+        self.preferences = json.dumps(prefs)
 
     def set_password(self, raw_password: str) -> None:
         self.hashed_password = generate_password_hash(raw_password)

@@ -80,6 +80,12 @@
                             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                         </svg>
                     </button>
+                    <button class="settings-nav-btn" id="settingsNavBtn" title="Settings" style="display:none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
                 </div>
 
                 <div class="nav-right" id="hamburgerBtn" title="Saved Reports">
@@ -1083,6 +1089,80 @@
             </div>
             <div class="atl-footer">
                 <span class="atl-footer-status" id="atlFooterStatus">SYSTEM INTEGRITY: STANDBY</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div class="settings-overlay" id="settingsOverlay" style="display:none;">
+        <div class="settings-modal">
+            <div class="settings-header">
+                <h3>SYSTEM SETTINGS</h3>
+                <button class="settings-close-btn" id="settingsCloseBtn">&times;</button>
+            </div>
+            <div class="settings-tab-bar">
+                <button class="settings-tab active" data-stab="profile">PROFILE</button>
+                <button class="settings-tab" data-stab="admin" id="settingsAdminTab" style="display:none;">ADMIN</button>
+            </div>
+            <div class="settings-content">
+                <!-- Profile Tab -->
+                <div class="settings-tab-panel active" id="settingsTabProfile">
+                    <div class="settings-section">
+                        <h4>ACCOUNT</h4>
+                        <div class="settings-form-group">
+                            <label>EMAIL</label>
+                            <span class="settings-value" id="settingsEmail">—</span>
+                        </div>
+                        <div class="settings-form-group">
+                            <label>ROLE</label>
+                            <span class="settings-value settings-role-badge" id="settingsRole">—</span>
+                        </div>
+                        <div class="settings-form-group">
+                            <label>MEMBER SINCE</label>
+                            <span class="settings-value" id="settingsCreated">—</span>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h4>CHANGE PASSWORD</h4>
+                        <div class="settings-form-group">
+                            <label>CURRENT PASSWORD</label>
+                            <input type="password" class="settings-input" id="settingsCurrentPw" placeholder="Enter current password">
+                        </div>
+                        <div class="settings-form-group">
+                            <label>NEW PASSWORD</label>
+                            <input type="password" class="settings-input" id="settingsNewPw" placeholder="Min 8 characters">
+                        </div>
+                        <div class="settings-form-group">
+                            <label>CONFIRM NEW PASSWORD</label>
+                            <input type="password" class="settings-input" id="settingsConfirmPw" placeholder="Re-enter new password">
+                        </div>
+                        <button class="settings-save-btn" id="settingsSavePwBtn">UPDATE PASSWORD</button>
+                        <div class="settings-msg" id="settingsPwMsg"></div>
+                    </div>
+                </div>
+                <!-- Admin Tab -->
+                <div class="settings-tab-panel" id="settingsTabAdmin">
+                    <div class="settings-section">
+                        <h4>API STATUS</h4>
+                        <div class="settings-api-grid" id="settingsApiGrid">
+                            <p class="settings-loading">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h4>USER MANAGEMENT</h4>
+                        <div class="settings-user-table-wrap" id="settingsUserTable">
+                            <p class="settings-loading">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h4>FALCON PROTECTED TERMS</h4>
+                        <div class="settings-falcon-config" id="settingsFalconConfig">
+                            <p class="settings-loading">Loading...</p>
+                        </div>
+                        <button class="settings-save-btn" id="settingsSaveFalconBtn" style="display:none;">SAVE FALCON CONFIG</button>
+                        <div class="settings-msg" id="settingsFalconMsg"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

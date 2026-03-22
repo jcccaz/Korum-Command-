@@ -3441,6 +3441,158 @@ def get_ledger_missions():
     return jsonify({"success": True, "missions": missions})
 
 
+# ---------------------------------------------------------------------------
+# SETTINGS & ADMIN API
+# ---------------------------------------------------------------------------
+
+@app.route('/api/settings/profile', methods=['GET'])
+@auth_required
+def get_settings_profile():
+    """Return current user's profile and preferences."""
+    return jsonify({
+        "success": True,
+        "profile": {
+            "id": current_user.id,
+            "email": current_user.email,
+            "role": current_user.role,
+            "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+            "last_login": current_user.last_login.isoformat() if current_user.last_login else None,
+            "preferences": current_user.get_preferences(),
+        }
+    })
+
+
+@app.route('/api/settings/profile', methods=['POST'])
+@auth_required
+def update_settings_profile():
+    """Update current user's preferences."""
+    data = request.get_json(silent=True) or {}
+    prefs = data.get("preferences")
+    if prefs is None or not isinstance(prefs, dict):
+        return jsonify({"success": False, "error": "preferences must be a JSON object"}), 400
+    current_user.set_preferences(prefs)
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+@app.route('/api/settings/password', methods=['POST'])
+@auth_required
+def change_password():
+    """Change current user's password. Requires current_password + new_password."""
+    data = request.get_json(silent=True) or {}
+    current_pw = data.get("current_password", "")
+    new_pw = data.get("new_password", "")
+    if not current_pw or not new_pw:
+        return jsonify({"success": False, "error": "current_password and new_password required"}), 400
+    if len(new_pw) < 8:
+        return jsonify({"success": False, "error": "New password must be at least 8 characters"}), 400
+    if not current_user.verify_password(current_pw):
+        return jsonify({"success": False, "error": "Current password is incorrect"}), 403
+    current_user.set_password(new_pw)
+    db.session.commit()
+    log_audit("password_changed", current_user.id, current_user.email)
+    return jsonify({"success": True})
+
+
+@app.route('/api/admin/users', methods=['GET'])
+@auth_required
+def admin_list_users():
+    """List all users. Admin only."""
+    if not current_user.is_admin():
+        return jsonify({"success": False, "error": "Admin access required"}), 403
+    users = User.query.order_by(User.created_at.desc()).all()
+    return jsonify({
+        "success": True,
+        "users": [{
+            "id": u.id,
+            "email": u.email,
+            "role": u.role,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+            "last_login": u.last_login.isoformat() if u.last_login else None,
+        } for u in users]
+    })
+
+
+@app.route('/api/admin/users/<int:user_id>/role', methods=['POST'])
+@auth_required
+def admin_change_role(user_id):
+    """Change a user's role. Admin only. Cannot demote yourself."""
+    if not current_user.is_admin():
+        return jsonify({"success": False, "error": "Admin access required"}), 403
+    data = request.get_json(silent=True) or {}
+    new_role = data.get("role", "")
+    if new_role not in ("admin", "compliance", "user"):
+        return jsonify({"success": False, "error": "Role must be admin, compliance, or user"}), 400
+    if user_id == current_user.id and new_role != "admin":
+        return jsonify({"success": False, "error": "Cannot demote yourself — prevents lockout"}), 400
+    target = User.query.get(user_id)
+    if not target:
+        return jsonify({"success": False, "error": "User not found"}), 404
+    old_role = target.role
+    target.role = new_role
+    db.session.commit()
+    log_audit("role_changed", current_user.id, current_user.email,
+              details=f"{target.email}: {old_role} -> {new_role}")
+    return jsonify({"success": True, "email": target.email, "role": new_role})
+
+
+@app.route('/api/admin/falcon-config', methods=['GET'])
+@auth_required
+def admin_get_falcon_config():
+    """Read falcon_config.json. Admin only."""
+    if not current_user.is_admin():
+        return jsonify({"success": False, "error": "Admin access required"}), 403
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "falcon_config.json")
+    try:
+        with open(config_path, 'r') as f:
+            config = json.loads(f.read())
+    except FileNotFoundError:
+        config = {"protected_terms": [], "protected_hostnames": [], "protected_project_names": [], "protected_customer_names": []}
+    return jsonify({"success": True, "config": config})
+
+
+@app.route('/api/admin/falcon-config', methods=['POST'])
+@auth_required
+def admin_save_falcon_config():
+    """Write falcon_config.json. Admin only. Validates structure."""
+    if not current_user.is_admin():
+        return jsonify({"success": False, "error": "Admin access required"}), 403
+    data = request.get_json(silent=True) or {}
+    config = data.get("config")
+    if not isinstance(config, dict):
+        return jsonify({"success": False, "error": "config must be a JSON object"}), 400
+    allowed_keys = {"protected_terms", "protected_hostnames", "protected_project_names", "protected_customer_names"}
+    cleaned = {}
+    for key in allowed_keys:
+        val = config.get(key, [])
+        if not isinstance(val, list) or not all(isinstance(v, str) for v in val):
+            return jsonify({"success": False, "error": f"{key} must be a list of strings"}), 400
+        cleaned[key] = val
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "falcon_config.json")
+    with open(config_path, 'w') as f:
+        f.write(json.dumps(cleaned, indent=2))
+    log_audit("falcon_config_updated", current_user.id, current_user.email)
+    return jsonify({"success": True})
+
+
+@app.route('/api/admin/api-status', methods=['GET'])
+@auth_required
+def admin_api_status():
+    """Check which API keys are configured. Returns booleans only, never keys. Admin only."""
+    if not current_user.is_admin():
+        return jsonify({"success": False, "error": "Admin access required"}), 403
+    return jsonify({
+        "success": True,
+        "providers": {
+            "openai": bool(OPENAI_KEY),
+            "anthropic": bool(ANTHROPIC_KEY),
+            "google": bool(GOOGLE_KEY),
+            "perplexity": bool(PERPLEXITY_KEY),
+            "serpapi": bool(SERPAPI_KEY),
+        }
+    })
+
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     # Respect Node/JS convention if present
