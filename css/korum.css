@@ -9428,3 +9428,19 @@ body.report-library-open .results-container {
 /* Utility */
 .settings-loading { color: rgba(255,255,255,0.4); font-size: 12px; }
 .settings-error { color: #FF4444; font-size: 12px; }
+
+/* Add User Row */
+.settings-add-user { margin-bottom: 16px; }
+.settings-add-user-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.settings-input-sm { width: 180px; }
+.settings-add-btn {
+    margin-top: 0;
+    padding: 8px 16px;
+    font-size: 10px;
+    white-space: nowrap;
+}

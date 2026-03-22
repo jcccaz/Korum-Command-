@@ -3513,6 +3513,35 @@ def admin_list_users():
     })
 
 
+@app.route('/api/admin/users', methods=['POST'])
+@auth_required
+def admin_create_user():
+    """Create a new user. Admin only (invite-only registration)."""
+    if not current_user.is_admin():
+        return jsonify({"success": False, "error": "Admin access required"}), 403
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password", "")
+    role = data.get("role", "user")
+
+    if not email or "@" not in email:
+        return jsonify({"success": False, "error": "Valid email required"}), 400
+    if len(password) < 8:
+        return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+    if role not in ("admin", "compliance", "user"):
+        return jsonify({"success": False, "error": "Role must be admin, compliance, or user"}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({"success": False, "error": "Email already registered"}), 409
+
+    user = User(email=email, role=role)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    log_audit("user_created", current_user.id, current_user.email,
+              details=f"Created {email} with role={role}")
+    return jsonify({"success": True, "user": {"id": user.id, "email": email, "role": role}}), 201
+
+
 @app.route('/api/admin/users/<int:user_id>/role', methods=['POST'])
 @auth_required
 def admin_change_role(user_id):

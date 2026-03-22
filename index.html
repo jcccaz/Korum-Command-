@@ -1150,6 +1150,19 @@
                     </div>
                     <div class="settings-section">
                         <h4>USER MANAGEMENT</h4>
+                        <div class="settings-add-user">
+                            <div class="settings-add-user-row">
+                                <input type="email" class="settings-input settings-input-sm" id="settingsNewEmail" placeholder="Email">
+                                <input type="password" class="settings-input settings-input-sm" id="settingsNewUserPw" placeholder="Temp password">
+                                <select class="settings-role-select" id="settingsNewUserRole">
+                                    <option value="user">user</option>
+                                    <option value="compliance">compliance</option>
+                                    <option value="admin">admin</option>
+                                </select>
+                                <button class="settings-save-btn settings-add-btn" id="settingsAddUserBtn">ADD USER</button>
+                            </div>
+                            <div class="settings-msg" id="settingsAddUserMsg"></div>
+                        </div>
                         <div class="settings-user-table-wrap" id="settingsUserTable">
                             <p class="settings-loading">Loading...</p>
                         </div>

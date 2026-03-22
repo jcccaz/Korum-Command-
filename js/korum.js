@@ -9160,6 +9160,10 @@ const SettingsPanel = {
         const falconBtn = document.getElementById('settingsSaveFalconBtn');
         if (falconBtn) falconBtn.addEventListener('click', () => this.saveFalconConfig());
 
+        // Add user
+        const addUserBtn = document.getElementById('settingsAddUserBtn');
+        if (addUserBtn) addUserBtn.addEventListener('click', () => this.addUser());
+
         // Click outside to close
         if (this.overlay) {
             this.overlay.addEventListener('click', (e) => {
@@ -9293,6 +9297,44 @@ const SettingsPanel = {
             container.innerHTML = html;
         } catch (e) {
             container.innerHTML = '<p class="settings-error">Failed to load users</p>';
+        }
+    },
+
+    async addUser() {
+        const msgEl = document.getElementById('settingsAddUserMsg');
+        const email = document.getElementById('settingsNewEmail').value.trim();
+        const password = document.getElementById('settingsNewUserPw').value;
+        const role = document.getElementById('settingsNewUserRole').value;
+        if (!email || !password) {
+            msgEl.textContent = 'Email and password required.';
+            msgEl.className = 'settings-msg error';
+            return;
+        }
+        if (password.length < 8) {
+            msgEl.textContent = 'Password must be at least 8 characters.';
+            msgEl.className = 'settings-msg error';
+            return;
+        }
+        try {
+            const resp = await authFetch('/api/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, role })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                msgEl.textContent = `User ${email} created.`;
+                msgEl.className = 'settings-msg success';
+                document.getElementById('settingsNewEmail').value = '';
+                document.getElementById('settingsNewUserPw').value = '';
+                this.loadUsers();
+            } else {
+                msgEl.textContent = data.error || 'Failed to create user.';
+                msgEl.className = 'settings-msg error';
+            }
+        } catch (e) {
+            msgEl.textContent = 'Network error.';
+            msgEl.className = 'settings-msg error';
         }
     },
 
