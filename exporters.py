@@ -122,11 +122,19 @@ def _reorder_sections(sections, order=None):
 
 def _packet_backed_risks_mode(data, sections):
     """
-    True when this export is packet-backed and has normalized risk content.
+    True when this export is packet-backed and has risk-like content available.
+    Checks sections["risks"] first; falls back to sections["critical_challenges"]
+    since the engine may place risk content there when risk_vectors is empty.
     """
     packet = (data or {}).get("decision_packet") or {}
+    if not packet:
+        return False
     risks_text = str((sections or {}).get("risks") or "").strip()
-    return bool(packet) and bool(risks_text)
+    if risks_text:
+        return True
+    # Packet exists but risk_vectors was empty — critical_challenges holds the content
+    cc_text = str((sections or {}).get("critical_challenges") or "").strip()
+    return bool(cc_text)
 
 def _filter_sections(section_items, data, sections_dict):
     pb_mode = _packet_backed_risks_mode(data, sections_dict)
@@ -1465,6 +1473,18 @@ class ExecutiveMemoExporter:
         # 4. --- INTELLIGENCE NODES (FULL-WIDTH PROSE) ---
         section_items = list(section_items_pre)
         for idx, (sid, content) in enumerate(section_items):
+            # --- RISKS / CRITICAL CHALLENGES render gate ---
+            if sid.strip().lower() == "critical_challenges":
+                if _packet_backed_risks_mode(intelligence_object, sections):
+                    # Packet-backed: relabel as RISKS, prefer risks content, fall back to cc content
+                    sid = "risks"
+                    content = sections.get("risks") or content
+                elif not sections.get("critical_challenges"):
+                    continue
+            elif sid.strip().lower() == "risks":
+                if not _packet_backed_risks_mode(intelligence_object, sections):
+                    continue
+
             sec_title = sid.replace("_", " ").upper()
             # Clean report mode: section title only — no node numbers, no provider names
             node_label = sec_title
@@ -1948,6 +1968,18 @@ class WordExporter:
         # 4. --- INTELLIGENCE NODES (full-width prose) ---
         section_items = section_items_pre
         for idx, (sid, content) in enumerate(section_items):
+            # --- RISKS / CRITICAL CHALLENGES render gate ---
+            if sid.strip().lower() == "critical_challenges":
+                if _packet_backed_risks_mode(intelligence_object, sections):
+                    # Packet-backed: relabel as RISKS, prefer risks content, fall back to cc content
+                    sid = "risks"
+                    content = sections.get("risks") or content
+                elif not sections.get("critical_challenges"):
+                    continue
+            elif sid.strip().lower() == "risks":
+                if not _packet_backed_risks_mode(intelligence_object, sections):
+                    continue
+
             sec_title = sid.replace("_", " ").upper()
             # Clean report mode: section title only — no node numbers, no provider names
             prov_name = "KORUM"
