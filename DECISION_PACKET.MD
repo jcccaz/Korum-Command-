@@ -73,6 +73,21 @@ Every Korum-OS Decision Packet MUST map exactly to the JSON shape below. Extra k
     "workflow": "string",
     "generated_at": "ISO-8601 string",
     "schema_version": "1.0"
+  },
+  "provenance": {
+    "decision_id": "string (run_id UUID)",
+    "ledger_decision_id": "string (same as decision_id)",
+    "scoring_source": "RULE_ENGINE | MODEL | HYBRID",
+    "synthesis_model": "string (actual model that ran synthesis)",
+    "red_team_model": "string | null",
+    "council": [
+      {
+        "role": "string (e.g. STRATEGIST)",
+        "provider": "string (e.g. openai)",
+        "model": "string (e.g. gpt-4o)",
+        "response_hash": "string (SHA-256)"
+      }
+    ]
   }
 }
 ```
@@ -80,7 +95,7 @@ Every Korum-OS Decision Packet MUST map exactly to the JSON shape below. Extra k
 ## VALIDATOR ENFORCEMENT
 
 The intermediate Validator/Normalizer layer must execute these checks before releasing the packet to downstream exporters:
-1. Verify all 12 top-level keys exist.
+1. Verify all 13 top-level keys exist.
 2. Verify required nested keys exist.
 3. Verify enums are valid (e.g., `go_no_go_call.decision`).
 4. Verify arrays contain objects of the correct shape.

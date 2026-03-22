@@ -2349,6 +2349,14 @@ def ask_council():
             else:
                 print(f"✅ RED TEAM ARBITER: PASS")
 
+            # --- PROVENANCE: Inject actual Red Team model ---
+            _rt_model = rt_res.get('model', 'UNKNOWN') if isinstance(rt_res, dict) else 'UNKNOWN'
+            _synth = v2_response.get('synthesis')
+            if isinstance(_synth, dict):
+                _prov = _synth.get('provenance')
+                if isinstance(_prov, dict):
+                    _prov['red_team_model'] = _rt_model
+
         # Include raw SerpAPI data if used
         if use_serp and serp_raw:
             v2_response["live_data"] = serp_raw

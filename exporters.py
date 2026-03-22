@@ -1826,6 +1826,49 @@ class ExecutiveMemoExporter:
 
             story.append(Spacer(1, 16))
 
+        # --- PROVENANCE & AUDIT TRACE ---
+        _prov = intelligence_object.get("provenance") or {}
+        if _prov:
+            story.append(Spacer(1, 20))
+            story.append(Paragraph("PROVENANCE & AUDIT TRACE", styles['ExecLabel']))
+            story.append(Spacer(1, 4))
+            story.append(Table([[""]], colWidths=[540], rowHeights=[1],
+                style=[('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(SEM_RULE))]))
+            story.append(Spacer(1, 8))
+
+            # Metadata key-value pairs
+            _prov_fields = [
+                ("Decision ID", _as_text(_prov.get("decision_id", "UNKNOWN"))),
+                ("Ledger Decision ID", _as_text(_prov.get("ledger_decision_id", "UNKNOWN"))),
+                ("Scoring Source", _as_text(_prov.get("scoring_source", "UNKNOWN"))),
+                ("Synthesis Model", _as_text(_prov.get("synthesis_model", "UNKNOWN"))),
+                ("Red Team Model", _as_text(_prov.get("red_team_model") or "N/A")),
+            ]
+            for _pk, _pv in _prov_fields:
+                story.append(Paragraph(
+                    f"<b>{escape(_pk)}:</b>  {escape(_pv)}",
+                    styles['ExecTableCell']
+                ))
+            story.append(Spacer(1, 10))
+
+            # Council participant table
+            _prov_council = _prov.get("council") or []
+            if _prov_council:
+                _prov_table = _build_pdf_table({
+                    "headers": ["Role", "Provider", "Model", "Response Hash"],
+                    "rows": [
+                        [
+                            _as_text(c.get("role", "UNKNOWN")),
+                            _as_text(c.get("provider", "UNKNOWN")).upper(),
+                            _as_text(c.get("model", "UNKNOWN")),
+                            _as_text(c.get("response_hash", "UNKNOWN"))[:16] + "..."
+                        ]
+                        for c in _prov_council
+                    ]
+                }, styles, 540, tc)
+                if _prov_table:
+                    story.append(_prov_table)
+
         # Clean report mode: no ANALYSIS PHASES, no CONFIDENCE SCORE, no closing stamp
         # These are internal system artifacts — not part of the decision document
         story.append(Spacer(1, 20))
@@ -2391,6 +2434,44 @@ class WordExporter:
                 art_blocks = _extract_content_blocks(art_content)
                 WordExporter._render_word_blocks(doc, art_blocks, tc)
 
+            WordExporter._add_spacing(doc)
+
+        # --- PROVENANCE & AUDIT TRACE ---
+        _prov = intelligence_object.get("provenance") or {}
+        if _prov:
+            WordExporter._add_spacing(doc)
+            WordExporter._add_paragraph(doc, "PROVENANCE & AUDIT TRACE",
+                                        size=7, bold=True, color=tc.get("accent_dark", "333333"))
+            WordExporter._add_spacing(doc)
+
+            # Metadata key-value pairs
+            _prov_fields = [
+                ("Decision ID", _as_text(_prov.get("decision_id", "UNKNOWN"))),
+                ("Ledger Decision ID", _as_text(_prov.get("ledger_decision_id", "UNKNOWN"))),
+                ("Scoring Source", _as_text(_prov.get("scoring_source", "UNKNOWN"))),
+                ("Synthesis Model", _as_text(_prov.get("synthesis_model", "UNKNOWN"))),
+                ("Red Team Model", _as_text(_prov.get("red_team_model") or "N/A")),
+            ]
+            for _pk, _pv in _prov_fields:
+                WordExporter._add_paragraph(doc, f"{_pk}: {_pv}",
+                                            size=8.5, color=tc.get("text", "333333"))
+
+            # Council participant table
+            _prov_council = _prov.get("council") or []
+            if _prov_council:
+                WordExporter._add_spacing(doc)
+                WordExporter._render_word_table(doc, {
+                    "headers": ["Role", "Provider", "Model", "Response Hash"],
+                    "rows": [
+                        [
+                            _as_text(c.get("role", "UNKNOWN")),
+                            _as_text(c.get("provider", "UNKNOWN")).upper(),
+                            _as_text(c.get("model", "UNKNOWN")),
+                            _as_text(c.get("response_hash", "UNKNOWN"))[:16] + "..."
+                        ]
+                        for c in _prov_council
+                    ]
+                }, tc)
             WordExporter._add_spacing(doc)
 
         # Force a deterministic terminal section so DOCX never ends on an arbitrary node.
