@@ -1484,6 +1484,9 @@ class ExecutiveMemoExporter:
             elif sid.strip().lower() == "risks":
                 if not _packet_backed_risks_mode(intelligence_object, sections):
                     continue
+                # Packet-backed but risks content empty: pull from critical_challenges
+                if not str(content or "").strip():
+                    content = sections.get("critical_challenges") or content
 
             sec_title = sid.replace("_", " ").upper()
             # Clean report mode: section title only — no node numbers, no provider names
@@ -1979,6 +1982,9 @@ class WordExporter:
             elif sid.strip().lower() == "risks":
                 if not _packet_backed_risks_mode(intelligence_object, sections):
                     continue
+                # Packet-backed but risks content empty: pull from critical_challenges
+                if not str(content or "").strip():
+                    content = sections.get("critical_challenges") or content
 
             sec_title = sid.replace("_", " ").upper()
             # Clean report mode: section title only — no node numbers, no provider names
