@@ -1335,7 +1335,10 @@ def _build_pdf_red_team_alert(raw_text, styles, total_width):
         Paragraph("PRIMARY VULNERABILITY:", styles["AlertSubcap"]),
         Paragraph(f"- {escape(fields.get('primary_vulnerability', 'Threat path not summarized.'))}", styles["ExecBody"]),
         Paragraph("ATTACK PATH:", styles["AlertSubcap"]),
-        Preformatted(f"- {clean_text_for_export(fields.get('attack_path', 'Attack path unavailable.'))}", styles["TerminalMonospace"]),
+        Paragraph(
+            escape(_as_text(f"- {clean_text_for_export(fields.get('attack_path', 'Attack path unavailable.'))}")).replace("\n", "<br/>"),
+            styles["RedTeamAttackPath"],
+        ),
         Paragraph("BUSINESS IMPACT:", styles["AlertSubcap"]),
     ]
     for item in fields.get("business_impact", [])[:3]:
@@ -1640,6 +1643,16 @@ class ExecutiveMemoExporter:
             styles.add(ParagraphStyle('AlertSubcap', parent=styles['BodyText'], fontName='Helvetica-Bold', fontSize=10, spaceBefore=8, spaceAfter=4))
         if 'TerminalMonospace' not in styles.byName:
             styles.add(ParagraphStyle('TerminalMonospace', parent=styles['BodyText'], fontName='Courier', fontSize=10, textColor=colors.HexColor('#333333'), leftIndent=15, leading=12))
+        if 'RedTeamAttackPath' not in styles.byName:
+            styles.add(ParagraphStyle(
+                'RedTeamAttackPath',
+                parent=styles['ExecBody'],
+                fontName='Courier',
+                fontSize=8,
+                leading=11,
+                leftIndent=15,
+                rightIndent=4,
+            ))
 
         doc._session_id = _as_text(meta.get('session_id') or meta.get('id') or 'KO-INT-9999').upper()
         contributors = intelligence_object.get("council_contributors") or []
@@ -1854,8 +1867,18 @@ class ExecutiveMemoExporter:
                 ("Ledger Decision ID", _as_text(_prov.get("ledger_decision_id", "UNKNOWN"))),
                 ("Scoring Source", _as_text(_prov.get("scoring_source", "UNKNOWN"))),
                 ("Synthesis Model", _as_text(_prov.get("synthesis_model", "UNKNOWN"))),
-                ("Red Team Model", _as_text(_prov.get("red_team_model") or "N/A")),
             ]
+            # Red Team — structured object with status + model
+            _rt = _prov.get("red_team") or {}
+            if isinstance(_rt, dict) and _rt.get("status"):
+                _rt_status = _as_text(_rt.get("status", "UNKNOWN"))
+                _rt_model = _as_text(_rt.get("model", "UNKNOWN"))
+                _prov_fields.append(("Red Team", f"{_rt_status} — {_rt_model}"))
+            elif _prov.get("red_team_model"):
+                # Legacy flat string fallback
+                _prov_fields.append(("Red Team Model", _as_text(_prov["red_team_model"])))
+            else:
+                _prov_fields.append(("Red Team", "NOT INVOKED"))
             for _pk, _pv in _prov_fields:
                 story.append(Paragraph(
                     f"<b>{escape(_pk)}:</b>  {escape(_pv)}",

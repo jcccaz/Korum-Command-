@@ -1,10 +1,17 @@
 import tempfile
 import unittest
+import sys
+import os
 from pathlib import Path
 
 from PyPDF2 import PdfReader
+from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import Paragraph, Preformatted
 
-from exporters import ExecutiveMemoExporter
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from exporters import ExecutiveMemoExporter, _build_pdf_red_team_alert
 
 
 class ExecutiveMemoExporterTests(unittest.TestCase):
@@ -73,6 +80,42 @@ class ExecutiveMemoExporterTests(unittest.TestCase):
             self.assertIn("$37,500", extracted)
             self.assertIn("Scenario", extracted)
             self.assertIn("Down 10%", extracted)
+
+    def test_red_team_alert_uses_wrapping_paragraph_for_attack_path(self):
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle('ExecBody', fontSize=8.5, leading=12.5))
+        styles.add(ParagraphStyle('RedTeamAlertHeader', parent=styles['Heading2'], textColor=colors.HexColor('#C00000'), fontSize=18, leading=22))
+        styles.add(ParagraphStyle('RedTeamMetadataBlock', parent=styles['BodyText'], backColor=colors.HexColor('#EEEEEE'), leading=14))
+        styles.add(ParagraphStyle('AlertSubcap', parent=styles['BodyText'], fontName='Helvetica-Bold', fontSize=10))
+        styles.add(ParagraphStyle('RedTeamAttackPath', parent=styles['ExecBody'], fontName='Courier', fontSize=8, leading=11, leftIndent=15, rightIndent=4))
+
+        raw_text = """
+        {
+          "weakest_assumption": "Upgrading hardware will directly improve customer-perceived speeds.",
+          "execution_risks": [
+            "A long attack path can describe routing inefficiencies, congestion spillover, telemetry blind spots, staged rollout conflicts, and post-cutover incompatibilities that remain unresolved if diagnostics are skipped before the $2 million upgrade is approved."
+          ],
+          "reversal_trigger": "If complaints remain flat after capex, reverse the strategy.",
+          "confidence_attack": "Confidence is inflated because core claims are not empirically verified.",
+          "unsupported_claims": [
+            "Upgrading equipment will reduce complaints by at least 40%."
+          ],
+          "missing_evidence": [
+            "Latency, packet loss, and jitter baselines by affected market."
+          ],
+          "red_team_status": "FAIL"
+        }
+        """
+
+        flowables = _build_pdf_red_team_alert(raw_text, styles, 540)
+
+        self.assertEqual(len(flowables), 4)
+        alert_box = flowables[2]
+        inner_flowables = alert_box._cellvalues[0][0]
+
+        self.assertTrue(any(isinstance(item, Paragraph) and "ATTACK PATH:" in item.text for item in inner_flowables))
+        self.assertTrue(any(isinstance(item, Paragraph) and "routing inefficiencies" in item.text for item in inner_flowables))
+        self.assertFalse(any(isinstance(item, Preformatted) for item in inner_flowables))
 
 
 if __name__ == "__main__":
