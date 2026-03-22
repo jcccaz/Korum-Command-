@@ -3196,14 +3196,23 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
         "decision_packet_version": export_meta.get("schema_version", "1.0"),
     }
 
-    # --- GOVERNOR OVERRIDE: Stamp calibrated score into the packet ---
-    # The LLM writes its own score in confidence.score — the Governor overrides it.
-    # Without this, exporters read the LLM's self-assessed score instead of the Governor's.
+    # --- GOVERNOR OVERRIDE: Write-once score lock ---
+    # The Governor is the ONLY authority on score, status, and confidence band.
+    # The LLM may suggest values — the Governor overwrites them and locks the packet.
+    # After this block, score is immutable. No downstream code may alter it.
     if isinstance(packet.get("confidence"), dict):
         packet["confidence"]["score"] = score
         packet["confidence"]["band"] = (
             "HIGH" if score >= 75 else "MEDIUM" if score >= 50 else "LOW"
         )
+    packet["_governor_final_score"] = score
+    packet["_governor_status"] = status
+    packet["_governor_confidence_band"] = "HIGH" if score >= 75 else "MEDIUM" if score >= 50 else "LOW"
+    packet["_score_locked"] = True
+    legacy["_governor_final_score"] = score
+    legacy["_governor_status"] = status
+    legacy["_score_locked"] = True
+    print(f"[GOVERNOR] Score locked: {score}/100 | Status: {status} | Band: {packet['_governor_confidence_band']} | source=RULE_ENGINE")
 
     # --- PROVENANCE: Pass through from packet, or build fallback ---
     _prov = packet.get("provenance")
@@ -3538,6 +3547,18 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
         if "meta" not in data:
             data["meta"] = {}
         data["meta"]["models_used"] = models_used
+
+        # --- SYNTHESIS READ-ONLY GUARD ---
+        # If the Governor locked the score, enforce it on the meta.
+        # Synthesis may format/summarize — it may NOT change score, status, or confidence.
+        if data.get("_score_locked"):
+            _gov_score = data["_governor_final_score"]
+            _gov_status = data["_governor_status"]
+            data["meta"]["composite_truth_score"] = _gov_score
+            data["meta"]["truth_score"] = _gov_score
+            if data["meta"].get("composite_truth_score") != _gov_score:
+                print(f"[GOVERNOR] Synthesis attempted score override — blocked. Enforcing {_gov_score}")
+            print(f"[GOVERNOR] Synthesis read-only enforced: score={_gov_score}, status={_gov_status}")
 
         # Deterministic council_contributors — built from pipeline data, not LLM output
         contributors = []

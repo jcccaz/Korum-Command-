@@ -218,22 +218,30 @@ def _prefer_packet_value(packet_value, fallback_value=""):
 
 
 def _packet_score(packet, fallback_meta):
+    # --- GOVERNOR HARD BIND: Use locked score, no fallbacks ---
+    governor_score = packet.get("_governor_final_score")
+    if governor_score is not None:
+        return int(round(float(governor_score)))
+    # Fallback only for legacy/non-packet paths (V1, pre-Governor data)
     confidence = _packet_dict(packet.get("confidence"))
     raw_score = confidence.get("score")
     if raw_score is not None and raw_score != "":
         try:
             return _normalize_truth_score(raw_score)
         except Exception:
-            return None
-
-    if not confidence:
-        fallback_score = fallback_meta.get("truth_score") or fallback_meta.get("composite_truth_score")
-        if fallback_score is not None and fallback_score != "":
-            return _normalize_truth_score(fallback_score)
+            pass
+    fallback_score = fallback_meta.get("truth_score") or fallback_meta.get("composite_truth_score")
+    if fallback_score is not None and fallback_score != "":
+        return _normalize_truth_score(fallback_score)
     return None
 
 
 def _packet_status(packet, score):
+    # --- GOVERNOR HARD BIND: Use locked status, no recomputation ---
+    governor_status = packet.get("_governor_status")
+    if governor_status:
+        return governor_status
+    # Fallback only for legacy/non-packet paths
     confidence = _packet_dict(packet.get("confidence"))
     raw_band = _as_text(confidence.get("band")).upper()
     if raw_band in ("HIGH", "MEDIUM", "LOW"):
@@ -437,6 +445,10 @@ def _packet_preferred_parts(packet, fallback_meta, fallback_sections, fallback_s
     export_meta = _packet_dict(packet.get("export_metadata"))
     score = _packet_score(packet, fallback_meta)
     status = _packet_status(packet, score)
+    # --- VERIFICATION LOG: Score chain must match 1:1:1 ---
+    _gov = packet.get("_governor_final_score")
+    _locked = packet.get("_score_locked")
+    print(f"[EXPORT] Score binding: governor={_gov} | packet={score} | locked={_locked} | status={status}")
     title = _as_text(_prefer_packet_value(packet.get("decision_headline"), fallback_meta.get("title")))
     summary = _as_text(_prefer_packet_value(packet.get("executive_summary"), fallback_meta.get("summary")))
     go_no_go = _packet_dict(packet.get("go_no_go_call"))

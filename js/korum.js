@@ -3165,7 +3165,7 @@ function buildWorkspaceRoster(records) {
     }
 
     return records.map(record => {
-        const truthPill = record.success ? `<span class="roster-card-pill">Truth ${record.truthScore}</span>` : '<span class="roster-card-pill">Error</span>';
+        const truthPill = record.success ? `<span class="roster-card-pill" title="Model signal — non-authoritative">Signal ${record.truthScore}</span>` : '<span class="roster-card-pill">Error</span>';
         const citationsPill = record.citations?.length ? `<span class="roster-card-pill">${record.citations.length} src</span>` : '';
         const preview = record.success
             ? escapeHtml(summarizeText(record.rawResponse, 150))
@@ -3323,7 +3323,7 @@ function renderWorkspaceReader(provider = sessionState.selectedCardProvider) {
                     <div class="ph-role-label" style="margin-top:6px;">${escapeHtml(record.providerMeta)}</div>
                 </div>
                 <div class="reader-meta">
-                    <span class="reader-meta-pill" style="color:${truthColor};">Truth ${record.truthScore}/100</span>
+                    <span class="reader-meta-pill" style="color:${truthColor};" title="Model signal — non-authoritative">Signal ${record.truthScore}/100</span>
                     <span class="reader-meta-pill">$${record.cost.toFixed(4)}</span>
                     <span class="reader-meta-pill">${record.time.toFixed(1)}s</span>
                     ${record.citations?.length ? `<span class="reader-meta-pill">${record.citations.length} sources</span>` : ''}
@@ -5440,9 +5440,9 @@ function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
         .map(([k]) => getProviderName(k).toUpperCase());
     const agentCount = respondingProviders.length;
 
-    // Truth score: prefer composite, fallback to average
+    // Decision score: Governor-calibrated (RULE_ENGINE), NOT model average
     let truthScore = meta.composite_truth_score;
-    if (truthScore === undefined || truthScore === null) truthScore = Math.round(avgConfidence);
+    if (truthScore === undefined || truthScore === null) truthScore = Math.round(avgConfidence); // V1 legacy only
     else if (truthScore <= 1) truthScore = Math.round(truthScore * 100);
     const truthColor = truthScore > 80 ? '#4CAF7D' : truthScore > 50 ? '#FFB020' : '#FF4444';
 
@@ -5467,8 +5467,9 @@ function buildExecutiveSummary(data, roleName, avgConfidence, totalTime) {
     let metricsHtml = `
         <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
             <div style="text-align:center;">
-                <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">TRUTH SCORE</div>
+                <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">DECISION SCORE</div>
                 <div style="color:${truthColor}; font-size:1.2rem; font-weight:bold;">${truthScore}<span style="font-size:0.6rem; color:#555">/100</span></div>
+                <div style="color:#666; font-size:0.4rem; letter-spacing:0.08em; margin-top:2px;">RULE ENGINE</div>
             </div>
             <div style="text-align:center;">
                 <div style="color:#555; font-size:0.5rem; letter-spacing:0.1em;">AGENTS</div>
@@ -5715,7 +5716,7 @@ function renderResults(data, roleName) {
             <div class="exec-brief-title">${meta.title || 'EXECUTIVE INTELLIGENCE BRIEF'}</div>
             <div class="exec-brief-meta">
                 <span>${meta.workflow || 'RESEARCH'}</span>
-                <span>TRUTH: ${(() => { let s = meta.composite_truth_score; if (s === undefined || s === null) return '—'; s = parseFloat(s); if (s <= 1) s = Math.round(s * 100); return s; })()}/100</span>
+                <span title="Governed by Rule Engine">SCORE: ${(() => { let s = meta.composite_truth_score; if (s === undefined || s === null) return '—'; s = parseFloat(s); if (s <= 1) s = Math.round(s * 100); return s; })()}/100</span>
                 <span>${(meta.models_used || []).length} AGENTS</span>
                 <button class="qanapi-sign-btn" onclick="event.stopPropagation(); showProcessingToast('Secure Enclave · FedRAMP High · Cryptographic Signature Ready [STAGING]')">
                     <span style="font-size:10px">🔏</span> SIGN REPORT
@@ -7969,7 +7970,7 @@ function renderActionPanel(synthesis, classification) {
         <div class="exec-brief-title">${meta.title || 'EXECUTIVE INTELLIGENCE BRIEF'}</div>
         <div class="exec-brief-meta">
             <span>${meta.workflow || 'RESEARCH'}</span>
-            <span>TRUTH: ${(() => { let s = meta.composite_truth_score; if (s === undefined || s === null) return '—'; s = parseFloat(s); if (s <= 1) s = Math.round(s * 100); return s; })()}/100</span>
+            <span title="Governed by Rule Engine">SCORE: ${(() => { let s = meta.composite_truth_score; if (s === undefined || s === null) return '—'; s = parseFloat(s); if (s <= 1) s = Math.round(s * 100); return s; })()}/100</span>
             <span>${(meta.models_used || []).length} AGENTS</span>
         </div>
     </div>`;
