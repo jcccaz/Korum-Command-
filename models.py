@@ -15,7 +15,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True, index=True)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     hashed_password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), nullable=False, default="user")  # admin, user
+    role = db.Column(db.String(20), nullable=False, default="user")  # admin, compliance, user
     mfa_secret = db.Column(db.String(32), nullable=True)  # TOTP secret for MFA
     mfa_enabled = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -29,6 +29,9 @@ class User(UserMixin, db.Model):
 
     def is_admin(self) -> bool:
         return self.role == "admin"
+
+    def is_compliance(self) -> bool:
+        return self.role in ("admin", "compliance")
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"
@@ -102,20 +105,30 @@ class Message(db.Model):
 
 
 class DecisionLedger(db.Model):
-    """Immutable, tamper-evident flight recorder for AI-assisted decisions.
-    Hash-chained per decision_id. Never stores raw PII — only hashes, counts, and metadata."""
+    """Witness Layer (Thin Ledger) — Cryptographic proof of every decision.
+    NEVER stores raw PII or prompt/response text.
+    Hmac-protected and hash-chained per decision_id."""
     __tablename__ = "decision_ledger"
 
     id = db.Column(db.Integer, primary_key=True)
+    ledger_id = db.Column(db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
+    tenant_id = db.Column(db.String(50), nullable=True, index=True) # Organization ID
     event_type = db.Column(db.String(50), nullable=False, index=True)
     mission_id = db.Column(db.String(36), nullable=False, index=True)
     decision_id = db.Column(db.String(36), nullable=False, index=True)
     sequence = db.Column(db.Integer, nullable=False)  # Logical, per decision_id, starts at 1
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     operator_id = db.Column(db.Integer, nullable=True)
-    payload = db.Column(db.Text, nullable=False)  # JSON string — event-specific data
-    record_hash = db.Column(db.String(64), nullable=False)  # SHA-256 hex
+    
+    # CONTENT HASING
+    payload_hash = db.Column(db.String(64), nullable=False)  # SHA-256 of the canonical EvidenceArchive
+    schema_version = db.Column(db.String(10), nullable=False, default="1.0")
+    large_artifact = db.Column(db.Boolean, default=False)  # Flaged if evidence > 5MB
+    
+    # INTEGRITY
+    record_hash = db.Column(db.String(64), nullable=False)  # SHA-256 hex link
     previous_hash = db.Column(db.String(64), nullable=False)  # SHA-256 hex, "GENESIS" for first
+    signature_hmac = db.Column(db.String(128), nullable=True)  # Record integrity protection
 
     __table_args__ = (
         db.Index('ix_ledger_decision_sequence', 'decision_id', 'sequence'),
@@ -124,16 +137,33 @@ class DecisionLedger(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
+            "ledger_id": self.ledger_id,
+            "tenant_id": self.tenant_id,
             "event_type": self.event_type,
             "mission_id": self.mission_id,
             "decision_id": self.decision_id,
             "sequence": self.sequence,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "operator_id": self.operator_id,
-            "payload": self.payload,
+            "payload_hash": self.payload_hash,
+            "schema_version": self.schema_version,
+            "large_artifact": self.large_artifact,
             "record_hash": self.record_hash,
             "previous_hash": self.previous_hash,
+            "signature_hmac": self.signature_hmac
         }
+
+
+class EvidenceArchive(db.Model):
+    """Evidence Layer (Thick Vault) — Stores raw payloads behind the hash seal.
+    Access to this table must be audited and restricted to the 'compliance' role."""
+    __tablename__ = "evidence_archive"
+
+    id = db.Column(db.Integer, primary_key=True)
+    payload_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    content = db.Column(db.Text, nullable=False)  # Canonical JSON
+    data_class = db.Column(db.String(30), nullable=True)  # e.g. 'SENSITIVE', 'FINANCIAL'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class MissionVault(db.Model):

@@ -246,6 +246,23 @@ def auth_required(f):
         return f(*args, **kwargs)
     return decorated
 
+def compliance_required(f):
+    """Restricts access to the Evidence Layer (Thick Vault).
+    Mission Owners and Users can see the Witness Layer, but not the Evidence."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not AUTH_ENABLED:
+            return f(*args, **kwargs)
+        if not current_user.is_authenticated or not current_user.is_compliance():
+            log_audit("access_denied", details="Compliance/Audit access required", success=False)
+            return jsonify({
+                "error": "Compliance access required", 
+                "message": "Only users with the 'compliance' role can reveal raw evidence artifacts.",
+                "code": "COMPLIANCE_REQUIRED"
+            }), 403
+        return f(*args, **kwargs)
+    return decorated
+
 # --- HTTPS Enforcement ---
 @app.before_request
 def enforce_https():
@@ -3357,6 +3374,35 @@ def ask_sentinel():
         return jsonify({"success": False, "error": str(e)})
 
     return jsonify({"success": False, "error": "No available models for Sentinel"})
+
+# ============================================================
+# ATL (Audit Transparency Layer) ENDPOINTS
+# ============================================================
+
+@app.route('/api/ledger/reveal', methods=['POST'])
+@auth_required
+@compliance_required
+def reveal_evidence():
+    """Retrieve the thick Evidence from the vault. Restricted to Compliance role."""
+    data = request.json or {}
+    payload_hash = data.get('payload_hash')
+
+    if not payload_hash:
+        return jsonify({"success": False, "error": "payload_hash required"}), 400
+
+    evidence = LedgerService.get_evidence(payload_hash)
+    if not evidence:
+        return jsonify({"success": False, "error": "Evidence not found in vault"}), 404
+
+    log_audit("evidence_reveal", details=f"Revealing evidence for hash {payload_hash[:12]}...")
+
+    return jsonify({
+        "success": True,
+        "payload_hash": payload_hash,
+        "content": json.loads(evidence.content) if isinstance(evidence.content, str) else evidence.content,
+        "data_class": evidence.data_class,
+        "created_at": evidence.created_at.isoformat() if evidence.created_at else None
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))

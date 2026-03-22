@@ -1,94 +1,118 @@
-"""
-Decision Ledger — Immutable, tamper-evident flight recorder for KorumOS.
-
-Every AI-assisted decision creates a hash-chained sequence of events.
-Chain is scoped per decision_id. Each event's record_hash covers the FULL
-canonical envelope (event_type, mission_id, decision_id, sequence, timestamp,
-operator_id, payload, previous_hash) — not just the payload.
-
-PRIVACY RULE: Never store raw prompt text, raw model output, or raw Falcon token
-mappings. Only hashes, counts, metadata, aggregate scores, and IDs.
-"""
-
 import hashlib
+import hmac
 import json
+import os
+import uuid
 from datetime import datetime, timezone
 
 from db import db
-from models import DecisionLedger
+from models import DecisionLedger, EvidenceArchive
+from canonical import compute_payload_hash, canonical_json
 
 GENESIS_HASH = "GENESIS"
+_hmac_raw = os.getenv("LEDGER_HMAC_KEY")
+if not _hmac_raw:
+    if os.getenv("FLASK_ENV") == "production" or os.getenv("RAILWAY_ENVIRONMENT"):
+        raise RuntimeError("LEDGER_HMAC_KEY must be set in production — refusing to start with default key")
+    _hmac_raw = "dev_only_not_for_production"
+HMAC_KEY = _hmac_raw.encode()
+EVIDENCE_SIZE_LIMIT = 5 * 1024 * 1024  # 5MB
 
 
 def _build_canonical_envelope(event_type, mission_id, decision_id, sequence,
-                              timestamp_iso, operator_id, payload_json, previous_hash):
-    """Build a deterministic canonical string covering ALL event fields.
-    Any mutation to any field will invalidate the hash."""
-    envelope = json.dumps({
+                              timestamp_iso, operator_id, payload_hash, previous_hash, 
+                              ledger_id, tenant_id=None, schema_version="1.0"):
+    """Build a deterministic canonical string covering ALL witness metadata."""
+    envelope_data = {
         "event_type": event_type,
         "mission_id": mission_id,
         "decision_id": decision_id,
+        "ledger_id": ledger_id,
+        "tenant_id": tenant_id,
         "sequence": sequence,
         "timestamp": timestamp_iso,
         "operator_id": operator_id,
-        "payload": payload_json,
+        "payload_hash": payload_hash,
         "previous_hash": previous_hash,
-    }, sort_keys=True)
-    return envelope
+        "schema_version": schema_version
+    }
+    return canonical_json(envelope_data)
 
 
-def _compute_hash(canonical_envelope, previous_hash):
-    """SHA-256(canonical_envelope + previous_hash) -> 64-char hex string."""
-    return hashlib.sha256((canonical_envelope + previous_hash).encode()).hexdigest()
+def _compute_record_hash(canonical_envelope):
+    """SHA-256(canonical_envelope) -> 64-char hex string."""
+    return hashlib.sha256(canonical_envelope.encode('utf-8')).hexdigest()
+
+
+def _compute_hmac(record_hash):
+    """HMAC-SHA256(key, record_hash) -> 128-char hex string."""
+    return hmac.new(HMAC_KEY, record_hash.encode('utf-8'), hashlib.sha256).hexdigest()
 
 
 class LedgerService:
-    """Append-only, hash-chained event writer and verifier."""
+    """Append-only, hash-chained Witness Layer (Thin Ledger)."""
 
     @staticmethod
-    def write_event(event_type, mission_id, decision_id, payload, operator_id=None):
-        """Write a new event to the ledger, chaining it to the previous event for this decision_id.
-
-        Args:
-            event_type: One of the defined event types (prompt_received, falcon_redaction, etc.)
-            mission_id: Thread/mission UUID — must be resolved (not 'pending')
-            decision_id: Run UUID (unique per council execution)
-            payload: Dict of event-specific metadata (NO raw PII)
-            operator_id: User ID of the operator (optional)
-
-        Returns:
-            The created DecisionLedger record
+    def write_event(event_type, mission_id, decision_id, payload, operator_id=None, tenant_id=None, data_class=None):
+        """Write a new Witness event, chaining it to the previous event.
+        
+        This implements the "Witness Layer" pattern:
+        - Payload is hashed and stored in the Evidence Layer (EvidenceArchive).
+        - Only the metadata and payload_hash are stored in the Ledger.
         """
-        # Determine sequence: max(sequence) + 1 for this decision_id, starting at 1
+        # Determine sequence
         last = DecisionLedger.query.filter_by(decision_id=decision_id) \
             .order_by(DecisionLedger.sequence.desc()).first()
         sequence = (last.sequence + 1) if last else 1
         previous_hash = last.record_hash if last else GENESIS_HASH
 
-        # Serialize payload deterministically (sorted keys for consistent hashing)
-        payload_json = json.dumps(payload, sort_keys=True, default=str)
+        # 1. Canonical Payload Hashing (The Witness Seal)
+        schema_version = "1.0"
+        payload_json = canonical_json(payload)
+        p_hash = compute_payload_hash(payload) # Uses schema_version internally
+        
+        # 2. Evidence Persistence (Thick Layer) with Size Guard
+        is_large = len(payload_json) > EVIDENCE_SIZE_LIMIT
+        
+        # Check if hash already exists (Deduplication)
+        evidence = EvidenceArchive.query.filter_by(payload_hash=p_hash).first()
+        if not evidence:
+            archive_entry = EvidenceArchive(
+                payload_hash=p_hash,
+                content=payload_json,
+                data_class=data_class
+            )
+            db.session.add(archive_entry)
 
-        # Timestamp — fixed at creation, included in hash
-        ts = datetime.now(timezone.utc)
-        ts_iso = ts.isoformat()
+        # 3. Ledger Metadata
+        ledger_id = str(uuid.uuid4())
+        ts = datetime.now(timezone.utc).replace(tzinfo=None)  # Store naive UTC — SQLite strips tz
+        ts_iso = ts.isoformat()  # e.g. "2026-03-22T15:30:00.123456" — no +00:00 suffix
 
-        # Build canonical envelope covering ALL fields
+        # 4. Integrity Chain (The Chain Link)
         envelope = _build_canonical_envelope(
             event_type, mission_id, decision_id, sequence,
-            ts_iso, operator_id, payload_json, previous_hash
+            ts_iso, operator_id, p_hash, previous_hash,
+            ledger_id, tenant_id, schema_version
         )
-        record_hash = _compute_hash(envelope, previous_hash)
+        record_hash = _compute_record_hash(envelope)
+        sig_hmac = _compute_hmac(record_hash)
 
         entry = DecisionLedger(
+            ledger_id=ledger_id,
+            tenant_id=tenant_id,
             event_type=event_type,
             mission_id=mission_id,
             decision_id=decision_id,
             sequence=sequence,
             timestamp=ts,
             operator_id=operator_id,
-            payload=payload_json,
+            payload_hash=p_hash,
+            schema_version=schema_version,
+            large_artifact=is_large,
             record_hash=record_hash,
             previous_hash=previous_hash,
+            signature_hmac=sig_hmac
         )
         db.session.add(entry)
         db.session.commit()
@@ -101,72 +125,51 @@ class LedgerService:
             .order_by(DecisionLedger.sequence.asc()).all()
 
     @staticmethod
-    def get_mission_events(mission_id):
-        """Fetch all events across all decisions for a mission, ordered by timestamp."""
-        return DecisionLedger.query.filter_by(mission_id=mission_id) \
-            .order_by(DecisionLedger.timestamp.asc()).all()
+    def get_evidence(payload_hash):
+        """Internal helper to retrieve raw evidence by its hash."""
+        return EvidenceArchive.query.filter_by(payload_hash=payload_hash).first()
 
     @staticmethod
     def verify_chain(decision_id):
-        """Walk the chain for a decision_id and verify hash integrity.
-        Recomputes hash from the full canonical envelope — any field mutation is detected.
-
-        Returns:
-            dict: {valid: bool, total_events: int, broken_at: int|None, details: str}
-        """
+        """Walk the chain and verify hash and HMAC integrity."""
         events = DecisionLedger.query.filter_by(decision_id=decision_id) \
             .order_by(DecisionLedger.sequence.asc()).all()
 
         if not events:
-            return {"valid": True, "total_events": 0, "broken_at": None,
-                    "details": "No events found for this decision."}
+            return {"valid": True, "total_events": 0, "broken_at": None, "details": "No events found."}
 
         for i, event in enumerate(events):
             expected_previous = events[i - 1].record_hash if i > 0 else GENESIS_HASH
 
-            # Check previous_hash linkage
+            # 1. Check Linkage
             if event.previous_hash != expected_previous:
-                return {
-                    "valid": False,
-                    "total_events": len(events),
-                    "broken_at": event.sequence,
-                    "details": f"Chain broken at sequence {event.sequence}: "
-                               f"previous_hash mismatch (expected {expected_previous[:12]}..., "
-                               f"got {event.previous_hash[:12]}...)"
-                }
+                return {"valid": False, "broken_at": event.sequence, "details": f"Chain leak at sequence {event.sequence}"}
 
-            # Recompute record_hash from full canonical envelope
-            ts_iso = event.timestamp.isoformat() if event.timestamp else None
+            # 2. Recompute Witness Envelope (strip tz for SQLite consistency)
+            _ts = event.timestamp.replace(tzinfo=None) if event.timestamp and event.timestamp.tzinfo else event.timestamp
+            ts_iso = _ts.isoformat() if _ts else None
             envelope = _build_canonical_envelope(
                 event.event_type, event.mission_id, event.decision_id,
                 event.sequence, ts_iso, event.operator_id,
-                event.payload, event.previous_hash
+                event.payload_hash, event.previous_hash,
+                event.ledger_id, event.tenant_id, event.schema_version
             )
-            recomputed = _compute_hash(envelope, event.previous_hash)
-            if event.record_hash != recomputed:
-                return {
-                    "valid": False,
-                    "total_events": len(events),
-                    "broken_at": event.sequence,
-                    "details": f"Envelope tampered at sequence {event.sequence}: "
-                               f"hash mismatch (stored {event.record_hash[:12]}..., "
-                               f"recomputed {recomputed[:12]}...)"
-                }
+            
+            # 3. Verify Hash
+            recomputed_hash = _compute_record_hash(envelope)
+            if event.record_hash != recomputed_hash:
+                return {"valid": False, "broken_at": event.sequence, "details": f"Tamper detected in metadata at sequence {event.sequence}"}
 
-        return {
-            "valid": True,
-            "total_events": len(events),
-            "broken_at": None,
-            "details": f"All {len(events)} events verified. Chain intact."
-        }
+            # 4. Verify HMAC (Internal Authenticity)
+            recomputed_hmac = _compute_hmac(event.record_hash)
+            if event.signature_hmac and event.signature_hmac != recomputed_hmac:
+                return {"valid": False, "broken_at": event.sequence, "details": f"Unauthorized record mutation (HMAC fail) at sequence {event.sequence}"}
+
+        return {"valid": True, "total_events": len(events), "details": "All hashes and signatures verified."}
 
     @staticmethod
     def verify_mission(mission_id):
-        """Verify all decision chains within a mission.
-
-        Returns:
-            dict: {valid: bool, decisions_checked: int, failures: [decision_id, ...]}
-        """
+        """Verify all decision chains within a mission."""
         decision_ids = db.session.query(DecisionLedger.decision_id) \
             .filter_by(mission_id=mission_id).distinct().all()
         decision_ids = [d[0] for d in decision_ids]
