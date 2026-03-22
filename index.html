@@ -441,7 +441,7 @@
                             <span class="followup-spotlight-label" id="followupSpotlightLabel">Latest Follow-Up Answer</span>
                             <div class="followup-spotlight-actions">
                                 <button class="followup-spotlight-dock" id="followupSpotlightDock" type="button" title="Dock this answer to research">📌 DOCK</button>
-                                <button class="followup-spotlight-open" id="followupSpotlightOpen" type="button">Open Full</button>
+                                <button class="followup-spotlight-expand" id="followupSpotlightExpand" type="button">EXPAND</button>
                             </div>
                         </div>
                         <div class="followup-spotlight-body" id="followupSpotlightBody">Follow-up answers will surface here.</div>
@@ -1176,6 +1176,22 @@
                         <div class="settings-msg" id="settingsFalconMsg"></div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- INTELLIGENCE FEED -->
+    <div class="intel-feed-overlay" id="intelFeedOverlay" style="display:none;">
+        <div class="intel-feed-modal">
+            <div class="intel-feed-header">
+                <div class="intel-feed-header-left">
+                    <h3>INTELLIGENCE FEED</h3>
+                    <span class="intel-feed-count" id="intelFeedCount">0 items</span>
+                </div>
+                <button class="intel-feed-close" id="intelFeedClose">&times;</button>
+            </div>
+            <div class="intel-feed-cards" id="intelFeedCards">
+                <p class="intel-feed-empty">No intelligence items yet. Follow-ups, verifications, and interrogations will appear here.</p>
             </div>
         </div>
     </div>

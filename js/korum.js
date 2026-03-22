@@ -3528,6 +3528,7 @@ function updateThreadBadge() {
             sessionState.activeThreadId = null;
             sessionState.threadHistory = [];
             currentWorkspaceProviders = [];
+            if (typeof IntelFeed !== 'undefined') IntelFeed.reset();
             updateThreadBadge();
             const cp = document.getElementById('pane-council');
             const ap = document.getElementById('pane-analysis');
@@ -4124,6 +4125,11 @@ window.executeVerify = async function (claimText, providerName) {
 
         sentinelChat.appendMessage(`Source verification complete for: "${claim.slice(0, 50)}..."`, 'sentinel');
         logTelemetry("🔎 Verification complete", "success");
+        // Push to Intel Feed
+        if (typeof IntelFeed !== 'undefined') {
+            const verdictStr = result.verdict ? ` [${result.verdict.replace('_', ' ')}]` : '';
+            IntelFeed.push('verification', `Source Verification${verdictStr}`, `Claim: "${claim}"\n\n${result.verification || 'No details returned.'}`);
+        }
         updateRevisionSummary({
             latestFollowup: claim.length > 96 ? `${claim.slice(0, 96)}...` : claim,
             revisionState: 'Verification completed. Evidence updated the response.',
@@ -4290,6 +4296,12 @@ async function executeInterrogation(attackerRole, defenderRole, targetResponse, 
 
         sentinelChat.appendMessage(`Cross-examination complete. ${attackerRole.toUpperCase()} challenged ${defenderRole.toUpperCase()}.`, 'sentinel');
         logTelemetry(`Interrogation complete: ${attackerRole} vs ${defenderRole}`, "process");
+        // Push to Intel Feed
+        if (typeof IntelFeed !== 'undefined') {
+            const atkText = result.attacker ? result.attacker.response : '';
+            const defText = result.defender ? result.defender.response : '';
+            IntelFeed.push('interrogation', `${attackerRole.replace(/_/g,' ')} vs ${defenderRole.replace(/_/g,' ')}`, `ATTACKER (${attackerRole.replace(/_/g,' ')}):\n${atkText}\n\nDEFENDER (${defenderRole.replace(/_/g,' ')}):\n${defText}`);
+        }
         updateRevisionSummary({
             latestFollowup: `${attackerRole.replace(/_/g, ' ')} vs ${defenderRole.replace(/_/g, ' ')}`,
             revisionState: 'Interrogation completed. Response remains contestable.',
@@ -6845,9 +6857,8 @@ function updateFollowupSpotlight(detail, label = 'Latest Follow-Up Answer') {
     const spotlight = document.getElementById('followupSpotlight');
     const body = document.getElementById('followupSpotlightBody');
     const title = document.getElementById('followupSpotlightLabel');
-    const openBtn = document.getElementById('followupSpotlightOpen');
     const dockBtn = document.getElementById('followupSpotlightDock');
-    
+
     if (!spotlight || !body) return;
 
     const fullText = String(detail || '').trim();
@@ -6861,10 +6872,9 @@ function updateFollowupSpotlight(detail, label = 'Latest Follow-Up Answer') {
     spotlight.classList.add('is-visible');
     body.textContent = fullText;
     if (title) title.textContent = label;
-    
-    if (openBtn) {
-        openBtn.onclick = () => openCommsActivityModal(label, fullText);
-    }
+
+    // Push to Intel Feed
+    if (typeof IntelFeed !== 'undefined') IntelFeed.push('followup', label, fullText);
     
     if (dockBtn) {
         dockBtn.onclick = (e) => {
@@ -9443,9 +9453,129 @@ const SettingsPanel = {
     }
 };
 
+// ---------------------------------------------------------------------------
+// INTELLIGENCE FEED — Unified Follow-Up, Verification & Interrogation Viewer
+// ---------------------------------------------------------------------------
+const IntelFeed = {
+    items: [],
+    overlay: null,
+
+    init() {
+        this.overlay = document.getElementById('intelFeedOverlay');
+        const closeBtn = document.getElementById('intelFeedClose');
+        const expandBtn = document.getElementById('followupSpotlightExpand');
+
+        if (closeBtn) closeBtn.addEventListener('click', () => this.close());
+        if (expandBtn) expandBtn.addEventListener('click', () => this.open());
+
+        if (this.overlay) {
+            this.overlay.addEventListener('click', (e) => {
+                if (e.target === this.overlay) this.close();
+            });
+        }
+    },
+
+    push(type, title, content) {
+        this.items.unshift({
+            type,
+            title,
+            content,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            docked: false,
+        });
+        // Update count badge on spotlight expand button
+        const expandBtn = document.getElementById('followupSpotlightExpand');
+        if (expandBtn) {
+            expandBtn.textContent = `EXPAND (${this.items.length})`;
+        }
+    },
+
+    reset() {
+        this.items = [];
+        const expandBtn = document.getElementById('followupSpotlightExpand');
+        if (expandBtn) expandBtn.textContent = 'EXPAND';
+    },
+
+    open() {
+        if (!this.overlay) return;
+        this.overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        this.render();
+    },
+
+    close() {
+        if (!this.overlay) return;
+        this.overlay.style.display = 'none';
+        document.body.style.overflow = '';
+    },
+
+    render() {
+        const container = document.getElementById('intelFeedCards');
+        const countEl = document.getElementById('intelFeedCount');
+        if (!container) return;
+
+        if (countEl) countEl.textContent = `${this.items.length} item${this.items.length !== 1 ? 's' : ''}`;
+
+        if (this.items.length === 0) {
+            container.innerHTML = '<p class="intel-feed-empty">No intelligence items yet. Follow-ups, verifications, and interrogations will appear here.</p>';
+            return;
+        }
+
+        let html = '';
+        for (let i = 0; i < this.items.length; i++) {
+            const item = this.items[i];
+            const typeLabels = {
+                followup: 'FOLLOW-UP',
+                verification: 'VERIFICATION',
+                interrogation: 'CROSS-EXAMINATION',
+            };
+            const badge = typeLabels[item.type] || item.type.toUpperCase();
+            const dockBtnHtml = item.docked
+                ? '<button class="intel-feed-dock-btn docked" disabled>DOCKED</button>'
+                : `<button class="intel-feed-dock-btn" onclick="IntelFeed.dockItem(${i})">DOCK</button>`;
+
+            // Escape content for safe display
+            const safeContent = this._esc(item.content).replace(/\n/g, '<br>');
+
+            html += `<div class="intel-feed-card type-${item.type}">
+                <div class="intel-feed-card-header">
+                    <span class="intel-feed-badge badge-${item.type}">${badge}</span>
+                    <span class="intel-feed-title">${this._esc(item.title)}</span>
+                    <span class="intel-feed-time">${item.timestamp}</span>
+                    ${dockBtnHtml}
+                </div>
+                <div class="intel-feed-card-body">${safeContent}</div>
+            </div>`;
+        }
+        container.innerHTML = html;
+    },
+
+    dockItem(index) {
+        const item = this.items[index];
+        if (!item || item.docked) return;
+        const snippet = ResearchDock.add(item.content, item.type);
+        if (snippet) {
+            snippet.label = item.title;
+            snippet.includeInReport = true;
+            ResearchDock.render();
+            ResearchDock.save();
+            item.docked = true;
+            this.render();
+            showProcessingToast('Docked to Research Dock.');
+        }
+    },
+
+    _esc(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     AtlDashboard.init();
     SettingsPanel.init();
+    IntelFeed.init();
 });
 
 // End of KorumOS Sentinel Logic

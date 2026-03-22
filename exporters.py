@@ -396,8 +396,11 @@ def _packet_execution_text(packet):
 
 def _packet_key_signals_text(packet):
     claims = []
-    for item in _packet_list(packet.get("verified_claims"))[:4]:
+    for item in _packet_list(packet.get("verified_claims")):
         if isinstance(item, dict):
+            status = _as_text(item.get("status")).upper()
+            if status not in ("VERIFIED", "LIKELY"):
+                continue
             claim = _as_text(item.get("claim"))
             if claim:
                 claims.append(f"- {claim}")
@@ -405,6 +408,8 @@ def _packet_key_signals_text(packet):
             text = _as_text(item)
             if text:
                 claims.append(f"- {text}")
+        if len(claims) >= 4:
+            break
     return "\n".join(claims)
 
 
@@ -417,16 +422,19 @@ def _packet_verification_blocks(packet):
         if not claim:
             continue
         source_ref = _as_text(item.get("source_ref"))
-        raw_status = _as_text(item.get("status")).upper() or "UNVERIFIED"
+        raw_status = _as_text(item.get("status")).upper() or "UNKNOWN"
         if raw_status in ("VERIFIED", "ACCURATE"):
             status = "VERIFIED"
-            verdict = "ACCURATE"
-        elif raw_status in ("FALSE", "FLAGGED"):
-            status = "FLAGGED"
-            verdict = "INACCURATE"
+            verdict = "VERIFIED"
+        elif raw_status == "LIKELY":
+            status = "LIKELY"
+            verdict = "LIKELY"
+        elif raw_status == "CONFLICTING":
+            status = "CONFLICTING"
+            verdict = "CONFLICTING"
         else:
-            status = "CONDITIONAL"
-            verdict = "CONDITIONAL"
+            status = "UNKNOWN"
+            verdict = "UNKNOWN"
         blocks.append({
             "type": "evidence",
             "label": "SOURCE VERIFICATION",

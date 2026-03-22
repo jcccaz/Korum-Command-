@@ -6,7 +6,7 @@ import os
 # Adapt path to import engine_v2
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from engine_v2 import adapt_decision_packet_to_legacy_shape, synthesize_results, CouncilContext, build_council_prompt, WORKFLOW_STEPS, _apply_query_aware_personas
+from engine_v2 import adapt_decision_packet_to_legacy_shape, synthesize_results, CouncilContext, build_council_prompt, WORKFLOW_STEPS, _apply_query_aware_personas, _resolve_final_truth_packet
 from exporters import _confidence_status_from_score as exporter_confidence_status_from_score
 
 # Mock LLM Call to avoid real API usage during test
@@ -36,6 +36,109 @@ class TestSynthesizer(unittest.TestCase):
         )
 
         self.assertEqual(personas["local"], "professor")
+
+    def test_final_truth_resolution_prefers_stronger_source(self):
+        packet = {
+            "verified_claims": [
+                {
+                    "claim": "General Manuel Casabianca served as Minister of War in 1900.",
+                    "status": "VERIFIED",
+                    "source_ref": "Official government gazette"
+                },
+                {
+                    "claim": "General Manuel Casabianca served as Minister of War in 1900.",
+                    "status": "FALSE",
+                    "source_ref": "Historical blog"
+                }
+            ],
+            "unknowns": []
+        }
+
+        resolved = _resolve_final_truth_packet(packet)
+
+        self.assertEqual(len(resolved["verified_claims"]), 1)
+        self.assertEqual(resolved["verified_claims"][0]["status"], "VERIFIED")
+
+    def test_source_concentration_risk_downgrades_supported_claims(self):
+        packet = {
+            "decision_headline": "Proceed with historical dossier.",
+            "executive_summary": "Evidence supports a draft profile.",
+            "go_no_go_call": {
+                "decision": "GO",
+                "rationale": "Three supporting claims align."
+            },
+            "confidence": {
+                "band": "HIGH",
+                "score": 92,
+                "basis": "Initial synthesis confidence."
+            },
+            "verified_claims": [
+                {"claim": "Claim A", "status": "VERIFIED", "source_ref": "Official government gazette"},
+                {"claim": "Claim B", "status": "VERIFIED", "source_ref": "Official government gazette"},
+                {"claim": "Claim C", "status": "VERIFIED", "source_ref": "Official government gazette"}
+            ],
+            "risk_vectors": [],
+            "assumptions": [],
+            "unknowns": [],
+            "immediate_actions": [],
+            "alternatives_rejected": [],
+            "evidence_trace": [
+                {"point": "Gazette references the appointment.", "support": "Official government gazette"}
+            ],
+            "export_metadata": {
+                "report_type": "research",
+                "workflow": "RESEARCH",
+                "generated_at": "2026-03-22T14:00:00",
+                "schema_version": "1.0"
+            }
+        }
+
+        adapted = adapt_decision_packet_to_legacy_shape(packet)
+
+        self.assertTrue(all(
+            claim.get("status") == "LIKELY"
+            for claim in adapted["decision_packet"]["verified_claims"]
+        ))
+        self.assertIn("Source Concentration Risk", adapted["sections"]["confidence_assessment"])
+
+    def test_conflicting_claims_are_removed_from_key_signals(self):
+        packet = {
+            "decision_headline": "Proceed with caution.",
+            "executive_summary": "One claim remains disputed.",
+            "go_no_go_call": {
+                "decision": "CONDITIONAL GO",
+                "rationale": "Use only settled claims in the brief."
+            },
+            "confidence": {
+                "band": "MEDIUM",
+                "score": 70,
+                "basis": "One verified claim remains after conflict cleanup."
+            },
+            "verified_claims": [
+                {"claim": "Disputed appointment year", "status": "VERIFIED", "source_ref": "Historical blog"},
+                {"claim": "Disputed appointment year", "status": "FALSE", "source_ref": "Historical blog"},
+                {"claim": "Verified death year 1917", "status": "VERIFIED", "source_ref": "Official civil registry"}
+            ],
+            "risk_vectors": [],
+            "assumptions": [],
+            "unknowns": [],
+            "immediate_actions": [],
+            "alternatives_rejected": [],
+            "evidence_trace": [
+                {"point": "Death year recorded in civil registry.", "support": "Official civil registry"}
+            ],
+            "export_metadata": {
+                "report_type": "research",
+                "workflow": "RESEARCH",
+                "generated_at": "2026-03-22T14:00:00",
+                "schema_version": "1.0"
+            }
+        }
+
+        adapted = adapt_decision_packet_to_legacy_shape(packet)
+
+        self.assertIn("Verified death year 1917", adapted["sections"]["key_signals"])
+        self.assertNotIn("Disputed appointment year", adapted["sections"]["key_signals"])
 
     def test_biographical_research_prompt_enforces_depth_requirements(self):
         context = CouncilContext(
