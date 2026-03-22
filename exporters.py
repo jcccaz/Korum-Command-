@@ -238,9 +238,9 @@ def _packet_status(packet, score):
     raw_band = _as_text(confidence.get("band")).upper()
     if raw_band in ("HIGH", "MEDIUM", "LOW"):
         if raw_band == "HIGH":
-            return "Recommended" if score >= 80 else "Conditional"
+            return "Recommended" if score >= 80 else _confidence_status_from_score(score)
         if raw_band == "MEDIUM":
-            return "Conditional"
+            return "Conditional" if score is None or score > 50 else "Fail"
         return "Fail"
     if score is not None:
         return _confidence_status_from_score(score)
@@ -1379,7 +1379,7 @@ def _normalize_truth_score(raw_score):
 def _confidence_status_from_score(score):
     if score >= 80:
         return "Recommended"
-    if score >= 70:
+    if score > 50:
         return "Conditional"
     return "Fail"
 

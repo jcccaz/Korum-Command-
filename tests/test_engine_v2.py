@@ -7,6 +7,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from engine_v2 import adapt_decision_packet_to_legacy_shape, synthesize_results, CouncilContext
+from exporters import _confidence_status_from_score as exporter_confidence_status_from_score
 
 # Mock LLM Call to avoid real API usage during test
 # In a real scenario, we'd use unittest.mock
@@ -127,7 +128,7 @@ class TestSynthesizer(unittest.TestCase):
     def test_diagnostic_first_packet_forces_low_score_when_core_claims_are_unverified(self):
         packet = {
             "decision_headline": "Do not proceed with the $2M telecom upgrade.",
-            "executive_summary": "Evidence is insufficient to justify capital deployment.",
+            "executive_summary": "Moderate-to-high confidence suggests caution, but the capital deployment is not justified yet.",
             "go_no_go_call": {
                 "decision": "NO-GO",
                 "rationale": "Root cause, impact, and ROI claims remain unverified."
@@ -135,7 +136,7 @@ class TestSynthesizer(unittest.TestCase):
             "confidence": {
                 "band": "MEDIUM",
                 "score": 70,
-                "basis": "Initial draft overstated the evidence quality."
+                "basis": "Strong confidence despite the unresolved evidence gaps."
             },
             "verified_claims": [
                 {
@@ -190,6 +191,9 @@ class TestSynthesizer(unittest.TestCase):
         self.assertEqual(adapted["meta"]["confidence_score_source"], "RULE_ENGINE")
         self.assertEqual(adapted["structured_data"]["key_metrics"][0]["context"], "Fail")
         self.assertIn("INSUFFICIENT EVIDENCE", adapted["sections"]["decision"])
+        self.assertNotIn("moderate-to-high", adapted["sections"]["executive_summary"].lower())
+        self.assertNotIn("strong confidence", adapted["sections"]["confidence_assessment"].lower())
+        self.assertIn("Confidence Band: Very Low", adapted["sections"]["confidence_assessment"])
 
     def test_verified_packet_retains_recommended_score(self):
         packet = {
@@ -247,6 +251,11 @@ class TestSynthesizer(unittest.TestCase):
 
         self.assertGreaterEqual(adapted["meta"]["composite_truth_score"], 80)
         self.assertEqual(adapted["structured_data"]["key_metrics"][0]["context"], "Recommended")
+
+    def test_exporter_status_threshold_matches_engine_fail_rule(self):
+        self.assertEqual(exporter_confidence_status_from_score(50), "Fail")
+        self.assertEqual(exporter_confidence_status_from_score(51), "Conditional")
+        self.assertEqual(exporter_confidence_status_from_score(80), "Recommended")
 
 if __name__ == '__main__':
     unittest.main()

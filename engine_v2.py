@@ -2543,10 +2543,46 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
 
 CONFIDENCE_BANDS = [
     (80, 100, "high", "Strong evidence supports conclusions. Language may use 'confirms', 'demonstrates', 'establishes'."),
-    (60,  79, "moderate-to-high", "Moderate confidence. Use 'suggests', 'indicates', 'likely'. Avoid absolute certainty."),
-    (40,  59, "moderate", "Weak support. Use 'preliminary data suggests', 'may indicate', 'possible'. Emphasize caveats."),
-    ( 0,  39, "low", "Insufficient data. Use 'unconfirmed', 'speculative', 'insufficient evidence to determine'. Recommend further investigation."),
+    (60,  79, "moderate", "Moderate confidence. Use 'suggests', 'indicates', 'likely'. Avoid absolute certainty."),
+    (40,  59, "low", "Weak support. Use 'preliminary data suggests', 'may indicate', 'possible'. Emphasize caveats."),
+    ( 0,  39, "very low", "Insufficient data. Use 'unconfirmed', 'speculative', 'insufficient evidence to determine'. Recommend further investigation."),
 ]
+
+
+def _confidence_language_label(score):
+    try:
+        numeric = int(round(float(score)))
+    except (TypeError, ValueError):
+        numeric = 50
+
+    for low, high, label, _ in CONFIDENCE_BANDS:
+        if low <= numeric <= high:
+            return label.title()
+    return "Moderate"
+
+
+def _enforce_confidence_language(text, score):
+    if not text:
+        return text
+
+    normalized = str(text)
+    allowed_label = _confidence_language_label(score).lower()
+    replacement = f"{allowed_label} confidence"
+
+    if score <= 60:
+        banned_patterns = (
+            r"\bhigh confidence\b",
+            r"\bmoderate-to-high\b",
+            r"\bstrong confidence\b",
+        )
+        for pattern in banned_patterns:
+            normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
+
+    if score < 40:
+        normalized = re.sub(r"\bmoderate confidence\b", replacement, normalized, flags=re.IGNORECASE)
+        normalized = re.sub(r"\blow confidence\b", replacement, normalized, flags=re.IGNORECASE)
+
+    return normalized
 
 def _build_confidence_directive(results):
     """
@@ -2554,7 +2590,7 @@ def _build_confidence_directive(results):
     confidence band directive for injection into the synthesis prompt.
     """
     if not results:
-        return "Default to 'moderate-to-high' confidence. Only use 'high' if 3+ council members independently confirmed facts with specific evidence. This is an intelligence product — overconfidence is a liability."
+        return "Default to 'moderate' confidence. Only use 'high' if 3+ council members independently confirmed facts with specific evidence. This is an intelligence product — overconfidence is a liability."
 
     scores = [r.get('truth_meter', 50) for r in results.values() if isinstance(r, dict) and r.get('success')]
     if not scores:
@@ -2562,7 +2598,7 @@ def _build_confidence_directive(results):
     else:
         avg = sum(scores) / len(scores)
 
-    band_label = "moderate-to-high"
+    band_label = "moderate"
     band_guidance = ""
     for low, high, label, guidance in CONFIDENCE_BANDS:
         if low <= avg <= high:
@@ -2607,7 +2643,7 @@ def _is_decision_packet_shape(data):
 def _packet_confidence_status(score):
     if score >= 80:
         return "Recommended"
-    if score >= 70:
+    if score > 50:
         return "Conditional"
     return "Fail"
 
@@ -2664,6 +2700,34 @@ def _count_unresolved_core_claims(verified_claims):
     return count
 
 
+def _missing_diagnostics(unknowns):
+    unknown_text = " ".join(str(item).strip().lower() for item in (unknowns or []) if str(item).strip())
+    diagnostic_markers = (
+        "no detailed root cause analysis",
+        "no root cause analysis",
+        "no recent traffic engineering",
+        "no recent traffic engineering or routing optimization",
+        "limited telemetry",
+        "missing diagnostics",
+        "no baseline",
+        "routing inefficiencies",
+        "congestion",
+        "telemetry",
+        "diagnostic",
+    )
+    return any(marker in unknown_text for marker in diagnostic_markers)
+
+
+def _has_roi_claim(verified_claims):
+    for claim in verified_claims or []:
+        if not isinstance(claim, dict):
+            continue
+        claim_text = str(claim.get("claim") or "").strip().lower()
+        if any(marker in claim_text for marker in ("roi", "return on investment", "payback")):
+            return True
+    return False
+
+
 def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
     """
     Confidence Governor — enforces dual-confidence model with hard caps.
@@ -2685,6 +2749,10 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
     quantified = _has_quantified_support(verified_claims, evidence_trace)
     critical_missing = _critical_data_missing(verified_claims, evidence_trace, unknowns)
     unresolved_core_claims = _count_unresolved_core_claims(verified_claims)
+    missing_diagnostics = _missing_diagnostics(unknowns)
+    has_roi_claim = _has_roi_claim(verified_claims)
+    no_root_cause = critical_missing
+    no_baseline_data = critical_missing or not quantified
     notes = []
 
     # --- FACT CONFIDENCE GOVERNOR ---
@@ -2728,9 +2796,17 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
         decision_confidence = min(decision_confidence, 0.6)
         notes.append("unknowns exceed verified facts")
 
+    if missing_diagnostics:
+        decision_confidence -= 0.12
+        notes.append("missing diagnostics penalize confidence")
+
     if critical_missing and not quantified:
         decision_confidence = min(decision_confidence, 0.45)
         notes.append("missing quantified baseline evidence")
+
+    if has_roi_claim and no_baseline_data:
+        decision_confidence -= 0.15
+        notes.append("ROI claim lacks baseline support")
 
     if unresolved_core_claims:
         unresolved_penalty = min(0.12 * unresolved_core_claims, 0.36)
@@ -2800,6 +2876,9 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
     # --- MAP TO LEGACY SCORE ---
     # Legacy score (0-100) = weighted average of both confidences
     combined = (fact_confidence * 0.4 + decision_confidence * 0.6) * 100
+    if unresolved_core_claims >= 2 and no_root_cause:
+        combined = min(combined, 45)
+        notes.append("hard truth rule triggered")
     score = min(score, int(round(combined)))
 
     if notes:
@@ -2948,6 +3027,7 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
     if diagnostic_first and decision_text == "CONDITIONAL GO":
         score = min(score, 55)
     status = _packet_confidence_status(score)
+    basis = _enforce_confidence_language(basis, score)
 
     key_signals = []
     for claim in verified_claims[:4]:
@@ -3000,9 +3080,14 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
         critical_challenges_parts.append("**HIGH IMPACT CHALLENGES**\n" + _packet_bullet_lines(high_impact))
     if secondary:
         critical_challenges_parts.append("**SECONDARY CONSIDERATIONS**\n" + _packet_bullet_lines(secondary))
-    critical_challenges_parts.append(
-        "**SYNTHESIS**: The uncertainties do not outweigh the risk of inaction; proceed while monitoring the key assumptions and unknowns."
-    )
+    if status == "Fail":
+        critical_challenges_parts.append(
+            "**SYNTHESIS**: Evidence is insufficient to justify commitment. Hold major action until the key assumptions, diagnostics, and unknowns are resolved."
+        )
+    else:
+        critical_challenges_parts.append(
+            "**SYNTHESIS**: The uncertainties do not outweigh the risk of inaction; proceed while monitoring the key assumptions and unknowns."
+        )
 
     tradeoff_lines = []
     for alt in alternatives:
@@ -3024,6 +3109,7 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
 
     confidence_lines = [
         f"Score: {score} / 100",
+        f"Confidence Band: {_confidence_language_label(score)}",
         f"Status: {status}",
     ]
     if basis:
@@ -3061,6 +3147,9 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
             "Leadership should hold major remediation to a diagnostic-first path until baseline telemetry and operating constraints are verified. "
             "The recommendation remains conditional because unknowns outweigh the verified evidence."
         )
+    summary_text = _enforce_confidence_language(summary_text, score)
+    final_assessment = _enforce_confidence_language(final_assessment, score)
+    rationale_text = _enforce_confidence_language(rationale_text, score)
 
     legacy = {
         "meta": {
@@ -3106,6 +3195,21 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
         "decision_packet": packet,
         "decision_packet_version": export_meta.get("schema_version", "1.0"),
     }
+
+    # --- PROVENANCE: Pass through from packet, or build fallback ---
+    _prov = packet.get("provenance")
+    if _prov and isinstance(_prov, dict):
+        legacy["provenance"] = _prov
+    else:
+        legacy["provenance"] = {
+            "decision_id": "UNKNOWN",
+            "ledger_decision_id": "UNKNOWN",
+            "scoring_source": "RULE_ENGINE",
+            "synthesis_model": "UNKNOWN",
+            "red_team_model": None,
+            "council": [],
+        }
+
     return legacy
 
 
@@ -3468,6 +3572,30 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
             })
         data["council_contributors"] = contributors
         print(f"[SYNTHESIS] Injected {len(contributors)} council_contributors: {[c['phase'] for c in contributors]}")
+
+        # --- PROVENANCE BLOCK: Actual runtime participants ---
+        import hashlib as _prov_hl
+        _prov_council = []
+        if results and isinstance(results, dict):
+            for _prov_provider, _prov_card in results.items():
+                if isinstance(_prov_card, dict) and _prov_card.get("success"):
+                    _prov_council.append({
+                        "role": _prov_card.get("role", "UNKNOWN"),
+                        "provider": _prov_provider,
+                        "model": _prov_card.get("model", "UNKNOWN"),
+                        "response_hash": _prov_hl.sha256(
+                            str(_prov_card.get("response", "")).encode()
+                        ).hexdigest(),
+                    })
+        data["provenance"] = {
+            "decision_id": context.run_id or "UNKNOWN",
+            "ledger_decision_id": context.run_id or "UNKNOWN",
+            "scoring_source": "RULE_ENGINE",
+            "synthesis_model": resp.get("model", "UNKNOWN"),
+            "red_team_model": None,
+            "council": _prov_council,
+        }
+        print(f"[SYNTHESIS] Provenance: {len(_prov_council)} participants, synthesis={data['provenance']['synthesis_model']}")
 
         # DETERMINISTIC final_document injection for assembly workflows.
         # The LLM synthesizer is unreliable for this — pull the CFO/final phase
