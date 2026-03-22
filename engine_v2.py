@@ -2657,6 +2657,11 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
     # Red Team findings apply additional pressure
     if red_team_findings and isinstance(red_team_findings, dict):
         rt_status = str(red_team_findings.get("red_team_status", "")).upper()
+        # Confidence attack → subtract 0.10 (direct challenge to decision certainty)
+        conf_attack = str(red_team_findings.get("confidence_attack", "")).strip()
+        if conf_attack and len(conf_attack) >= 20:
+            decision_confidence -= 0.10
+            notes.append("Red Team confidence attack valid")
         # Viable alternative strategy → subtract 0.15
         alt = str(red_team_findings.get("alternative_strategy", "")).strip()
         if alt and len(alt) >= 20:
@@ -2687,10 +2692,20 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
             decision_confidence = min(decision_confidence, 0.7)
             notes.append("dual-high blocked without strong evidence")
 
-    # --- ASSUMPTION FIREWALL ---
-    # If decision depends on unverified assumptions → force CONDITIONAL
+    # --- ROOT CAUSE GATE ---
+    # No root cause established → NO action/upgrade language. Decision must be CONDITIONAL.
     go_no_go = packet.get("go_no_go_call") or {}
     decision_text = str(go_no_go.get("decision") or "").strip().upper()
+    if fact_confidence <= 0.3:
+        if decision_text == "GO":
+            go_no_go["decision"] = "CONDITIONAL GO"
+            notes.append("root cause gate: no root cause established, action language blocked")
+        if go_no_go.get("rationale"):
+            go_no_go["rationale"] = f"[ROOT CAUSE UNESTABLISHED] {go_no_go['rationale']}"
+
+    # --- ASSUMPTION FIREWALL ---
+    # If decision depends on unverified assumptions → force CONDITIONAL
+    decision_text = str(go_no_go.get("decision") or "").strip().upper()  # Re-read after root cause gate
     if decision_text == "GO" and assumption_count > 0 and verified_count < assumption_count:
         # More assumptions than verified facts → cannot be GO
         go_no_go["decision"] = "CONDITIONAL GO"
