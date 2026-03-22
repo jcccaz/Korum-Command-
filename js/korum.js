@@ -2694,7 +2694,8 @@ function renderChainResults(result) {
         // Pass through council_contributors from backend synthesis
         council_contributors: backendSynthesis.council_contributors || [],
         confidence_and_assumptions: backendSynthesis.confidence_and_assumptions || null,
-        decision_packet: backendSynthesis.decision_packet || null
+        decision_packet: backendSynthesis.decision_packet || null,
+        provenance: backendSynthesis.provenance || null
     };
     // Extract RISK_VECTOR and DECISION_CANDIDATE tags from pipeline phases
     const riskMatches = (result.failure_analysis || '').match(/\[RISK_VECTOR\](.*?)\[\/RISK_VECTOR\]/g) || [];
