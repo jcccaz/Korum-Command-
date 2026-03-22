@@ -1210,8 +1210,7 @@ def _build_pdf_red_team_alert(raw_text, styles, total_width):
         f"<b>THREAT LEVEL:</b> {escape(fields.get('threat_level', 'HIGH'))}<br/>"
         f"<b>EXPLOITABILITY:</b> {escape(fields.get('exploitability', 'MEDIUM'))}"
     )
-    flowables = [
-        Spacer(1, 10),
+    inner = [
         Paragraph("RED TEAM ALERT - ACTIVE EXPLOIT PATHS IDENTIFIED", styles["RedTeamAlertHeader"]),
         Paragraph(metadata_text, styles["RedTeamMetadataBlock"]),
         Paragraph("PRIMARY VULNERABILITY:", styles["AlertSubcap"]),
@@ -1221,12 +1220,29 @@ def _build_pdf_red_team_alert(raw_text, styles, total_width):
         Paragraph("BUSINESS IMPACT:", styles["AlertSubcap"]),
     ]
     for item in fields.get("business_impact", [])[:3]:
-        flowables.append(Paragraph(f"- {escape(item)}", styles["ExecBody"]))
-    flowables.append(Paragraph("IMMEDIATE DEFENSIVE ACTION:", styles["AlertSubcap"]))
+        inner.append(Paragraph(f"- {escape(item)}", styles["ExecBody"]))
+    inner.append(Paragraph("IMMEDIATE DEFENSIVE ACTION:", styles["AlertSubcap"]))
     for item in fields.get("immediate_actions", [])[:2]:
-        flowables.append(Paragraph(f"- {escape(item)}", styles["ExecBody"]))
-    flowables.append(Spacer(1, 12))
-    return flowables
+        inner.append(Paragraph(f"- {escape(item)}", styles["ExecBody"]))
+
+    separator = Table([[""]], colWidths=[total_width], rowHeights=[1])
+    separator.setStyle(TableStyle([
+        ("LINEABOVE", (0, 0), (0, 0), 2.5, colors.black),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 10),
+    ]))
+
+    box = Table([[inner]], colWidths=[total_width - 24])
+    box.setStyle(TableStyle([
+        ("BOX", (0, 0), (0, 0), 1.5, colors.black),
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#FFF8F8")),
+        ("LEFTPADDING", (0, 0), (0, 0), 16),
+        ("RIGHTPADDING", (0, 0), (0, 0), 16),
+        ("TOPPADDING", (0, 0), (0, 0), 16),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 16),
+        ("VALIGN", (0, 0), (0, 0), "TOP"),
+    ]))
+
+    return [Spacer(1, 10), separator, box, Spacer(1, 12)]
 
 
 def _resolve_session_id(meta, intelligence_object):
@@ -1504,7 +1520,7 @@ class ExecutiveMemoExporter:
         if 'AlertSubcap' not in styles.byName:
             styles.add(ParagraphStyle('AlertSubcap', parent=styles['BodyText'], fontName='Helvetica-Bold', fontSize=10, spaceBefore=8, spaceAfter=4))
         if 'TerminalMonospace' not in styles.byName:
-            styles.add(ParagraphStyle('TerminalMonospace', parent=styles['BodyText'], fontName='Courier', fontSize=10, textColor=colors.HexColor('#00AA00'), leftIndent=15, leading=12))
+            styles.add(ParagraphStyle('TerminalMonospace', parent=styles['BodyText'], fontName='Courier', fontSize=10, textColor=colors.HexColor('#333333'), leftIndent=15, leading=12))
 
         doc._session_id = _as_text(meta.get('session_id') or meta.get('id') or 'KO-INT-9999').upper()
         contributors = intelligence_object.get("council_contributors") or []
@@ -1773,26 +1789,55 @@ class WordExporter:
         fields = _extract_red_team_alert_fields(raw_text)
         if not fields:
             return
-        p = container.add_paragraph()
+        sep = container.add_paragraph()
+        sep.paragraph_format.space_before = Pt(8)
+        sep.paragraph_format.space_after = Pt(10)
+        sep_run = sep.add_run("_" * 72)
+        WordExporter._set_run_style(sep_run, size=10, bold=True, color="000000")
+
+        block = container.add_table(rows=1, cols=1)
+        WordExporter._clear_table_borders(block)
+        cell = block.rows[0].cells[0]
+        WordExporter._set_cell_background(cell, "FFF8F8")
+
+        from docx.oxml import parse_xml
+        from docx.oxml.ns import nsdecls
+        cell._tc.get_or_add_tcPr().append(parse_xml(
+            f'<w:tcBorders {nsdecls("w")}>'
+            f'<w:left w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
+            f'<w:top w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
+            f'<w:bottom w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
+            f'<w:right w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
+            f'</w:tcBorders>'
+        ))
+
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = p.add_run("RED TEAM ALERT - ACTIVE EXPLOIT PATHS IDENTIFIED")
         run.bold = True
         run.font.size = Pt(12)
         run.font.color.rgb = RGBColor(192, 0, 0)
-        WordExporter._add_paragraph(container, f"THREAT LEVEL: {fields.get('threat_level', 'HIGH')}", size=8, bold=True, color="C00000")
-        WordExporter._add_paragraph(container, f"EXPLOITABILITY: {fields.get('exploitability', 'MEDIUM')}", size=8, bold=True, color="C00000")
-        WordExporter._add_paragraph(container, "PRIMARY VULNERABILITY:", size=8, bold=True, color="C00000")
-        WordExporter._add_paragraph(container, f"- {fields.get('primary_vulnerability', 'Threat path not summarized.')}", size=8.5, color="8B1A1A")
-        WordExporter._add_paragraph(container, "ATTACK PATH:", size=8, bold=True, color="C00000")
-        ap = container.add_paragraph()
+
+        meta = cell.add_paragraph()
+        meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        meta_run = meta.add_run(
+            f"THREAT LEVEL: {fields.get('threat_level', 'HIGH')}    EXPLOITABILITY: {fields.get('exploitability', 'MEDIUM')}"
+        )
+        WordExporter._set_run_style(meta_run, size=8.5, bold=True, color="333333")
+
+        WordExporter._add_paragraph(cell, "PRIMARY VULNERABILITY:", size=8, bold=True, color="C00000")
+        WordExporter._add_paragraph(cell, f"- {fields.get('primary_vulnerability', 'Threat path not summarized.')}", size=8.5, color="333333")
+        WordExporter._add_paragraph(cell, "ATTACK PATH:", size=8, bold=True, color="C00000")
+        ap = cell.add_paragraph()
         ar = ap.add_run(f"- {fields.get('attack_path', 'Attack path unavailable.')}")
-        WordExporter._set_run_style(ar, size=8.5, color="00AA00")
+        WordExporter._set_run_style(ar, size=8.5, color="333333")
         ar.font.name = "Courier New"
-        WordExporter._add_paragraph(container, "BUSINESS IMPACT:", size=8, bold=True, color="C00000")
+        WordExporter._add_paragraph(cell, "BUSINESS IMPACT:", size=8, bold=True, color="C00000")
         for item in fields.get("business_impact", [])[:3]:
-            WordExporter._add_paragraph(container, f"- {item}", size=8.5, color="8B1A1A")
-        WordExporter._add_paragraph(container, "IMMEDIATE DEFENSIVE ACTION:", size=8, bold=True, color="C00000")
+            WordExporter._add_paragraph(cell, f"- {item}", size=8.5, color="333333")
+        WordExporter._add_paragraph(cell, "IMMEDIATE DEFENSIVE ACTION:", size=8, bold=True, color="C00000")
         for item in fields.get("immediate_actions", [])[:2]:
-            WordExporter._add_paragraph(container, f"- {item}", size=8.5, color="8B1A1A")
+            WordExporter._add_paragraph(cell, f"- {item}", size=8.5, color="333333")
 
     @staticmethod
     def _render_word_table(container, block, theme):
