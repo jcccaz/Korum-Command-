@@ -1704,7 +1704,7 @@ const AIHealth = {
 const PROTOCOL_CONFIGS = {
     // --- GENERAL ---
     "War Room": { openai: "strategist", anthropic: "containment", google: "takeover", perplexity: "scout", mistral: "validator", local: "crisis_commander" },
-    "Deep Research": { openai: "analyst", anthropic: "researcher", google: "historian", perplexity: "deep_seeker", mistral: "validator", local: "professor" },
+    "Deep Research": { openai: "analyst", anthropic: "researcher", google: "critic", perplexity: "deep_seeker", mistral: "validator", local: "professor" },
     "Creative Council": { openai: "writer", anthropic: "innovator", google: "marketing", perplexity: "social", mistral: "creative", local: "brand_psychologist" },
     "Code Audit": { openai: "architect", anthropic: "integrity", google: "hacker", perplexity: "optimizer", mistral: "coding", local: "security_engineer" },
     "System Core": { openai: "visionary", anthropic: "architect", google: "critic", perplexity: "researcher", mistral: "validator", local: "oracle" },
@@ -1881,10 +1881,10 @@ function toggleMode(mode) {
 
 const QUERY_PATTERNS = {
     "War Room": ["crisis", "threat", "emergency", "attack", "vulnerability", "breach", "defend", "strategy", "takeover", "hostile"],
-    "Deep Research": ["research", "study", "analyze", "investigate", "explain", "how does", "what is", "history", "scientific", "academic"],
+    "Deep Research": ["research", "study", "analyze", "investigate", "explain", "how does", "what is", "report", "assessment", "evaluate", "compare", "review", "summary", "operations", "performance", "metrics", "monthly", "quarterly", "annual", "data", "spreadsheet", "csv", "numbers", "trends", "benchmark", "overview", "briefing", "should i", "what should", "recommend"],
     "Creative Council": ["creative", "design", "write", "story", "marketing", "campaign", "brand", "innovative", "idea", "concept"],
     "Code Audit": ["code", "bug", "debug", "security", "vulnerability", "review", "refactor", "optimize", "performance", "architecture"],
-    "Tech Council": ["technology", "infrastructure", "cloud", "devops", "api", "database", "server", "deploy", "saas", "platform", "software", "hardware", "ai", "machine learning", "automation", "integration", "microservice", "kubernetes", "docker", "telecom", "fiber", "wireless", "5g", "bandwidth", "latency", "dns", "cisco", "aws", "azure"],
+    "Tech Council": ["technology", "infrastructure", "cloud", "devops", "api", "database", "server", "deploy", "saas", "platform", "software", "hardware", "ai", "machine learning", "automation", "integration", "microservice", "kubernetes", "docker", "dns", "cisco", "aws", "azure"],
     "Legal Review": ["legal", "law", "regulation", "compliance", "contract", "liability", "patent", "trademark", "lawsuit", "attorney"],
     "Medical Council": ["medical", "health", "clinical", "patient", "diagnosis", "treatment", "pharmaceutical", "disease", "therapy", "doctor"],
     "Finance Desk": ["finance", "investment", "revenue", "profit", "accounting", "tax", "budget", "portfolio", "stock", "dividend", "roi", "hedge fund", "arbitrage", "equity"],
@@ -1955,7 +1955,7 @@ function setMissionStep(step, status) {
 function analyzeQuery(query) {
     const lowerQuery = query.toLowerCase();
     let maxMatches = 0;
-    let bestWorkflow = "System Core";
+    let bestWorkflow = "Deep Research";
 
     for (const [workflow, keywords] of Object.entries(QUERY_PATTERNS)) {
         const matches = keywords.filter(kw => lowerQuery.includes(kw)).length;
