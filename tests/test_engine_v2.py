@@ -6,7 +6,7 @@ import os
 # Adapt path to import engine_v2
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from engine_v2 import adapt_decision_packet_to_legacy_shape, synthesize_results, CouncilContext
+from engine_v2 import adapt_decision_packet_to_legacy_shape, synthesize_results, CouncilContext, build_council_prompt
 from exporters import _confidence_status_from_score as exporter_confidence_status_from_score
 
 # Mock LLM Call to avoid real API usage during test
@@ -14,6 +14,62 @@ from exporters import _confidence_status_from_score as exporter_confidence_statu
 from unittest.mock import patch
 
 class TestSynthesizer(unittest.TestCase):
+
+    def test_biographical_research_prompt_enforces_depth_requirements(self):
+        context = CouncilContext(
+            "Proceed with the biographical profile of General Manuel Abel Casabianca Welsares, acknowledging unresolved paternal identity.",
+            {"intent": "research", "outputType": "report"},
+            workflow="RESEARCH",
+        )
+
+        prompt = build_council_prompt(context, "openai", "analyst", 0, 5)
+
+        self.assertIn("RESEARCH DEPTH REQUIREMENTS", prompt)
+        self.assertIn("If no specific detail exists, classify it as UNKNOWN.", prompt)
+        self.assertIn("do NOT present it as fact", prompt)
+
+    def test_standard_research_prompt_does_not_add_biographical_depth_block(self):
+        context = CouncilContext(
+            "Analyze market trends in enterprise AI infrastructure.",
+            {"intent": "research", "outputType": "report"},
+            workflow="RESEARCH",
+        )
+
+        prompt = build_council_prompt(context, "openai", "analyst", 0, 5)
+
+        self.assertNotIn("RESEARCH DEPTH REQUIREMENTS", prompt)
+
+    @patch('engine_v2.call_openai_gpt4')
+    def test_biographical_research_synthesis_prompt_enforces_unknown_handling(self, mock_gpt):
+        mock_gpt.return_value = {
+            "success": True,
+            "response": """
+            {
+                "meta": {
+                    "summary": "Biography synthesis.",
+                    "workflow": "RESEARCH"
+                },
+                "sections": {},
+                "structured_data": {},
+                "intelligence_tags": {}
+            }
+            """,
+            "model": "gpt-4o"
+        }
+
+        context = CouncilContext(
+            "Proceed with the biographical profile of General Manuel Abel Casabianca Welsares, acknowledging unresolved paternal identity.",
+            {"intent": "research", "outputType": "report"},
+            workflow="RESEARCH",
+        )
+        context.add_entry("perplexity", "scout", "Verified office held in 1900. Paternal identity remains unresolved.")
+
+        synthesize_results(context)
+        prompt = mock_gpt.call_args[0][0]
+
+        self.assertIn("RESEARCH DEPTH REQUIREMENTS", prompt)
+        self.assertIn("move the point to unknowns or label it UNKNOWN", prompt)
+        self.assertIn("parentage, or lineage gaps", prompt)
 
     @patch('engine_v2.call_openai_gpt4')
     def test_synthesizer_extraction(self, mock_gpt):

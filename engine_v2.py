@@ -175,6 +175,67 @@ WORKFLOW_DNA = {
     }
 }
 
+_BIOGRAPHICAL_RESEARCH_PATTERNS = [
+    r"\bbiograph(?:y|ical)\b",
+    r"\bbiographical profile\b",
+    r"\bprofile of\b",
+    r"\bwho (?:is|was)\b",
+    r"\bgenealog(?:y|ical)\b",
+    r"\blineage\b",
+    r"\bancestor\b",
+    r"\brelative\b",
+    r"\bfamily history\b",
+    r"\bpaternal\b",
+    r"\bmaternal\b",
+]
+
+
+def _is_biographical_research_query(query):
+    text = str(query or "").strip()
+    if not text:
+        return False
+
+    lower_text = text.lower()
+    if any(re.search(pattern, lower_text, flags=re.IGNORECASE) for pattern in _BIOGRAPHICAL_RESEARCH_PATTERNS):
+        return True
+
+    has_named_person_shape = bool(
+        re.search(r"\b(?:general|colonel|president|minister|doctor|dr\.|mr\.|mrs\.|ms\.)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}\b", text)
+    )
+    has_person_lookup_language = bool(
+        re.search(r"\b(?:look up|research|investigate|background on|history of)\b", lower_text)
+    )
+    return has_named_person_shape and has_person_lookup_language
+
+
+def _build_biographical_research_depth_block():
+    return """
+    ## RESEARCH DEPTH REQUIREMENTS
+    You are NOT allowed to provide generic or high-level summaries.
+
+    For every material claim:
+    - Provide at least one SPECIFIC detail: date, year, decade, event, location, office, rank, role, document class, or source type.
+    - If no specific detail exists, classify it as UNKNOWN.
+
+    You MUST:
+    - Attempt to identify exact timeframes (years or decades).
+    - Attempt to identify geographic locations (city, region, country).
+    - Attempt to identify associated events (wars, governments, campaigns, conflicts, appointments, decrees, or archival records).
+    - Distinguish verified facts from genealogy gaps, naming ambiguity, or unresolved parentage.
+
+    HARD RULE:
+    - If a claim cannot be tied to a specific event, a specific date/timeframe, or a specific source type, do NOT present it as fact.
+    - For unresolved family identity, parentage, or lineage details, say UNKNOWN explicitly instead of implying certainty.
+    """
+
+
+def _get_research_depth_block(context):
+    if getattr(context, "workflow", "").upper() != "RESEARCH":
+        return ""
+    if _is_biographical_research_query(getattr(context, "query", "")):
+        return _build_biographical_research_depth_block()
+    return ""
+
 # --- FINAL ARBITER: METRIC VOCABULARY (Section 8a Enforcement) ---
 # Maps common financial labels to canonical metric names.
 # The arbiter uses this to recognise the same concept across providers.
@@ -2366,6 +2427,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
     if "alias" in dna:
         dna = WORKFLOW_DNA.get(dna["alias"], dna)
+    research_depth_block = _get_research_depth_block(context)
 
     # --- DECISION ENFORCEMENT (Section 8 Directive) ---
     decision_enforcement = """
@@ -2412,6 +2474,8 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
         prompt += f"\nYOUR SPECIFIC FOCUS: {phase['title']}\n{phase['instruction']}"
         prompt += decision_enforcement # Section 8
         prompt += data_integrity # Section 8a
+        if research_depth_block:
+            prompt += research_depth_block
         if context.ghost_map or context.residual_report:
             prompt += "\n" + _build_mimir_block(context.ghost_map, context.residual_report)
         prompt += "\nProvide comprehensive, well-sourced research and data. Focus on facts, metrics, and technical details."
@@ -2499,6 +2563,8 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
 
     {data_integrity}
     """
+    if research_depth_block:
+        prompt += f"\n{research_depth_block}\n"
 
     # Inject prior session context for follow-up queries
     if context.previous_context:
@@ -3246,6 +3312,7 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     dna = WORKFLOW_DNA.get(context.workflow, WORKFLOW_DNA["RESEARCH"])
     if "alias" in dna:
         dna = WORKFLOW_DNA.get(dna["alias"], dna)
+    research_depth_block = _get_research_depth_block(context)
 
     # Flag assembly workflows — their final card renders the full document, not a summary
     SYNTHESIS_ASSEMBLY_WORKFLOWS = {"EOM_STATEMENT", "FINANCE", "AUDIT", "CODE_AUDIT", "LEGAL", "PORTFOLIO_BUILDER"}
@@ -3457,6 +3524,7 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     9. NO UNSOURCED PROJECTIONS: No timeline, probability, or numeric projection may appear unless it is explicitly supported in verified_claims or evidence_trace. If support is absent, classify it as an unknown instead.
     10. DIAGNOSTIC-FIRST RULE: If the prompt lacks quantified baselines, trend data, or verified root-cause evidence, do NOT force a specific root-cause fix. Emit a diagnostic-first recommendation and keep the decision at CONDITIONAL GO or NO-GO until evidence improves.
     11. CORE-CLAIM CAP: If 2 or more core decision claims (cause, impact, ROI, timeline) are unverified, confidence MUST be LOW and score MUST be <= 45.
+    {research_depth_block}
 
     FIELD INSTRUCTIONS:
     - decision_headline: One clear actionable sentence. NO hedging.
@@ -3470,6 +3538,8 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     - alternatives_rejected: What options were considered and explicitly killed by the Integrator?
     - verified_claims: claims verified from tags.
     - evidence_trace: critical data points mapping to source details. Any timeline, probability, or numeric projection used anywhere else in the packet must be supported here or in verified_claims.
+    - For biographical or historical-person research, every factual sentence in executive_summary and every verified_claim must include at least one concrete anchor detail (date/timeframe, event, location, role, office, or source type). If the anchor detail is missing, move the point to unknowns or label it UNKNOWN.
+    - For genealogy, parentage, or lineage gaps, explicitly say UNKNOWN rather than implying likely family relationships.
 
     COUNCIL DISCUSSION:
     {history_text}
