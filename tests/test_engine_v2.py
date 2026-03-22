@@ -6,7 +6,7 @@ import os
 # Adapt path to import engine_v2
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from engine_v2 import adapt_decision_packet_to_legacy_shape, synthesize_results, CouncilContext, build_council_prompt
+from engine_v2 import adapt_decision_packet_to_legacy_shape, synthesize_results, CouncilContext, build_council_prompt, WORKFLOW_STEPS, _apply_query_aware_personas
 from exporters import _confidence_status_from_score as exporter_confidence_status_from_score
 
 # Mock LLM Call to avoid real API usage during test
@@ -14,6 +14,28 @@ from exporters import _confidence_status_from_score as exporter_confidence_statu
 from unittest.mock import patch
 
 class TestSynthesizer(unittest.TestCase):
+
+    def test_research_workflow_uses_perplexity_deep_seeker(self):
+        self.assertIn("perplexity-deep_seeker", WORKFLOW_STEPS["RESEARCH"])
+        self.assertNotIn("perplexity-scout", WORKFLOW_STEPS["RESEARCH"])
+
+    def test_biographical_research_routes_local_specialist_to_genealogy(self):
+        personas = _apply_query_aware_personas(
+            "Proceed with the biographical profile of General Manuel Abel Casabianca Welsares, acknowledging unresolved paternal identity.",
+            "RESEARCH",
+            {"local": "professor", "perplexity": "deep_seeker"},
+        )
+
+        self.assertEqual(personas["local"], "genealogy")
+
+    def test_standard_research_keeps_professor_specialist(self):
+        personas = _apply_query_aware_personas(
+            "Analyze market trends in enterprise AI infrastructure.",
+            "RESEARCH",
+            {"local": "professor", "perplexity": "deep_seeker"},
+        )
+
+        self.assertEqual(personas["local"], "professor")
 
     def test_biographical_research_prompt_enforces_depth_requirements(self):
         context = CouncilContext(

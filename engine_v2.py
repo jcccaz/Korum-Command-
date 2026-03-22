@@ -236,6 +236,17 @@ def _get_research_depth_block(context):
         return _build_biographical_research_depth_block()
     return ""
 
+
+def _apply_query_aware_personas(query, workflow, active_personas):
+    personas = dict(active_personas or {})
+    if str(workflow or "").upper() != "RESEARCH":
+        return personas
+
+    local_role = str(personas.get("local") or "").strip().lower()
+    if _is_biographical_research_query(query) and local_role in ("", "oracle", "professor", "genealogy"):
+        personas["local"] = "genealogy"
+    return personas
+
 # --- FINAL ARBITER: METRIC VOCABULARY (Section 8a Enforcement) ---
 # Maps common financial labels to canonical metric names.
 # The arbiter uses this to recognise the same concept across providers.
@@ -273,7 +284,7 @@ MATH_IDENTITIES = [
 # Format: [Phase 0, Phase 1, Phase 2, Phase 3, Phase 4]
 WORKFLOW_STEPS = {
     "WAR_ROOM": ["openai-commander", "anthropic-tactician", "google-analyst", "perplexity-scout", "mistral-validator"],
-    "RESEARCH": ["openai-analyst", "anthropic-architect", "google-critic", "perplexity-scout", "mistral-validator"],
+    "RESEARCH": ["openai-analyst", "anthropic-architect", "google-critic", "perplexity-deep_seeker", "mistral-validator"],
     "FINANCE": ["openai-cfo", "anthropic-auditor", "google-quant", "perplexity-researcher", "mistral-compliance"],
     "LEGAL": ["openai-counsel", "anthropic-analyst", "google-critic", "perplexity-researcher", "mistral-validator"],
     "QUANTUM_SECURITY": ["openai-ciso", "anthropic-cryptographer", "google-security_auditor", "perplexity-threat_intel", "mistral-compliance"],
@@ -1835,6 +1846,7 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
             print(f"[LEDGER] Warning: {event_type} write failed: {e}")
 
     # 2. Plan
+    active_personas = _apply_query_aware_personas(query, workflow, active_personas)
     classification = classify_query_v2(query, active_personas, active_models=active_models, previous_context=previous_context, user_id=user_id, workflow=workflow)
     context = CouncilContext(query, classification, workflow=workflow, session_id=session_id, run_id=run_id, previous_context=previous_context, user_id=user_id, ghost_map=ghost_map, residual_report=residual_report)
 
