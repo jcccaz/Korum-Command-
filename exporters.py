@@ -28,6 +28,29 @@ def _timestamp():
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
+_PROVIDER_PATTERN = re.compile(
+    r'\b(?:OPENAI|ANTHROPIC|PERPLEXITY|MISTRAL|GOOGLE|GEMINI|GPT-4[A-Z0-9\-]*|CLAUDE[A-Z0-9\- ]*|SONAR[A-Z0-9\- ]*)\b',
+    re.IGNORECASE,
+)
+# Context markers to decide which source label to use
+_DATA_CONTEXT = re.compile(r'\b(?:data|dataset|provided|reported|submitted|client|input|raw|original|source)\b', re.IGNORECASE)
+_CALC_CONTEXT = re.compile(r'\b(?:\d+(?:\.\d+)?%|average|total|ratio|rate|sum|calculated|derived|delta|difference|per\s)\b', re.IGNORECASE)
+
+def _replace_provider_with_source(text):
+    """Replace LLM provider/model names with proper source attribution."""
+    def _pick_label(match):
+        # Look at ~60 chars around the match for context
+        start = max(0, match.start() - 60)
+        end = min(len(text), match.end() + 60)
+        context = text[start:end]
+        if _DATA_CONTEXT.search(context):
+            return "Input Data"
+        if _CALC_CONTEXT.search(context):
+            return "Korum OS (Derived Metric)"
+        return "Korum OS (Analytical Inference)"
+    return _PROVIDER_PATTERN.sub(_pick_label, text)
+
+
 def clean_text_for_export(text):
     if not isinstance(text, str):
         return text
@@ -39,7 +62,14 @@ def clean_text_for_export(text):
         .strip()
     )
     cleaned = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", cleaned)
-    return cleaned
+    # Strip LLM bracket labels like [ROOT CAUSE], [RECOMMENDATION], [KEY FINDING]
+    cleaned = re.sub(r"\[([A-Z][A-Z /\-]{2,30})\]\s*:?\s*", "", cleaned)
+    # Replace provider/model names with proper source attribution
+    cleaned = _replace_provider_with_source(cleaned)
+    # Clean up leftover artifacts: double spaces, orphan colons/commas
+    cleaned = re.sub(r'\s*:\s*$', '', cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r'  +', ' ', cleaned)
+    return cleaned.strip()
 
 
 def clean_text(text):
@@ -1762,6 +1792,9 @@ class ExecutiveMemoExporter:
         for idx, (sid, content) in enumerate(section_items):
             if sid.strip().lower() == "red_team_analysis":
                 continue
+            # Skip executive_summary — already rendered as impact text above KPI strip
+            if sid.strip().lower() == "executive_summary":
+                continue
             # --- RISKS / CRITICAL CHALLENGES render gate ---
             if sid.strip().lower() == "critical_challenges":
                 if _packet_backed_risks_mode(intelligence_object, sections):
@@ -2295,11 +2328,40 @@ class WordExporter:
         l_run.font.bold = True
         l_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
         
-        r_p = h_tab.rows[0].cells[1].paragraphs[0]
-        r_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        r_run = r_p.add_run(f"KORUM-OS\n{client_name}")
-        r_run.font.size = Pt(7)
-        r_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
+        # Right header — 3-tier hierarchy: brand (small caps) → client (medium) → report type (largest)
+        r_cell = h_tab.rows[0].cells[1]
+        r_p1 = r_cell.paragraphs[0]
+        r_p1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        r1_run = r_p1.add_run("KORUM OS")
+        r1_run.font.size = Pt(7)
+        r1_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
+        r1_run.font.small_caps = True
+
+        r_p2 = r_cell.add_paragraph()
+        r_p2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        r2_run = r_p2.add_run(client_name.upper())
+        r2_run.bold = True
+        r2_run.font.size = Pt(9)
+        r2_run.font.color.rgb = s_rgb
+
+        workflow_label = _as_text(meta.get('workflow')).upper().replace('_', ' ') or 'STRATEGIC INTEL'
+        # Map workflow codes to readable report type names
+        _report_type_map = {
+            "EOM STATEMENT": "END-OF-MONTH REPORT",
+            "RESEARCH": "RESEARCH REPORT",
+            "WAR ROOM": "WAR ROOM BRIEFING",
+            "FINANCE": "FINANCIAL ANALYSIS",
+            "LEGAL": "LEGAL MEMORANDUM",
+            "CREATIVE": "CREATIVE BRIEF",
+            "SOCIAL POST": "SOCIAL MEDIA BRIEF",
+        }
+        report_type = _report_type_map.get(workflow_label, workflow_label + " REPORT")
+        r_p3 = r_cell.add_paragraph()
+        r_p3.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        r3_run = r_p3.add_run(report_type)
+        r3_run.bold = True
+        r3_run.font.size = Pt(12)
+        r3_run.font.color.rgb = s_rgb
         
         # Title
         t_p = doc.add_paragraph()
@@ -2335,9 +2397,22 @@ class WordExporter:
         WordExporter._add_spacing(doc)
 
         # 3. --- KPI STRIP (thin rules, no box) ---
-        key_metrics = structured.get("key_metrics") or []
+        # Always show 3 KPIs — pad with Decision Score + Status if synthesis gave fewer
+        key_metrics = list(structured.get("key_metrics") or [])
+        _dp = intelligence_object.get("decision_packet") or {}
+        _kpi_score = _packet_score(_dp, meta)
+        _kpi_status = _packet_status(_dp, _kpi_score)
+        _kpi_go = (_dp.get("go_no_go_call") or {}).get("decision", "")
+        # Build fallback KPIs that aren't already present
+        _existing_labels = {_as_text(km.get("metric", "")).upper() for km in key_metrics}
+        if _kpi_score is not None and "DECISION SCORE" not in _existing_labels:
+            key_metrics.append({"metric": "Decision Score", "value": f"{_kpi_score} / 100"})
+        if _kpi_status and "STATUS" not in _existing_labels:
+            key_metrics.append({"metric": "Status", "value": _kpi_status.upper()})
+        if _kpi_go and "DECISION" not in _existing_labels and "GO / NO-GO" not in _existing_labels:
+            key_metrics.append({"metric": "Decision", "value": _kpi_go.upper()})
         if key_metrics:
-            kpi_tab = doc.add_table(rows=2, cols=min(3, len(key_metrics)))
+            kpi_tab = doc.add_table(rows=2, cols=min(3, max(len(key_metrics), 1)))
             # Thin top/bottom rules only — no full grid box
             from docx.oxml import parse_xml as _px_kpi
             from docx.oxml.ns import nsdecls as _ns_kpi
@@ -2372,6 +2447,9 @@ class WordExporter:
         section_items = section_items_pre
         for idx, (sid, content) in enumerate(section_items):
             if sid.strip().lower() == "red_team_analysis":
+                continue
+            # Skip executive_summary — already rendered as impact text above KPI strip
+            if sid.strip().lower() == "executive_summary":
                 continue
             # --- RISKS / CRITICAL CHALLENGES render gate ---
             if sid.strip().lower() == "critical_challenges":
@@ -2422,8 +2500,9 @@ class WordExporter:
 
             n_p = doc.add_paragraph()
             n_run = n_p.add_run(sec_title)
-            n_run.font.size = Pt(7)
-            n_run.font.color.rgb = RGBColor.from_string(DIM_GRAY)
+            n_run.bold = True
+            n_run.font.size = Pt(10)
+            n_run.font.color.rgb = s_rgb
 
             if float_charts:
                 # FLOAT MODE: 60/40 side-by-side — prose left, chart right

@@ -2196,6 +2196,9 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     - All conclusions must be directly supported by the provided data.
     - Do NOT cite regulations, frameworks, or laws that are not present in the input.
     - If no data supports a claim, state that explicitly — do NOT invent supporting evidence.
+    - Do NOT fabricate benchmarks, industry standards, or "inferred" thresholds (e.g., ">90% industry standard"). If the user's data does not include a benchmark, do NOT invent one.
+    - Do NOT perform arithmetic unless you can show the exact input numbers. If 37 breakdowns out of 1,250 jobs, that is 2.96% — not 20%. Show your math or do not state percentages.
+    - When data is missing, say "NOT IN DATASET" — do not approximate, extrapolate, or guess.
     """
     # Select workflow-specific directives if available, else generic
     active_phase_directives = WORKFLOW_PHASE_OVERRIDES.get(context.workflow, PHASE_DIRECTIVES)
@@ -2697,10 +2700,16 @@ def _critical_data_missing(verified_claims, evidence_trace, unknowns):
     evidence_count = len([item for item in (evidence_trace or []) if str(item).strip()])
     if verified_count == 0 or evidence_count == 0:
         return True
+    # If we have verified facts with quantified support, missing categories
+    # (cost, budget) are a penalty — not a hard critical-missing flag.
+    # Only flag critical-missing when foundational data is absent.
+    has_quantified = _has_quantified_support(verified_claims, evidence_trace)
+    if has_quantified and verified_count >= 2:
+        return False  # Has real data — missing categories handled by deductions
     unknown_text = " ".join(str(item).strip().lower() for item in (unknowns or []) if str(item).strip())
     critical_markers = (
-        "baseline", "probability", "projection", "forecast", "cost", "budget",
-        "timeline", "frequency", "churn", "latency", "outage", "failure threshold",
+        "baseline", "probability", "projection", "forecast",
+        "frequency", "churn", "latency", "outage", "failure threshold",
     )
     return any(marker in unknown_text for marker in critical_markers)
 def _count_unresolved_core_claims(verified_claims):
