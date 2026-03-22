@@ -32,6 +32,7 @@ def init_db(app) -> None:
                 _safe_add_column(conn, 'users', 'mfa_enabled', "BOOLEAN", "false")
                 _safe_add_column(conn, 'users', 'created_at', "TIMESTAMP")
                 _safe_add_column(conn, 'users', 'last_login', "TIMESTAMP")
+                _safe_add_column(conn, 'users', 'preferences', "TEXT", "'{}'")
                 
                 # UsageLog extensions
                 _safe_add_column(conn, 'usage_logs', 'run_id', "VARCHAR(36)")
