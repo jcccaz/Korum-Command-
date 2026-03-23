@@ -252,7 +252,7 @@ The providers are interchangeable. The governance layer is what no one else has.
 - **Voice Input** — speak a mission brief, KORUM processes it (field conditions)
 - **Regulatory Auto-Map** — detect which regulations apply based on content (HIPAA, ITAR, CPNI, SOX)
 - **Attribution Beacon (Tracer)** — canary documents that phone home when opened on attacker's machine. Let the hacker "steal" a file that's actually a signed beacon — it reports location, MAC, ISP back to MIMIR ledger. Legal complexity: beaconing to your own infrastructure is defensible, forwarding to law enforcement needs framework. Extends existing Falcon canary token concept from prompt-level to file-level.
-- **Sniper Platform Positioning** — KORUM as the "scope and telemetry" for cyber defense: ODIN identifies the target, LOKI confirms it's not a decoy, MIMIR logs the evidence for the after-action report. Most companies can't prove who's attacking them — KORUM's audit trail provides evidence-grade attribution
+- **Sniper** — KORUM's active defense layer with 3 modes: Tar Pit (drain attacker compute), Response (quarantine/revoke/alert after LOKI block), Attribution (precision evidence packets for CISA, insurance, board). See FALCON_SECURITY_DOCTRINE.md for full spec. ODIN identifies the target, LOKI confirms it's not a decoy, MIMIR logs the evidence, Sniper takes the shot
 
 ---
 

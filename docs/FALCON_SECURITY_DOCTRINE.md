@@ -113,23 +113,19 @@ If the AI model itself is compromised (model theft, weight exfiltration, API int
 - Without the **Falcon Map** (which never leaves the server), stolen intelligence is worthless
 - The Falcon Map is the "decoder ring" — and it stays on your infrastructure
 
-### Current Implementation
-- SHA-256 salted per-request: same entity → same placeholder within a request
+### Current Implementation — SHIPPED
+- **Sovereign Tokenization**: sequential readable placeholders (`[PERSON_01]`, `[ORG_02]`) — same entity → same token within a request
 - Placeholder map NEVER leaves server
 - Rehydration happens in app.py before response reaches user
-- Phase 2 (planned): Deterministic pseudonymization (PERSON_01 style, mission-scoped)
-
-### Gap
-- Current placeholders are hash-based (not human-readable like ENTITY_ALPHA)
-- Phase 2 MissionVault will implement the readable sovereign tokenization pattern
+- MissionVault (DB-backed) available for cross-request consistency within a mission
 
 ---
 
-## 4. NEGATIVE REDACTION — Active Deception Layer (Future)
+## 4. NEGATIVE REDACTION — Active Deception Layer (SHIPPED)
 
 ### The Concept: Canary Tokens for AI Reasoning
 
-**What if Ghost View doesn't just hide things, but injects "honeypot" data into the prompt?**
+**Ghost View doesn't just hide things — it injects "honeypot" data into the prompt.**
 
 ### How It Works
 
@@ -176,28 +172,31 @@ def check_canary_activation(council_output, canary_tokens):
 - **Forensic value** — the Ledger records exactly which canary fired and why
 - **Insurance proof** — "Our system detected and blocked a compromised AI response. Here's the canary trace."
 
-### Implementation Path
-1. Falcon generates N canary tokens per mission (not in the Falcon Map)
-2. Canaries are injected into the Ghosted prompt alongside real tokens
-3. Post-council, canary check runs before synthesis
-4. Any canary reference → LOKI BLOCK + diagnostic mode
-5. Canary activation logged to Decision Ledger
+### Implementation — SHIPPED
+1. Falcon generates 3 canary tokens per request (when 2+ real redactions exist)
+2. Canaries injected as `[Additional referenced entities: ...]` in the Ghosted prompt
+3. Post-council, canary check runs per-provider AND on synthesis (before rehydration)
+4. Any canary reference → integrity failure logged to Decision Ledger + LOKI BLOCK path
+5. Canary metadata stored in FalconResult (never exposed to client)
 
-### Open Questions
-- How many canaries per prompt? (Too many = noise, too few = easy to miss)
-- Should canaries be contextually plausible? (A fake IP that looks real vs obvious fake)
-- Should canary check run per-provider or only on synthesis?
-- Does this slow down the pipeline? (Likely negligible — regex check on output)
+### Design Decisions (Resolved)
+- **3 canaries per prompt** — enough to catch, not enough to noise
+- **Hash-based canary format** (not sequential) — canaries intentionally look different from sovereign tokens so they can't be pattern-matched as fake
+- **Check runs per-provider** — catches individual model compromise, not just synthesis corruption
+- **Performance impact: negligible** — string-in-string check on output text
 
 ---
 
-## 5. LOGIC SNIPER — Adversarial Tar Pit (Active Defense)
+## 5. SNIPER — Precision Strike / Active Defense Layer
 
-### The Concept: Attack the Attacker's Reasoning
+### The Common Thread
+A firewall blocks everything. **Sniper identifies the exact threat, confirms it's real (LOKI), and takes the minimum action needed with maximum evidence.** Three operational modes:
+
+---
+
+### Mode 1: SNIPER TAR PIT — Attack the Attacker's Reasoning
 
 When KorumOS detects an automated agent probing the perimeter, LOKI doesn't just block it — it feeds the attacking agent poisoned logic designed to trap it in recursive loops.
-
-### How It Works
 
 ```
 ATTACKER'S AGENT: Automated prompt injection probe → KorumOS endpoint
@@ -211,34 +210,90 @@ TAR PIT PAYLOAD:
   - Progressively longer response chains that drain budget
 ```
 
-### Why This Works
-- Automated agents follow instructions — feed them expensive ones
-- Attacker pays per-token for their API calls — you're sniping their budget
-- The probe never reaches the real Council — LOKI intercepts at the gate
-- Every interaction is logged to the Decision Ledger (forensic evidence)
+**Why this works:** Automated agents follow instructions — feed them expensive ones. Attacker pays per-token for their API calls. You're sniping their budget without ever touching their infrastructure.
+
+**Aggression levels:** PASSIVE (block only) → ACTIVE (tar pit) → AGGRESSIVE (full drain)
+
+---
+
+### Mode 2: SNIPER RESPONSE — What Happens After the Block
+
+Currently when LOKI blocks or a Canary fires, KORUM can only stop the pipeline. Sniper Response is the automated countermeasure layer — what happens *after* the block:
+
+```
+TRIGGER:     Canary token activated / LOKI BLOCK / Governor integrity failure
+SNIPER RESPONSE:
+  1. QUARANTINE  — isolate the mission, freeze the thread
+  2. SNAPSHOT    — capture full Ledger state for forensics
+  3. REVOKE      — kill the active session, force re-authentication
+  4. ALERT       — push notification to operator (email, webhook, HUD)
+  5. ESCALATE    — auto-generate incident VIE for human review
+```
+
+**Why this matters:** Detection without response is just a notification. Sniper Response closes the loop — the system doesn't just say "something's wrong," it *does something about it* within governance boundaries.
+
+---
+
+### Mode 3: SNIPER ATTRIBUTION — Precision Intelligence Packet
+
+When LOKI confirms a real threat (not a false positive), Sniper packages the evidence into a targeted, scored, Falcon-scrubbed intelligence packet. Not a generic alert — a precision report.
+
+```
+SNIPER ATTRIBUTION PACKET:
+  ┌─────────────────────────────────────────┐
+  │ THREAT ATTRIBUTION — SNIPER REPORT      │
+  │ Confidence: 87/100 | LOKI: CONFIRMED    │
+  ├─────────────────────────────────────────┤
+  │ WHAT:   Prompt injection via document   │
+  │ WHO:    [Falcon-scrubbed indicators]    │
+  │ WHEN:   Ledger timestamp chain          │
+  │ HOW:    Attack vector reconstruction    │
+  │ PROOF:  Canary activation + hash chain  │
+  │ ACTION: Recommended response (scored)   │
+  ├─────────────────────────────────────────┤
+  │ PROVENANCE: 12 events, chain VERIFIED   │
+  │ FALCON: Internal PII scrubbed           │
+  │ FORMAT: STIX/TAXII ready (optional)     │
+  └─────────────────────────────────────────┘
+```
+
+**Destinations:**
+- Operator dashboard (immediate)
+- CISA/FBI uplink (with human gate — Impact Escalation Tier 3)
+- Insurance provider (audit-grade evidence package)
+- Board report (VIE format, governance-compliant)
+
+**Why this matters:** Most companies can't PROVE who's attacking them. KORUM's Ledger + Canary + LOKI stack provides evidence-grade attribution that holds up in court, insurance claims, and regulatory filings.
+
+---
 
 ### Defense-in-Depth Position
-This sits between Layer 0 (Sentinel) and Layer 1 (Falcon) — it's a pre-Falcon active defense that engages before redaction is even needed.
+
+Sniper operates across the stack — it's not a single layer but a response capability that triggers from any detection layer:
 
 ```
 Layer 0:   SENTINEL — Detect injection syntax
-Layer 0.5: LOGIC SNIPER — Tar pit automated probes (NEW)
-Layer 1:   FALCON — PII/entity ghosting
-...
+Layer 0.5: SNIPER TAR PIT — Engage and drain automated probes
+Layer 1:   FALCON — PII/entity ghosting + sovereign tokenization
+Layer 2:   CANARY — Negative redaction / honeypot injection
+Layer 3:   COUNCIL — Multi-model cross-verification
+Layer 4:   LOKI — Adversarial audit (can block at any point)
+    ↓ any block triggers →  SNIPER RESPONSE (quarantine, revoke, alert)
+    ↓ confirmed threat →   SNIPER ATTRIBUTION (evidence packet)
+Layer 5:   MIMIR — State verification (baseline comparison)
+Layer 6:   GOVERNOR — Evidence threshold + Impact Escalation
+Layer 7:   LEDGER — Immutable forensic trace of everything above
 ```
-
-### Implementation Path
-1. Probe signature detection in request handler (pattern matching on known injection formats)
-2. Tar pit response generator (recursive, contradictory, expensive prompts)
-3. Rate + pattern analysis: distinguish human users from automated agents
-4. Ledger logging: every tar pit engagement recorded with probe fingerprint
-5. Configurable aggression: PASSIVE (block only) → ACTIVE (tar pit) → AGGRESSIVE (full drain)
 
 ### What Exists vs What Needs Building
 - Probe detection: **Partial** — Rate limiter catches volume, but no pattern matching on content
 - Tar pit responses: **Not built**
 - Automated agent fingerprinting: **Not built**
-- Ledger integration: **Ready** — existing event types can record probe events
+- Session quarantine/revocation: **Not built** (session infrastructure exists)
+- Incident VIE auto-generation: **Not built** (VIE structure exists, needs trigger automation)
+- Attribution packet format: **Not built** (export pipeline exists, needs STIX mapping)
+- Operator alerting (webhook/email): **Not built**
+- Ledger integration: **Ready** — existing event types can record Sniper events
 
 ---
 
@@ -262,17 +317,19 @@ NIST AI 100-2e defines how attackers target AI systems. Falcon Protocol addresse
 
 ```
 Layer 0:   SENTINEL (planned) — Prompt injection syntax detection
-Layer 0.5: LOGIC SNIPER (planned) — Tar pit for automated probes
-Layer 1:   FALCON — PII/entity ghosting + sovereign tokenization
+Layer 0.5: SNIPER TAR PIT (planned) — Engage and drain automated probes
+Layer 1:   FALCON — PII/entity ghosting + sovereign tokenization (SHIPPED)
 Layer 2:   CANARY — Negative redaction / honeypot injection (SHIPPED)
 Layer 3:   COUNCIL — Multi-model cross-verification (no single point of failure)
 Layer 4:   LOKI — Adversarial audit (can block at any point)
+    ↓      SNIPER RESPONSE (planned) — Quarantine, revoke, alert on any block
+    ↓      SNIPER ATTRIBUTION (planned) — Evidence packet on confirmed threats
 Layer 5:   MIMIR — State verification (baseline comparison)
-Layer 6:   GOVERNOR — Evidence threshold enforcement + Impact Escalation (SHIPPED)
+Layer 6:   GOVERNOR — Evidence threshold + Impact Escalation (SHIPPED)
 Layer 7:   LEDGER — Immutable forensic trace of everything above
 ```
 
-Eight layers. Each one independent. An attacker would need to compromise ALL of them simultaneously to get a false decision through the system.
+Eight layers + Sniper active defense. Each layer is independent. An attacker would need to compromise ALL of them simultaneously to get a false decision through the system.
 
 ---
 
@@ -289,7 +346,9 @@ Eight layers. Each one independent. An attacker would need to compromise ALL of 
 | Sovereign Tokenization (PERSON_01 style) | **Shipped** |
 | Canary Tokens (active deception) | **Shipped** |
 | Impact Escalation Gate (Tier 3) | **Shipped** |
-| Logic Sniper (tar pit active defense) | **Not built** (concept stage) |
+| Sniper: Tar Pit (drain attacker compute) | **Not built** (concept) |
+| Sniper: Response (quarantine, revoke, alert) | **Not built** (concept) |
+| Sniper: Attribution (precision evidence packet) | **Not built** (concept) |
 | Sentinel (prompt injection detection) | **Not built** |
 | MIMIR baseline comparison | **Not built** |
 | Fabricated entity detection | **Not built** |
