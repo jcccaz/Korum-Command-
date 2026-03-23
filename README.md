@@ -47,6 +47,19 @@ python app.py
 
 4. Open browser to `http://localhost:5000`
 
+## Technical Specifications
+
+KorumOS is a high-trust intelligence platform. Detailed architectural and protocol documentation is available for enterprise auditors:
+
+- [GOVERNOR.md](file:///c:/Users/carlo/Projects/KorumOS/GOVERNOR.md) — Confidence Governor (scoring & calibration)
+- [FALCON_SPEC.md](file:///c:/Users/carlo/Projects/KorumOS/FALCON_SPEC.md) — Falcon Protocol (3-pass redaction & PII masking)
+- [ARCHITECTURE.md](file:///c:/Users/carlo/Projects/KorumOS/ARCHITECTURE.md) — 4-layer system overview
+- [EXPORT_SPEC.md](file:///c:/Users/carlo/Projects/KorumOS/EXPORT_SPEC.md) — Report Exporter (Scans & Signals)
+- [WORKFLOW_DNA.md](file:///c:/Users/carlo/Projects/KorumOS/WORKFLOW_DNA.md) — Posture & Output Registries
+- [API_REFERENCE.md](file:///c:/Users/carlo/Projects/KorumOS/API_REFERENCE.md) — Operational endpoints & auth gates
+- [CHART_ENGINE.md](file:///c:/Users/carlo/Projects/KorumOS/CHART_ENGINE.md) — Semantic visualization & SVG renderers
+- [PROVENANCE_SPEC.md](file:///c:/Users/carlo/Projects/KorumOS/PROVENANCE_SPEC.md) — Audit Trail Ledger (ATL) logic
+
 ## Project Structure
 
 ```
