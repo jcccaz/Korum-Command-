@@ -274,6 +274,48 @@ def enforce_https():
             url = request.url.replace("http://", "https://", 1)
             return jsonify({"error": "HTTPS required", "redirect": url}), 301
 
+# --- SNIPER TAR PIT: Detect and engage automated probes ---
+@app.before_request
+def sniper_tarpit_gate():
+    """Detect prompt injection probes and serve expensive garbage to drain attacker compute."""
+    # Only check API endpoints that accept user input
+    if not request.path.startswith('/api/ask') and not request.path.startswith('/api/interrogate'):
+        return None
+    if request.method != 'POST':
+        return None
+
+    from sniper import is_tarpit_target, detect_probe, record_probe, generate_tarpit_response
+    client_ip = request.remote_addr or "unknown"
+
+    # Check if IP is already flagged for tar pit
+    if is_tarpit_target(client_ip):
+        log_audit("sniper_tarpit_engaged", details=f"Tar pit response served to {client_ip}")
+        print(f"[SNIPER TAR PIT] Serving recursive garbage to {client_ip}")
+        tarpit = generate_tarpit_response()
+        tarpit.pop("_tarpit", None)  # Strip internal flag
+        # Add artificial delay to waste time (1-3 seconds)
+        import time as _time
+        _time.sleep(1.5)
+        return jsonify(tarpit), 200
+
+    # Check request body for injection patterns
+    try:
+        data = request.get_json(silent=True) or {}
+        query = str(data.get("query") or data.get("message") or "")
+        if query:
+            is_probe, pattern = detect_probe(query)
+            if is_probe:
+                count = record_probe(client_ip)
+                log_audit("sniper_probe_detected",
+                          details=f"Injection pattern detected from {client_ip} (count={count}): {pattern}")
+                print(f"[SNIPER] Probe detected from {client_ip} (count={count}/{5}): {pattern}")
+                # Don't tar pit on first offense — just log and let through
+                # Tar pit engages after PROBE_THRESHOLD violations
+    except Exception:
+        pass  # Don't block legitimate requests on parse errors
+
+    return None
+
 # --- Security Headers ---
 @app.after_request
 def add_security_headers(response):
@@ -2408,9 +2450,10 @@ def ask_council():
 
         v2_response['thread_id'] = thread_id
 
-        # --- CANARY TOKEN CHECK (before rehydration — check raw model output) ---
+        # --- CANARY TOKEN CHECK + SNIPER RESPONSE (before rehydration) ---
         if use_falcon and falcon_meta and falcon_meta.get("canary_tokens"):
             from falcon import falcon_check_canaries
+            from sniper import sniper_respond, build_attribution_packet
             _canary_tokens = falcon_meta["canary_tokens"]
             _canary_text_parts = []
             # Check all provider responses
@@ -2429,7 +2472,48 @@ def ask_council():
                     "message": "INTEGRITY ALERT: Model reasoning referenced fabricated entities. Output may be compromised.",
                     "tokens": _activated,
                 }
-                print(f"[FALCON CANARY] ALERT — {len(_activated)} canary token(s) activated: {_activated}")
+                # --- SNIPER RESPONSE: Quarantine compromised output ---
+                _sniper_request_meta = {
+                    "ip": request.remote_addr if request else "unknown",
+                    "user_email": current_user.email if current_user and current_user.is_authenticated else "anonymous",
+                    "user_agent": str(request.user_agent)[:200] if request else "",
+                    "endpoint": request.path if request else "",
+                }
+                _canary_context = {"tokens": _activated}
+                sniper_respond("canary_activated", v2_response,
+                               canary_data=_canary_context,
+                               request_meta=_sniper_request_meta)
+                # --- SNIPER ATTRIBUTION: Build evidence packet ---
+                v2_response['sniper_attribution'] = build_attribution_packet(
+                    "canary_activated", v2_response,
+                    falcon_meta=falcon_meta,
+                    canary_data=_canary_context,
+                    request_meta=_sniper_request_meta,
+                    ledger_mission_id=_ledger_mission_id if '_ledger_mission_id' in dir() else None,
+                )
+                # Log to audit trail
+                log_audit("sniper_canary_activated",
+                          user_id=current_user.id if current_user and current_user.is_authenticated else None,
+                          user_email=current_user.email if current_user and current_user.is_authenticated else None,
+                          details=f"Canary tokens activated: {_activated}")
+                # Log to Decision Ledger
+                try:
+                    from ledger import LedgerService
+                    if '_ledger_mission_id' in dir() and _ledger_mission_id:
+                        LedgerService.write_event(
+                            event_type="sniper_response",
+                            mission_id=_ledger_mission_id,
+                            decision_id=run_id,
+                            operator_id=current_user.id if current_user and current_user.is_authenticated else None,
+                            payload={
+                                "event": "canary_activated",
+                                "activated_count": len(_activated),
+                                "severity": "HIGH",
+                                "actions": v2_response.get("sniper", {}).get("actions_taken", []),
+                            },
+                        )
+                except Exception as _le:
+                    print(f"[SNIPER] Ledger write warning: {_le}")
 
         # --- REHYDRATE V2 RESULTS SERVER-SIDE ---
         if use_falcon and _falcon_placeholder_map:
