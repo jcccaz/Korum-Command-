@@ -1729,7 +1729,9 @@ const PROTOCOL_CONFIGS = {
     "Quantum Security": { openai: "zero_trust", anthropic: "cryptographer", google: "compliance", perplexity: "ai_architect", mistral: "hacker", local: "cryptographer" },
     "Intel Brief": { openai: "intel_analyst", anthropic: "counterintel", google: "defense_ops", perplexity: "scout", mistral: "sigint", local: "geopolitical" },
     "EOM_STATEMENT": { openai: "cfo", anthropic: "auditor", google: "analyst", perplexity: "scout", mistral: "tax", local: "economist" },
-    "PORTFOLIO_BUILDER": { openai: "hedge_fund", anthropic: "hedge_fund", google: "hedge_fund", perplexity: "scout", mistral: "hedge_fund", local: "economist" }
+    "PORTFOLIO_BUILDER": { openai: "hedge_fund", anthropic: "hedge_fund", google: "hedge_fund", perplexity: "scout", mistral: "hedge_fund", local: "economist" },
+    "Risk Exposure": { openai: "cfo", anthropic: "auditor", google: "analyst", perplexity: "scout", mistral: "compliance", local: "economist" },
+    "RISK_EXPOSURE": { openai: "cfo", anthropic: "auditor", google: "analyst", perplexity: "scout", mistral: "compliance", local: "economist" }
 };
 
 // Available Roles for Manual Cycling
@@ -1896,7 +1898,8 @@ const QUERY_PATTERNS = {
     "Cyber Command": ["cyber attack", "ransomware", "malware", "zero day", "apt", "threat actor", "incident response", "soc", "nist", "cmmc", "penetration test", "red team", "blue team", "exploit", "phishing", "darknet", "cve", "vulnerability scan", "firewall rule", "ids", "ips", "siem", "encryption", "cryptograph", "zero trust", "pki", "tls", "ssl", "aes", "rsa", "post-quantum", "key management", "micro-segmentation", "least privilege", "cyber intrusion", "reconnaissance activity", "access credentials", "network", "firewall", "vpn", "routing"],
     "Quantum Security": ["post-quantum", "quantum computing", "harvest now decrypt later", "lattice-based", "kyber", "dilithium", "pqc", "cryptographic agility", "quantum-resistant", "quantum-safe", "nist pqc", "fedramp", "cmmc", "zero trust architecture", "micro-segmentation", "sase", "sse"],
     "Intel Brief": ["intelligence", "osint", "sigint", "humint", "geopolitical", "adversary", "threat assessment", "espionage", "counterintelligence", "national security", "classified", "briefing", "surveillance", "reconnaissance", "entity", "encrypted communication", "shell organization", "financial transfer", "logistics movement", "satellite monitoring", "coordinated operation", "deception", "false flag", "operational chain", "threat scenario", "intrusion group", "redacted"],
-    "System Core": ["general", "help", "question", "advice"]
+    "System Core": ["general", "help", "question", "advice"],
+    "Risk Exposure": ["risk", "exposure", "liability", "decision risk", "undefended", "unverified", "governance gap", "audit gap", "decision cost", "bad decision", "compliance risk", "regulatory risk", "insurance", "insurable", "cfo", "cro", "risk officer", "risk assessment", "risk calculation", "risk estimate"]
 };
 
 const WORKFLOW_SUGGESTION_META = {
@@ -1916,7 +1919,8 @@ const WORKFLOW_SUGGESTION_META = {
     "Defense Council": { workflowValue: "DEFENSE_COUNCIL", configKey: "DEFENSE_COUNCIL" },
     "Cyber Command": { workflowValue: "CYBER_COMMAND", configKey: "CYBER_COMMAND" },
     "Quantum Security": { workflowValue: "QUANTUM_SECURITY", configKey: "Quantum Security" },
-    "Intel Brief": { workflowValue: "INTEL_BRIEF", configKey: "INTEL_BRIEF" }
+    "Intel Brief": { workflowValue: "INTEL_BRIEF", configKey: "INTEL_BRIEF" },
+    "Risk Exposure": { workflowValue: "RISK_EXPOSURE", configKey: "RISK_EXPOSURE" }
 };
 
 function getWorkflowSuggestionMeta(workflowLabel) {
