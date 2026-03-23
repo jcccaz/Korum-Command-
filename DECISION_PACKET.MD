@@ -34,7 +34,7 @@ Every Korum-OS Decision Packet MUST map exactly to the JSON shape below. Extra k
   "verified_claims": [
     {
       "claim": "string",
-      "status": "VERIFIED | PARTIAL | FALSE | UNVERIFIED",
+      "status": "VERIFIED | LIKELY | UNKNOWN | CONFLICTING",
       "source_ref": "string"
     }
   ],
