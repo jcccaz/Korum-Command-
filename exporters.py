@@ -64,8 +64,6 @@ def clean_text_for_export(text):
     cleaned = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", cleaned)
     # Strip LLM bracket labels like [ROOT CAUSE], [RECOMMENDATION], [KEY FINDING]
     cleaned = re.sub(r"\[([A-Z][A-Z /\-]{2,30})\]\s*:?\s*", "", cleaned)
-    # Replace provider/model names with proper source attribution
-    cleaned = _replace_provider_with_source(cleaned)
     # Clean up leftover artifacts: double spaces, orphan colons/commas
     cleaned = re.sub(r'\s*:\s*$', '', cleaned, flags=re.MULTILINE)
     cleaned = re.sub(r'  +', ' ', cleaned)
@@ -1553,6 +1551,8 @@ def _normalize_confidence_text(text, meta=None):
 def _normalize_export_section_text(section_id, content, meta=None):
     sid = _as_text(section_id).strip().lower()
     text = _as_text(content)
+    # Replace provider/model names with source attribution (only in section content, NOT provenance)
+    text = _replace_provider_with_source(text)
     if sid == "action_priorities":
         return _normalize_action_priorities_text(text)
     if sid in ("confidence", "confidence_assessment"):
@@ -1725,7 +1725,7 @@ class ExecutiveMemoExporter:
         story.append(Spacer(1, 30))
 
         # 2. --- EXECUTIVE SUMMARY ---
-        summary_text = clean_text_for_export(meta.get("summary") or "Intel synthesis required.")
+        summary_text = _replace_provider_with_source(clean_text_for_export(meta.get("summary") or "Intel synthesis required."))
         summary_p = Paragraph(f"<b>{escape(summary_text)}</b>", styles['ExecImpact'])
 
         top_visual = None
@@ -2387,7 +2387,7 @@ class WordExporter:
         doc.add_paragraph() # Spacer
 
         # 2. --- EXECUTIVE SUMMARY ---
-        summary_text = clean_text_for_export(meta.get("summary") or "Intel synthesis required.")
+        summary_text = _replace_provider_with_source(clean_text_for_export(meta.get("summary") or "Intel synthesis required."))
         s_p = doc.add_paragraph()
         s_run = s_p.add_run(summary_text)
         s_run.bold = True
