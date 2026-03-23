@@ -190,6 +190,56 @@ The providers are interchangeable. The governance layer is what no one else has.
 
 ---
 
+## PQC HARDENING ROADMAP (Post-Quantum Cryptography)
+
+### Current State — What's Shipped
+- **Quantum Drift Check** (engine_v2.py) — detects legacy crypto (AES, RSA, 3DES, RC4, MD5) without PQC wrappers in user data. Flags violations referencing FIPS 203/204/205/206 with specific algorithm recommendations.
+- **PQC Algorithm Awareness** — engine knows ML-KEM (Kyber), ML-DSA (Dilithium), SLH-DSA (SPHINCS+), FALCON (FN-DSA). Quantum Security workflow forces council to name specific algorithms and key lengths.
+- **SHA-256 Ledger Hashing** — quantum-resistant for integrity (128-bit post-quantum security via Grover's halving). Audit trail is already quantum-safe at the hash layer.
+- **Cryptographer Persona** — dedicated council role with AES/RSA, PKI, PQC, TLS/SSL, key management expertise.
+
+### Phase A: Ghost-to-Quantum Envelope
+- Wrap Falcon Ghost Maps in ML-KEM (FIPS 203) encrypted envelope at rest
+- Even if full database is exfiltrated, Ghost Maps stay dark — attacker can't map placeholders to real identities
+- Key management: per-mission encryption keys, HSM integration for enterprise
+- **Priority:** High for government/defense contracts where data-at-rest encryption is mandatory
+
+### Phase B: Quantum-Signed Ledger (ML-DSA)
+- Sign each Decision Ledger entry with ML-DSA (FIPS 204) digital signatures
+- Upgrades from integrity (hash chain) to non-repudiation (cryptographic proof of authorship)
+- **The boardroom pitch:** "In 2030, when quantum computers are everywhere, our 2026 logs will still be legally valid and untamperable"
+- Signature size consideration: ML-DSA signatures are ~2,420 bytes each — Ledger storage grows, but decision events are low-volume (not per-token)
+- **Priority:** High for insurance-grade audit trails and government compliance
+
+### Phase C: FIPS 206 Canary Beacons
+- Embed FALCON/FN-DSA (FIPS 206) compact signatures into canary files
+- If attacker modifies even one bit to remove tracking, signature breaks → MIMIR detects mismatch instantly
+- FALCON chosen for compactness: ~666 byte signatures fit in 1KB canary files
+- Extends current prompt-level canary tokens to file-level signed beacons
+- **Priority:** Medium — requires Attribution Beacon (Tracer) infrastructure first
+
+### Phase D: Crypto-Agility (Hot-Swap)
+- If any PQC algorithm (e.g., Kyber) is found to have a mathematical flaw, KORUM can hot-swap to alternative (e.g., SPHINCS+ / FIPS 205) without breaking the system
+- Implementation: algorithm selection as config, not hardcoded. Ledger records which algorithm signed each entry.
+- Dual-signing during transition periods (old + new algorithm on same entry)
+- **Priority:** Low urgency now, but architecturally important — design for it even if not building yet
+
+### Dependencies
+- `liboqs-python` or `pqcrypto` bindings (cross-platform build complexity)
+- Key management infrastructure (HSM for enterprise, file-based for dev)
+- Performance benchmarking (ML-DSA signing latency per Ledger event)
+- Threat model justification (quantum attacks on decision platforms are 2028+ timeline)
+
+### What This Unlocks
+| Capability | Business Value |
+|---|---|
+| Encrypted Ghost Maps | "Even a full breach can't unmask protected identities" |
+| Signed Ledger | "Our 2026 decisions are legally valid in 2030" |
+| Signed canary beacons | "Tamper-proof attribution — modify it and we know" |
+| Crypto-agility | "No single point of mathematical failure" |
+
+---
+
 ## WILD IDEAS (Unvalidated, Worth Exploring)
 
 - **KORUM Marketplace** — community-contributed DNA configs, personas, Falcon rule packs
