@@ -33,8 +33,10 @@ _PROVIDER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 # Context markers to decide which source label to use
-_DATA_CONTEXT = re.compile(r'\b(?:data|dataset|provided|reported|submitted|client|input|raw|original|source)\b', re.IGNORECASE)
-_CALC_CONTEXT = re.compile(r'\b(?:\d+(?:\.\d+)?%|average|total|ratio|rate|sum|calculated|derived|delta|difference|per\s)\b', re.IGNORECASE)
+# Context: raw data points — numbers, counts, metrics extracted from the dataset
+_DATA_CONTEXT = re.compile(r'\b(?:data|dataset|provided|reported|submitted|client|input|raw|original|source|jobs|completed|breakdowns?|days|miles|regions?|vehicles?|staff|employees|revenue|cost|units|hours|incidents)\b', re.IGNORECASE)
+# Context: calculated/derived values — percentages, averages, ratios
+_CALC_CONTEXT = re.compile(r'\b(?:average|total|ratio|rate|sum|calculated|derived|delta|difference|per\s|variance|margin|growth|change|compared)\b', re.IGNORECASE)
 
 def _replace_provider_with_source(text):
     """Replace LLM provider/model names with proper source attribution."""

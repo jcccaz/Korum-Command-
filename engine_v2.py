@@ -2199,6 +2199,7 @@ def build_council_prompt(context, ai_name, persona, position, total_steps):
     - Do NOT fabricate benchmarks, industry standards, or "inferred" thresholds (e.g., ">90% industry standard"). If the user's data does not include a benchmark, do NOT invent one.
     - Do NOT perform arithmetic unless you can show the exact input numbers. If 37 breakdowns out of 1,250 jobs, that is 2.96% — not 20%. Show your math or do not state percentages.
     - When data is missing, say "NOT IN DATASET" — do not approximate, extrapolate, or guess.
+    - Do NOT use causal language ("caused", "contributed to", "resulted in") unless root cause is explicitly verified in the data. Use "likely contributing factor", "correlated with", or "associated with" instead.
     """
     # Select workflow-specific directives if available, else generic
     active_phase_directives = WORKFLOW_PHASE_OVERRIDES.get(context.workflow, PHASE_DIRECTIVES)
@@ -2806,9 +2807,9 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
         notes.append(f"{conflicting_claims} conflicting claims remain unresolved")
     # --- DECISION CONFIDENCE GOVERNOR ---
     decision_confidence = 0.8  # Start optimistic, apply deductions
-    # Per major assumption → subtract 0.05–0.10
+    # Per assumption → moderate penalty (routine assumptions are expected, not catastrophic)
     if assumption_count > 0:
-        assumption_penalty = min(assumption_count * 0.07, 0.35)
+        assumption_penalty = min(assumption_count * 0.04, 0.20)
         decision_confidence -= assumption_penalty
         notes.append(f"{assumption_count} assumptions penalize confidence")
     # Unknowns > 3 → subtract 0.10
@@ -2898,9 +2899,15 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
     # --- MAP TO LEGACY SCORE ---
     # Legacy score (0-100) = weighted average of both confidences
     combined = (fact_confidence * 0.4 + decision_confidence * 0.6) * 100
+    # Score floor: verified operational data with quantified support never falls below 50
+    # Sub-50 = severe failure state (zero evidence, catastrophic conflicts, no data)
+    if quantified and verified_count >= 2 and not conflicting_claims:
+        combined = max(combined, 50)
+        if combined == 50:
+            notes.append("score floor applied: verified data prevents failure-range scoring")
     if unresolved_core_claims >= 2 and no_root_cause:
-        combined = min(combined, 45)
-        notes.append("hard truth rule triggered")
+        combined = min(combined, 55)
+        notes.append("unresolved core claims cap applied")
     if conflicting_claims >= 2:
         combined = min(combined, 45)
     elif conflicting_claims == 1:
@@ -3154,9 +3161,13 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
     summary_text = _enforce_confidence_language(summary_text, score)
     final_assessment = _enforce_confidence_language(final_assessment, score)
     rationale_text = _enforce_confidence_language(rationale_text, score)
+    # Diagnostic-first posture: override action-oriented headline with diagnostic language
+    headline = str(packet.get("decision_headline") or "Decision Packet").strip() or "Decision Packet"
+    if diagnostic_first:
+        headline = f"Proceed with diagnostic validation before acting on: {headline.rstrip('.')}"
     legacy = {
         "meta": {
-            "title": str(packet.get("decision_headline") or "Decision Packet").strip() or "Decision Packet",
+            "title": headline,
             "generated_at": export_meta.get("generated_at") or datetime.now().isoformat(),
             "summary": summary_text,
             "workflow": export_meta.get("workflow") or workflow,
