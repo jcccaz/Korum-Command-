@@ -58,6 +58,7 @@ KorumOS is a high-trust intelligence platform. Detailed architectural and protoc
 - [WORKFLOW_DNA.md](file:///c:/Users/carlo/Projects/KorumOS/WORKFLOW_DNA.md) — Posture & Output Registries
 - [API_REFERENCE.md](file:///c:/Users/carlo/Projects/KorumOS/API_REFERENCE.md) — Operational endpoints & auth gates
 - [CHART_ENGINE.md](file:///c:/Users/carlo/Projects/KorumOS/CHART_ENGINE.md) — Semantic visualization & SVG renderers
+- [INTELLIGENCE_LIFECYCLE.md](file:///c:/Users/carlo[REDACTED]) — End-to-end operational walkthrough
 - [PROVENANCE_SPEC.md](file:///c:/Users/carlo/Projects/KorumOS/PROVENANCE_SPEC.md) — Audit Trail Ledger (ATL) logic
 
 ## Project Structure
