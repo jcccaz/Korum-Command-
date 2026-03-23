@@ -218,16 +218,16 @@ TAR PIT PAYLOAD:
 
 ### Mode 2: SNIPER RESPONSE — What Happens After the Block
 
-Currently when LOKI blocks or a Canary fires, KORUM can only stop the pipeline. Sniper Response is the automated countermeasure layer — what happens *after* the block:
+When LOKI blocks or a Canary fires, Sniper Response now intercepts compromised output, flags the event, and records the action path for operator review. External alerting and full session revocation remain follow-on integrations:
 
 ```
 TRIGGER:     Canary token activated / LOKI BLOCK / Governor integrity failure
 SNIPER RESPONSE:
-  1. QUARANTINE  — isolate the mission, freeze the thread
-  2. SNAPSHOT    — capture full Ledger state for forensics
-  3. REVOKE      — kill the active session, force re-authentication
-  4. ALERT       — push notification to operator (email, webhook, HUD)
-  5. ESCALATE    — auto-generate incident VIE for human review
+  1. QUARANTINE  — intercept compromised output before it reaches the operator
+  2. FLAG        — force diagnostic or human-review handling where required
+  3. RECORD      — attach Sniper evidence and write the event to audit / ledger paths
+  4. REVOKE      — kill the active session, force re-authentication (next integration)
+  5. ALERT       — push notification to operator (email, webhook, HUD) (next integration)
 ```
 
 **Why this matters:** Detection without response is just a notification. Sniper Response closes the loop — the system doesn't just say "something's wrong," it *does something about it* within governance boundaries.
@@ -286,14 +286,14 @@ Layer 7:   LEDGER — Immutable forensic trace of everything above
 ```
 
 ### What Exists vs What Needs Building
-- Probe detection: **Partial** — Rate limiter catches volume, but no pattern matching on content
-- Tar pit responses: **Not built**
+- Probe detection: **Shipped** — content pattern scan plus repeated-probe thresholding
+- Tar pit responses: **Shipped**
 - Automated agent fingerprinting: **Not built**
-- Session quarantine/revocation: **Not built** (session infrastructure exists)
+- Session quarantine/revocation: **Partial** — response quarantine is live; auth/session kill paths still need wiring
 - Incident VIE auto-generation: **Not built** (VIE structure exists, needs trigger automation)
-- Attribution packet format: **Not built** (export pipeline exists, needs STIX mapping)
+- Attribution packet format: **Shipped** for internal operator review; STIX/TAXII mapping still needs build-out
 - Operator alerting (webhook/email): **Not built**
-- Ledger integration: **Ready** — existing event types can record Sniper events
+- Ledger integration: **Shipped**
 
 ---
 
@@ -317,13 +317,13 @@ NIST AI 100-2e defines how attackers target AI systems. Falcon Protocol addresse
 
 ```
 Layer 0:   SENTINEL (planned) — Prompt injection syntax detection
-Layer 0.5: SNIPER TAR PIT (planned) — Engage and drain automated probes
+Layer 0.5: SNIPER TAR PIT (SHIPPED) — Engage and drain automated probes
 Layer 1:   FALCON — PII/entity ghosting + sovereign tokenization (SHIPPED)
 Layer 2:   CANARY — Negative redaction / honeypot injection (SHIPPED)
 Layer 3:   COUNCIL — Multi-model cross-verification (no single point of failure)
 Layer 4:   LOKI — Adversarial audit (can block at any point)
-    ↓      SNIPER RESPONSE (planned) — Quarantine, revoke, alert on any block
-    ↓      SNIPER ATTRIBUTION (planned) — Evidence packet on confirmed threats
+    ↓      SNIPER RESPONSE (SHIPPED/PARTIAL) — Quarantine and audit path live; revoke/alert still expanding
+    ↓      SNIPER ATTRIBUTION (SHIPPED) — Evidence packet on confirmed threats
 Layer 5:   MIMIR — State verification (baseline comparison)
 Layer 6:   GOVERNOR — Evidence threshold + Impact Escalation (SHIPPED)
 Layer 7:   LEDGER — Immutable forensic trace of everything above
@@ -346,9 +346,9 @@ Eight layers + Sniper active defense. Each layer is independent. An attacker wou
 | Sovereign Tokenization (PERSON_01 style) | **Shipped** |
 | Canary Tokens (active deception) | **Shipped** |
 | Impact Escalation Gate (Tier 3) | **Shipped** |
-| Sniper: Tar Pit (drain attacker compute) | **Not built** (concept) |
-| Sniper: Response (quarantine, revoke, alert) | **Not built** (concept) |
-| Sniper: Attribution (precision evidence packet) | **Not built** (concept) |
+| Sniper: Tar Pit (drain attacker compute) | **Shipped** |
+| Sniper: Response (quarantine, revoke, alert) | **Shipped / Partial** |
+| Sniper: Attribution (precision evidence packet) | **Shipped** |
 | Sentinel (prompt injection detection) | **Not built** |
 | MIMIR baseline comparison | **Not built** |
 | Fabricated entity detection | **Not built** |

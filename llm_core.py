@@ -28,6 +28,8 @@ MODEL_COST = {
     # Perplexity
     "sonar-pro": {"input": 0.000003, "output": 0.000015},
     "sonar": {"input": 0.000001, "output": 0.000001},
+    # Live OSINT Pricing (Flat $0.01 per proxy search)
+    "serpapi-search": {"input": 0.01, "output": 0.0},
     # Mistral
     "mistral-large-latest": {"input": 0.000002, "output": 0.000006},
     "mistral-small-latest": {"input": 0.0000002, "output": 0.0000006},

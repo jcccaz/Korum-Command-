@@ -4,7 +4,7 @@ The **Workflow DNA** registry is the elite logic layer of KorumOS. It defines th
 
 ## 1. Core Workflow Manifest
 
-KorumOS currently supports 18 specialized workflows and several aliases.
+KorumOS currently supports 19 specialized workflows and several aliases.
 
 | Workflow ID | Posture (Role) | Primary Goal | Output Structure |
 | :--- | :--- | :--- | :--- |
@@ -12,6 +12,7 @@ KorumOS currently supports 18 specialized workflows and several aliases.
 | **RESEARCH** | Strategic Researcher | Fact-dense baseline with implications. | Summary, Key Signals, Evidence, Scenarios, Confidence. |
 | **GENEALOGY**| Lead Investigator | Forensic lineage reconstruction. | Lineage, Archival Table, Migration, Discrepancies. |
 | **FINANCE**  | CFO / Auditor | Economic viability & downside protection. | Cost, Revenue, Sensitivity Table, ROI Summary. |
+| **RISK_EXPOSURE** | Chief Risk Officer | Quantify downside of undefended decisions in dollars. | Decision Landscape, Risk Construction (Multi-Model), Red Team Strike, Governor Assessment, Decision Risk Exposure Report. |
 | **LEGAL**    | General Counsel | Exposure reduction & compliance. | Regulatory Exposure, Risk Mitigation, Posture. |
 | **CYBER**    | Red Team Lead | Active threat identification & defense. | Threat Intel, Attack Surface, Mitigation Playbook. |
 | **DEFENSE**  | Intel Analyst | Geopolitical awareness & OPSEC. | Situation, Force Disposition, COAs, Intel Gaps. |
@@ -44,4 +45,4 @@ Each DNA entry also dictates the "internal mood" of the council:
 *   **Tone**: Ensures the language matches the profession (e.g., "Accounting-standard aligned" for EOM_STATEMENT).
 
 ---
-*Produced by Korum-OS Decision Intelligence / Internal DNA Registry v2.2*
+*Produced by Korum-OS Decision Intelligence / Internal DNA Registry v2.3*

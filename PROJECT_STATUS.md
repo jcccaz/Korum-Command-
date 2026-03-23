@@ -1,128 +1,67 @@
 # KorumOS Project Status
-**Date:** March 17, 2026  
+**Date:** March 23, 2026  
 **Branch:** `main`  
-**Current Version:** 2.2 (Financial Integrity & Portfolio Builder)
+**Current Version:** 2.3 (DRE Engine & Active Defense)
 
 ## Current Snapshot
 
-KorumOS has been upgraded with a specialized **Financial Intelligence Engine** and a new **Portfolio Builder** workflow. The system now enforces high-fidelity data preservation (especially tables) and features a "Truth Bomb" detection system that visually flags analytical discrepancies in final reports.
+KorumOS now combines its financial/reporting stack with a live **Decision Risk Exposure (DRE) Engine** and a materially deeper Falcon security posture. The platform can quantify downside in dollars, force adversarial challenge on the numbers, and return a Governor-bounded exposure range instead of a generic ROI claim.
 
 ## Shipped on `main`
 
-### 1. Financial & Portfolio Intelligence
-- **EOM Statement Workflow:** Refined DNA for C-Suite financial reporting.
+### 1. Decision Risk Exposure (DRE) Engine
+- **New Workflow:** `RISK EXPOSURE` is live in the workflow dropdown.
+- **Five-phase execution:** Intake, Risk Construction, Red Team Strike, Governor Assessment, and the final **Decision Risk Exposure Report**.
+- **Debated numbers:** Exposure estimates are challenged before delivery. Red Team flags inflated assumptions, then the Governor compresses the result into a defensible range with evidence grades.
+- **Export alignment:** Final report labeling now supports the DRE artifact in the exporter.
+
+### 2. Falcon Security Hardening
+- **Impact Escalation Gate:** Tier 3 governance path is active for high-consequence actions.
+- **Canary Tokens:** Falcon now injects active deception markers to catch compromised reasoning.
+- **Sovereign Tokenization:** Readable placeholders such as `[PERSON_01]` are live while the placeholder map stays server-side.
+- **Sniper Active Defense:** Tar Pit, Response, and Attribution modes are now implemented in code, with operator-facing quarantine and evidence-packet behavior.
+
+### 3. Financial and Reporting Layer
+- **EOM Statement Workflow:** Refined DNA for C-suite financial reporting.
 - **Portfolio Builder Workflow:** Added Hedge Fund / Investment Committee personas for aggressive asset allocation and macro-trend analysis.
-- **Table Preservation Logic:** The synthesizer now detects and protects Markdown tables (P&L, Balance Sheet, Allocation maps) from being summarized into paragraphs.
-- **Truth Bomb Protocol:** 
-  - Automated extraction of `[TRUTH_BOMB]` tags across the multi-agent council.
-  - High-impact visual rendering: PDF reports now feature **Red Alert Boxes** for critically verified discrepancies.
-  - Summary injection: Truth Bombs are automatically prioritized in the executive summary.
+- **Table Preservation Logic:** The synthesizer protects markdown tables from being collapsed into prose.
+- **Truth Bomb Protocol:** Critically verified discrepancies can be extracted, prioritized, and rendered in exports.
 
-### 2. Enhanced Exporters
-- **Excel Charting:** The Excel exporter now automatically generates **Pie Charts** for "Key Metrics" data.
-- **Conditional Formatting:** High-risk items and Truth Bombs are now automatically highlighted in **Red Bold** within exported spreadsheets.
-- **PDF Dark Mode Refinement:** Tables and truth-alert boxes now align with the KorumOS "Black/Cyan" high-end aesthetic.
+### 4. Strategy and Roadmap Documentation
+- Added or expanded the March 2026 strategy set:
+  - `docs/VERTICAL_STRATEGY.md`
+  - `docs/ARCHITECTURE_VISION.md`
+  - `docs/ROLE_REGISTRY_SPEC.md`
+  - `docs/FALCON_SECURITY_DOCTRINE.md`
+  - `docs/REGULATORY_ALIGNMENT.md`
+  - `docs/FUTURE_IDEAS.md`
+- PQC Hardening Roadmap is now documented in `docs/FUTURE_IDEAS.md`.
 
-### 3. Command Center Redesign
-- Introduced the new mission flow strip:
-  - `Input`
-  - `Constraints`
-  - `Generation`
-  - `Evaluation`
-  - `Results`
-  - `Follow Up`
-- Reworked the center of the app into the **Live Intelligence Stage** with:
-  - mission subtitle
-  - state chips (`Generation Live`, `Mission Idle`, `Falcon Aware`, etc.)
-  - key metrics strip
-  - orbital stage
-  - evaluation track beneath the stage
-- Kept the left **Decision Intelligence** rail as the primary control surface while shifting it toward darker black / gunmetal treatment.
+## Current Local Worktree
 
-### 2. Global Comms + Results Flow
-- Expanded and rebalanced **Global Comms** so the right rail can carry:
-  - thread summary
-  - revision state
-  - impact summary
-  - follow-up guidance
-  - live activity feed
-  - execution telemetry
-- Added revision-aware dock behavior:
-  - `Standby`
-  - `Artifacts Ready`
-  - `Revision Live`
-- Reserved layout space for the dock so it no longer crushes the main dashboard content.
-
-### 3. Live State Wiring
-- Wired stage, comms, and dock state transitions so the UI responds when:
-  - generation begins
-  - answers land
-  - follow-ups are submitted
-  - verification runs
-  - interrogation completes
-- Added quieter idle behavior so `Global Comms` does not read as wasted space before a mission becomes active.
-
-### 4. Orbital / Visual Stage Work
-- Reworked the center orbital multiple times to move toward a more cinematic command-center presence:
-  - glossy orb restoration
-  - hidden cloud / dark core treatment
-  - added perspective and depth
-  - orbital animation refinement
-- The orbital is improved, but still an active polish target rather than a finished visual system.
-
-### 5. Verification / Interrogation Backend Improvements
-- `/api/interrogate` and `/api/verify` now return structured verdict + `score_delta` data instead of relying on brittle client-side keyword parsing.
-- The frontend uses backend verdict / score data to update truth / revision behavior more reliably.
-- Falcon sanitization was improved by adding `Project`, `Operation`, `Mission`, and `Phase` to stopwords to reduce bad PERSON tagging on codename-prefixed phrases.
-
-## Current Local Worktree (Not Yet Committed)
-
-There is active in-progress work on top of `main`:
-
-- Modified:
-  - `css/korum.css`
-  - `index.html`
-  - `js/korum.js`
-- Untracked:
-  - `assets/korum os logo.png`
-  - `css/animations.css`
-  - `docs/command_center_mockup.html`
-  - local helper scripts (`fix_html.py`, `mega_repair.py`, `repair.py`)
-
-### What the in-progress local changes are doing
-- Replacing the hard-coded bottom **Evaluation** cards with a dynamic renderer so that strip always says something mission-relevant.
-- Continuing refinement of the center/right UI behavior rather than introducing another full layout rewrite.
+At the time of this update, the local worktree is clean enough to document the shipped state rather than an active uncommitted UI pass.
 
 ## Immediate Priorities
 
-### 1. Finish Dynamic Evaluation Strip
-- Complete the JS renderer so the evaluation row is fully state-driven.
-- Remove the remaining assumptions from older hard-coded evaluation content.
+### 1. DRE Validation from Real Scenarios
+- Run more industry cases through `RISK EXPOSURE`.
+- Tighten evidence grading, variance framing, and exported report polish.
 
-### 2. Tune Global Comms from Real Runs
-- Validate the right rail against real mission traffic instead of idle placeholders.
-- Improve grouping for:
-  - follow-up
-  - interrogation
-  - verification
-  - revision impact
+### 2. Sniper Operational Follow-Through
+- Extend from in-app quarantine/evidence packets into external alerting, revocation, and downstream operational integrations.
+- Harden detection and fingerprinting beyond the current pattern/rate thresholds.
 
-### 3. Final Orbital / Motion Polish
-- Improve node choreography relative to the orb.
-- Keep depth and mystery without flattening the centerpiece.
-- Coordinate with outside visual refinement passes if needed.
-
-### 4. Cleanup Pass
-- Normalize any leftover legacy colors or older component treatments.
-- Remove or commit local helper artifacts and mockup files once the live direction stabilizes.
+### 3. Documentation and Sales Alignment
+- Keep launch docs, strategy docs, and demo collateral aligned with the now-live DRE and active-defense story.
 
 ## Operator Notes
 
 - Run server: `python app.py`
+- DRE workflow: select `RISK EXPOSURE`, enter a scenario, and the council will produce the full Decision Risk Exposure pipeline.
 - Verification: highlight a claim and send it through verify; Perplexity is the primary evidence path with fallback behavior in code.
 - Interrogation: opens attacker-vs-defender flow rather than acting as generic chat.
-- Artifact Dock remains part of the product and is now positioned as the `Results` layer, not the primary stage.
+- Falcon + Sniper: canary activation can quarantine compromised output and attach an attribution packet before rehydration.
 
 ## Bottom Line
 
-KorumOS has moved from a February export-focused intelligence UI into a March command-center build with live stage states, revision-aware comms, stronger dock behavior, and better backend truth plumbing. The remaining work is mostly refinement, dynamic state cleanup, and live-run tuning rather than a fresh architecture shift.
+KorumOS has moved beyond a finance/reporting release into a stronger governance platform: decision-risk quantification is live, adversarial challenge is productized, and Falcon now has real active-defense hooks behind it. The next work is operational hardening and continued evidence discipline, not inventing the core workflow from scratch.

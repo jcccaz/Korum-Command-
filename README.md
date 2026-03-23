@@ -2,6 +2,16 @@
 
 **KorumOS** is an Adversarial Decision Governance System for high-stakes intelligence analysis. It achieves **Decision Integrity** by wrapping modular AI providers in a zero-trust governance stack: **the Falcon Protocol** (PII Security), **the Confidence Governor** (Calibrated Fact-Scoring), and **the Audit Trail Ledger** (Immutable Provenance).
 
+## Latest Launch
+
+As of Monday, March 23, 2026, KorumOS includes the live **DRE Engine** workflow for defensible downside analysis.
+
+- **Workflow:** Select `RISK EXPOSURE` in the workflow dropdown.
+- **Input:** Provide an industry scenario, decision, or operating posture.
+- **Output:** KorumOS runs five phases through the council: Intake, Multi-Model Risk Construction, Red Team Strike, Governor Assessment, and the final **Decision Risk Exposure Report**.
+- **Key differentiator:** The numbers are debated before they reach the client. Red Team challenges inflated assumptions, and the Governor forces a defensible range with variance percentages and evidence grades.
+- **Rule:** No "reduces risk by X%" claims without showing the math.
+
 ## Governance Layers
 
 - **Falcon Protocol**: A 3-pass PII/PHI redaction engine with deterministic entity pseudonymization.
@@ -9,6 +19,7 @@
 - **Audit Trail Ledger (ATL)**: A tamper-evident, cryptographic history of every event in the mission lifecycle.
 - **Neurol Council (Execution)**: A sequential reasoning chain of five independent AI providers (OpenAI, Anthropic, Google, Perplexity, Mistral).
 - **Validated Intelligence Estimate (VIE)**: High-fidelity, truth-scored briefs that replace standard AI "responses" with auditable intelligence artifacts.
+- **Decision Risk Exposure (DRE) Engine**: A five-phase council workflow that quantifies undefended decisions in dollar exposure before action is taken.
 
 ## Quick Start
 
