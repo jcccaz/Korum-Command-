@@ -1838,7 +1838,7 @@ class ExecutiveMemoExporter:
             float_charts = []
             remaining_arts = []
             for art in node_arts:
-                chart_img = _decode_image_data(art.get('imageData'), max_width=200, max_height=220)
+                chart_img = _decode_image_data(art.get('imageData'), max_width=280, max_height=260)
                 if chart_img:
                     float_charts.append((art, chart_img))
                 else:
@@ -2491,7 +2491,7 @@ class WordExporter:
             float_charts = []
             remaining_arts = []
             for art in node_arts:
-                img_stream, img_w, img_h = _decode_image_bytes(art.get('imageData'), max_width_inches=2.4, max_height_inches=2.5)
+                img_stream, img_w, img_h = _decode_image_bytes(art.get('imageData'), max_width_inches=3.0, max_height_inches=3.0)
                 if img_stream:
                     float_charts.append((art, img_stream, img_w, img_h))
                 else:
@@ -2507,10 +2507,10 @@ class WordExporter:
             n_run.font.color.rgb = s_rgb
 
             if float_charts:
-                # FLOAT MODE: 60/40 side-by-side — prose left, chart right
+                # FLOAT MODE: 50/50 side-by-side — prose left, chart right
                 float_tab = doc.add_table(rows=1, cols=2)
-                float_tab.columns[0].width = Inches(3.6)
-                float_tab.columns[1].width = Inches(2.4)
+                float_tab.columns[0].width = Inches(3.0)
+                float_tab.columns[1].width = Inches(3.0)
                 left_cell = float_tab.rows[0].cells[0]
                 right_cell = float_tab.rows[0].cells[1]
 
@@ -2521,14 +2521,14 @@ class WordExporter:
                 for art, img_stream, img_w, img_h in float_charts:
                     art_label = _artifact_label(art)
                     if art_label:
-                        WordExporter._add_paragraph(right_cell, art_label, size=7, bold=True, italic=True, color=tc["accent_dark"])
+                        WordExporter._add_paragraph(right_cell, art_label, size=8, bold=True, italic=True, color=tc["accent_dark"])
                     pic_kwargs = {}
                     if img_w:
                         pic_kwargs['width'] = Inches(img_w)
                     if img_h:
                         pic_kwargs['height'] = Inches(img_h)
                     if not pic_kwargs:
-                        pic_kwargs['width'] = Inches(2.2)
+                        pic_kwargs['width'] = Inches(2.8)
                     p = right_cell.add_paragraph()
                     r = p.add_run()
                     r.add_picture(img_stream, **pic_kwargs)
