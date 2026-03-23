@@ -199,6 +199,14 @@ WORKFLOW_DNA = {
         "time_horizon": "12-month primary / 3-year thesis",
         "posture": "Hedge Fund Portfolio Manager & Investment Committee",
         "output_structure": ["Macro Setup", "Screened Candidates", "Red Team Challenge", "Portfolio Architecture", "Final Portfolio — Ready to Execute"]
+    },
+    "RISK_EXPOSURE": {
+        "goal": "Quantify decision risk exposure in dollars. Translate unverified decision-making into measurable financial liability using multi-model debate, Red Team challenge, and Governor scoring.",
+        "tone": "CFO-grade. Analytical, precise, defensible. Numbers not opinions.",
+        "risk_bias": "Downside-focused — assume risk is underreported until proven otherwise.",
+        "time_horizon": "Trailing 12 months + forward 12-month projection",
+        "posture": "Chief Risk Officer & Decision Governance Auditor",
+        "output_structure": ["Decision Landscape", "Risk Construction (Multi-Model)", "Red Team Strike", "Governor Assessment", "Decision Risk Exposure Report"]
     }
 }
 _BIOGRAPHICAL_RESEARCH_PATTERNS = [
@@ -853,6 +861,77 @@ PORTFOLIO_BUILDER_PHASE_DIRECTIVES = {
         )
     }
 }
+RISK_EXPOSURE_PHASE_DIRECTIVES = {
+    0: {
+        "title": "INTAKE — Decision Landscape Mapping",
+        "instruction": (
+            "Map the organization's decision environment. Extract from the user's input:\n"
+            "  - Industry and regulatory exposure level\n"
+            "  - Organization size and decision frequency\n"
+            "  - Current decision process (manual, AI-assisted, fully automated)\n"
+            "  - Data sensitivity classification (PII, financial, national security)\n"
+            "  - Known decision failure history (incidents, losses, near-misses)\n"
+            "If the user hasn't provided specific figures, state what's missing and estimate "
+            "conservative ranges based on industry benchmarks. Flag every assumption explicitly."
+        )
+    },
+    1: {
+        "title": "RISK CONSTRUCTION — Multi-Model Exposure Estimate",
+        "instruction": (
+            "Each council member independently constructs a decision risk estimate. Structure as a table:\n"
+            "  | Risk Category | Estimated Annual Exposure | Confidence | Key Assumption |\n"
+            "Risk categories to evaluate:\n"
+            "  - Unverified decision execution (decisions made without evidence review)\n"
+            "  - Regulatory non-compliance exposure (fines, sanctions, license risk)\n"
+            "  - Operational error propagation (bad decisions cascading downstream)\n"
+            "  - Reputational damage from indefensible AI outputs\n"
+            "  - Insurance liability gaps (unauditable AI decisions)\n"
+            "STRICT RULE: Every dollar figure must cite its source — industry benchmark, "
+            "user-provided data, or clearly labeled estimate. No invented numbers."
+        )
+    },
+    2: {
+        "title": "RED TEAM STRIKE — Assumption Challenge",
+        "instruction": (
+            "Challenge every assumption from Phase 2. Ask:\n"
+            "  - Is the risk estimate inflated? By how much and why?\n"
+            "  - What data is missing that would change the estimate by >20%?\n"
+            "  - Which risk categories are speculative vs data-supported?\n"
+            "  - What's the 'embarrassment test' — would this estimate survive CFO scrutiny?\n"
+            "Output a VARIANCE ASSESSMENT: 'Risk estimate may be overstated/understated by X-Y% due to [reasons]'\n"
+            "STRICT RULE: If you cannot find a specific weakness in the estimate, say so. "
+            "Do not fabricate objections for the sake of appearing thorough."
+        )
+    },
+    3: {
+        "title": "GOVERNOR ASSESSMENT — Defensible Number",
+        "instruction": (
+            "Synthesize the multi-model estimates and Red Team critique into a single defensible range.\n"
+            "  - Apply Red Team variance to narrow or widen the range\n"
+            "  - Classify each risk category: VERIFIED (data-backed) / ESTIMATED (benchmark) / SPECULATIVE (assumption)\n"
+            "  - Calculate 'Recoverable Exposure' — the portion addressable through decision governance\n"
+            "  - Identify the single largest undefended decision category\n"
+            "Output: Baseline Risk Range, Most Defensible Estimate, Confidence %, Variance %"
+        )
+    },
+    4: {
+        "title": "VERDICT — Decision Risk Exposure Report",
+        "instruction": (
+            "STRATEGIC RULE: Use [SIGNAL TAGS] (e.g. [CRITICAL], [VERIFIED], [ACTION REQUIRED]) to highlight key findings. "
+            "Default to Amber [TAGS]. Use Red [CRITICAL] only for high-threat signals. "
+            "You are the CHIEF RISK OFFICER. Deliver the complete Decision Risk Exposure Report. Structure as:\n"
+            "  1) **EXECUTIVE SUMMARY** — One paragraph: what the risk is, in dollars, and why it matters now\n"
+            "  2) **RISK EXPOSURE TABLE** — Markdown table: [Risk Category, Annual Exposure, Confidence, Evidence Grade, Recoverable %]\n"
+            "  3) **BASELINE RISK RANGE** — Low / Most Defensible / High estimates with variance %\n"
+            "  4) **RECOVERABLE EXPOSURE** — Dollar amount addressable through decision verification, Red Team, and audit trails\n"
+            "  5) **UNDEFENDED DECISIONS** — The specific decision types currently operating without governance\n"
+            "  6) **RECOMMENDED GOVERNANCE CONTROLS** — Exact controls that reduce each risk category (not generic advice)\n"
+            "STRICT RULE: Do NOT say 'reduces risk by X%' unless you can show the math. "
+            "Instead say: 'introduces decision verification on X% of currently unverified decisions, "
+            "which represent $Y of annual exposure.' Every number traces to prior phases."
+        )
+    }
+}
 WORKFLOW_PHASE_OVERRIDES = {
     "FINANCE": FINANCE_PHASE_DIRECTIVES,
     "WAR_ROOM": WAR_ROOM_PHASE_DIRECTIVES,
@@ -879,6 +958,7 @@ WORKFLOW_PHASE_OVERRIDES = {
     "SOCIAL_POST": SOCIAL_POST_PHASE_DIRECTIVES,
     "EOM_STATEMENT": EOM_STATEMENT_PHASE_DIRECTIVES,
     "PORTFOLIO_BUILDER": PORTFOLIO_BUILDER_PHASE_DIRECTIVES,
+    "RISK_EXPOSURE": RISK_EXPOSURE_PHASE_DIRECTIVES,
 }
 class CouncilContext:
     def __init__(self, query, classification, workflow="RESEARCH", session_id=None, run_id=None, previous_context=None, user_id=None, ghost_map=None, residual_report=None):

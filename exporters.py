@@ -2356,6 +2356,7 @@ class WordExporter:
             "LEGAL": "LEGAL MEMORANDUM",
             "CREATIVE": "CREATIVE BRIEF",
             "SOCIAL POST": "SOCIAL MEDIA BRIEF",
+            "RISK EXPOSURE": "DECISION RISK EXPOSURE REPORT",
         }
         report_type = _report_type_map.get(workflow_label, workflow_label + " REPORT")
         r_p3 = r_cell.add_paragraph()
