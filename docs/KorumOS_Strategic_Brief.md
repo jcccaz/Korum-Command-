@@ -1,183 +1,67 @@
-# QANAPI x KORUM-OS
+# KorumOS: The Governance Standard
 
-### Trusted Data. Trusted Decisions.
-
-**Strategic Partnership Brief — March 13, 2026**
-
----
-
-## Executive Summary
-
-In high-stakes security environments, the integrity of the decision is just as critical as the integrity of the data. Qanapi provides quantum-resistant data protection. KorumOS provides the intelligence orchestration layer to ensure that AI-driven analysis is cross-verified, auditable, and truthful. Together, they deliver a full-stack trusted intelligence pipeline — from cryptographically verified inputs to cross-verified, auditable AI outputs.
+### Decision Integrity for High-Stakes Environments
+**Strategic Partnership Brief — March 22, 2026**
 
 ---
 
-## The KorumOS Advantage
+## Executive Summary: "The Logic is Not the Truth"
 
-KorumOS does not rely on a single AI provider. It convenes a Neural Council of five independent, world-class models to analyze, verify, and stress-test intelligence in real-time. Each AI runs sequentially — not in parallel — so the fifth model has the benefit of four expert perspectives before it speaks. This mirrors how real intelligence analysis works: iterative, layered, cross-referenced.
+In high-stakes security, legal, or defense missions, the "logic" (AI reasoning) is a commodity. The "truth" (verified decision-making) is the product. KorumOS is a **Decision Integrity Stack** that wraps standard AI providers in a zero-trust governance layer: **the Falcon Protocol** (PII Security), **the Confidence Governor** (Calibrated Fact-Scoring), and **the Audit Trail Ledger** (Provenance).
 
----
-
-## The Five AI Providers
-
-| Provider | Model | Council Role |
-|----------|-------|-------------|
-| OpenAI | GPT-4o | Primary strategist — strong reasoning, broad knowledge |
-| Anthropic | Claude Sonnet 4 | Deep researcher — nuanced, safety-conscious, thorough |
-| Google | Gemini 2.0 Flash | Fast integrator — speed, data analysis, current knowledge |
-| Perplexity | Sonar Pro | Live intelligence — real-time web search with citations |
-| Mistral | Mistral Small | Independent validator — European perspective, multilingual |
-
-A sixth local AI fallback (via LM Studio) provides air-gapped operation — no data leaves the network. This maps directly to classified environments where Qanapi's encryption is most critical.
+While competitors offer "faster answers," KorumOS offers **"Validated Intelligence Estimates (VIE)."**
 
 ---
 
-## Core Capabilities
+## 1. The Governance layers
 
-### V2 Reasoning Pipeline
-A sequential processing engine where five models build upon one another's logic, eliminating single-model hallucinations. Each AI sees what came before. Each one builds deeper.
+### Layer 1: Falcon Protocol (Privacy Air-Gap)
+*   **The Problem**: Data leakage into external LLMs.
+*   **The Korum Fix**: A 3-pass redaction engine that pseudonymizes PII/PHI (PERSON_01, ORG_01) before it leaves the local network. The Council reasons on the relationships between entities without ever seeing their identities.
 
-### Consensus Truth-Scoring
-Every factual claim is cross-checked across all five providers and scored:
+### Layer 2: Confidence Governor (Strategic Calibration)
+*   **The Problem**: AI "hallucination creep" and overconfidence.
+*   **The Korum Fix**: A dual-layered scoring model (Fact vs. Decision) that enforces mandatory **Scoring Floors** (e.g., 62% for 3+ verified facts) and **Hard Caps** (e.g., 45% for unverified root causes). It is an adversarial auditor, not a passive aide.
+
+### Layer 3: Audit Trail Ledger (ATL) (Immutable Proof)
+*   **The Problem**: Lack of auditability in AI decisions.
+*   **The Korum Fix**: Every event — from the initial Falcon hash to the final VIE — is chained in a tamper-evident, cryptographic ledger. This provides **Forensic Provenance** for every executive recommendation.
+
+---
+
+## 2. The Modular Council (Modular Execution)
+
+The Council is the interchangeable engine that powers the governance layers. It convenes five independent AI providers (OpenAI, Anthropic, Google, Perplexity, Mistral) in a **Sequential reasoning chain**. Each model builds on the previous, providing a depth of analysis that single-model tools cannot match.
+
+---
+
+## 3. Validated Intelligence Estimates (VIE)
+
+The final output is not a "response" — it is a **VIE**. Every claim in a VIE is truth-scored across all five providers:
 
 | Score | Label | Meaning |
 |-------|-------|---------|
-| 90–100 | CONFIRMED | Multiple AIs independently agree |
-| 70–89 | SUPPORTED | Majority agreement |
-| 50–69 | UNVERIFIED | Mixed signals — needs investigation |
-| Below 50 | CONTESTED | AIs disagree — treat with caution |
-
-### Red Team Mode
-After the council finishes, an additional AI runs with a "HACKER" persona to attack the council's own conclusions — finding blind spots, fatal flaws, and exploitable weaknesses before they reach the user.
-
-### Interrogation System
-Select any AI's response and cross-examine it. Pick an attacker persona, pick a defender — KorumOS runs a targeted 2-API adversarial face-off on that specific claim. No full re-run. Surgical precision.
-
-### Verify Mode (Scalpel)
-Highlight any claim from any AI and send it to Perplexity for real-time source verification with citations. One click. One API call. Show me the receipts.
-
-### Sentinel (Quick-Strike)
-Sub-2-second responses for follow-ups and quick lookups, with full conversation memory for multi-turn dialogue.
+| 90–100 | **VERIFIED** | Cross-verified by independent providers. |
+| 70–89 | **LIKELY** | Supported by majority logic or secondary strength. |
+| 50–69 | **UNKNOWN** | Sparse evidence; flagged for investigation. |
+| Below 50 | **CONFLICTING** | Contradictory findings; requires diagnostic first. |
 
 ---
 
-## Quantum Security Workflow
+## 4. Operational DNA (18 Specialized Protocols)
 
-Designed specifically for the Qanapi ecosystem, this workflow optimizes the council for post-quantum cryptography readiness, Zero Trust architecture enforcement, and compliance auditing:
-
-| Card | Persona | Focus |
-|------|---------|-------|
-| OpenAI | Zero Trust | NIST 800-207, DOD ZTRA, identity-centric access controls |
-| Anthropic | Cryptographer | AES/RSA analysis, post-quantum crypto, key management |
-| Google | Compliance | FedRAMP, CMMC, NIST PQC standards mapping |
-| Perplexity | AI Architect | Live data on quantum computing timelines, emerging threats |
-| Mistral | Hacker | Attacks the deployment strategy — finds the gaps |
-
-### Quantum Drift Detection
-The engine automatically flags legacy cryptographic algorithms (RSA, ECC, ECDSA, AES-128, SHA-1, 3DES, RC4, MD5) that appear without post-quantum wrappers. Any unprotected legacy crypto in the analysis is surfaced as a risk vector.
+KorumOS adapts to its environment via **Workflow DNA**. Each DNA profile (e.g., *Genealogy Archivist, CFO, Cyber Command*) dictates:
+*   **Posture**: The "Lead Investigator" personality.
+*   **Time Horizon**: Immediate tactical vs. Long-range strategic.
+*   **Risk Bias**: Conservative (defense-first) vs. Strategic (aggressive).
 
 ---
 
-## FIPS 206 Integrity Anchor — Built In
+## 5. Security Anchors
 
-KorumOS already references the NIST draft FIPS 206 (FALCON/FN-DSA) standard across its analysis pipeline:
-
-| Standard | Algorithm | Purpose |
-|----------|-----------|---------|
-| FIPS 203 | ML-KEM (Kyber) | Key encapsulation — secure key exchange |
-| FIPS 204 | ML-DSA (Dilithium) | Digital signatures — general purpose |
-| FIPS 205 | SLH-DSA (SPHINCS+) | Hash-based signatures — conservative fallback |
-| FIPS 206 (Draft) | FALCON (FN-DSA) | Compact signatures — the Integrity Anchor |
-
-**Why FALCON matters:** ML-DSA signatures are approximately 2,420 bytes — larger than a standard network packet. On constrained-bandwidth links (satellites, remote sensors, legacy gateways with sub-1KB packet limits), this causes packet fragmentation, which creates a denial-of-service risk. FALCON signatures are approximately 666 bytes — they fit inside existing packet limits without fragmentation. For constrained environments, FALCON is the only quantum-resistant signature that works.
-
-KorumOS interrogation prompts automatically check for fragmentation risk. Exports auto-generate FIPS 203–206 compliance tables with signature size comparisons and integrity attestation.
+*   **PQC Ready**: Support for FIPS 203-206 (FALCON/Kyber/Dilithium) cryptographic standards.
+*   **Air-Gap Fallback**: Sub-2-second local LLM fallback (LM Studio) for high-side or disconnected operations.
+*   **Zero-Trust Logic**: Access controls (AC) and audit-logging (AU) built into every mission event.
 
 ---
-
-## 62+ Expert Personas
-
-Every AI can be assigned a specialized persona with deep system-level instructions:
-
-| Domain | Personas |
-|--------|----------|
-| Security & Crypto | Zero Trust, Cryptographer, Cyber Ops, SIGINT, Counterintel, Hacker |
-| Defense & Intel | Defense Ops, Intel Analyst, Defense Acquisition |
-| Strategy & Analysis | Strategist, Analyst, Architect, Critic, Validator, Researcher |
-| Business & Finance | CFO, Hedge Fund, Auditor, BizStrat, Product, Sales |
-| Plus 40+ more | Science, Medical, Legal, Tech, Creative, Marketing, AI Architecture |
-
-Any persona can be assigned to any provider with one click, or let workflow presets auto-assign the optimal team.
-
----
-
-## 14+ Workflow Presets
-
-One click configures the entire council:
-
-| Category | Workflows |
-|----------|-----------|
-| Defense & Intel | Defense Council, Cyber Command, Quantum Security, Intel Brief |
-| General | War Room, Deep Research, Creative Council, Code Audit, System Core |
-| Domain | Legal Review, Medical Council, Finance Desk, Science Panel, Startup Launch, Tech Council |
-
-Each workflow carries its own DNA — a preconfigured posture, tone, risk bias, and time horizon that shapes the entire output.
-
----
-
-## Enterprise Export Suite
-
-| Category | Formats |
-|----------|---------|
-| Documents | Executive Memo (.docx), Research Paper (.docx/.pdf), Board Brief (.pdf) |
-| Data | Intelligence Workbook (.xlsx), Flat Data (.csv), Raw Intelligence (.json) |
-| Presentations | PowerPoint (.pptx), Google Slides Draft |
-| Social | LinkedIn, X/Twitter, Threads, Reddit, Medium |
-
-All exports include truth scores, intelligence tags, action items, and risk assessments. Security-related queries automatically generate a FIPS 203–206 Compliance Section with PQC standards coverage, signature size comparison tables, quantum drift detection results, and compliance attestation.
-
----
-
-## File Upload & Vision
-
-Upload images, PDFs, Word documents, and Excel spreadsheets — all five AI providers analyze them via native vision APIs. The council doesn't just read text; it sees diagrams, architecture charts, and data tables.
-
----
-
-## Enterprise Readiness
-
-| Control | Status |
-|---------|--------|
-| Authentication & Role-Based Access | Implemented |
-| Full Audit Logging (every query, response, auth event) | Implemented |
-| HTTPS/TLS + Security Headers (HSTS, CSP, XSS) | Implemented |
-| Rate Limiting & Session Management | Implemented |
-| Input Validation & Sanitization | Implemented |
-| Air-Gapped Local Fallback | Available |
-| FIPS-Validated Crypto (via Qanapi) | Partnership |
-| Cryptographic Provenance (Armory Signatures) | Integration Ready |
-| MFA / TOTP | Infrastructure Ready |
-| FedRAMP SSP Documentation | Roadmap |
-
-**Architecture advantage:** KorumOS processes queries, not PII. No personal data enters the AI pipeline. Every event is logged and auditable — aligning with the FedRAMP, CMMC, and SOC 2 frameworks Qanapi's customers already operate under.
-
----
-
-## The Partnership Value
-
-| Qanapi Brings | KorumOS Brings |
-|---------------|----------------|
-| Quantum-resistant encryption | Multi-source AI analysis |
-| Zero Trust data protection | Cross-verified truth scoring |
-| Cryptographic provenance | Intelligence tagging & synthesis |
-| FIPS validation (203–206) | FIPS compliance reporting |
-| Data-layer security | Decision-layer security |
-| **Trusted data** | **Trusted decisions** |
-
-> One platform encrypts and verifies the data. The other cross-verifies the analysis. Together: end-to-end trusted intelligence — from source to decision.
-
----
-
-**Contact:** korum-os.com
-
-© 2026 KorumOS. All Rights Reserved. Proprietary & Confidential. Unauthorized use or reproduction is strictly prohibited.
+*Produced by Korum-OS Decision Intelligence / Strategic Partnership v2.0*

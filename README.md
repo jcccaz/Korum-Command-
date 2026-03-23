@@ -1,17 +1,14 @@
-# KorumOS - Decision Intelligence Interface
+# KorumOS - Decision Governance Stack
 
-**KorumOS** is a neural council interface for autonomous AI decision-making, featuring multi-model orchestration and real-time visualization.
+**KorumOS** is an Adversarial Decision Governance System for high-stakes intelligence analysis. It achieves **Decision Integrity** by wrapping modular AI providers in a zero-trust governance stack: **the Falcon Protocol** (PII Security), **the Confidence Governor** (Calibrated Fact-Scoring), and **the Audit Trail Ledger** (Immutable Provenance).
 
-## Features
+## Governance Layers
 
-- **Multi-AI Council**: Orchestrates GPT-4o, Claude 3.5, Gemini 2.0, and Perplexity
-- **Adaptive Workflows**: War Room, Deep Research, Creative Council, Code Audit, System Core
-- **Falcon Protocol**: Dual-layered PII governance (Shadow Redaction & Veil Re-hydration)
-- **V2 Reasoning Pipeline**: Full sequential execution (Deconstruction -> Architecture -> Stress Test -> Synthesis)
-- **AI Accountability System**: Real-time Truth Meter, claim highlighting, and suspect statement detection
-- **Selective Interrogation**: Targeted "Direct Command Link" interrogation via unified Global Comms
-- **Excel-Ready Export**: Optimized CSV copying and Research Dock data collection
-- **Orbital Visualization**: Stabilized gyroscopic nodes with real-time neural handshake telemetry
+- **Falcon Protocol**: A 3-pass PII/PHI redaction engine with deterministic entity pseudonymization.
+- **Confidence Governor**: A dual-layered scoring model (Fact vs. Decision) that enforces mandatory scoring floors and hard caps for unresolved conflicts.
+- **Audit Trail Ledger (ATL)**: A tamper-evident, cryptographic history of every event in the mission lifecycle.
+- **Neurol Council (Execution)**: A sequential reasoning chain of five independent AI providers (OpenAI, Anthropic, Google, Perplexity, Mistral).
+- **Validated Intelligence Estimate (VIE)**: High-fidelity, truth-scored briefs that replace standard AI "responses" with auditable intelligence artifacts.
 
 ## Quick Start
 
