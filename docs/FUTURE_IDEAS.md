@@ -7,10 +7,11 @@
 
 ## PLANNED PHASES (Architecture Defined, Not Yet Built)
 
-### Phase 2: Falcon Deterministic Pseudonymization
-- PERSON_01 / ORG_01 style placeholders (currently SHA-256 hashed)
-- Mission-scoped MissionVault — same entity gets same pseudonym across an entire mission
-- Enables cross-session analysis without re-exposing PII
+### Phase 2: Falcon Deterministic Pseudonymization — PARTIALLY SHIPPED
+- ~~PERSON_01 / ORG_01 style placeholders~~ — **SHIPPED** (Sovereign Tokenization)
+- ~~Canary Tokens (active deception)~~ — **SHIPPED**
+- ~~Impact Escalation Gate (Tier 3)~~ — **SHIPPED**
+- Mission-scoped MissionVault — same entity gets same pseudonym across an entire mission (DB-backed, cross-request)
 - Ghost Preview UI polish: trust statement, "VISIBLE TO AI MODELS" label, redaction legend
 - Falcon mode selector: Assist / Enforce / Strict
 
@@ -200,6 +201,8 @@ The providers are interchangeable. The governance layer is what no one else has.
 - **Mobile Command** — stripped-down mobile interface for field operators (defense use case)
 - **Voice Input** — speak a mission brief, KORUM processes it (field conditions)
 - **Regulatory Auto-Map** — detect which regulations apply based on content (HIPAA, ITAR, CPNI, SOX)
+- **Attribution Beacon (Tracer)** — canary documents that phone home when opened on attacker's machine. Let the hacker "steal" a file that's actually a signed beacon — it reports location, MAC, ISP back to MIMIR ledger. Legal complexity: beaconing to your own infrastructure is defensible, forwarding to law enforcement needs framework. Extends existing Falcon canary token concept from prompt-level to file-level.
+- **Sniper Platform Positioning** — KORUM as the "scope and telemetry" for cyber defense: ODIN identifies the target, LOKI confirms it's not a decoy, MIMIR logs the evidence for the after-action report. Most companies can't prove who's attacking them — KORUM's audit trail provides evidence-grade attribution
 
 ---
 

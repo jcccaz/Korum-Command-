@@ -106,6 +106,32 @@ KORUM has **already built** what regulators are **now requiring**:
 
 ---
 
+## 4. Direct-to-CISA Uplink (Partner Model)
+
+**Context:** The 2026 U.S. National Cyber Strategy encourages private sector entities to "disrupt adversary networks" — but only in formal partnership with government agencies. KORUM's evidence-grade attribution makes it uniquely positioned for this.
+
+**The concept:** When KORUM detects a high-confidence attack (LOKI confirms it's not a decoy, MIMIR logs the evidence chain), the VIE is formatted for CISA/FBI intake and transmitted through a secure uplink. The government team has the legal authority to act on the attribution. KORUM provides the "scope and telemetry."
+
+**Why KORUM fits:**
+| Requirement | KORUM Capability |
+|---|---|
+| Evidence-grade attribution | Decision Ledger + hash-chained forensic trace |
+| Adversarial validation | LOKI confirms signal isn't a false flag or decoy |
+| Privacy-safe reporting | Falcon ensures no internal PII leaks to external agency |
+| Standardized format | VIE output maps to incident reporting schemas |
+| Speed | Forensic trace available in seconds, not the typical 72-hour scramble |
+
+**Implementation path:**
+1. VIE-to-STIX/TAXII format converter (standard threat intelligence sharing format)
+2. Secure uplink API endpoint (encrypted, authenticated, one-way push)
+3. Human gate: Impact Escalation (Tier 3) forces human approval before any external transmission
+4. Ledger records every uplink event (who approved, when, what was shared)
+5. Falcon scrubs internal identifiers before transmission — only threat indicators go out
+
+**Status:** Concept stage. Requires formal partnership framework and legal review.
+
+---
+
 ## Action Items
 
 - [ ] Reference NIST Agent Initiative in sales materials and white paper v2

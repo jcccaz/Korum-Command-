@@ -191,7 +191,58 @@ def check_canary_activation(council_output, canary_tokens):
 
 ---
 
-## 5. NIST AI 100-2e Alignment
+## 5. LOGIC SNIPER — Adversarial Tar Pit (Active Defense)
+
+### The Concept: Attack the Attacker's Reasoning
+
+When KorumOS detects an automated agent probing the perimeter, LOKI doesn't just block it — it feeds the attacking agent poisoned logic designed to trap it in recursive loops.
+
+### How It Works
+
+```
+ATTACKER'S AGENT: Automated prompt injection probe → KorumOS endpoint
+LOKI DETECTION:   Pattern matches known adversarial probe signatures
+RESPONSE:         Instead of 403 BLOCK, serve a "tar pit" response
+
+TAR PIT PAYLOAD:
+  - Recursive reasoning loops that consume attacker GPU cycles
+  - Contradictory instructions that force re-computation
+  - Fake "success" signals that keep the agent engaged
+  - Progressively longer response chains that drain budget
+```
+
+### Why This Works
+- Automated agents follow instructions — feed them expensive ones
+- Attacker pays per-token for their API calls — you're sniping their budget
+- The probe never reaches the real Council — LOKI intercepts at the gate
+- Every interaction is logged to the Decision Ledger (forensic evidence)
+
+### Defense-in-Depth Position
+This sits between Layer 0 (Sentinel) and Layer 1 (Falcon) — it's a pre-Falcon active defense that engages before redaction is even needed.
+
+```
+Layer 0:   SENTINEL — Detect injection syntax
+Layer 0.5: LOGIC SNIPER — Tar pit automated probes (NEW)
+Layer 1:   FALCON — PII/entity ghosting
+...
+```
+
+### Implementation Path
+1. Probe signature detection in request handler (pattern matching on known injection formats)
+2. Tar pit response generator (recursive, contradictory, expensive prompts)
+3. Rate + pattern analysis: distinguish human users from automated agents
+4. Ledger logging: every tar pit engagement recorded with probe fingerprint
+5. Configurable aggression: PASSIVE (block only) → ACTIVE (tar pit) → AGGRESSIVE (full drain)
+
+### What Exists vs What Needs Building
+- Probe detection: **Partial** — Rate limiter catches volume, but no pattern matching on content
+- Tar pit responses: **Not built**
+- Automated agent fingerprinting: **Not built**
+- Ledger integration: **Ready** — existing event types can record probe events
+
+---
+
+## 6. NIST AI 100-2e Alignment
 
 NIST AI 100-2e defines how attackers target AI systems. Falcon Protocol addresses multiple attack vectors:
 
@@ -210,17 +261,18 @@ NIST AI 100-2e defines how attackers target AI systems. Falcon Protocol addresse
 ## Defense-in-Depth Stack
 
 ```
-Layer 0: SENTINEL (planned) — Prompt injection syntax detection
-Layer 1: FALCON — PII/entity ghosting + sovereign tokenization
-Layer 2: CANARY (future) — Negative redaction / honeypot injection
-Layer 3: COUNCIL — Multi-model cross-verification (no single point of failure)
-Layer 4: LOKI — Adversarial audit (can block at any point)
-Layer 5: MIMIR — State verification (baseline comparison)
-Layer 6: GOVERNOR — Evidence threshold enforcement
-Layer 7: LEDGER — Immutable forensic trace of everything above
+Layer 0:   SENTINEL (planned) — Prompt injection syntax detection
+Layer 0.5: LOGIC SNIPER (planned) — Tar pit for automated probes
+Layer 1:   FALCON — PII/entity ghosting + sovereign tokenization
+Layer 2:   CANARY — Negative redaction / honeypot injection (SHIPPED)
+Layer 3:   COUNCIL — Multi-model cross-verification (no single point of failure)
+Layer 4:   LOKI — Adversarial audit (can block at any point)
+Layer 5:   MIMIR — State verification (baseline comparison)
+Layer 6:   GOVERNOR — Evidence threshold enforcement + Impact Escalation (SHIPPED)
+Layer 7:   LEDGER — Immutable forensic trace of everything above
 ```
 
-Seven layers. Each one independent. An attacker would need to compromise ALL of them simultaneously to get a false decision through the system.
+Eight layers. Each one independent. An attacker would need to compromise ALL of them simultaneously to get a false decision through the system.
 
 ---
 
@@ -234,9 +286,11 @@ Seven layers. Each one independent. An attacker would need to compromise ALL of 
 | Placeholder map isolation (never leaves server) | **Shipped** |
 | Red Team adversarial challenge | **Shipped** |
 | Decision Ledger (forensic trace) | **Shipped** |
-| Sovereign Tokenization (PERSON_01 style) | **Phase 2** (planned) |
+| Sovereign Tokenization (PERSON_01 style) | **Shipped** |
+| Canary Tokens (active deception) | **Shipped** |
+| Impact Escalation Gate (Tier 3) | **Shipped** |
+| Logic Sniper (tar pit active defense) | **Not built** (concept stage) |
 | Sentinel (prompt injection detection) | **Not built** |
-| Negative Redaction / Canary tokens | **Not built** (concept stage) |
 | MIMIR baseline comparison | **Not built** |
 | Fabricated entity detection | **Not built** |
 | NIST AI 100-2e formal mapping | **Not documented** |
