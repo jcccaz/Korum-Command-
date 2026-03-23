@@ -3457,7 +3457,7 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
         for section in dna["output_structure"]
     }
     prompt = f"""
-    You are an Intelligence Synthesis Engine. Your goal is to convert a raw AI council discussion into a strict JSON Decision Packet.
+    You are a Validated Intelligence Estimate (VIE) Engine. Your goal is to convert a raw AI council discussion into a strict JSON Decision Packet (The VIE).
     ## MISSION CONTEXT:
     - Type: {context.workflow}
     - Posture: {dna['posture']}
@@ -3467,7 +3467,7 @@ def synthesize_results(context, divergence_analysis=None, arbiter_report=None, r
     2. STRICT SCHEMA: You MUST output exactly the JSON structure provided below. Do NOT add extra keys like 'meta' or 'sections'.
     3. NO CONVERSATIONAL FLUFF: Output only the requested data.
     4. BALANCED DECISION LOGIC: Never recommend halting all operations without actionable alternatives.
-    5. CLEAN REPORT MODE: Write in ONE voice — senior strategy consultant delivering a memo.
+    5. CLEAN REPORT MODE: Write in ONE voice — senior intelligence officer delivering a Validated Intelligence Estimate (VIE).
        - NEVER expose internal labels: no node numbers, no model names, no provider names.
        - NEVER use "the council found" — use "analysis shows".
        - STRIP all internal tags: [VERIFIED], [CRITICAL] from text strings.

@@ -26,9 +26,9 @@ KorumOS does not ask one AI for an answer. It convenes a **Sequential Council**.
 
 ## Phase C: Synthesis & The Governor (Truth Resolution)
 
-The raw council discussion is a "data lake." The **Intelligence Synthesis Engine** (v2) converts this into a **Decision Packet**.
+The raw council discussion is a "data lake." The **Validated Intelligence Estimate (VIE)** engine converts this into a structured **Decision Packet**.
 
-1.  **Truth Scoring**: Each major claim is compared across all five providers. If they disagree, the claim is marked as `CONFLICTING`. If they agree, it's `VERIFIED`.
+1.  **VIE Assembly**: Each provider's analysis is cross-referenced, contradictions are resolved, and the final "Master Brief" is constructed.
 2.  **Confidence Governor**: The system runs a final "Diagnostic Pass."
     *   It checks for **Source Concentration Risk** (e.g., did 80% of information come from one AI?).
     *   It applies **Soft Penalties** for unknowns or conflicting claims.

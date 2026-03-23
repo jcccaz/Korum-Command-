@@ -47,7 +47,11 @@ If the number of unverified **Assumptions** exceeds the number of **Verified Fac
 ### 3.3 Score Floors
 If the system has quantified support and at least 2 verified facts with zero conflicts, the score is floored at **50** to prevent "failure-range" scoring for legitimate but cautious findings.
 
-## 4. The "Diagnostic-First" Gate
+## 4. The Validated Intelligence Estimate (VIE)
+---
+The Governor delivers its results through a structured **Validated Intelligence Estimate (VIE)**. This is not a simple summary; it is a high-fidelity intelligence brief that anchors the decision.
+
+## 5. The "Diagnostic-First" Gate
 
 If the engine detects the following conditions, it automatically injects a **"Diagnostic-First"** recommendation and blocks irreversible action:
 *   Fewer than 2 verified facts AND fewer than 2 evidence points.

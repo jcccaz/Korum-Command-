@@ -227,9 +227,9 @@ The Truth Scoring system is KorumOS's signature feature. It provides a quantitat
 
 4. **Composite Truth Score**: The average of all claim scores produces a single 0-100 truth meter for the entire response.
 
-### What the Yellow Highlight Means
+### What the Validated Intelligence Estimate (VIE) Means
 
-In the UI, the **yellow highlighted text** is the **Consensus Synthesis** — the final summary that reconciles what all five providers said. It includes:
+In the UI, the yellow highlighted text is the **Validated Intelligence Estimate (VIE)** — the final, authoritative intelligence brief that reconciles and weighs the council's entire deliberation. It includes:
 - Points of agreement (what the council aligns on)
 - Points of divergence (where providers disagreed)
 - The composite truth score

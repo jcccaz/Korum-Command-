@@ -17,7 +17,7 @@ The **Falcon Protocol** acts as a secure air-gap between the user's sensitive da
 
 ## 3. The Council Layer (Intelligence Engine)
 The **Council Engine** is the "Think Tank" where multiple AI agents collaborate to forge a decision.
-*   **Sequential Assembly**: Moves from **Persona Expansion** -> **Council Discussion** -> **Red Team Attack** -> **Final Synthesis**.
+*   **Sequential Assembly**: Moves from **Persona Expansion** -> **Council Discussion** -> **Red Team Attack** -> **Validated Intelligence Estimate (VIE)**.
 *   **Workflow DNA**: 18 specialized archetypes (Genealogy Archivist, CFO, Legal Auditor, etc.) that dictate the engine's posture and output structure.
 *   **Confidence Governor**: Enforces strict scoring rules (Dual-Confidence Model) and prevents overconfidence through the **Assumption Firewall** and **Source Concentration** audits.
 
