@@ -2978,10 +2978,14 @@ def _requires_diagnostic_first(packet):
         reasons.append("critical baseline data is missing")
     if not quantified_support and critical_missing:
         reasons.append("no quantified baseline support is available")
+    # Red Team override: if Red Team flagged premature action, force diagnostic-first
+    if packet.get("_red_team_premature_action"):
+        reasons.append("Red Team identified premature action")
     gate = (
         (verified_count < 2 and evidence_count < 2)
         or (critical_missing and unknown_count >= verified_count)
         or (critical_missing and not quantified_support)
+        or packet.get("_red_team_premature_action", False)
     )
     return gate, reasons
 def _packet_timeline_bucket(timeline):
