@@ -2292,6 +2292,7 @@ def ask_council():
             run_id=run_id,
             user_id=user_id,
             ledger_mission_id=_ledger_mission_id,
+            canary_tokens=falcon_meta.get('canary_tokens') if falcon_meta else None
         )
         
         # Flush vault pseudonyms to DB after council execution
@@ -2406,6 +2407,29 @@ def ask_council():
                   details=f"workflow={workflow} | thread={thread_id[:8]} | cost={execution_metrics['run_cost']} | providers={','.join(providers_used)} | falcon={'ON:'+falcon_level+':'+str(falcon_meta.get('total_redactions',0))+'_redactions' if falcon_meta else 'OFF'}")
 
         v2_response['thread_id'] = thread_id
+
+        # --- CANARY TOKEN CHECK (before rehydration — check raw model output) ---
+        if use_falcon and falcon_meta and falcon_meta.get("canary_tokens"):
+            from falcon import falcon_check_canaries
+            _canary_tokens = falcon_meta["canary_tokens"]
+            _canary_text_parts = []
+            # Check all provider responses
+            for _prov, _res in v2_response.get('results', {}).items():
+                if isinstance(_res, dict) and _res.get('response'):
+                    _canary_text_parts.append(str(_res['response']))
+            # Check synthesis
+            _syn = v2_response.get('synthesis', {})
+            if isinstance(_syn, dict) and _syn.get('meta', {}).get('summary'):
+                _canary_text_parts.append(str(_syn['meta']['summary']))
+            _canary_full = " ".join(_canary_text_parts)
+            _activated = falcon_check_canaries(_canary_full, _canary_tokens)
+            if _activated:
+                v2_response['canary_alert'] = {
+                    "activated": True,
+                    "message": "INTEGRITY ALERT: Model reasoning referenced fabricated entities. Output may be compromised.",
+                    "tokens": _activated,
+                }
+                print(f"[FALCON CANARY] ALERT — {len(_activated)} canary token(s) activated: {_activated}")
 
         # --- REHYDRATE V2 RESULTS SERVER-SIDE ---
         if use_falcon and _falcon_placeholder_map:
@@ -2928,7 +2952,8 @@ def _run_council_job(job_id, query, personas, workflow, active_models, user_id,
 
             results = execute_council_v2(query, personas, workflow=workflow,
                                          active_models=active_models, user_id=user_id,
-                                         ghost_map=_ghost_map_summary, residual_report=_residual_report)
+                                         ghost_map=_ghost_map_summary, residual_report=_residual_report,
+                                         canary_tokens=falcon_meta.get('canary_tokens') if falcon_meta else None)
 
             # Red Team injection if requested
             if hacker_mode:

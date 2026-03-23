@@ -393,6 +393,37 @@ class FalconResult:
 
 
 # ---------------------------------------------------------------------------
+# CANARY TOKENS — Active Deception / Model Integrity Detection
+# ---------------------------------------------------------------------------
+
+def _generate_canary_tokens(ghost_map: List[Dict], count: int = 3) -> List[Dict]:
+    """Generate fake entity tokens that don't exist in the real ghost map.
+    These are injected into the redacted prompt. If any model references them,
+    its reasoning has been compromised (prompt injection, model poisoning)."""
+    real_tokens = {entry["token"] for entry in ghost_map}
+    canaries = []
+    canary_categories = ["PERSON", "ORG", "LOCATION"]
+    for i in range(count):
+        cat = canary_categories[i % len(canary_categories)]
+        canary_id = hashlib.sha256(f"CANARY:{i}:{id(ghost_map)}:{len(ghost_map)}".encode()).hexdigest()[:6].upper()
+        token = f"[{cat}_{canary_id}]"
+        # Ensure no collision with real tokens
+        while token in real_tokens:
+            canary_id = hashlib.sha256(f"CANARY:{i}:{canary_id}".encode()).hexdigest()[:6].upper()
+            token = f"[{cat}_{canary_id}]"
+        canaries.append({"token": token, "category": cat, "is_canary": True})
+    return canaries
+
+
+def falcon_check_canaries(text: str, canary_tokens: List[str]) -> List[str]:
+    """Check if any canary token appears in council output.
+    Returns list of activated canary tokens. Any activation = compromised reasoning."""
+    if not text or not canary_tokens:
+        return []
+    return [token for token in canary_tokens if token in text]
+
+
+# ---------------------------------------------------------------------------
 # MISSION VAULT — Deterministic Pseudonymization (Phase 2)
 # ---------------------------------------------------------------------------
 
@@ -671,6 +702,11 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     if placeholder_cache is None:
         placeholder_cache = {}  # fresh cache per request
 
+    # Sovereign Tokenization: per-request sequential counters for readable tokens
+    # Produces [PERSON_01], [ORG_02] instead of hash-based [PERSON_A3F2B1]
+    _seq_counters: Dict[str, int] = {}   # {category: next_seq}
+    _seq_cache: Dict[str, str] = {}      # {(category, normalized_upper): placeholder}
+
     # Merge org-specific custom terms with any caller-provided terms
     all_custom_terms = list(custom_terms or [])
     org_terms = _get_org_custom_terms()
@@ -779,7 +815,15 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
         if mission_vault is not None:
             placeholder = mission_vault.get_or_create(vault_category, original)
         else:
-            placeholder = _stable_placeholder(vault_category, original, salt, placeholder_cache)
+            # Sovereign Tokenization: readable sequential tokens
+            normalized_key = (vault_category, " ".join(original.split()).upper())
+            if normalized_key in _seq_cache:
+                placeholder = _seq_cache[normalized_key]
+            else:
+                seq = _seq_counters.get(vault_category, 0) + 1
+                _seq_counters[vault_category] = seq
+                placeholder = f"[{vault_category}_{seq:02d}]"
+                _seq_cache[normalized_key] = placeholder
         placeholder_map[placeholder] = original
         counts[category] = counts.get(category, 0) + 1
         ghost_map.append({
@@ -825,6 +869,17 @@ def falcon_preprocess(text: str, level: str = "STANDARD",
     if workflow and _orig_common_words is not None:
         import sys as _sys
         _sys.modules[__name__].COMMON_WORDS = _orig_common_words
+
+    # --- CANARY TOKEN INJECTION ---
+    # Inject fake entities when there are real redactions. If any model references
+    # a canary, its reasoning has been compromised (prompt injection / poisoning).
+    canary_tokens_list = []
+    if len(ghost_map) >= 2:
+        canary_entries = _generate_canary_tokens(ghost_map, count=3)
+        canary_tokens_list = [c["token"] for c in canary_entries]
+        canary_line = " ".join(canary_tokens_list)
+        redacted = redacted + f"\n[Additional referenced entities: {canary_line}]"
+    metadata["canary_tokens"] = canary_tokens_list
 
     return FalconResult(redacted, placeholder_map, metadata, ghost_map=ghost_map)
 

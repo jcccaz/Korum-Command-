@@ -44,4 +44,21 @@ Falcon prevents "over-redaction" by using a dynamic dictionary.
 *   **Workflow DNA Integration**: Falcon automatically loads domain-specific stopwords based on the mission type (e.g., loading "Statute" and "Plaintiff" for **LEGAL** workflows to prevent them from being flagged as proper names).
 
 ---
-*Produced by Korum-OS Decision Intelligence / Internal Secure Layers v2.2*
+*Produced by Korum-OS Decision Intelligence / Internal Secure Layers v2.3*
+
+## 6. Canary Tokens (Active Deception)
+
+Falcon includes an active deception layer to detect model hallucinations and "jailbreak" attempts via **Canary Tokens**.
+
+### 6.1 Injection Strategy
+*   When Falcon redacts text, it generates 3-5 **Canary Tokens** (e.g., `[PERSON_3X1A2]`).
+*   These tokens are procedurally generated and look like real redacted entities but have **no original value** in the Mission Vault.
+*   They are appended to the redacted prompt sent to the Council: `\n[Additional referenced entities: [PERSON_3X1A2] [ORG_9K4B1]]`.
+
+### 6.2 The Integrity Audit
+*   Since Canary Tokens have no source in the original text, any model that references them in its response is definitively **hallucinating** or attempting to bridge "ghost" context.
+*   **Integrity Violation**: If a canary is detected in the response, the Governor automatically triggers an **Integrity Failure** event in the Decision Ledger.
+*   **Provable Hallucination**: This provides a binary, mathematical proof of reasoning failure, which is impossible with standard LLM evaluation methods.
+
+---
+*KorumOS Technical Standard / SEC-L3-ALPHA*

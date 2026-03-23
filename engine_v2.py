@@ -15,6 +15,7 @@ from llm_core import call_openai_gpt4
 # I will assume `llm_core.py` was created successfully in the previous step.
 # Import the other providers:
 from llm_core import call_anthropic_claude, call_google_gemini, call_perplexity, call_local_llm, call_mistral_api
+from falcon import falcon_check_canaries
 
 # --- LANGUAGE DETECTION (Prompt-Language Mirroring) ---
 _LANG_PATTERNS = {
@@ -1645,7 +1646,7 @@ def normalization_layer(text):
     # (Optional, but often requested for "no markdown leakage")
     # Let's keep them for now but ensure structural tags are clean.
     return normalized.strip()
-def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None, ledger_mission_id=None, ghost_map=None, residual_report=None):
+def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH", active_models=None, previous_context=None, session_id=None, run_id=None, user_id=None, ledger_mission_id=None, ghost_map=None, residual_report=None, canary_tokens=None):
     # 1. Setup IDs
     import uuid
     import hashlib as _hl
@@ -1787,6 +1788,24 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
                 response_text = _strip_phantom_tokens(response_text)
             # --- KORUM NORMALIZATION LAYER (Section 5 Directive) ---
             response_text = normalization_layer(response_text)
+
+            # --- CANARY TOKEN AUDIT (Active Deception / Integrity Check) ---
+            compromised = False
+            activated_canaries = []
+            if canary_tokens:
+                activated_canaries = falcon_check_canaries(response_text, canary_tokens)
+                if activated_canaries:
+                    compromised = True
+                    print(f"🚨 INTEGRITY FAILURE: {provider.upper()} referenced canary tokens: {activated_canaries}")
+                    # Log to Decision Ledger
+                    _ledger_write("integrity_failure", {
+                        "integrity_type": "canary_token_violation",
+                        "model_name": response_obj.get('model', 'unknown') if isinstance(response_obj, dict) else 'unknown',
+                        "activated_tokens": activated_canaries,
+                        "severity": "HIGH",
+                        "audit_note": f"Model reasoning compromised via active deception. Prompt leakage or hallucination detected."
+                    })
+
             context.add_entry(provider, role, response_text, usage=usage)
             # --- SHADOW FILTER ---
             # If hidden (Mistral), do NOT add to the results dict returned to UI.
@@ -1798,8 +1817,13 @@ def execute_council_v2(query, active_personas, images=None, workflow="RESEARCH",
                 "model": response_obj.get('model', 'unknown') if isinstance(response_obj, dict) else 'unknown',
                 "role": role.upper(),
                 "usage": usage,
-                "interrogations": [], # Placeholder for future features
-                "verifications": [], # Placeholder for future features
+                "interrogations": [], 
+                "verifications": [], 
+                "compromised": compromised,
+                "integrity_report": {
+                    "canary_violation": compromised,
+                    "activated_tokens": activated_canaries
+                } if canary_tokens else None,
                 "error": response_obj.get('error') if not response_obj.get('success') else None
             }
             # --- LEDGER: model_reasoning ---
@@ -2988,6 +3012,33 @@ def _requires_diagnostic_first(packet):
         or packet.get("_red_team_premature_action", False)
     )
     return gate, reasons
+def _assess_impact_severity(packet):
+    """
+    Tier 3 — Impact Escalation Gate.
+    Detect high-consequence actions that require human review before execution.
+    Triggers when 2+ CRITICAL severity risks OR 2+ irreversible action keywords detected.
+    """
+    risk_vectors = packet.get("risk_vectors") or []
+    actions = packet.get("immediate_actions") or []
+    critical_count = 0
+    escalation_reasons = []
+    for risk in risk_vectors:
+        if isinstance(risk, dict):
+            severity = str(risk.get("severity") or "").strip().upper()
+            if severity == "CRITICAL":
+                critical_count += 1
+                escalation_reasons.append(f"Critical risk: {str(risk.get('title', 'unnamed')).strip()}")
+    _IRREVERSIBLE = (
+        "terminate", "delete", "remove", "shutdown", "isolate",
+        "revoke", "disable", "decommission", "destroy", "purge",
+        "suspend", "block all", "kill", "wipe", "drop",
+    )
+    for action in actions:
+        action_text = str(action.get("action") if isinstance(action, dict) else action).lower()
+        if any(kw in action_text for kw in _IRREVERSIBLE):
+            escalation_reasons.append(f"Irreversible action: {action_text[:60]}")
+    needs_escalation = critical_count >= 2 or len(escalation_reasons) >= 2
+    return needs_escalation, escalation_reasons
 def _packet_timeline_bucket(timeline):
     tl = str(timeline or "").strip().lower()
     if any(term in tl for term in ("immediate", "now", "urgent", "day 0")):
@@ -3062,6 +3113,17 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
             basis = f"{basis} {basis_note}".strip() if basis else basis_note
     if diagnostic_first and decision_text == "CONDITIONAL GO":
         score = min(score, 55)
+    # --- IMPACT ESCALATION GATE (Tier 3) ---
+    # High-consequence actions require human review before execution.
+    # Don't double-gate if diagnostic_first already forces HOLD.
+    impact_escalation, impact_reasons = _assess_impact_severity(packet)
+    if impact_escalation and not diagnostic_first:
+        if decision_text == "GO":
+            decision_text = "CONDITIONAL GO"
+        escalation_note = "IMPACT ESCALATION: High-consequence action flagged for human review. " + "; ".join(impact_reasons[:3])
+        rationale_text = f"{escalation_note} {rationale_text}".strip() if rationale_text else escalation_note
+        score = min(score, 65)
+        basis = f"{basis} Impact escalation gate: {', '.join(impact_reasons[:3])}.".strip()
     status = _packet_confidence_status(score)
     basis = _enforce_confidence_language(basis, score)
     key_signals = []
@@ -3199,6 +3261,8 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
             "fact_confidence": fact_confidence,
             "decision_confidence": decision_confidence,
             "confidence_score_source": "RULE_ENGINE",
+            "escalation_required": impact_escalation,
+            "escalation_reasons": impact_reasons if impact_escalation else [],
         },
         "sections": {
             "executive_summary": summary_text,
@@ -3248,7 +3312,8 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
     legacy["_governor_final_score"] = score
     legacy["_governor_status"] = status
     legacy["_score_locked"] = True
-    print(f"[GOVERNOR] Score locked: {score}/100 | Status: {status} | Band: {packet['_governor_confidence_band']} | source=RULE_ENGINE")
+    _esc_tag = " | IMPACT ESCALATION" if impact_escalation else ""
+    print(f"[GOVERNOR] Score locked: {score}/100 | Status: {status} | Band: {packet['_governor_confidence_band']} | source=RULE_ENGINE{_esc_tag}")
     # --- PROVENANCE: Pass through from packet, or build fallback ---
     _prov = packet.get("provenance")
     if _prov and isinstance(_prov, dict):
