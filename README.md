@@ -51,7 +51,8 @@ python app.py
 
 KorumOS is a high-trust intelligence platform. Detailed architectural and protocol documentation is available for enterprise auditors:
 
-- [GOVERNOR.md](file:///c:/Users/carlo/Projects/KorumOS/GOVERNOR.md) — Confidence Governor (scoring & calibration)
+- [GOVERNOR.md](file:///c:/Users/carlo/Projects/KorumOS/GOVERNOR.md) — Confidence Governor (theory & calibration)
+- [SCORING_LOGIC.md](file:///c:/Users/carlo/Projects/KorumOS/SCORING_LOGIC.md) — Scoring floors, caps, & truth matrix logic
 - [FALCON_SPEC.md](file:///c:/Users/carlo/Projects/KorumOS/FALCON_SPEC.md) — Falcon Protocol (3-pass redaction & PII masking)
 - [ARCHITECTURE.md](file:///c:/Users/carlo/Projects/KorumOS/ARCHITECTURE.md) — 4-layer system overview
 - [EXPORT_SPEC.md](file:///c:/Users/carlo/Projects/KorumOS/EXPORT_SPEC.md) — Report Exporter (Scans & Signals)

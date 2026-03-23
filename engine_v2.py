@@ -2374,8 +2374,10 @@ def _enforce_confidence_language(text, score):
         )
         for pattern in banned_patterns:
             normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
-    if score < 40:
+    if score < 50:
+        # Score < 50 = LOW band. "moderate confidence" is a mismatch — force to LOW/very low.
         normalized = re.sub(r"\bmoderate confidence\b", replacement, normalized, flags=re.IGNORECASE)
+    if score < 40:
         normalized = re.sub(r"\blow confidence\b", replacement, normalized, flags=re.IGNORECASE)
     return normalized
 def _build_confidence_directive(results):
@@ -2871,6 +2873,13 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
         if "FAIL" in rt_status:
             decision_confidence = min(decision_confidence, 0.5)
             notes.append("Red Team status is FAIL")
+        # Premature action detection: if Red Team calls out premature/premature
+        # intervention, flag for diagnostic-first override downstream
+        _rt_text = " ".join(str(v) for v in red_team_findings.values() if isinstance(v, str)).lower()
+        if any(kw in _rt_text for kw in ("premature", "audit needed", "insufficient basis", "before acting", "not yet justified")):
+            packet["_red_team_premature_action"] = True
+            decision_confidence = min(decision_confidence, 0.45)
+            notes.append("Red Team flagged premature action — diagnostic-first override")
     # Clamp to [0.0, 1.0]
     fact_confidence = max(0.0, min(1.0, round(fact_confidence, 2)))
     decision_confidence = max(0.0, min(1.0, round(decision_confidence, 2)))
@@ -2905,6 +2914,13 @@ def _calibrate_packet_confidence(packet, score, basis, red_team_findings=None):
         combined = max(combined, 50)
         if combined == 50:
             notes.append("score floor applied: verified data prevents failure-range scoring")
+        # Operational boost: quantified data with 3+ verified facts AND no critical
+        # missing data deserves 60+ (Operational band). Prevents verified systems
+        # with 84% completion from scoring in the 50s.
+        if verified_count >= 3 and not critical_missing:
+            combined = max(combined, 62)
+            if combined == 62:
+                notes.append("operational floor: strong quantified evidence with 3+ verified facts")
     if unresolved_core_claims >= 2 and no_root_cause:
         combined = min(combined, 55)
         notes.append("unresolved core claims cap applied")
@@ -3076,9 +3092,12 @@ def adapt_decision_packet_to_legacy_shape(packet, workflow="RESEARCH"):
             description = str(risk.get("description") or "").strip()
             mitigation = str(risk.get("mitigation") or "").strip()
             severity = str(risk.get("severity") or "MEDIUM").strip().upper()
+            # Diagnostic-first posture: prescriptive mitigations are premature —
+            # reframe as investigation focus areas instead
+            mitigation_label = "Investigation Focus" if diagnostic_first else "Mitigation"
             line = f"{title}: {description}" if description else title
             if mitigation:
-                line += f" Mitigation: {mitigation}"
+                line += f" {mitigation_label}: {mitigation}"
             if severity in ("CRITICAL", "HIGH"):
                 high_impact.append(line)
             else:
