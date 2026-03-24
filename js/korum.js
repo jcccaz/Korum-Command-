@@ -496,14 +496,10 @@ const VaultUploader = {
      */
     async isAvailable() {
         try {
-            // Quick check — if authorize endpoint returns 503, vault isn't configured
-            const resp = await authFetch('/api/vault/authorize', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename: '_probe.txt', content_type: 'text/plain', size_bytes: 1 }),
-            });
-            // 503 = not configured, 400 = configured but bad input (expected)
-            return resp.status !== 503;
+            const resp = await authFetch('/api/vault/available');
+            if (!resp.ok) return false;
+            const data = await resp.json();
+            return !!data.available;
         } catch {
             return false;
         }
@@ -530,8 +526,12 @@ const VaultUploader = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     filename: file.name,
-                    // Fallback MIME for files that report empty type (e.g. some .docx on Windows)
-                    content_type: file.type || _inferMimeType(file.name),
+                    // Prefer extension-based MIME — browser file.type is unreliable on Windows
+                    // (e.g. .docx reported as application/zip or application/octet-stream)
+                    content_type: (() => {
+                        const inferred = _inferMimeType(file.name);
+                        return inferred !== 'application/octet-stream' ? inferred : (file.type || inferred);
+                    })(),
                     size_bytes: file.size,
                     mission_id: missionId || null,
                 }),

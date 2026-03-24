@@ -933,6 +933,16 @@ def generate_preview():
     return jsonify({"error": "Type not supported yet"}), 501
 
 # ── S3 VAULT — "Authorization, Not Carriage" ────────────────────────
+@app.route('/api/vault/available', methods=['GET'])
+@auth_required
+def vault_check_available():
+    """Quick probe — is S3 vault configured? No side effects."""
+    from vault import vault_available
+    if vault_available():
+        return jsonify({"available": True})
+    return jsonify({"available": False}), 503
+
+
 @app.route('/api/vault/authorize', methods=['POST'])
 @auth_required
 @limiter.limit("30 per minute")

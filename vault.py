@@ -80,12 +80,13 @@ def initialize_vault_upload(user_id, mission_id, filename, content_type, size_by
     Raises:
         ValueError: If content_type is not allowed or size exceeds limit
     """
-    if content_type not in ALLOWED_CONTENT_TYPES:
-        ext = ''
-        if '.' in filename:
-            ext = '.' + filename.rsplit('.', 1)[-1].lower()
-        if ext in EXT_CONTENT_MAP:
-            content_type = EXT_CONTENT_MAP[ext]
+    # Always normalize content_type via extension when possible — browser MIME
+    # detection is unreliable on Windows (.docx → application/zip, etc.)
+    ext = ''
+    if '.' in filename:
+        ext = '.' + filename.rsplit('.', 1)[-1].lower()
+    if ext in EXT_CONTENT_MAP:
+        content_type = EXT_CONTENT_MAP[ext]
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise ValueError(f"Content type not allowed: {content_type}")
 
