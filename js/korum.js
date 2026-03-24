@@ -553,7 +553,11 @@ const VaultUploader = {
             for (const [key, val] of Object.entries(authData.presigned_fields)) {
                 s3Form.append(key, val);
             }
-            s3Form.append('file', file);  // Must be last field
+            let uploadFile = file;
+            if (authData.presigned_fields['Content-Type']) {
+                uploadFile = new File([file], file.name, { type: authData.presigned_fields['Content-Type'] });
+            }
+            s3Form.append('file', uploadFile);  // Must be last field
 
             const s3Resp = await fetch(authData.presigned_url, {
                 method: 'POST',
