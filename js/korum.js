@@ -398,6 +398,7 @@ function renderFilePreview() {
             <span class="file-name" title="${f.name}">${f.name}</span>
             <span style="color:${statusColor};font-size:0.7em;font-weight:600">${statusLabel}</span>
             <span style="color:#555">${sizeDisplay}</span>
+            <button class="file-remove" onclick="removeVaultFile('${d.vaultDocId || ''}', '${f.name.replace(/'/g, "\\'")}')" title="Remove">&times;</button>
         </div>`;
     });
 
@@ -406,6 +407,18 @@ function renderFilePreview() {
 
 function removeFile(index) {
     pendingFiles.splice(index, 1);
+    renderFilePreview();
+}
+
+function removeVaultFile(vaultDocId, fileName) {
+    if (vaultDocId) {
+        VaultUploader.pendingVaultDocs = VaultUploader.pendingVaultDocs.filter(d => d.vaultDocId !== vaultDocId);
+        VaultUploader.processingDocs = VaultUploader.processingDocs.filter(d => d.vaultDocId !== vaultDocId);
+    } else {
+        VaultUploader.pendingVaultDocs = VaultUploader.pendingVaultDocs.filter(d => d.file.name !== fileName);
+        VaultUploader.processingDocs = VaultUploader.processingDocs.filter(d => d.file.name !== fileName);
+    }
+    VaultUploader._updateBadge();
     renderFilePreview();
 }
 
